@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
+const API_KEY = process.env.OPENROUTER_API_KEY;
+const AI_MODEL = process.env.OPENROUTER_MODEL || 'qwen/qwen3-4b:free';
 
 const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: API_KEY,
   defaultHeaders: {
     'X-OpenRouter-Title': 'xinxin', // Optional. Site title for rankings on openrouter.ai.
   },
@@ -10,7 +12,7 @@ const openai = new OpenAI({
 
 async function main() {
   const completion = await openai.chat.completions.create({
-    model: 'openai/gpt-5.2',
+    model: AI_MODEL,
     messages: [
       {
         role: 'user',
