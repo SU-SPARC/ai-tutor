@@ -1,0 +1,33 @@
+node_modules
+.next
+out
+build
+coverage
+.vercel
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Private course materials and derived artifacts. Keep these local only.
+data/private/
+data/processed/private/
+
+# Defense-in-depth for accidental private course artifacts under data/.
+data/**/*.pdf
+data/**/*.PDF
+data/**/*textbook*.txt
+data/**/*textbook*.md
+data/**/*answer-key*
+data/**/*answer_key*
+data/**/*solution-key*
+data/**/*solutions*
+data/**/*extracted*
+data/**/*chunks*
+data/**/*embeddings*
+data/**/*embedding*
+data/**/*generated-private*
