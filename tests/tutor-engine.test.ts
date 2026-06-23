@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest"
 
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
+import { getServerEnv } from "@/lib/env/server"
 import { createTutorResponse } from "@/lib/tutor/tutor-engine"
 import {
   DEFAULT_USAGE_POLICY,
@@ -74,22 +75,26 @@ describe("tutor engine", () => {
       reason: "The session has reached its LLM fallback limit.",
     })
   })
+
+  it("exposes the configured daily LLM fallback limit in policy", () => {
+    expect(DEFAULT_USAGE_POLICY.maxDailyLlmFallbacks).toBe(100)
+  })
 })
 
 describe("professor review authorization", () => {
-  const originalToken = process.env.PROFESSOR_REVIEW_TOKEN
+  const originalToken = process.env.ADMIN_SECRET
 
   beforeEach(() => {
     vi.unstubAllEnvs()
     if (originalToken === undefined) {
-      delete process.env.PROFESSOR_REVIEW_TOKEN
+      delete process.env.ADMIN_SECRET
     } else {
-      process.env.PROFESSOR_REVIEW_TOKEN = originalToken
+      process.env.ADMIN_SECRET = originalToken
     }
   })
 
   it("fails closed when no professor token is configured", () => {
-    delete process.env.PROFESSOR_REVIEW_TOKEN
+    delete process.env.ADMIN_SECRET
 
     const result = authorizeProfessorReview(new Headers())
 
@@ -98,11 +103,30 @@ describe("professor review authorization", () => {
   })
 
   it("accepts the configured professor token", () => {
-    process.env.PROFESSOR_REVIEW_TOKEN = "local-secret"
+    process.env.ADMIN_SECRET = "local-secret"
     const headers = new Headers({ "x-professor-token": "local-secret" })
 
     const result = authorizeProfessorReview(headers)
 
     expect(result.authorized).toBe(true)
+  })
+})
+
+describe("server environment helper", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs()
+    delete process.env.APP_DEMO_MODE
+    delete process.env.MAX_DAILY_LLM_CALLS
+    delete process.env.MAX_LLM_CALLS_PER_SESSION
+    delete process.env.OPENAI_MODEL
+  })
+
+  it("provides safe defaults when optional local env values are missing", () => {
+    const env = getServerEnv()
+
+    expect(env.APP_DEMO_MODE).toBe(true)
+    expect(env.MAX_DAILY_LLM_CALLS).toBe(100)
+    expect(env.MAX_LLM_CALLS_PER_SESSION).toBe(2)
+    expect(env.OPENAI_MODEL).toBe("gpt-4.1-mini")
   })
 })

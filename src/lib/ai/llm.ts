@@ -1,5 +1,7 @@
 import "server-only"
 
+import { getServerEnv } from "@/lib/env/server"
+
 type FallbackResult =
   | {
       ok: true
@@ -11,32 +13,24 @@ type FallbackResult =
     }
 
 export async function generateLlmFallback(prompt: string): Promise<FallbackResult> {
-  const openAiKey = process.env.OPENAI_API_KEY
-  const openRouterKey = process.env.OPENROUTER_API_KEY
-  const apiKey = openAiKey ?? openRouterKey
+  const env = getServerEnv()
 
-  if (!apiKey) {
+  if (!env.OPENAI_API_KEY) {
     return {
       ok: false,
       reason:
-        "LLM fallback is not configured. Add OPENAI_API_KEY or OPENROUTER_API_KEY on the server to enable it.",
+        "LLM fallback is not configured. Add OPENAI_API_KEY on the server to enable it.",
     }
   }
 
-  const baseUrl =
-    process.env.OPENAI_BASE_URL ??
-    (openRouterKey ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1")
-  const model =
-    process.env.OPENAI_MODEL ?? process.env.OPENROUTER_MODEL ?? "gpt-4.1-mini"
-
-  const result = await fetch(`${baseUrl}/chat/completions`, {
+  const result = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model,
+      model: env.OPENAI_MODEL,
       max_tokens: 250,
       temperature: 0.2,
       messages: [

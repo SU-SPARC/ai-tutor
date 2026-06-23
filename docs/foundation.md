@@ -12,7 +12,8 @@ The source tree separates concerns as follows:
 - `data/processed`: non-private processed fixtures only.
 - `data/eval`: public evaluation fixtures only.
 
-Secrets must stay in environment variables. LLM calls must remain server-side.
+Secrets must stay in environment variables. See `docs/local-setup.md` for the
+local `.env.local` workflow. LLM calls must remain server-side.
 Course PDFs, textbook extracts, answer keys, private chunks, embeddings, and
 generated private artifacts must stay out of git; see
 `docs/course-material-safety.md`.

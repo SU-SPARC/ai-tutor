@@ -1,13 +1,16 @@
 import "server-only"
 
+import { getServerEnv } from "@/lib/env/server"
 import type { TutorSource, UsageSummary } from "@/lib/types"
 
 export const DEFAULT_USAGE_POLICY = {
   maxInputCharacters: 800,
-  maxLlmFallbacksPerSession: 2,
+  maxDailyLlmFallbacks: getServerEnv().MAX_DAILY_LLM_CALLS,
+  maxLlmFallbacksPerSession: getServerEnv().MAX_LLM_CALLS_PER_SESSION,
   maxEstimatedTokensPerSession: 1200,
 }
 
+const dailyLlmFallbacks = new Map<string, number>()
 const sessionUsage = new Map<string, UsageSummary>()
 
 export function estimateTokens(input: string) {
@@ -51,6 +54,11 @@ export function recordTutorInteraction(
     interactions: current.interactions + 1,
     llmFallbacks: current.llmFallbacks + (source === "llm" ? 1 : 0),
   })
+
+  if (source === "llm") {
+    const dateKey = getDateKey()
+    dailyLlmFallbacks.set(dateKey, (dailyLlmFallbacks.get(dateKey) ?? 0) + 1)
+  }
 }
 
 export function canUseLlmFallback(sessionId: string, estimatedTokens: number) {
@@ -60,6 +68,16 @@ export function canUseLlmFallback(sessionId: string, estimatedTokens: number) {
     return {
       allowed: false,
       reason: "The session has reached its LLM fallback limit.",
+    }
+  }
+
+  if (
+    (dailyLlmFallbacks.get(getDateKey()) ?? 0) >=
+    DEFAULT_USAGE_POLICY.maxDailyLlmFallbacks
+  ) {
+    return {
+      allowed: false,
+      reason: "The app has reached its daily LLM fallback limit.",
     }
   }
 
@@ -88,5 +106,10 @@ export function getLlmFallbacksRemaining(sessionId: string) {
 }
 
 export function resetUsageForTests() {
+  dailyLlmFallbacks.clear()
   sessionUsage.clear()
+}
+
+function getDateKey() {
+  return new Date().toISOString().slice(0, 10)
 }

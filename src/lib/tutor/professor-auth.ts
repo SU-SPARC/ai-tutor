@@ -2,6 +2,8 @@ import "server-only"
 
 import { timingSafeEqual } from "crypto"
 
+import { getServerEnv } from "@/lib/env/server"
+
 type AuthResult =
   | {
       authorized: true
@@ -14,13 +16,13 @@ type AuthResult =
     }
 
 export function authorizeProfessorReview(headers: Headers): AuthResult {
-  const configuredToken = process.env.PROFESSOR_REVIEW_TOKEN
+  const configuredToken = getServerEnv().ADMIN_SECRET
 
   if (!configuredToken) {
     return {
       authorized: false,
       reason:
-        "Professor review updates are disabled until PROFESSOR_REVIEW_TOKEN is configured on the server.",
+        "Professor review updates are disabled until ADMIN_SECRET is configured on the server.",
       status: 503,
     }
   }

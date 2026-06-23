@@ -73,7 +73,7 @@ export function ProfessorReviewPanel({
             onChange={(event) => setToken(event.target.value)}
             className="pl-9"
             type="password"
-            placeholder="Professor review token"
+            placeholder="Admin secret"
           />
         </div>
         <Badge variant="outline" className="h-10 justify-center px-4">

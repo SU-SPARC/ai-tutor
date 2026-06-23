@@ -40,7 +40,7 @@ export default async function ProfessorPage() {
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Draft questions are separated from approved student-facing
               content. Approval mutations require a server-side
-              PROFESSOR_REVIEW_TOKEN.
+              ADMIN_SECRET.
             </p>
           </div>
         </div>
