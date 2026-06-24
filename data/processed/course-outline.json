@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "visibility": "public",
+  "source": {
+    "type": "private_extracted_metadata_only",
+    "inputDirectory": "data/private/extracted",
+    "inputFileCount": 0
+  },
+  "safety": {
+    "excludesCopiedParagraphs": true,
+    "excludesCopiedQuestions": true,
+    "excludesCopiedSolutions": true,
+    "excludesCopiedExamples": true,
+    "excludesAnswerKeys": true
+  },
+  "topics": [],
+  "sectionHeadings": [],
+  "formulas": [],
+  "learningObjectives": [],
+  "misconceptionCandidates": []
+}

@@ -6,26 +6,32 @@ import {
   retrievalChunks,
   reviewCandidates,
 } from "@/lib/data/demo-data"
-import type { ReviewCandidate, ReviewStatus } from "@/lib/types"
+import {
+  isApprovedPublicTrustedContent,
+  type RetrievalChunk,
+  type ReviewCandidate,
+  type ReviewStatus,
+  type TutorQuestion,
+} from "@/lib/types"
 
-let reviewQueue: ReviewCandidate[] = reviewCandidates.map((candidate) => ({
-  ...candidate,
-}))
+let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate)
 
 export async function getTopics() {
   return demoTopics
 }
 
 export async function getApprovedQuestions() {
-  return demoQuestions
+  return demoQuestions.filter(isStudentFacingQuestion)
 }
 
 export function getApprovedQuestionById(questionId: string) {
-  return demoQuestions.find((question) => question.id === questionId)
+  return demoQuestions.find(
+    (question) => question.id === questionId && isStudentFacingQuestion(question),
+  )
 }
 
 export function getRetrievalChunks() {
-  return retrievalChunks
+  return retrievalChunks.filter(isStudentFacingRetrievalChunk)
 }
 
 export async function getReviewQueue() {
@@ -46,7 +52,10 @@ export function updateReviewCandidateStatus(
 
     updated = {
       ...candidate,
-      status,
+      review: {
+        ...candidate.review,
+        status,
+      },
     }
 
     return updated
@@ -56,5 +65,36 @@ export function updateReviewCandidateStatus(
 }
 
 export function resetReviewQueueForTests() {
-  reviewQueue = reviewCandidates.map((candidate) => ({ ...candidate }))
+  reviewQueue = reviewCandidates.map(cloneReviewCandidate)
+}
+
+export function isStudentFacingQuestion(question: TutorQuestion) {
+  return isApprovedPublicTrustedContent(question)
+}
+
+export function isStudentFacingRetrievalChunk(chunk: RetrievalChunk) {
+  return isApprovedPublicTrustedContent(chunk)
+}
+
+function cloneReviewCandidate(candidate: ReviewCandidate): ReviewCandidate {
+  return {
+    ...candidate,
+    answer: {
+      ...candidate.answer,
+      acceptedAnswers: [...candidate.answer.acceptedAnswers],
+    },
+    hints: [...candidate.hints],
+    misconceptions: candidate.misconceptions.map((misconception) => ({
+      ...misconception,
+      matchTerms: [...misconception.matchTerms],
+    })),
+    review: { ...candidate.review },
+    solutionSteps: [...candidate.solutionSteps],
+    source: {
+      ...candidate.source,
+      patternIds: candidate.source.patternIds
+        ? [...candidate.source.patternIds]
+        : undefined,
+    },
+  }
 }

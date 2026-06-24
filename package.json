@@ -9,6 +9,9 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "extract:pdf": "node scripts/extract-private-pdfs.mjs",
+    "extract:tex": "node scripts/extract-private-tex.mjs",
+    "prepare:course-outline": "node scripts/prepare-course-outline.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

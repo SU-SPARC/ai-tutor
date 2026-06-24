@@ -59,7 +59,9 @@ export function ProfessorReviewPanel({
         candidate.id === payload.candidate?.id ? payload.candidate : candidate,
       ),
     )
-    setMessage(`Marked ${payload.candidate.title} as ${payload.candidate.status}.`)
+    setMessage(
+      `Marked ${payload.candidate.title} as ${payload.candidate.review.status}.`,
+    )
     setActiveId(null)
   }
 
@@ -77,8 +79,12 @@ export function ProfessorReviewPanel({
           />
         </div>
         <Badge variant="outline" className="h-10 justify-center px-4">
-          {candidates.filter((candidate) => candidate.status === "pending").length}{" "}
-          pending
+          {
+            candidates.filter(
+              (candidate) => candidate.review.status === "needs_review",
+            ).length
+          }{" "}
+          needs review
         </Badge>
       </div>
 
@@ -105,6 +111,10 @@ export function ProfessorReviewPanel({
                 <div className="mt-1 max-w-xl text-sm text-muted-foreground">
                   {candidate.prompt}
                 </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Badge variant="outline">{candidate.source.sourceType}</Badge>
+                  <Badge variant="outline">{candidate.source.trustLevel}</Badge>
+                </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {candidate.patternSource}
@@ -112,14 +122,14 @@ export function ProfessorReviewPanel({
               <TableCell>
                 <Badge
                   variant={
-                    candidate.status === "approved"
+                    candidate.review.status === "approved"
                       ? "success"
-                      : candidate.status === "rejected"
+                      : candidate.review.status === "rejected"
                         ? "destructive"
                         : "secondary"
                   }
                 >
-                  {candidate.status}
+                  {candidate.review.status}
                 </Badge>
               </TableCell>
               <TableCell className="text-right">

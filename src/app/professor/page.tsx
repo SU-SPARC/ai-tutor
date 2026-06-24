@@ -53,7 +53,11 @@ export default async function ProfessorPage() {
                 Pending drafts
               </CardTitle>
               <CardDescription>
-                {reviewQueue.filter((candidate) => candidate.status === "pending").length}{" "}
+                {
+                  reviewQueue.filter(
+                    (candidate) => candidate.review.status === "needs_review",
+                  ).length
+                }{" "}
                 question drafts need review.
               </CardDescription>
             </CardHeader>

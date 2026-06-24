@@ -1,8 +1,25 @@
 import { describe, expect, it, beforeEach, vi } from "vitest"
 
+import { POST as postProfessorReview } from "@/app/api/professor/review/route"
+import {
+  getApprovedQuestionById,
+  getApprovedQuestions,
+  getRetrievalChunks,
+  getReviewQueue,
+  isStudentFacingQuestion,
+  isStudentFacingRetrievalChunk,
+  resetReviewQueueForTests,
+} from "@/lib/data/data-store"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { getServerEnv } from "@/lib/env/server"
 import { createTutorResponse } from "@/lib/tutor/tutor-engine"
+import {
+  REVIEW_STATUSES,
+  SOURCE_TYPES,
+  TRUST_LEVELS,
+  hasGeneratedQuestionDefaults,
+  type TutorQuestion,
+} from "@/lib/types"
 import {
   DEFAULT_USAGE_POLICY,
   canUseLlmFallback,
@@ -81,6 +98,89 @@ describe("tutor engine", () => {
   })
 })
 
+describe("content provenance and review metadata", () => {
+  beforeEach(() => {
+    resetReviewQueueForTests()
+  })
+
+  it("exposes the required source, review, and trust vocabularies", () => {
+    expect(SOURCE_TYPES).toEqual([
+      "original_demo",
+      "professor_provided",
+      "generated_original",
+      "pattern_derived_original",
+      "private_reference_pattern",
+    ])
+    expect(REVIEW_STATUSES).toEqual([
+      "approved",
+      "needs_review",
+      "rejected",
+      "needs_edit",
+      "needs_regeneration",
+    ])
+    expect(TRUST_LEVELS).toContain("generated_unverified")
+  })
+
+  it("returns only approved public trusted questions for student practice", async () => {
+    const questions = await getApprovedQuestions()
+    const chunks = getRetrievalChunks()
+
+    expect(questions.length).toBeGreaterThan(0)
+    expect(questions.every(isStudentFacingQuestion)).toBe(true)
+    expect(chunks.length).toBeGreaterThan(0)
+    expect(chunks.every(isStudentFacingRetrievalChunk)).toBe(true)
+    expect(
+      questions.every(
+        (question) => question.source.trustLevel !== "generated_unverified",
+      ),
+    ).toBe(true)
+    expect(getApprovedQuestionById("bayes-inspection-draft")).toBeUndefined()
+  })
+
+  it("keeps generated questions in needs-review status by default", async () => {
+    const queue = await getReviewQueue()
+
+    expect(queue.length).toBeGreaterThan(0)
+    expect(
+      queue.every(
+        (candidate) =>
+          hasGeneratedQuestionDefaults(candidate) &&
+          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.answer.acceptedAnswers.length > 0 &&
+          candidate.hints.length > 0 &&
+          candidate.solutionSteps.length > 0,
+      ),
+    ).toBe(true)
+  })
+
+  it("excludes private reference items from student-facing access", () => {
+    const privateReferenceQuestion: TutorQuestion = {
+      id: "private-reference-example",
+      topicId: "binomial-models",
+      title: "Private reference example",
+      difficulty: "foundational",
+      prompt: "Private reference placeholder.",
+      answer: {
+        acceptedAnswers: ["1"],
+        explanation: "Private reference placeholder.",
+      },
+      hints: ["Private reference placeholder."],
+      solutionSteps: ["Private reference placeholder."],
+      misconceptions: [],
+      source: {
+        sourceType: "private_reference_pattern",
+        trustLevel: "private_reference",
+        visibility: "private",
+      },
+      review: {
+        status: "approved",
+      },
+    }
+
+    expect(isStudentFacingQuestion(privateReferenceQuestion)).toBe(false)
+  })
+})
+
 describe("professor review authorization", () => {
   const originalToken = process.env.ADMIN_SECRET
 
@@ -109,6 +209,47 @@ describe("professor review authorization", () => {
     const result = authorizeProfessorReview(headers)
 
     expect(result.authorized).toBe(true)
+  })
+
+  it("maps review API approve and reject actions to review metadata", async () => {
+    process.env.ADMIN_SECRET = "local-secret"
+    resetReviewQueueForTests()
+
+    const approveResponse = await postProfessorReview(
+      new Request("http://localhost/api/professor/review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-professor-token": "local-secret",
+        },
+        body: JSON.stringify({
+          action: "approve",
+          candidateId: "bayes-inspection-draft",
+        }),
+      }),
+    )
+    const approvedPayload = await approveResponse.json()
+
+    expect(approveResponse.status).toBe(200)
+    expect(approvedPayload.candidate.review.status).toBe("approved")
+
+    const rejectResponse = await postProfessorReview(
+      new Request("http://localhost/api/professor/review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-professor-token": "local-secret",
+        },
+        body: JSON.stringify({
+          action: "reject",
+          candidateId: "bayes-inspection-draft",
+        }),
+      }),
+    )
+    const rejectedPayload = await rejectResponse.json()
+
+    expect(rejectResponse.status).toBe(200)
+    expect(rejectedPayload.candidate.review.status).toBe("rejected")
   })
 })
 

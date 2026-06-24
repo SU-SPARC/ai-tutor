@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "visibility": "public",
+  "source": {
+    "type": "private_latex_metadata_only",
+    "inputDirectory": "data/private/course-materials",
+    "inputFileCount": 0
+  },
+  "safety": {
+    "excludesCopiedLectureNotes": true,
+    "excludesCopiedExamples": true,
+    "excludesCopiedProblems": true,
+    "excludesCopiedSolutions": true,
+    "excludesAnswerKeys": true
+  },
+  "sectionTitles": [],
+  "formulas": [],
+  "topicLabels": [],
+  "learningObjectives": []
+}

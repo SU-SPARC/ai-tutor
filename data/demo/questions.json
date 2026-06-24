@@ -1,0 +1,131 @@
+[
+  {
+    "id": "demo-basic-probability-colored-tickets",
+    "topic": "basic probability",
+    "difficulty": "foundational",
+    "questionText": "A box contains 4 blue tickets, 3 green tickets, and 5 yellow tickets. If one ticket is chosen at random, what is the probability that it is not yellow?",
+    "finalAnswer": "7/12",
+    "solutionSteps": [
+      "Count all tickets: 4 + 3 + 5 = 12.",
+      "Tickets that are not yellow are blue or green: 4 + 3 = 7.",
+      "The probability is 7 out of 12, so the answer is 7/12."
+    ],
+    "hints": [
+      "First find the total number of tickets.",
+      "Not yellow means blue or green.",
+      "Use favorable outcomes divided by total outcomes."
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  },
+  {
+    "id": "demo-counting-cafe-codes",
+    "topic": "counting",
+    "difficulty": "foundational",
+    "questionText": "A cafe prints pickup codes using one letter from A, B, C, or D followed by two different digits. How many pickup codes are possible?",
+    "finalAnswer": "360",
+    "solutionSteps": [
+      "There are 4 choices for the letter.",
+      "There are 10 choices for the first digit.",
+      "The second digit must be different, so there are 9 choices left.",
+      "Multiply the choices: 4 * 10 * 9 = 360."
+    ],
+    "hints": [
+      "Treat the letter and each digit position as separate choices.",
+      "The two digits cannot be the same.",
+      "Use the multiplication rule."
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  },
+  {
+    "id": "demo-conditional-spinner-coin",
+    "topic": "conditional probability",
+    "difficulty": "intermediate",
+    "questionText": "A spinner has 5 equal sectors labeled red, blue, green, green, and yellow. A fair coin is flipped after the spin. Given that the spinner lands on green or yellow, what is the probability that the coin shows heads and the spinner lands on green?",
+    "finalAnswer": "1/3",
+    "solutionSteps": [
+      "The condition restricts the spinner outcomes to green, green, or yellow.",
+      "Within the condition, the chance of green is 2/3.",
+      "The coin flip is independent, so the chance of heads is 1/2.",
+      "Multiply: (2/3) * (1/2) = 1/3."
+    ],
+    "hints": [
+      "Start by applying the condition to the spinner outcomes.",
+      "Only green, green, and yellow remain possible after conditioning.",
+      "The coin flip is still independent of the spinner."
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  },
+  {
+    "id": "demo-random-variable-bulb-sample",
+    "topic": "random variables",
+    "difficulty": "intermediate",
+    "questionText": "A bin has 3 working bulbs and 2 burned-out bulbs. Two bulbs are selected without replacement. Let X be the number of working bulbs selected. What is the probability distribution of X?",
+    "finalAnswer": "P(X = 0) = 1/10, P(X = 1) = 6/10, P(X = 2) = 3/10",
+    "solutionSteps": [
+      "There are C(5,2) = 10 equally likely pairs of bulbs.",
+      "For X = 0, choose 2 burned-out bulbs: C(2,2) = 1, so P(X = 0) = 1/10.",
+      "For X = 1, choose 1 working and 1 burned-out bulb: C(3,1)C(2,1) = 6, so P(X = 1) = 6/10.",
+      "For X = 2, choose 2 working bulbs: C(3,2) = 3, so P(X = 2) = 3/10."
+    ],
+    "hints": [
+      "List the possible values of X.",
+      "Use combinations because the two selected bulbs are an unordered sample.",
+      "Check that the probabilities add to 1."
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  },
+  {
+    "id": "demo-expected-value-delivery-credit",
+    "topic": "expected value",
+    "difficulty": "foundational",
+    "questionText": "A delivery app gives a customer a random credit of $0, $2, or $5 with probabilities 0.5, 0.3, and 0.2. What is the expected credit?",
+    "finalAnswer": "$1.60",
+    "solutionSteps": [
+      "Multiply each credit by its probability.",
+      "Compute 0 * 0.5 = 0, 2 * 0.3 = 0.6, and 5 * 0.2 = 1.0.",
+      "Add the weighted values: 0 + 0.6 + 1.0 = 1.6.",
+      "The expected credit is $1.60."
+    ],
+    "hints": [
+      "Expected value is a weighted average.",
+      "Multiply each possible credit by its probability.",
+      "Then add the products."
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  }
+]

@@ -1,11 +1,39 @@
 import type {
-  CourseTopic,
-  PracticeQuestion,
+  ReviewMetadata,
   RetrievalChunk,
   ReviewCandidate,
+  SourceMetadata,
+  Topic,
+  TutorQuestion,
 } from "@/lib/types"
 
-export const demoTopics: CourseTopic[] = [
+const approvedDemoReview: ReviewMetadata = {
+  status: "approved",
+}
+
+function originalDemoSource(originalityNote: string): SourceMetadata {
+  return {
+    originalityNote,
+    sourceType: "original_demo",
+    trustLevel: "public_original",
+    visibility: "public",
+  }
+}
+
+function generatedDraftSource(
+  patternIds: string[],
+  originalityNote: string,
+): SourceMetadata {
+  return {
+    originalityNote,
+    patternIds,
+    sourceType: "pattern_derived_original",
+    trustLevel: "generated_unverified",
+    visibility: "public",
+  }
+}
+
+export const demoTopics: Topic[] = [
   {
     id: "conditional-probability",
     title: "Conditional probability",
@@ -26,7 +54,7 @@ export const demoTopics: CourseTopic[] = [
   },
 ]
 
-export const demoQuestions: PracticeQuestion[] = [
+export const demoQuestions: TutorQuestion[] = [
   {
     id: "dice-sum-eight",
     topicId: "conditional-probability",
@@ -59,6 +87,10 @@ export const demoQuestions: PracticeQuestion[] = [
           "You appear to be counting from all 36 dice outcomes. Conditional probability first restricts the sample space to outcomes with sum 8.",
       },
     ],
+    source: originalDemoSource(
+      "Original synthetic demo item; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
   {
     id: "five-question-quiz",
@@ -92,6 +124,10 @@ export const demoQuestions: PracticeQuestion[] = [
           "The product for one exact order is not enough. Multiply by C(5,2) to account for all positions of the two correct answers.",
       },
     ],
+    source: originalDemoSource(
+      "Original synthetic demo item; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
   {
     id: "exam-z-score",
@@ -125,6 +161,10 @@ export const demoQuestions: PracticeQuestion[] = [
           "The sign is reversed. Since 82 is above the mean, the z-score should be positive.",
       },
     ],
+    source: originalDemoSource(
+      "Original synthetic demo item; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
 ]
 
@@ -137,6 +177,10 @@ export const retrievalChunks: RetrievalChunk[] = [
     body:
       "For P(A | B), first restrict attention to outcomes where B occurred, then count or compute the proportion where A also occurred.",
     keywords: ["conditional", "given", "sample space", "dice", "sum"],
+    source: originalDemoSource(
+      "Original public-safe retrieval summary; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
   {
     id: "binomial-formula",
@@ -146,6 +190,10 @@ export const retrievalChunks: RetrievalChunk[] = [
     body:
       "If X follows Binomial(n, p), then P(X = k) = C(n,k)p^k(1-p)^(n-k).",
     keywords: ["binomial", "exactly", "independent", "combination", "success"],
+    source: originalDemoSource(
+      "Original public-safe retrieval summary; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
   {
     id: "z-score-formula",
@@ -155,6 +203,10 @@ export const retrievalChunks: RetrievalChunk[] = [
     body:
       "Standardize normal observations with z = (x - mean) / standard deviation.",
     keywords: ["normal", "z-score", "standardize", "mean", "standard deviation"],
+    source: originalDemoSource(
+      "Original public-safe retrieval summary; no private source text used.",
+    ),
+    review: approvedDemoReview,
   },
 ]
 
@@ -166,9 +218,39 @@ export const reviewCandidates: ReviewCandidate[] = [
     prompt:
       "A machine flags 4% of good parts and 95% of defective parts. If 3% of parts are defective, what is the probability a flagged part is defective?",
     patternSource: "Bayes theorem from conditional probability pattern",
-    originalityNote:
-      "Original numeric scenario generated from the Bayes/false-positive pattern; no private source text included.",
-    status: "pending",
+    difficulty: "intermediate",
+    answer: {
+      acceptedAnswers: ["0.423", "0.4233", "42.3%", "42.33%"],
+      numericValue: 0.4233128834355828,
+      tolerance: 0.001,
+      explanation:
+        "Use Bayes theorem: P(defective | flagged) = P(flagged | defective)P(defective) / P(flagged).",
+    },
+    hints: [
+      "Separate the chance of a flag among defective parts from the chance of a flag among good parts.",
+      "Compute the total probability of being flagged.",
+      "Use Bayes theorem with defective as the event of interest.",
+    ],
+    solutionSteps: [
+      "P(flagged and defective) = 0.95 * 0.03 = 0.0285.",
+      "P(flagged and good) = 0.04 * 0.97 = 0.0388, so P(flagged) = 0.0673.",
+      "P(defective | flagged) = 0.0285 / 0.0673, which is about 0.4233.",
+    ],
+    misconceptions: [
+      {
+        id: "uses-sensitivity-only",
+        matchTerms: ["0.95", "95%"],
+        feedback:
+          "The flag rate among defective parts is not the same as the probability that a flagged part is defective. Include the base rate of defective parts.",
+      },
+    ],
+    source: generatedDraftSource(
+      ["pattern-bayes-false-positive"],
+      "Original numeric scenario generated from an abstract Bayes/false-positive pattern; no private source text included.",
+    ),
+    review: {
+      status: "needs_review",
+    },
   },
   {
     id: "binomial-free-throws-draft",
@@ -177,8 +259,38 @@ export const reviewCandidates: ReviewCandidate[] = [
     prompt:
       "A player makes 70% of free throws independently. In 6 attempts, what is the probability of exactly 4 makes?",
     patternSource: "Binomial exact-count pattern",
-    originalityNote:
-      "Original practice item with changed context and parameters from the approved binomial pattern.",
-    status: "pending",
+    difficulty: "intermediate",
+    answer: {
+      acceptedAnswers: ["0.324135", "32.4135%", "0.3241", "32.41%"],
+      numericValue: 0.324135,
+      tolerance: 0.001,
+      explanation:
+        "Use the binomial exact-count formula with n = 6, k = 4, and p = 0.7.",
+    },
+    hints: [
+      "Identify n, k, and p.",
+      "Use C(n,k)p^k(1-p)^(n-k).",
+      "The failure probability is 0.3.",
+    ],
+    solutionSteps: [
+      "Here n = 6, k = 4, and p = 0.7.",
+      "Compute C(6,4)(0.7)^4(0.3)^2.",
+      "The result is about 0.324135.",
+    ],
+    misconceptions: [
+      {
+        id: "missing-combination",
+        matchTerms: ["0.021609", "0.7^4"],
+        feedback:
+          "That counts only one order. Include C(6,4) for all positions of the four makes.",
+      },
+    ],
+    source: generatedDraftSource(
+      ["pattern-binomial-exact-count"],
+      "Original practice item generated from an abstract binomial exact-count pattern; no private source text included.",
+    ),
+    review: {
+      status: "needs_review",
+    },
   },
 ]
