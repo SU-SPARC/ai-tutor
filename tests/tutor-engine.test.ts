@@ -1,3 +1,8 @@
+import { execFileSync, spawnSync } from "node:child_process"
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
+
 import { describe, expect, it, beforeEach, vi } from "vitest"
 
 import { POST as postProfessorReview } from "@/app/api/professor/review/route"
@@ -18,8 +23,14 @@ import {
   SOURCE_TYPES,
   TRUST_LEVELS,
   hasGeneratedQuestionDefaults,
+  type ApprovedGeneratedQuestion,
+  type GeneratedQuestionDraft,
+  type GeneratedQuestionReviewItem,
   type TutorQuestion,
 } from "@/lib/types"
+import demoQuestionPatterns from "../data/demo/question-patterns.json"
+import generatedExamples from "../data/demo/generated-examples.json"
+import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
 import {
   DEFAULT_USAGE_POLICY,
   canUseLlmFallback,
@@ -134,13 +145,22 @@ describe("content provenance and review metadata", () => {
         (question) => question.source.trustLevel !== "generated_unverified",
       ),
     ).toBe(true)
-    expect(getApprovedQuestionById("bayes-inspection-draft")).toBeUndefined()
+    expect(
+      getApprovedQuestionById("generated-bayes-campus-badges-1"),
+    ).toBeUndefined()
+    for (const candidate of generatedReviewCandidates) {
+      expect(getApprovedQuestionById(candidate.id)).toBeUndefined()
+    }
   })
 
   it("keeps generated questions in needs-review status by default", async () => {
     const queue = await getReviewQueue()
+    const additionalDrafts = queue.filter((candidate) =>
+      candidate.id.startsWith("generated-additional-"),
+    )
 
-    expect(queue.length).toBeGreaterThan(0)
+    expect(queue).toHaveLength(generatedReviewCandidates.length)
+    expect(additionalDrafts).toHaveLength(12)
     expect(
       queue.every(
         (candidate) =>
@@ -151,6 +171,139 @@ describe("content provenance and review metadata", () => {
           candidate.solutionSteps.length > 0,
       ),
     ).toBe(true)
+  })
+
+  it("keeps generated review candidate files public-safe", () => {
+    const forbiddenPublicKeys = [
+      "locator",
+      "sourceItemIds",
+      "privatePhraseHashes",
+      "sourceNumberSets",
+      "sourceStoryFamilies",
+      "patternIds",
+    ]
+    const serialized = JSON.stringify(generatedReviewCandidates)
+    const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
+      candidate.id.startsWith("generated-additional-"),
+    )
+
+    expect(generatedReviewCandidates).toHaveLength(14)
+    expect(additionalDrafts).toHaveLength(12)
+    expect(
+      generatedReviewCandidates.every(
+        (candidate) =>
+          candidate.prompt.length > 0 &&
+          candidate.patternSource.length > 0 &&
+          candidate.review.status === "needs_review" &&
+          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.trustLevel === "generated_unverified" &&
+          candidate.source.visibility === "public" &&
+          typeof candidate.source.originalityNote === "string" &&
+          candidate.source.originalityNote.includes("Original") &&
+          candidate.answer.acceptedAnswers.length > 0 &&
+          candidate.hints.length > 0 &&
+          candidate.solutionSteps.length > 0 &&
+          candidate.misconceptions.length > 0,
+      ),
+    ).toBe(true)
+    expect(serialized).not.toMatch(
+      /textbook|source page|answer key|worked example|copied from|free throw/i,
+    )
+
+    for (const key of forbiddenPublicKeys) {
+      expect(serialized).not.toContain(key)
+    }
+
+    expect(
+      additionalDrafts.map((candidate) => candidate.topic),
+    ).toEqual(
+      expect.arrayContaining([
+        "Conditional probability",
+        "Bayes formula",
+        "Binomial distribution",
+        "Expected value",
+        "Variance",
+        "Counting and combinations",
+      ]),
+    )
+  })
+
+  it("keeps generated development examples public-safe", () => {
+    const forbiddenPublicKeys = [
+      "locator",
+      "sourceItemIds",
+      "privatePhraseHashes",
+      "sourceNumberSets",
+      "sourceStoryFamilies",
+      "patternIds",
+    ]
+    const serialized = JSON.stringify(generatedExamples)
+
+    expect(generatedExamples.visibility).toBe("public")
+    expect(generatedExamples.examples.length).toBeGreaterThan(0)
+    expect(
+      generatedExamples.examples.every(
+        (example) =>
+          example.review.status === "needs_review" &&
+          example.source.sourceType === "pattern_derived_original" &&
+          example.source.trustLevel === "generated_unverified" &&
+          example.source.visibility === "public" &&
+          example.source.originalityNote.length > 0,
+      ),
+    ).toBe(true)
+    expect(serialized).not.toMatch(
+      /textbook|source page|answer key|worked example|copied from|free throw/i,
+    )
+
+    for (const key of forbiddenPublicKeys) {
+      expect(serialized).not.toContain(key)
+    }
+  })
+
+  it("validates public-safe demo question seed patterns", () => {
+    const requiredTopics = [
+      "basic probability",
+      "counting",
+      "conditional probability",
+      "independence",
+      "expected value",
+      "permutations",
+      "combinations",
+      "Bayes rule",
+      "binomial distribution",
+      "hypergeometric distribution",
+      "variance",
+      "normal approximation",
+    ]
+    const serialized = JSON.stringify(demoQuestionPatterns)
+
+    execFileSync("node", ["scripts/validate-demo-question-patterns.mjs"], {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    })
+    expect(demoQuestionPatterns.visibility).toBe("public")
+    expect(demoQuestionPatterns.patterns).toHaveLength(requiredTopics.length)
+
+    for (const topic of requiredTopics) {
+      expect(
+        demoQuestionPatterns.patterns.some((pattern) => pattern.topic === topic),
+      ).toBe(true)
+    }
+
+    expect(
+      demoQuestionPatterns.patterns.every(
+        (pattern) =>
+          pattern.id &&
+          pattern.difficulty &&
+          pattern.variables.length > 0 &&
+          pattern.constraints.length > 0 &&
+          pattern.generationNotes.length > 0 &&
+          pattern.misconceptionHooks.length > 0,
+      ),
+    ).toBe(true)
+    expect(serialized).not.toMatch(
+      /sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|patternIds|source page|answer key/i,
+    )
   })
 
   it("excludes private reference items from student-facing access", () => {
@@ -180,6 +333,546 @@ describe("content provenance and review metadata", () => {
     expect(isStudentFacingQuestion(privateReferenceQuestion)).toBe(false)
   })
 })
+
+describe("problem-pattern generation pipeline", () => {
+  it("generates private original question drafts from public seed patterns", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "generated-questions-"))
+    const outputPath = path.join(tempDir, "generated-questions.json")
+
+    execFileSync(
+      "node",
+      [
+        "scripts/generate-questions.mjs",
+        "--output",
+        outputPath,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
+    const questions = payload.questions as GeneratedQuestionDraft[]
+    const expectedTopics = [
+      "basic probability",
+      "counting",
+      "conditional probability",
+      "independence",
+      "expected value",
+      "permutations",
+      "combinations",
+      "Bayes rule",
+      "binomial distribution",
+      "hypergeometric distribution",
+      "variance",
+      "normal approximation",
+    ]
+
+    expect(payload.visibility).toBe("private")
+    expect(payload.source.type).toBe(
+      "deterministic_generation_from_public_seed_patterns",
+    )
+    expect(questions).toHaveLength(expectedTopics.length)
+    expect(
+      questions.every(
+        (question) =>
+          question.sourceType === "generated_original" &&
+          question.trustLevel === "generated_unverified" &&
+          question.reviewStatus === "needs_review" &&
+          question.originalityNote.length > 0 &&
+          question.questionText.length > 0 &&
+          question.finalAnswer.length > 0 &&
+          question.solutionSteps.length > 0 &&
+          question.hints.length > 0 &&
+          question.misconceptions.length > 0,
+      ),
+    ).toBe(true)
+    expect(questions.map((question) => question.topic)).toEqual(expectedTopics)
+    expect(JSON.stringify(payload)).not.toMatch(
+      /textbook|source page|answer key|worked example|free throw/i,
+    )
+  })
+
+  it("validates generated question drafts", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "validate-generated-"))
+    const outputPath = path.join(tempDir, "generated-questions.json")
+
+    execFileSync(
+      "node",
+      ["scripts/generate-questions.mjs", "--output", outputPath],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+    const result = spawnSync(
+      "node",
+      ["scripts/validate-generated-questions.mjs", "--input", outputPath],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain("Validated 12 generated question draft")
+  })
+
+  it("suggests private abstract patterns from course outline metadata", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "suggest-patterns-"))
+    const inputPath = path.join(tempDir, "course-outline.json")
+    const privateTextDir = path.join(tempDir, "private-text")
+    const outputPath = path.join(tempDir, "suggested-patterns.json")
+    const privatePhrase = "private fixture phrase that must not be copied"
+
+    mkdirSync(privateTextDir)
+    writeFileSync(
+      inputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "public",
+          topics: ["Conditional probability", "Expected value"],
+          sectionHeadings: ["Binomial Models"],
+          formulas: [
+            {
+              name: "Binomial exact count",
+              symbolicFormula: "P(X = k) = C(n,k)p^k(1-p)^(n-k)",
+            },
+          ],
+          learningObjectives: [
+            "Apply Bayes-type reasoning.",
+            "Compute expected value as a weighted average.",
+          ],
+          misconceptionCandidates: [
+            "Confusing P(A | B) with P(B | A).",
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    writeFileSync(
+      path.join(privateTextDir, "signals.txt"),
+      `${privatePhrase} variance standard deviation normal`,
+    )
+
+    execFileSync(
+      "node",
+      [
+        "scripts/suggest-patterns.mjs",
+        "--input",
+        inputPath,
+        "--private-text-dir",
+        privateTextDir,
+        "--output",
+        outputPath,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
+    const suggestedPatterns = payload.suggestedPatterns as {
+      abstractTemplate: string
+      allowedGeneratedUse: string
+      humanReviewNotes: string[]
+      reviewStatus: string
+      suggestionStatus: string
+    }[]
+    const serialized = JSON.stringify(payload)
+
+    expect(payload.visibility).toBe("private")
+    expect(payload.source.type).toBe(
+      "course_outline_metadata_pattern_suggestions",
+    )
+    expect(payload.source.privateText.fileCount).toBe(1)
+    expect(payload.source.privateText.usedForTopicSignalsOnly).toBe(true)
+    expect(suggestedPatterns.length).toBeGreaterThan(0)
+    expect(
+      suggestedPatterns.every(
+        (pattern) =>
+          pattern.allowedGeneratedUse === "pattern_only" &&
+          pattern.reviewStatus === "needs_review" &&
+          pattern.suggestionStatus === "needs_human_review" &&
+          pattern.abstractTemplate.length > 0 &&
+          !pattern.abstractTemplate.includes("?") &&
+          pattern.humanReviewNotes.length > 0,
+      ),
+    ).toBe(true)
+    expect(payload.humanReviewNotes.length).toBeGreaterThan(0)
+    expect(payload.source.privateText.matchedTopicIds).toContain(
+      "normal-standardization",
+    )
+    expect(serialized).not.toContain(privatePhrase)
+    expect(serialized).not.toMatch(
+      /"prompt"|"questionText"|"solutionSteps"|source page|answer key|worked example|copied from/i,
+    )
+  })
+
+  it("prepares a private review queue from generated question drafts", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "review-queue-"))
+    const generatedPath = path.join(tempDir, "generated-questions.json")
+    const queuePath = path.join(tempDir, "review-queue.json")
+
+    execFileSync(
+      "node",
+      ["scripts/generate-questions.mjs", "--output", generatedPath],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+    execFileSync(
+      "node",
+      [
+        "scripts/prepare-review-queue.mjs",
+        "--input",
+        generatedPath,
+        "--output",
+        queuePath,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const payload = JSON.parse(readFileSync(queuePath, "utf8"))
+    const reviewQueue = payload.reviewQueue as GeneratedQuestionReviewItem[]
+
+    expect(payload.visibility).toBe("private")
+    expect(payload.source.type).toBe("generated_original_questions")
+    expect(reviewQueue).toHaveLength(12)
+    expect(
+      reviewQueue.every(
+        (item) =>
+          item.question.length > 0 &&
+          item.answer.length > 0 &&
+          item.solutionSteps.length > 0 &&
+          item.hints.length > 0 &&
+          item.misconceptions.length > 0 &&
+          item.patternId.length > 0 &&
+          item.originalityNote.length > 0 &&
+          item.reviewStatus === "needs_review",
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(payload)).not.toMatch(
+      /source page|answer key|worked example|copied from/i,
+    )
+  })
+
+  it("promotes only approved generated questions to public processed output", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-approved-"))
+    const queuePath = path.join(tempDir, "review-queue.json")
+    const outputPath = path.join(tempDir, "approved-generated-questions.json")
+
+    writeFileSync(
+      queuePath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "private",
+          reviewQueue: [
+            reviewQueueFixture("approved-item", "approved"),
+            reviewQueueFixture("needs-review-item", "needs_review"),
+            reviewQueueFixture("rejected-item", "rejected"),
+            reviewQueueFixture("needs-edit-item", "needs_edit"),
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    execFileSync(
+      "node",
+      [
+        "scripts/promote-approved-questions.mjs",
+        "--input",
+        queuePath,
+        "--output",
+        outputPath,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
+    const questions = payload.questions as ApprovedGeneratedQuestion[]
+
+    expect(payload.visibility).toBe("public")
+    expect(questions).toHaveLength(1)
+    expect(questions[0].id).toBe("approved-approved-item")
+    expect(questions[0].reviewStatus).toBe("approved")
+    expect(questions[0].trustLevel).toBe("professor_approved")
+    expect(questions[0].sourceMetadata.sourceType).toBe("generated_original")
+    expect(questions[0].sourceMetadata.originalityNote).toBe(
+      "Original synthetic fixture.",
+    )
+    expect(JSON.stringify(payload)).not.toMatch(
+      /needs-review-item|rejected-item|needs-edit-item|source page|answer key|worked example/i,
+    )
+  })
+
+  it("refuses to promote approved items with copied-source signals", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-blocked-"))
+    const queuePath = path.join(tempDir, "review-queue.json")
+    const outputPath = path.join(tempDir, "approved-generated-questions.json")
+    const copiedItem = {
+      ...reviewQueueFixture("copied-item", "approved"),
+      question: "This question was copied from a textbook source page.",
+    }
+
+    writeFileSync(
+      queuePath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "private",
+          reviewQueue: [copiedItem],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    const result = spawnSync(
+      "node",
+      [
+        "scripts/promote-approved-questions.mjs",
+        "--input",
+        queuePath,
+        "--output",
+        outputPath,
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("cannot be promoted")
+  })
+
+  it("rejects generated drafts with missing required review fields", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "invalid-generated-"))
+    const inputPath = path.join(tempDir, "generated-questions.json")
+
+    writeFileSync(
+      inputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "private",
+          questions: [
+            {
+              id: "invalid-generated-question",
+              patternId: "pattern-basic-probability-complement",
+              topic: "basic probability",
+              difficulty: "foundational",
+              questionText: "Original placeholder question?",
+              finalAnswer: "",
+              solutionSteps: [],
+              hints: [],
+              misconceptions: [],
+              sourceType: "generated_original",
+              trustLevel: "generated_unverified",
+              reviewStatus: "approved",
+              originalityNote: "",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    const result = spawnSync(
+      "node",
+      ["scripts/validate-generated-questions.mjs", "--input", inputPath],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("finalAnswer")
+    expect(result.stderr).toContain("reviewStatus must be needs_review")
+    expect(result.stderr).toContain("solutionSteps")
+    expect(result.stderr).toContain("hints")
+    expect(result.stderr).toContain("originalityNote")
+  })
+
+  it("warns when generated drafts overlap private patterns or source text", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "warning-generated-"))
+    const inputPath = path.join(tempDir, "generated-questions.json")
+    const privatePatternsPath = path.join(tempDir, "question-patterns.json")
+    const privateTextDir = path.join(tempDir, "private-text")
+
+    mkdirSync(privateTextDir)
+    writeFileSync(
+      inputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "private",
+          questions: [
+            {
+              id: "warning-generated-question",
+              patternId: "private-pattern-overlap",
+              topic: "basic probability",
+              difficulty: "foundational",
+              questionText:
+                "A private source sentence repeats exactly enough words to trigger the local overlap warning.",
+              finalAnswer: "1/2",
+              solutionSteps: ["Use favorable outcomes divided by total outcomes."],
+              hints: ["Identify the sample space."],
+              misconceptions: [
+                {
+                  id: "wrong-denominator",
+                  hook: "Using the wrong total count.",
+                  feedback: "Use the total number of possible outcomes.",
+                },
+              ],
+              sourceType: "generated_original",
+              trustLevel: "generated_unverified",
+              reviewStatus: "needs_review",
+              originalityNote: "Original synthetic warning fixture.",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    writeFileSync(
+      privatePatternsPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        visibility: "private",
+        patterns: [
+          {
+            id: "private-pattern-overlap",
+            title: "Private overlap pattern",
+            abstractTemplate:
+              "A private source sentence repeats exactly enough words to trigger the local overlap warning.",
+          },
+        ],
+      })}\n`,
+    )
+    writeFileSync(
+      path.join(privateTextDir, "source.txt"),
+      "A private source sentence repeats exactly enough words to trigger the local overlap warning.",
+    )
+
+    const result = spawnSync(
+      "node",
+      [
+        "scripts/validate-generated-questions.mjs",
+        "--input",
+        inputPath,
+        "--private-patterns",
+        privatePatternsPath,
+        "--private-text-dir",
+        privateTextDir,
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toContain("WARNING")
+    expect(result.stderr).toContain("private pattern")
+    expect(result.stderr).toContain("private source text")
+  })
+
+  it("generates original review drafts from private abstract patterns", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "pattern-generation-"))
+    const inputPath = path.join(tempDir, "question-patterns.json")
+    const outputPath = path.join(tempDir, "generated-review-candidates.json")
+    const auditPath = path.join(tempDir, "generation-audit.json")
+    const privateTextDir = path.join(tempDir, "private-text")
+
+    writeFileSync(
+      inputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "private",
+          patterns: [
+            {
+              id: "private-binomial-fixture",
+              topicId: "binomial-models",
+              title: "Binomial exact-count pattern",
+              abstractTemplate:
+                "Independent trials with fixed success probability and exact successes.",
+              conceptTags: ["binomial", "exact count"],
+              formulaRefs: ["P(X = k) = C(n,k)p^k(1-p)^(n-k)"],
+              mappingStatus: "mapped",
+              forbiddenSimilarity: {
+                sourceStoryFamilies: ["free throw"],
+                sourceNumberSets: [["6", "4", "0.7"]],
+                privatePhraseHashes: [],
+              },
+            },
+            {
+              id: "private-unmapped-fixture",
+              topicId: "needs-topic",
+              title: "Unmapped pattern",
+              abstractTemplate: "A pattern that still needs a topic.",
+              conceptTags: ["counting"],
+              formulaRefs: [],
+              mappingStatus: "needs_topic_mapping",
+              forbiddenSimilarity: {
+                sourceStoryFamilies: [],
+                sourceNumberSets: [],
+                privatePhraseHashes: [],
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    execFileSync(
+      "node",
+      [
+        "scripts/generate-review-candidates.mjs",
+        "--input",
+        inputPath,
+        "--output",
+        outputPath,
+        "--audit",
+        auditPath,
+        "--private-text-dir",
+        privateTextDir,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const candidates = JSON.parse(readFileSync(outputPath, "utf8"))
+    const audit = JSON.parse(readFileSync(auditPath, "utf8"))
+    const [candidate] = candidates
+
+    expect(candidates).toHaveLength(1)
+    expect(candidate.id).toBe("generated-binomial-study-app-1")
+    expect(candidate.prompt).toContain("8 independent review cards")
+    expect(candidate.prompt).not.toMatch(/free throw/i)
+    expect(candidate.review.status).toBe("needs_review")
+    expect(candidate.source.trustLevel).toBe("generated_unverified")
+    expect(candidate.source).not.toHaveProperty("patternIds")
+    expect(candidate.answer.numericValue).toBeGreaterThan(0.02)
+    expect(candidate.answer.numericValue).toBeLessThan(0.95)
+    expect(audit.generated[0].patternId).toBe("private-binomial-fixture")
+    expect(audit.skipped[0].reason).toContain("topic mapping")
+  })
+})
+
+function reviewQueueFixture(
+  id: string,
+  reviewStatus: "approved" | "needs_edit" | "needs_review" | "rejected",
+): GeneratedQuestionReviewItem {
+  return {
+    id: `review-${id}`,
+    question: `Original generated question for ${id}?`,
+    answer: "1/2",
+    solutionSteps: ["Use the intended formula.", "Compute the requested value."],
+    hints: ["Identify the relevant quantities."],
+    misconceptions: [
+      {
+        id: "fixture-misconception",
+        hook: "Using the wrong denominator.",
+        feedback: "Use the relevant sample space.",
+      },
+    ],
+    patternId: "pattern-basic-probability-complement",
+    originalityNote: "Original synthetic fixture.",
+    reviewStatus,
+    topic: "basic probability",
+    difficulty: "foundational",
+  }
+}
 
 describe("professor review authorization", () => {
   const originalToken = process.env.ADMIN_SECRET
@@ -224,7 +917,7 @@ describe("professor review authorization", () => {
         },
         body: JSON.stringify({
           action: "approve",
-          candidateId: "bayes-inspection-draft",
+          candidateId: "generated-bayes-campus-badges-1",
         }),
       }),
     )
@@ -242,7 +935,7 @@ describe("professor review authorization", () => {
         },
         body: JSON.stringify({
           action: "reject",
-          candidateId: "bayes-inspection-draft",
+          candidateId: "generated-bayes-campus-badges-1",
         }),
       }),
     )

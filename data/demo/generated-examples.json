@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "visibility": "public",
+  "purpose": "Safe development examples of generated original practice-question output. These examples are unapproved review drafts.",
+  "examples": [
+    {
+      "id": "example-generated-bayes-transit-review",
+      "topicId": "conditional-probability",
+      "title": "Transit flag review draft",
+      "prompt": "A transit app flags 80% of passes that need manual fare review and 5% of passes that do not. About 10% of passes need manual fare review. If a pass is flagged, what is the probability that it needs manual fare review?",
+      "patternSource": "Bayes alert-update pattern",
+      "difficulty": "intermediate",
+      "answer": {
+        "acceptedAnswers": ["0.64", "64%", "0.6400"],
+        "numericValue": 0.64,
+        "tolerance": 0.001,
+        "explanation": "Use Bayes theorem by comparing flagged passes from the review-needed group with all flagged passes."
+      },
+      "hints": [
+        "Find the probability that a pass both needs review and is flagged.",
+        "Find the probability that a pass does not need review but is flagged.",
+        "Divide the review-needed-and-flagged probability by the total flagged probability."
+      ],
+      "solutionSteps": [
+        "P(review needed and flagged) = 0.10 * 0.80 = 0.08.",
+        "P(no review needed and flagged) = 0.90 * 0.05 = 0.045, so P(flagged) = 0.125.",
+        "P(review needed | flagged) = 0.08 / 0.125 = 0.64."
+      ],
+      "misconceptions": [
+        {
+          "id": "uses-alert-rate-only",
+          "matchTerms": ["0.80", "80%"],
+          "feedback": "The 80% flag rate is P(flagged | review needed). The question asks for P(review needed | flagged), which also depends on the base rate."
+        }
+      ],
+      "source": {
+        "sourceType": "pattern_derived_original",
+        "trustLevel": "generated_unverified",
+        "visibility": "public",
+        "originalityNote": "Original development example generated from an abstract Bayes alert-update pattern; no course wording or audit details included."
+      },
+      "review": {
+        "status": "needs_review"
+      }
+    },
+    {
+      "id": "example-generated-binomial-reminders",
+      "topicId": "binomial-models",
+      "title": "Reminder response draft",
+      "prompt": "A library portal sends 10 independent due-date reminders. Each reminder has a 30% chance of getting a same-day response. What is the probability that exactly 4 reminders get same-day responses?",
+      "patternSource": "Binomial exact-count pattern",
+      "difficulty": "intermediate",
+      "answer": {
+        "acceptedAnswers": ["0.2001", "0.200120949", "20.01%"],
+        "numericValue": 0.200120949,
+        "tolerance": 0.001,
+        "explanation": "Use the binomial exact-count formula with n = 10, k = 4, and p = 0.30."
+      },
+      "hints": [
+        "Identify n, k, and p before substituting into the formula.",
+        "The number of non-responses is 10 - 4.",
+        "Include the combination term for the positions of the 4 responses."
+      ],
+      "solutionSteps": [
+        "Here n = 10, k = 4, and p = 0.30.",
+        "Use P(X = 4) = C(10,4)(0.30)^4(0.70)^6.",
+        "The probability is 210(0.30)^4(0.70)^6 = 0.200120949, about 0.2001."
+      ],
+      "misconceptions": [
+        {
+          "id": "missing-combination-factor",
+          "matchTerms": ["0.000953", "0.30^4"],
+          "feedback": "That counts only one order of responses. Include C(10,4) to count all positions for the 4 same-day responses."
+        }
+      ],
+      "source": {
+        "sourceType": "pattern_derived_original",
+        "trustLevel": "generated_unverified",
+        "visibility": "public",
+        "originalityNote": "Original development example generated from an abstract binomial exact-count pattern; no course wording or audit details included."
+      },
+      "review": {
+        "status": "needs_review"
+      }
+    },
+    {
+      "id": "example-generated-normal-approximation-signups",
+      "topicId": "normal-standardization",
+      "title": "Workshop attendance approximation draft",
+      "prompt": "A workshop sends 150 independent confirmations. Each person has a 42% chance of attending. Using a normal approximation with continuity correction, estimate the probability that at least 70 people attend.",
+      "patternSource": "Normal approximation count pattern",
+      "difficulty": "challenge",
+      "answer": {
+        "acceptedAnswers": ["0.141", "0.1411", "14.1%"],
+        "numericValue": 0.1411,
+        "tolerance": 0.005,
+        "explanation": "Approximate the binomial count with a normal distribution using mean np, standard deviation sqrt(np(1-p)), and a continuity correction at 69.5."
+      },
+      "hints": [
+        "Compute the binomial mean and standard deviation first.",
+        "For at least 70, use 69.5 before standardizing.",
+        "Use the upper tail of the standard normal curve."
+      ],
+      "solutionSteps": [
+        "The mean is 150(0.42) = 63.",
+        "The standard deviation is sqrt(150(0.42)(0.58)), about 6.045.",
+        "Apply the continuity correction: z = (69.5 - 63) / 6.045, about 1.08.",
+        "The upper-tail probability P(Z >= 1.08) is about 0.141."
+      ],
+      "misconceptions": [
+        {
+          "id": "forgets-continuity-correction",
+          "matchTerms": ["70 - 63", "1.16"],
+          "feedback": "For an inclusive count like at least 70, use the boundary 69.5 before converting to a z-score."
+        }
+      ],
+      "source": {
+        "sourceType": "pattern_derived_original",
+        "trustLevel": "generated_unverified",
+        "visibility": "public",
+        "originalityNote": "Original development example generated from an abstract normal-approximation pattern; no course wording or audit details included."
+      },
+      "review": {
+        "status": "needs_review"
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import type {
   Topic,
   TutorQuestion,
 } from "@/lib/types"
+import generatedReviewCandidateData from "../../../data/demo/generated-review-candidates.json"
 
 const approvedDemoReview: ReviewMetadata = {
   status: "approved",
@@ -16,19 +17,6 @@ function originalDemoSource(originalityNote: string): SourceMetadata {
     originalityNote,
     sourceType: "original_demo",
     trustLevel: "public_original",
-    visibility: "public",
-  }
-}
-
-function generatedDraftSource(
-  patternIds: string[],
-  originalityNote: string,
-): SourceMetadata {
-  return {
-    originalityNote,
-    patternIds,
-    sourceType: "pattern_derived_original",
-    trustLevel: "generated_unverified",
     visibility: "public",
   }
 }
@@ -210,87 +198,5 @@ export const retrievalChunks: RetrievalChunk[] = [
   },
 ]
 
-export const reviewCandidates: ReviewCandidate[] = [
-  {
-    id: "bayes-inspection-draft",
-    topicId: "conditional-probability",
-    title: "Inspection false positive draft",
-    prompt:
-      "A machine flags 4% of good parts and 95% of defective parts. If 3% of parts are defective, what is the probability a flagged part is defective?",
-    patternSource: "Bayes theorem from conditional probability pattern",
-    difficulty: "intermediate",
-    answer: {
-      acceptedAnswers: ["0.423", "0.4233", "42.3%", "42.33%"],
-      numericValue: 0.4233128834355828,
-      tolerance: 0.001,
-      explanation:
-        "Use Bayes theorem: P(defective | flagged) = P(flagged | defective)P(defective) / P(flagged).",
-    },
-    hints: [
-      "Separate the chance of a flag among defective parts from the chance of a flag among good parts.",
-      "Compute the total probability of being flagged.",
-      "Use Bayes theorem with defective as the event of interest.",
-    ],
-    solutionSteps: [
-      "P(flagged and defective) = 0.95 * 0.03 = 0.0285.",
-      "P(flagged and good) = 0.04 * 0.97 = 0.0388, so P(flagged) = 0.0673.",
-      "P(defective | flagged) = 0.0285 / 0.0673, which is about 0.4233.",
-    ],
-    misconceptions: [
-      {
-        id: "uses-sensitivity-only",
-        matchTerms: ["0.95", "95%"],
-        feedback:
-          "The flag rate among defective parts is not the same as the probability that a flagged part is defective. Include the base rate of defective parts.",
-      },
-    ],
-    source: generatedDraftSource(
-      ["pattern-bayes-false-positive"],
-      "Original numeric scenario generated from an abstract Bayes/false-positive pattern; no private source text included.",
-    ),
-    review: {
-      status: "needs_review",
-    },
-  },
-  {
-    id: "binomial-free-throws-draft",
-    topicId: "binomial-models",
-    title: "Free throw exact count draft",
-    prompt:
-      "A player makes 70% of free throws independently. In 6 attempts, what is the probability of exactly 4 makes?",
-    patternSource: "Binomial exact-count pattern",
-    difficulty: "intermediate",
-    answer: {
-      acceptedAnswers: ["0.324135", "32.4135%", "0.3241", "32.41%"],
-      numericValue: 0.324135,
-      tolerance: 0.001,
-      explanation:
-        "Use the binomial exact-count formula with n = 6, k = 4, and p = 0.7.",
-    },
-    hints: [
-      "Identify n, k, and p.",
-      "Use C(n,k)p^k(1-p)^(n-k).",
-      "The failure probability is 0.3.",
-    ],
-    solutionSteps: [
-      "Here n = 6, k = 4, and p = 0.7.",
-      "Compute C(6,4)(0.7)^4(0.3)^2.",
-      "The result is about 0.324135.",
-    ],
-    misconceptions: [
-      {
-        id: "missing-combination",
-        matchTerms: ["0.021609", "0.7^4"],
-        feedback:
-          "That counts only one order. Include C(6,4) for all positions of the four makes.",
-      },
-    ],
-    source: generatedDraftSource(
-      ["pattern-binomial-exact-count"],
-      "Original practice item generated from an abstract binomial exact-count pattern; no private source text included.",
-    ),
-    review: {
-      status: "needs_review",
-    },
-  },
-]
+export const reviewCandidates: ReviewCandidate[] =
+  generatedReviewCandidateData as ReviewCandidate[]

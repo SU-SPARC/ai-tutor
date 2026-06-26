@@ -1,0 +1,579 @@
+[
+  {
+    "id": "generated-bayes-campus-badges-1",
+    "topicId": "conditional-probability",
+    "topic": "Bayes formula",
+    "title": "Campus badge flag draft",
+    "prompt": "A campus event scanner flags 6% of regular badges and 92% of priority badges. If 8% of badges are priority badges, what is the probability that a flagged badge is priority?",
+    "patternSource": "Bayes false-positive pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["0.5714", "0.571", "57.14%", "57.1%"],
+      "numericValue": 0.5714285714285714,
+      "tolerance": 0.001,
+      "explanation": "Use Bayes theorem with priority badge as the event of interest and flagged badge as the condition."
+    },
+    "hints": [
+      "Compute the probability that a badge is both priority and flagged.",
+      "Compute the total probability that a badge is flagged.",
+      "Divide the priority-and-flagged probability by the total flagged probability."
+    ],
+    "solutionSteps": [
+      "P(flagged and priority) = 0.92 * 0.08 = 0.0736.",
+      "P(flagged and regular) = 0.06 * 0.92 = 0.0552, so P(flagged) = 0.1288.",
+      "P(priority | flagged) = 0.0736 / 0.1288, which is about 0.5714."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-flag-rate-only",
+        "matchTerms": ["0.92", "92%"],
+        "feedback": "The flag rate among priority badges is not the same as the probability that a flagged badge is priority. Include the base rate of priority badges."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice item generated from an abstract Bayes false-positive pattern; no private source text or private audit identifiers included."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-binomial-study-app-1",
+    "topicId": "binomial-models",
+    "topic": "Binomial distribution",
+    "title": "Study app exact count draft",
+    "prompt": "A study app shows 8 independent review cards. Each card has a 60% chance of being answered correctly. What is the probability of exactly 3 correct answers?",
+    "patternSource": "Binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["0.12386304", "0.1239", "12.386304%", "12.39%"],
+      "numericValue": 0.12386304,
+      "tolerance": 0.001,
+      "explanation": "Use the binomial exact-count formula with n = 8, k = 3, and p = 0.6."
+    },
+    "hints": [
+      "Identify the number of trials, the success probability, and the desired number of successes.",
+      "Use C(n,k)p^k(1-p)^(n-k).",
+      "The incorrect-answer probability is 0.4."
+    ],
+    "solutionSteps": [
+      "Here n = 8, k = 3, and p = 0.6.",
+      "Compute C(8,3)(0.6)^3(0.4)^5.",
+      "The result is 0.12386304, or about 12.39%."
+    ],
+    "misconceptions": [
+      {
+        "id": "missing-combination",
+        "matchTerms": ["0.00221184", "0.6^3"],
+        "feedback": "That counts only one order. Include C(8,3) for all positions of the three correct answers."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice item generated from an abstract binomial exact-count pattern; no private source text or private audit identifiers included."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-conditional-workshop-support",
+    "topicId": "conditional-probability",
+    "topic": "Conditional probability",
+    "title": "Workshop support request draft",
+    "prompt": "A workshop signup summary lists 18 students in the online lab section and 14 students in the in-person lab section. Among the online lab students, 7 requested evening support. Given that a randomly selected student is in the online lab section, what is the probability that the student requested evening support?",
+    "patternSource": "pattern-conditional-probability-restricted-table / restricted sample-space pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["7/18", "0.3889", "38.89%", "38.9%"],
+      "numericValue": 0.3888888888888889,
+      "tolerance": 0.001,
+      "explanation": "After conditioning on the online lab section, use only the 18 online students as the denominator."
+    },
+    "hints": [
+      "The phrase given that restricts the sample space.",
+      "Use the online lab count as the denominator.",
+      "Count only the online lab students who requested evening support."
+    ],
+    "solutionSteps": [
+      "The condition says the student is in the online lab section, so the relevant denominator is 18.",
+      "Within that section, 7 students requested evening support.",
+      "The conditional probability is 7/18, which is about 0.3889."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-full-signup-total",
+        "matchTerms": ["7/32", "0.21875", "21.875%"],
+        "feedback": "That uses all 32 students as the denominator. Once the condition is online lab, the denominator is only the 18 online lab students."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract conditional-probability pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-bayes-sensor-calibration",
+    "topicId": "conditional-probability",
+    "topic": "Bayes formula",
+    "title": "Sensor calibration alert draft",
+    "prompt": "A device monitor flags 78% of sensors that need recalibration and 9% of sensors that do not. About 12% of sensors need recalibration. If a sensor is flagged, what is the probability that it needs recalibration?",
+    "patternSource": "pattern-bayes-rule-alert-update / Bayes alert-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": ["0.5417", "0.542", "54.17%", "54.2%"],
+      "numericValue": 0.5416666666666666,
+      "tolerance": 0.001,
+      "explanation": "Compare flagged sensors that need recalibration with all flagged sensors."
+    },
+    "hints": [
+      "Find P(needs recalibration and flagged).",
+      "Find P(no recalibration needed and flagged).",
+      "Divide the first joint probability by the total probability of being flagged."
+    ],
+    "solutionSteps": [
+      "P(needs recalibration and flagged) = 0.12 * 0.78 = 0.0936.",
+      "P(no recalibration needed and flagged) = 0.88 * 0.09 = 0.0792.",
+      "The total probability of a flag is 0.0936 + 0.0792 = 0.1728.",
+      "P(needs recalibration | flagged) = 0.0936 / 0.1728 = 0.5417, or about 54.17%."
+    ],
+    "misconceptions": [
+      {
+        "id": "confuses-conditional-direction",
+        "matchTerms": ["0.78", "78%"],
+        "feedback": "The 78% value is P(flagged | needs recalibration), not P(needs recalibration | flagged). The base rate and false-flag rate both matter."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract Bayes alert-update pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-bayes-message-routing",
+    "topicId": "conditional-probability",
+    "topic": "Bayes formula",
+    "title": "Message routing label draft",
+    "prompt": "A message router labels 90% of priority messages and 7% of regular messages for quick handling. If 15% of messages are priority messages, what is the probability that a labeled message is priority?",
+    "patternSource": "pattern-bayes-rule-alert-update / Bayes alert-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": ["0.6941", "0.694", "69.41%", "69.4%"],
+      "numericValue": 0.6940874035989717,
+      "tolerance": 0.001,
+      "explanation": "Use Bayes formula by dividing priority-and-labeled messages by all labeled messages."
+    },
+    "hints": [
+      "Start with the prior probability that a message is priority.",
+      "Compute the labeled probability from both priority and regular messages.",
+      "Use the total labeled probability in the denominator."
+    ],
+    "solutionSteps": [
+      "P(priority and labeled) = 0.15 * 0.90 = 0.135.",
+      "P(regular and labeled) = 0.85 * 0.07 = 0.0595.",
+      "P(labeled) = 0.135 + 0.0595 = 0.1945.",
+      "P(priority | labeled) = 0.135 / 0.1945 = 0.6941, or about 69.41%."
+    ],
+    "misconceptions": [
+      {
+        "id": "ignores-regular-labels",
+        "matchTerms": ["90%", "0.90"],
+        "feedback": "A labeled message can be priority or regular, so the denominator must include labels from both groups."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract Bayes alert-update pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-binomial-reminder-responses",
+    "topicId": "binomial-models",
+    "topic": "Binomial distribution",
+    "title": "Reminder response exact-count draft",
+    "prompt": "A library portal sends 10 independent due-date reminders. Each reminder has a 30% chance of getting a same-day response. What is the probability that exactly 3 reminders get same-day responses?",
+    "patternSource": "pattern-binomial-distribution-exact-count / binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["0.2668", "0.266827932", "26.68%", "26.7%"],
+      "numericValue": 0.266827932,
+      "tolerance": 0.001,
+      "explanation": "Use the binomial exact-count formula with n = 10, k = 3, and p = 0.30."
+    },
+    "hints": [
+      "Identify n, k, and p.",
+      "The probability of no same-day response is 0.70.",
+      "Include the combination term for which 3 reminders get responses."
+    ],
+    "solutionSteps": [
+      "Let X be the number of same-day responses. Then X is binomial with n = 10 and p = 0.30.",
+      "Use P(X = 3) = C(10,3)(0.30)^3(0.70)^7.",
+      "C(10,3) = 120, so the probability is 120(0.30)^3(0.70)^7 = 0.266827932, about 0.2668."
+    ],
+    "misconceptions": [
+      {
+        "id": "misses-combination-term",
+        "matchTerms": ["0.002223", "0.30^3"],
+        "feedback": "That product counts one order of responses. Use C(10,3) to count all possible positions for the 3 responses."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract binomial exact-count pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-binomial-kiosk-checks",
+    "topicId": "binomial-models",
+    "topic": "Binomial distribution",
+    "title": "Kiosk check exact-count draft",
+    "prompt": "A technician runs 8 independent kiosk checks. Each check has a 25% chance of finding a configuration issue. What is the probability that exactly 2 checks find an issue?",
+    "patternSource": "pattern-binomial-distribution-exact-count / binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["0.3115", "0.3114624023", "31.15%", "31.1%"],
+      "numericValue": 0.31146240234375,
+      "tolerance": 0.001,
+      "explanation": "Use the binomial formula with n = 8, k = 2, p = 0.25, and failure probability 0.75."
+    },
+    "hints": [
+      "This is a fixed number of independent checks.",
+      "Use exactly 2 successes and 6 non-successes.",
+      "Do not forget the number of ways to choose which 2 checks find issues."
+    ],
+    "solutionSteps": [
+      "Let X be the number of checks that find an issue. Then X is binomial with n = 8 and p = 0.25.",
+      "Use P(X = 2) = C(8,2)(0.25)^2(0.75)^6.",
+      "C(8,2) = 28, so the probability is 28(0.25)^2(0.75)^6 = 0.3114624023, about 0.3115."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-two-as-failures",
+        "matchTerms": ["0.0231", "0.75^2"],
+        "feedback": "The requested count is 2 checks that find an issue, so 2 is the number of successes and 6 is the number of non-successes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract binomial exact-count pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-expected-value-ticket-credits",
+    "topicId": "expected-value",
+    "topic": "Expected value",
+    "title": "Ticket credit expected value draft",
+    "prompt": "A help desk quality program awards 0, 2, 5, or 9 credits for a reviewed ticket with probabilities 0.25, 0.35, 0.25, and 0.15. What is the expected number of credits for one reviewed ticket?",
+    "patternSource": "pattern-expected-value-discrete-payoff / expected value weighted-average pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["3.3", "3.30"],
+      "numericValue": 3.3,
+      "tolerance": 0.001,
+      "explanation": "Expected value is the probability-weighted average of the possible credit amounts."
+    },
+    "hints": [
+      "Multiply each credit amount by its probability.",
+      "Then add the weighted products.",
+      "Expected value is a long-run average, not necessarily one possible outcome."
+    ],
+    "solutionSteps": [
+      "Compute the weighted products: 0(0.25), 2(0.35), 5(0.25), and 9(0.15).",
+      "Add them: 0 + 0.70 + 1.25 + 1.35 = 3.30.",
+      "The expected number of credits is 3.3."
+    ],
+    "misconceptions": [
+      {
+        "id": "unweighted-average",
+        "matchTerms": ["4", "average of 0 2 5 9"],
+        "feedback": "A plain average ignores that the credit amounts have different probabilities. Weight each value by its probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract expected-value pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-expected-value-study-streak",
+    "topicId": "expected-value",
+    "topic": "Expected value",
+    "title": "Study streak expected value draft",
+    "prompt": "A study tracker awards 1, 4, or 7 streak points at the end of a session with probabilities 0.20, 0.50, and 0.30. What is the expected number of streak points for one session?",
+    "patternSource": "pattern-expected-value-discrete-payoff / expected value weighted-average pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["4.3", "4.30"],
+      "numericValue": 4.3,
+      "tolerance": 0.001,
+      "explanation": "Compute the weighted average of the possible point values."
+    },
+    "hints": [
+      "Multiply each point value by its probability.",
+      "The probabilities should add to 1.",
+      "Add all weighted products."
+    ],
+    "solutionSteps": [
+      "Compute the weighted products: 1(0.20), 4(0.50), and 7(0.30).",
+      "Add them: 0.20 + 2.00 + 2.10 = 4.30.",
+      "The expected number of streak points is 4.3."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-most-likely-value",
+        "matchTerms": ["4 points", "4"],
+        "feedback": "The most likely value is not always the expected value. Expected value uses all outcomes weighted by probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract expected-value pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-variance-support-messages",
+    "topicId": "random-variables",
+    "topic": "Variance",
+    "title": "Support message variance draft",
+    "prompt": "The number of support messages answered during a short shift can be 0, 2, or 5 with probabilities 0.30, 0.40, and 0.30. What is the variance of this random variable?",
+    "patternSource": "pattern-variance-discrete-random-variable / discrete variance pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["3.81", "3.810"],
+      "numericValue": 3.81,
+      "tolerance": 0.001,
+      "explanation": "Compute E(X), compute E(X^2), then use Var(X) = E(X^2) - [E(X)]^2."
+    },
+    "hints": [
+      "Find the expected value first.",
+      "Square each possible value before computing E(X^2).",
+      "Use E(X^2) - [E(X)]^2."
+    ],
+    "solutionSteps": [
+      "E(X) = 0(0.30) + 2(0.40) + 5(0.30) = 2.3.",
+      "E(X^2) = 0^2(0.30) + 2^2(0.40) + 5^2(0.30) = 9.1.",
+      "Var(X) = 9.1 - 2.3^2 = 9.1 - 5.29 = 3.81."
+    ],
+    "misconceptions": [
+      {
+        "id": "reports-mean",
+        "matchTerms": ["2.3"],
+        "feedback": "The mean is an intermediate value. Variance measures spread, so continue with E(X^2) - [E(X)]^2."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract variance pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-variance-task-counts",
+    "topicId": "random-variables",
+    "topic": "Variance",
+    "title": "Task count variance draft",
+    "prompt": "The number of quick tasks completed in a time block can be 1, 3, or 6 with probabilities 0.25, 0.50, and 0.25. What is the variance of the number of completed tasks?",
+    "patternSource": "pattern-variance-discrete-random-variable / discrete variance pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["3.1875", "3.188", "3.19"],
+      "numericValue": 3.1875,
+      "tolerance": 0.005,
+      "explanation": "Use the probability-weighted squared values and subtract the square of the mean."
+    },
+    "hints": [
+      "Compute E(X) using probability weights.",
+      "Compute E(X^2) using the squared values.",
+      "Subtract [E(X)]^2 from E(X^2)."
+    ],
+    "solutionSteps": [
+      "E(X) = 1(0.25) + 3(0.50) + 6(0.25) = 3.25.",
+      "E(X^2) = 1^2(0.25) + 3^2(0.50) + 6^2(0.25) = 13.75.",
+      "Var(X) = 13.75 - 3.25^2 = 3.1875."
+    ],
+    "misconceptions": [
+      {
+        "id": "drops-probability-weights",
+        "matchTerms": ["4.222", "4.22"],
+        "feedback": "Each value and each squared value should be weighted by its probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract variance pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-combinations-workshop-topics",
+    "topicId": "counting",
+    "topic": "Counting and combinations",
+    "title": "Workshop topic group draft",
+    "prompt": "A review workshop has 11 possible mini-topics and will choose 4 of them for a short practice set. The order of the chosen mini-topics does not matter. How many different practice sets can be chosen?",
+    "patternSource": "pattern-combinations-unordered-selection / combinations unordered-selection pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["330"],
+      "numericValue": 330,
+      "tolerance": 0,
+      "explanation": "This is an unordered selection, so use C(11,4)."
+    },
+    "hints": [
+      "The order of the mini-topics does not matter.",
+      "Use a combination rather than a permutation.",
+      "Compute C(11,4)."
+    ],
+    "solutionSteps": [
+      "The task asks for an unordered group of 4 mini-topics from 11.",
+      "Use C(11,4) = 11! / (4!7!).",
+      "C(11,4) = 330, so there are 330 possible practice sets."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-permutation",
+        "matchTerms": ["7920", "11P4"],
+        "feedback": "That counts different orders of the same 4 mini-topics. The prompt says the order does not matter."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract combinations pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-permutations-inspection-stations",
+    "topicId": "counting",
+    "topic": "Counting and permutations",
+    "title": "Inspection station order draft",
+    "prompt": "A lab dashboard has 8 inspection stations available. A supervisor will assign 3 different stations to first, second, and third positions in a morning checklist. How many ordered checklists are possible?",
+    "patternSource": "pattern-permutations-ordered-selection / permutations ordered-selection pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": ["336"],
+      "numericValue": 336,
+      "tolerance": 0,
+      "explanation": "This is an ordered arrangement of 3 distinct stations chosen from 8."
+    },
+    "hints": [
+      "The positions first, second, and third are different.",
+      "No station is repeated.",
+      "Multiply the descending number of choices for the three positions."
+    ],
+    "solutionSteps": [
+      "There are 8 choices for the first position.",
+      "After that, 7 stations remain for the second position and 6 remain for the third position.",
+      "The number of ordered checklists is 8 * 7 * 6 = 336."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-combination",
+        "matchTerms": ["56", "8C3"],
+        "feedback": "A combination ignores order. Here first, second, and third positions make order matter."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract permutations pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-additional-hypergeometric-survey-cards",
+    "topicId": "counting",
+    "topic": "Counting and hypergeometric probability",
+    "title": "Survey card follow-up draft",
+    "prompt": "A folder has 16 survey cards, and 6 of them are marked for follow-up. A coordinator selects 5 cards without replacement. What is the probability that exactly 2 of the selected cards are marked for follow-up?",
+    "patternSource": "pattern-hypergeometric-distribution-without-replacement / hypergeometric without-replacement pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": ["75/182", "0.4121", "41.21%", "41.2%"],
+      "numericValue": 0.41208791208791207,
+      "tolerance": 0.001,
+      "explanation": "Choose the 2 follow-up cards and the 3 non-follow-up cards, then divide by all groups of 5 cards."
+    },
+    "hints": [
+      "The selection is without replacement.",
+      "Choose the follow-up cards and the non-follow-up cards separately.",
+      "Divide by all possible groups of 5 selected cards."
+    ],
+    "solutionSteps": [
+      "Choose exactly 2 of the 6 follow-up cards: C(6,2).",
+      "The other 3 selected cards must come from the 10 cards not marked for follow-up: C(10,3).",
+      "Divide by all possible groups of 5 cards: C(16,5).",
+      "The probability is [C(6,2)C(10,3)] / C(16,5) = 1800/4368 = 75/182, about 0.4121."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-binomial-with-replacement",
+        "matchTerms": ["0.343", "binomial"],
+        "feedback": "A binomial model assumes the success probability stays constant. Here the cards are selected without replacement."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated question from an abstract hypergeometric/counting pattern with new context, numbers, and solution wording."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  }
+]

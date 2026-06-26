@@ -54,6 +54,64 @@ npm run prepare:course-outline
 or copied-looking lines under `data/private/generated/`, and writes public-safe
 metadata to `data/processed/course-outline.json`.
 
+Prepare private abstract question patterns:
+
+```bash
+npm run prepare:patterns
+```
+
+`prepare:patterns` reads only public-safe outline metadata and writes private
+pattern controls to `data/private/generated/question-patterns.json`. That file
+is ignored by Git and may include private audit identifiers, forbidden story
+families, forbidden source number sets, and phrase hashes. It must not be
+copied into public data.
+
+Generate private original drafts from seed patterns:
+
+```bash
+npm run generate:questions
+```
+
+`generate:questions` reads public-safe seed patterns from
+`data/demo/question-patterns.json` and writes original deterministic drafts to
+`data/private/generated/generated-questions.json` by default. Generated drafts
+must remain private, `needs_review`, and `generated_unverified` until professor
+approval.
+
+Validate generated private drafts:
+
+```bash
+npm run validate:generated
+```
+
+`validate:generated` checks required fields, final answers, solution steps,
+hints, review status, and originality notes. It warns when a draft has long
+phrase overlap with local private pattern metadata or extracted private source
+text.
+
+Prepare a private professor review queue from generated drafts:
+
+```bash
+npm run prepare:review-queue
+```
+
+`prepare:review-queue` reads
+`data/private/generated/generated-questions.json` and writes
+`data/private/generated/review-queue.json`. The queue keeps question text,
+answer, solution steps, hints, misconceptions, pattern IDs, originality notes,
+and `needs_review` status under ignored private storage.
+
+Promote professor-approved generated questions:
+
+```bash
+npm run promote:approved-questions
+```
+
+`promote:approved-questions` reads the private review queue and writes
+`data/processed/approved-generated-questions.json`. It promotes only
+`approved` items, preserves generated source labels and originality notes, and
+refuses copied-source or textbook-looking items.
+
 ## Public vs Private Outputs
 
 Private outputs:
@@ -71,6 +129,8 @@ Public outputs:
 - `data/processed/course-outline.json`
 - `data/processed/latex-outline.json`
 - original demo fixtures in `data/demo/`
+- public-safe seed patterns in `data/demo/question-patterns.json`
+- generated original review drafts in `data/demo/generated-review-candidates.json`
 
 Public processed metadata may include only:
 
@@ -104,13 +164,16 @@ The safe generation flow is:
 1. Extract private source text into ignored private storage.
 2. Derive abstract patterns such as "conditional probability with a restricted
    sample space" or "binomial exact-count probability."
-3. Generate a new scenario, new numbers, and new wording from the abstract
+3. Store private-only generation controls in
+   `data/private/generated/question-patterns.json`.
+4. Generate a new scenario, new numbers, and new wording from the abstract
    pattern.
-4. Mark the generated question as `needs_review` and `generated_unverified`.
-5. Send it through professor review before treating it as student-facing.
+5. Mark the generated question as `needs_review` and `generated_unverified`.
+6. Keep generated drafts under ignored private storage until professor review.
 
 Generated questions should not mention source pages, source examples, textbook
-problem numbers, or private pattern IDs in public UI.
+problem numbers, private pattern IDs, private source IDs, or local audit notes
+in public UI.
 
 ## Safety Checklist Before Commit
 
@@ -122,6 +185,9 @@ git status --ignored --short data/private
 git check-ignore -v data/private/course-materials/<private-file>
 git check-ignore -v data/private/extracted/<private-output>
 git check-ignore -v data/private/generated/<private-output>
+npm run validate:generated
+npm run prepare:review-queue
+npm run promote:approved-questions
 npm run lint
 npm run typecheck
 npm test

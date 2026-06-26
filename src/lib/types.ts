@@ -153,8 +153,16 @@ export type QuestionPattern = {
   abstractTemplate: string
   allowedGeneratedUse: "pattern_only"
   conceptTags: string[]
+  forbiddenSimilarity: {
+    privatePhraseHashes: string[]
+    sourceNumberSets: string[][]
+    sourceStoryFamilies: string[]
+  }
   formulaRefs: string[]
   id: string
+  mappingStatus?: "mapped" | "needs_topic_mapping"
+  misconceptionTargets: string[]
+  reasoningPlan: string[]
   source: SourceMetadata & {
     sourceType: "private_reference_pattern"
     trustLevel: "private_reference"
@@ -163,9 +171,92 @@ export type QuestionPattern = {
   sourceItemIds: string[]
   title: string
   topicId: string
+  variables: PatternVariable[]
 }
 
 export type PatternMetadata = QuestionPattern
+
+export type DemoQuestionPattern = {
+  constraints: string[]
+  difficulty: Difficulty
+  generationNotes: string[]
+  id: string
+  misconceptionHooks: string[]
+  template: string
+  topic: string
+  variables: DemoPatternVariable[]
+}
+
+export type DemoPatternVariable = {
+  name: string
+  role: string
+  type: "category" | "count" | "decimal" | "integer" | "money" | "percent"
+  values?: (number | string)[]
+}
+
+export type GeneratedQuestionDraft = {
+  difficulty: Difficulty
+  finalAnswer: string
+  hints: string[]
+  id: string
+  misconceptions: {
+    feedback: string
+    hook: string
+    id: string
+  }[]
+  originalityNote: string
+  patternId: string
+  questionText: string
+  reviewStatus: "needs_review"
+  solutionSteps: string[]
+  sourceType: "generated_original"
+  topic: string
+  trustLevel: "generated_unverified"
+}
+
+export type GeneratedQuestionReviewItem = {
+  answer: string
+  difficulty: Difficulty
+  hints: string[]
+  id: string
+  misconceptions: GeneratedQuestionDraft["misconceptions"]
+  originalityNote: string
+  patternId: string
+  question: string
+  reviewStatus: ReviewStatus
+  solutionSteps: string[]
+  topic: string
+}
+
+export type ApprovedGeneratedQuestion = {
+  difficulty: Difficulty
+  finalAnswer: string
+  hints: string[]
+  id: string
+  misconceptions: GeneratedQuestionDraft["misconceptions"]
+  originalityNote: string
+  patternId: string
+  questionText: string
+  reviewStatus: "approved"
+  solutionSteps: string[]
+  sourceMetadata: {
+    originalityNote: string
+    sourceType: "generated_original"
+    visibility: "public"
+  }
+  topic: string
+  trustLevel: "professor_approved"
+}
+
+export type PatternVariable = {
+  constraints?: string[]
+  max?: number
+  min?: number
+  name: string
+  role: string
+  type: "integer" | "decimal" | "percent"
+  values?: number[]
+}
 
 export const STUDENT_FACING_TRUST_LEVELS: readonly TrustLevel[] = [
   "public_original",

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "visibility": "public",
+  "source": {
+    "type": "approved_generated_questions",
+    "inputPath": "data/private/generated/review-queue.json"
+  },
+  "safety": {
+    "excludesNeedsReview": true,
+    "excludesRejected": true,
+    "excludesNeedsEdit": true,
+    "excludesCopiedSourceText": true,
+    "requiresProfessorApproval": true
+  },
+  "questions": []
+}

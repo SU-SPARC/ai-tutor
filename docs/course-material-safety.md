@@ -72,3 +72,61 @@ Public LaTeX outline output is limited to section titles, formula names and
 symbolic formulas, topic labels, and learning objectives. Lines that look like
 lecture-note prose, copied examples, problems, solutions, answer keys, or
 questions are kept only in the private parse-details file.
+
+## Pattern-based question generation
+
+Prepare private generation controls with:
+
+```bash
+npm run prepare:patterns
+```
+
+The script writes `data/private/generated/question-patterns.json`, which is
+ignored by Git. This file may contain private audit references, source-story
+families to avoid, source number tuples to avoid, and phrase hashes. It should
+contain abstract templates only, not copied textbook questions or solutions.
+
+Generate private original drafts with:
+
+```bash
+npm run generate:questions
+```
+
+The generator reads public-safe seed patterns from
+`data/demo/question-patterns.json` and writes original draft questions to
+`data/private/generated/generated-questions.json` by default. Drafts use new
+contexts, numbers, hints, and solution wording; they must stay marked
+`needs_review` and `generated_unverified` until professor approval.
+
+Validate generated drafts with:
+
+```bash
+npm run validate:generated
+```
+
+The validator fails on missing required fields, missing final answers, missing
+solution steps, missing hints, non-`needs_review` status, or missing originality
+notes. It also prints local-only warnings when generated text appears too close
+to private pattern metadata or extracted private source text.
+
+Prepare the local private review queue with:
+
+```bash
+npm run prepare:review-queue
+```
+
+The queue is written to `data/private/generated/review-queue.json`, which is
+ignored by Git. It is for professor review only and must not be imported into
+student-facing or public demo data.
+
+Promote approved generated questions with:
+
+```bash
+npm run promote:approved-questions
+```
+
+The promotion script reads the private review queue and writes public-safe
+approved generated questions to
+`data/processed/approved-generated-questions.json`. Only `approved` queue items
+are promoted; `needs_review`, `rejected`, and `needs_edit` items are excluded.
+The script refuses copied-source or textbook-looking approved items.
