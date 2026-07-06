@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const updated = updateReviewCandidateStatus(body.candidateId, body.action)
+  const updated = await updateReviewCandidateStatus(body.candidateId, body.action)
 
   if (!updated) {
     return NextResponse.json(

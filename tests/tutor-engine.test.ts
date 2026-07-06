@@ -9,10 +9,17 @@ import { POST as postProfessorReview } from "@/app/api/professor/review/route"
 import {
   getApprovedQuestionById,
   getApprovedQuestions,
+  getContentRepositoryMode,
+  getDataRepositoryMetadata,
+  getQuestionById,
+  getQuestionCounts,
   getRetrievalChunks,
   getReviewQueue,
   isStudentFacingQuestion,
   isStudentFacingRetrievalChunk,
+  listQuestions,
+  listQuestionsByTopic,
+  listTopics,
   resetReviewQueueForTests,
 } from "@/lib/data/data-store"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
@@ -37,6 +44,11 @@ import {
   recordTutorInteraction,
   resetUsageForTests,
 } from "@/lib/tutor/usage"
+import {
+  approvedPublicWhereClauseForTests,
+  mapQuestionRow,
+} from "@/lib/data/database-repository"
+import { createMemoryUsageRepository } from "@/lib/data/usage-repositories"
 
 describe("tutor engine", () => {
   beforeEach(() => {
@@ -107,6 +119,43 @@ describe("tutor engine", () => {
   it("exposes the configured daily LLM fallback limit in policy", () => {
     expect(DEFAULT_USAGE_POLICY.maxDailyLlmFallbacks).toBe(100)
   })
+
+  it("keeps the usage repository cache rule-first and retrieval-only", async () => {
+    const repository = createMemoryUsageRepository()
+    const expiresAt = new Date(Date.now() + 60_000)
+    const baseResponse = {
+      hints: [],
+      message: "Cached response.",
+      misconceptions: [],
+      retrievedContext: [],
+      steps: [],
+      usage: {
+        estimatedTokens: 1,
+        llmFallbacksRemaining: 2,
+      },
+      verdict: "guidance" as const,
+    }
+
+    await repository.writeTutorCache({
+      expiresAt,
+      requestHash: "rule-cache",
+      response: {
+        ...baseResponse,
+        source: "rule",
+      },
+    })
+    await repository.writeTutorCache({
+      expiresAt,
+      requestHash: "llm-cache",
+      response: {
+        ...baseResponse,
+        source: "llm",
+      },
+    })
+
+    expect(await repository.readTutorCache("rule-cache")).toBeDefined()
+    expect(await repository.readTutorCache("llm-cache")).toBeUndefined()
+  })
 })
 
 describe("content provenance and review metadata", () => {
@@ -134,7 +183,7 @@ describe("content provenance and review metadata", () => {
 
   it("returns only approved public trusted questions for student practice", async () => {
     const questions = await getApprovedQuestions()
-    const chunks = getRetrievalChunks()
+    const chunks = await getRetrievalChunks()
 
     expect(questions.length).toBeGreaterThan(0)
     expect(questions.every(isStudentFacingQuestion)).toBe(true)
@@ -146,10 +195,88 @@ describe("content provenance and review metadata", () => {
       ),
     ).toBe(true)
     expect(
-      getApprovedQuestionById("generated-bayes-campus-badges-1"),
+      await getApprovedQuestionById("generated-bayes-campus-badges-1"),
     ).toBeUndefined()
     for (const candidate of generatedReviewCandidates) {
-      expect(getApprovedQuestionById(candidate.id)).toBeUndefined()
+      expect(await getApprovedQuestionById(candidate.id)).toBeUndefined()
+    }
+  })
+
+  it("exposes a consistent student-facing data repository API", async () => {
+    const [topics, questions, conditionalQuestions, counts] = await Promise.all([
+      listTopics(),
+      listQuestions(),
+      listQuestionsByTopic("conditional-probability"),
+      getQuestionCounts(),
+    ])
+    const question = await getQuestionById("dice-sum-eight")
+
+    expect(topics).toHaveLength(3)
+    expect(questions).toHaveLength(3)
+    expect(question?.id).toBe("dice-sum-eight")
+    expect(conditionalQuestions.map((item) => item.id)).toEqual([
+      "dice-sum-eight",
+    ])
+    expect(counts.total).toBe(questions.length)
+    expect(counts.byTopic["conditional-probability"]).toBe(1)
+    expect(
+      questions.every(
+        (item) =>
+          item.review.status === "approved" &&
+          item.source.visibility === "public" &&
+          item.source.trustLevel !== "generated_unverified",
+      ),
+    ).toBe(true)
+  })
+
+  it("falls back to demo data when configured database reads are unavailable", async () => {
+    try {
+      vi.stubEnv("APP_DEMO_MODE", "false")
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+
+      const [questions, counts] = await Promise.all([
+        listQuestions(),
+        getQuestionCounts(),
+      ])
+
+      expect(getContentRepositoryMode()).toBe("database")
+      expect(questions.map((question) => question.id)).toContain(
+        "dice-sum-eight",
+      )
+      expect(counts.total).toBe(3)
+      expect(
+        questions.every(
+          (question) => question.source.trustLevel !== "generated_unverified",
+        ),
+      ).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("reports clear repository metadata for demo and database modes", () => {
+    try {
+      vi.stubEnv("APP_DEMO_MODE", "true")
+      vi.stubEnv("DATABASE_URL", "")
+
+      expect(getDataRepositoryMetadata()).toMatchObject({
+        databaseConfigured: false,
+        demoFallbackEnabled: true,
+        mode: "demo",
+        source: "demo-json",
+      })
+
+      vi.stubEnv("APP_DEMO_MODE", "false")
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+
+      expect(getDataRepositoryMetadata()).toMatchObject({
+        databaseConfigured: true,
+        demoFallbackEnabled: true,
+        mode: "database",
+        source: "postgres",
+      })
+    } finally {
+      vi.unstubAllEnvs()
     }
   })
 
@@ -306,6 +433,186 @@ describe("content provenance and review metadata", () => {
     )
   })
 
+  it("prepares reviewable public database seed SQL from safe fixtures", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-"))
+    const outputPath = path.join(tempDir, "public-db-seed.sql")
+
+    execFileSync(
+      "npm",
+      ["run", "db:seed", "--", "--output", outputPath],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const sql = readFileSync(outputPath, "utf8")
+
+    expect(sql).toContain("insert into topics")
+    expect(sql).toContain("insert into questions")
+    expect(sql).toContain("insert into hints")
+    expect(sql).toContain("insert into solution_steps")
+    expect(sql).not.toContain("insert into question_patterns")
+    expect(sql).not.toContain("generated-bayes-campus-badges-1")
+    expect(sql).not.toContain("generated_unverified")
+    expect(sql).not.toContain("needs_review")
+    expect(sql).not.toMatch(
+      /source page|answer key|worked example|copied from|verbatim|raw extracted|private chunk|embedding/i,
+    )
+  })
+
+  it("optionally includes approved generated questions in seed SQL", () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-approved-"))
+    const outputPath = path.join(tempDir, "public-db-seed.sql")
+    const approvedGeneratedPath = path.join(
+      tempDir,
+      "approved-generated-questions.json",
+    )
+
+    writeFileSync(
+      approvedGeneratedPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          visibility: "public",
+          questions: [
+            {
+              id: "approved-generated-seed-fixture",
+              topic: "basic probability",
+              difficulty: "foundational",
+              questionText:
+                "A transit counter records 6 valid scans out of 8 scans. What fraction were valid?",
+              finalAnswer: "3/4",
+              solutionSteps: [
+                "Use valid scans divided by total scans.",
+                "6/8 simplifies to 3/4.",
+              ],
+              hints: ["Use valid scans over total scans."],
+              misconceptions: [
+                {
+                  id: "uses-invalid-scans",
+                  hook: "Counting invalid scans.",
+                  feedback: "Use valid scans for the numerator.",
+                },
+              ],
+              patternId: "pattern-basic-probability-complement",
+              originalityNote: "Original generated fixture.",
+              sourceMetadata: {
+                sourceType: "generated_original",
+                visibility: "public",
+                originalityNote: "Original generated fixture.",
+              },
+              reviewStatus: "approved",
+              trustLevel: "professor_approved",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+
+    execFileSync(
+      "npm",
+      [
+        "run",
+        "db:seed",
+        "--",
+        "--output",
+        outputPath,
+        "--include-approved-generated",
+        "--approved-generated-input",
+        approvedGeneratedPath,
+      ],
+      { cwd: process.cwd(), stdio: "pipe" },
+    )
+
+    const sql = readFileSync(outputPath, "utf8")
+
+    expect(sql).toContain("approved-generated-seed-fixture")
+    expect(sql).toContain("insert into misconceptions")
+    expect(sql).toContain("professor_approved")
+    expect(sql).not.toContain("generated_unverified")
+    expect(sql).not.toContain("needs_review")
+  })
+
+  it("defines the requested public-safe database tables", () => {
+    const migration = readFileSync(
+      path.join(process.cwd(), "db/migrations/001_initial_schema.sql"),
+      "utf8",
+    )
+    const requiredTables = [
+      "topics",
+      "questions",
+      "solution_steps",
+      "hints",
+      "misconceptions",
+      "tutor_sessions",
+      "attempts",
+      "ai_usage",
+      "ai_response_cache",
+    ]
+
+    for (const tableName of requiredTables) {
+      expect(migration).toMatch(
+        new RegExp(`create table if not exists ${tableName}\\b`),
+      )
+    }
+
+    expect(migration).toContain("review_status")
+    expect(migration).toContain("trust_level")
+    expect(migration).toContain("source_type")
+    expect(migration).toContain("app_public_questions")
+    expect(migration).not.toMatch(/create table if not exists .*embedding/i)
+    expect(migration).not.toMatch(/create table if not exists .*chunk/i)
+  })
+
+  it("rejects public database seed payloads with private fields", () => {
+    const result = spawnSync(
+      "node",
+      [
+        "-e",
+        [
+          "import('./scripts/prepare-public-db-seed.mjs').then(({ validatePublicSeedPayload }) => {",
+          "const errors = validatePublicSeedPayload({",
+          "demoQuestions: [{ id: 'unsafe', topic: 'basic probability', questionText: 'Original question?', finalAnswer: '1/2', hints: ['h'], solutionSteps: ['s'], reviewStatus: 'approved', locator: 'p. 1' }],",
+          "demoPatterns: { visibility: 'public', patterns: [] },",
+          "reviewCandidates: [],",
+          "approvedGenerated: { visibility: 'public', questions: [] }",
+          "});",
+          "if (errors.length === 0) process.exit(1);",
+          "console.error(errors.join('\\n'));",
+          "});",
+        ].join(" "),
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toContain("locator")
+  })
+
+  it("rejects unapproved generated questions when optional seed input is enabled", () => {
+    const result = spawnSync(
+      "node",
+      [
+        "-e",
+        [
+          "import('./scripts/prepare-public-db-seed.mjs').then(({ validatePublicSeedPayload }) => {",
+          "const errors = validatePublicSeedPayload({",
+          "demoQuestions: [{ id: 'safe-demo', topic: 'basic probability', questionText: 'Original question?', finalAnswer: '1/2', hints: ['h'], solutionSteps: ['s'], reviewStatus: 'approved' }],",
+          "approvedGenerated: { visibility: 'public', questions: [{ id: 'draft', topic: 'basic probability', questionText: 'Original draft?', finalAnswer: '1/2', hints: ['h'], solutionSteps: ['s'], reviewStatus: 'needs_review', trustLevel: 'generated_unverified', sourceMetadata: { sourceType: 'generated_original', visibility: 'public' } }] }",
+          "}, { includeApprovedGenerated: true });",
+          "if (errors.length === 0) process.exit(1);",
+          "console.error(errors.join('\\n'));",
+          "});",
+        ].join(" "),
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stderr).toContain("reviewStatus must be approved")
+    expect(result.stderr).toContain("trustLevel must be professor_approved")
+  })
+
   it("excludes private reference items from student-facing access", () => {
     const privateReferenceQuestion: TutorQuestion = {
       id: "private-reference-example",
@@ -331,6 +638,58 @@ describe("content provenance and review metadata", () => {
     }
 
     expect(isStudentFacingQuestion(privateReferenceQuestion)).toBe(false)
+  })
+
+  it("keeps generated-unverified database rows out of student-facing access", () => {
+    const draftQuestion = mapQuestionRow({
+      accepted_answers_json: ["1/2"],
+      answer_explanation: "Use the approved pattern after review.",
+      difficulty: "foundational",
+      hints_json: ["Identify the relevant sample space."],
+      id: "db-generated-draft",
+      misconceptions_json: [],
+      numeric_value: null,
+      originality_note: "Original generated draft.",
+      pattern_id: "pattern-basic-probability-complement",
+      prompt: "Original generated draft question?",
+      reviewed_at: null,
+      reviewed_by: null,
+      review_status: "needs_review",
+      solution_steps_json: ["Compute the requested probability."],
+      source_type: "pattern_derived_original",
+      title: "Generated draft",
+      tolerance: null,
+      topic_id: "basic-probability",
+      trust_level: "generated_unverified",
+      visibility: "public",
+    })
+
+    expect(isStudentFacingQuestion(draftQuestion)).toBe(false)
+    expect(approvedPublicWhereClauseForTests()).toContain(
+      "review_status = 'approved'",
+    )
+    expect(approvedPublicWhereClauseForTests()).toContain(
+      "visibility = 'public'",
+    )
+  })
+
+  it("uses the demo content repository unless database mode is explicitly enabled", () => {
+    try {
+      vi.stubEnv("APP_DEMO_MODE", "true")
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+
+      expect(getContentRepositoryMode()).toBe("demo")
+
+      vi.stubEnv("APP_DEMO_MODE", "false")
+
+      expect(getContentRepositoryMode()).toBe("database")
+
+      vi.stubEnv("DATABASE_URL", "")
+
+      expect(getContentRepositoryMode()).toBe("demo")
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
 

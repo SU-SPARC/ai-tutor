@@ -1,100 +1,156 @@
 import "server-only"
 
+import { createDatabaseContentRepository } from "@/lib/data/database-repository"
 import {
-  demoQuestions,
-  demoTopics,
-  retrievalChunks,
-  reviewCandidates,
-} from "@/lib/data/demo-data"
-import {
-  isApprovedPublicTrustedContent,
-  type RetrievalChunk,
-  type ReviewCandidate,
-  type ReviewStatus,
-  type TutorQuestion,
-} from "@/lib/types"
+  demoContentRepository,
+  isStudentFacingQuestion,
+  isStudentFacingRetrievalChunk,
+  resetDemoReviewQueueForTests,
+} from "@/lib/data/demo-repository"
+import type {
+  ContentRepository,
+  DataRepositoryMetadata,
+  ReviewAction,
+} from "@/lib/data/repository"
+import { getServerEnv } from "@/lib/env/server"
 
-let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate)
+let contentRepositoryOverride: ContentRepository | undefined
 
-export async function getTopics() {
-  return demoTopics
+export async function listTopics() {
+  return readWithDemoFallback((repository) => repository.listTopics())
 }
 
-export async function getApprovedQuestions() {
-  return demoQuestions.filter(isStudentFacingQuestion)
+export async function listQuestions() {
+  return readWithDemoFallback((repository) => repository.listQuestions())
 }
 
-export function getApprovedQuestionById(questionId: string) {
-  return demoQuestions.find(
-    (question) => question.id === questionId && isStudentFacingQuestion(question),
+export async function getQuestionById(questionId: string) {
+  return readWithDemoFallback((repository) =>
+    repository.getQuestionById(questionId),
   )
 }
 
-export function getRetrievalChunks() {
-  return retrievalChunks.filter(isStudentFacingRetrievalChunk)
+export async function listQuestionsByTopic(topicId: string) {
+  return readWithDemoFallback((repository) =>
+    repository.listQuestionsByTopic(topicId),
+  )
+}
+
+export async function getQuestionCounts() {
+  return readWithDemoFallback((repository) => repository.getQuestionCounts())
+}
+
+export async function getTopics() {
+  return listTopics()
+}
+
+export async function getApprovedQuestions() {
+  return listQuestions()
+}
+
+export async function getApprovedQuestionById(questionId: string) {
+  return getQuestionById(questionId)
+}
+
+export async function getRetrievalChunks() {
+  return readWithDemoFallback((repository) => repository.getRetrievalChunks())
 }
 
 export async function getReviewQueue() {
-  return reviewQueue
+  return readWithDemoFallback((repository) => repository.getReviewQueue())
 }
 
-export function updateReviewCandidateStatus(
+export async function updateReviewCandidateStatus(
   candidateId: string,
-  action: "approve" | "reject",
+  action: ReviewAction,
+  reviewedBy?: string,
 ) {
-  const status: ReviewStatus = action === "approve" ? "approved" : "rejected"
-  let updated: ReviewCandidate | undefined
+  return readWithDemoFallback((repository) =>
+    repository.updateReviewCandidateStatus(candidateId, action, reviewedBy),
+  )
+}
 
-  reviewQueue = reviewQueue.map((candidate) => {
-    if (candidate.id !== candidateId) {
-      return candidate
+export function getContentRepository() {
+  if (contentRepositoryOverride) {
+    return contentRepositoryOverride
+  }
+
+  const env = getServerEnv()
+
+  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+    return demoContentRepository
+  }
+
+  return createDatabaseContentRepository(env.DATABASE_URL)
+}
+
+export function getContentRepositoryMode() {
+  const env = getServerEnv()
+  return env.APP_DEMO_MODE || !env.DATABASE_URL ? "demo" : "database"
+}
+
+export function getDataRepositoryMetadata(): DataRepositoryMetadata {
+  const env = getServerEnv()
+  const databaseConfigured = Boolean(env.DATABASE_URL)
+
+  if (env.APP_DEMO_MODE) {
+    return {
+      databaseConfigured,
+      demoFallbackEnabled: true,
+      mode: "demo",
+      reason: "APP_DEMO_MODE is enabled, so public demo JSON is the active source.",
+      source: "demo-json",
     }
+  }
 
-    updated = {
-      ...candidate,
-      review: {
-        ...candidate.review,
-        status,
-      },
+  if (!env.DATABASE_URL) {
+    return {
+      databaseConfigured: false,
+      demoFallbackEnabled: true,
+      mode: "demo",
+      reason: "DATABASE_URL is not configured, so public demo JSON is the active source.",
+      source: "demo-json",
     }
+  }
 
-    return updated
-  })
+  return {
+    databaseConfigured: true,
+    demoFallbackEnabled: true,
+    mode: "database",
+    reason:
+      "DATABASE_URL is configured; public demo JSON remains the fallback if database reads are unavailable.",
+    source: "postgres",
+  }
+}
 
-  return updated
+export function setContentRepositoryForTests(
+  repository: ContentRepository | undefined,
+) {
+  contentRepositoryOverride = repository
 }
 
 export function resetReviewQueueForTests() {
-  reviewQueue = reviewCandidates.map(cloneReviewCandidate)
+  resetDemoReviewQueueForTests()
 }
 
-export function isStudentFacingQuestion(question: TutorQuestion) {
-  return isApprovedPublicTrustedContent(question)
-}
+async function readWithDemoFallback<T>(
+  read: (repository: ContentRepository) => Promise<T>,
+) {
+  if (contentRepositoryOverride) {
+    return read(contentRepositoryOverride)
+  }
 
-export function isStudentFacingRetrievalChunk(chunk: RetrievalChunk) {
-  return isApprovedPublicTrustedContent(chunk)
-}
+  const env = getServerEnv()
 
-function cloneReviewCandidate(candidate: ReviewCandidate): ReviewCandidate {
-  return {
-    ...candidate,
-    answer: {
-      ...candidate.answer,
-      acceptedAnswers: [...candidate.answer.acceptedAnswers],
-    },
-    hints: [...candidate.hints],
-    misconceptions: candidate.misconceptions.map((misconception) => ({
-      ...misconception,
-      matchTerms: [...misconception.matchTerms],
-    })),
-    review: { ...candidate.review },
-    solutionSteps: [...candidate.solutionSteps],
-    source: {
-      ...candidate.source,
-      patternIds: candidate.source.patternIds
-        ? [...candidate.source.patternIds]
-        : undefined,
-    },
+  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+    return read(demoContentRepository)
+  }
+
+  try {
+    return await read(createDatabaseContentRepository(env.DATABASE_URL))
+  } catch {
+    return read(demoContentRepository)
   }
 }
+
+export { isStudentFacingQuestion, isStudentFacingRetrievalChunk }

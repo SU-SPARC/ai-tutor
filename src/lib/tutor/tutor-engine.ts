@@ -31,16 +31,21 @@ export async function createTutorResponse(
   }
 
   const question = request.questionId
-    ? getApprovedQuestionById(request.questionId)
+    ? await getApprovedQuestionById(request.questionId)
     : undefined
 
   if (question) {
-    const response = buildRuleBasedResponse(question, answer, request.mode, sessionId)
+    const response = await buildRuleBasedResponse(
+      question,
+      answer,
+      request.mode,
+      sessionId,
+    )
     recordTutorInteraction(sessionId, response.usage.estimatedTokens, response.source)
     return response
   }
 
-  const retrievedContext = retrieveCourseContext(
+  const retrievedContext = await retrieveCourseContext(
     `${request.topicId ?? ""} ${answer}`,
     request.topicId,
   )
@@ -94,12 +99,12 @@ export async function createTutorResponse(
   return response
 }
 
-function buildRuleBasedResponse(
+async function buildRuleBasedResponse(
   question: PracticeQuestion,
   answer: string,
   mode: TutorRequest["mode"],
   sessionId: string,
-): TutorResponse {
+): Promise<TutorResponse> {
   if (mode === "hint") {
     return {
       source: "rule",
@@ -108,7 +113,10 @@ function buildRuleBasedResponse(
       hints: question.hints.slice(0, 2),
       steps: [],
       misconceptions: [],
-      retrievedContext: retrieveCourseContext(question.prompt, question.topicId),
+      retrievedContext: await retrieveCourseContext(
+        question.prompt,
+        question.topicId,
+      ),
       usage: usageFor(sessionId, answer),
     }
   }
@@ -121,7 +129,10 @@ function buildRuleBasedResponse(
       hints: [],
       steps: question.solutionSteps,
       misconceptions: [],
-      retrievedContext: retrieveCourseContext(question.prompt, question.topicId),
+      retrievedContext: await retrieveCourseContext(
+        question.prompt,
+        question.topicId,
+      ),
       usage: usageFor(sessionId, answer),
     }
   }

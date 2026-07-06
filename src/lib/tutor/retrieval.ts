@@ -2,7 +2,7 @@ import "server-only"
 
 import { getRetrievalChunks } from "@/lib/data/data-store"
 
-export function retrieveCourseContext(query: string, topicId?: string) {
+export async function retrieveCourseContext(query: string, topicId?: string) {
   const normalizedQuery = query.toLowerCase()
   const queryTerms = new Set(
     normalizedQuery
@@ -11,7 +11,9 @@ export function retrieveCourseContext(query: string, topicId?: string) {
       .filter(Boolean),
   )
 
-  return getRetrievalChunks()
+  const chunks = await getRetrievalChunks()
+
+  return chunks
     .map((chunk) => {
       const topicBoost = topicId && chunk.topicId === topicId ? 2 : 0
       const keywordScore = chunk.keywords.reduce(
