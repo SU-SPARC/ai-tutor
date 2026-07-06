@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "visibility": "public",
+  "examples": [
+    {
+      "id": "rule-engine-correct-equivalent",
+      "questionId": "dice-sum-eight",
+      "mode": "check",
+      "studentAnswer": "40%",
+      "expectedSource": "rule",
+      "expectedVerdict": "correct",
+      "expectedState": "solved"
+    },
+    {
+      "id": "rule-engine-known-misconception",
+      "questionId": "dice-sum-eight",
+      "mode": "check",
+      "studentAnswer": "2/36",
+      "expectedSource": "rule",
+      "expectedVerdict": "incorrect",
+      "expectedState": "misconception_detected"
+    },
+    {
+      "id": "rule-engine-next-hint",
+      "questionId": "five-question-quiz",
+      "mode": "hint",
+      "studentAnswer": "",
+      "expectedSource": "rule",
+      "expectedVerdict": "guidance",
+      "expectedState": "hinting"
+    },
+    {
+      "id": "rule-engine-next-step",
+      "questionId": "exam-z-score",
+      "mode": "solution",
+      "studentAnswer": "",
+      "expectedSource": "rule",
+      "expectedVerdict": "guidance",
+      "expectedState": "step_reveal"
+    }
+  ]
+}

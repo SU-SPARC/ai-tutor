@@ -51,6 +51,16 @@ export type TutorMode = "check" | "hint" | "solution"
 
 export type TutorSource = "rule" | "retrieval" | "llm" | "blocked"
 
+export type TutorState =
+  | "working"
+  | "hinting"
+  | "step_reveal"
+  | "misconception_detected"
+  | "solved"
+  | "retrieval_guidance"
+  | "llm_guidance"
+  | "blocked"
+
 export type TutorVerdict = "correct" | "incorrect" | "guidance" | "blocked"
 
 export type Topic = {
@@ -291,10 +301,27 @@ export type TutorRequest = {
   topicId?: string
 }
 
+export type TutorSessionAttempt = {
+  answerPreview?: string
+  createdAt: string
+  id: string
+}
+
+export type TutorSessionRecord = {
+  anonymousStudentId?: string
+  attempts: TutorSessionAttempt[]
+  createdAt: string
+  id: string
+  questionId: string
+  revealedHints: number
+  revealedSteps: number
+}
+
 export type TutorResponse = {
   hints: string[]
   message: string
   misconceptions: string[]
+  progress?: TutorProgress
   retrievedContext: RetrievalChunk[]
   source: TutorSource
   steps: string[]
@@ -303,6 +330,17 @@ export type TutorResponse = {
     llmFallbacksRemaining: number
   }
   verdict: TutorVerdict
+}
+
+export type TutorProgress = {
+  attemptCount: number
+  hintsRevealed: number
+  llmUsed: boolean
+  retrievalUsed: boolean
+  solved: boolean
+  state: TutorState
+  stepsRevealed: number
+  wrongAttemptCount: number
 }
 
 export type UsageSummary = {

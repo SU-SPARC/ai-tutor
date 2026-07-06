@@ -24,7 +24,21 @@ import {
 } from "@/lib/data/data-store"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { getServerEnv } from "@/lib/env/server"
-import { createTutorResponse } from "@/lib/tutor/tutor-engine"
+import {
+  checkStudentAttempt,
+  createTutorResponse,
+  decideTutorResponse,
+  detectMisconception,
+  getNextHint,
+  getNextStep,
+  shouldEscalateToLLM,
+  shouldEscalateToRetrieval,
+} from "@/lib/tutor/tutor-engine"
+import {
+  getTutorSessionState,
+  getTutorAttemptSnapshotsForTests,
+  resetTutorStateForTests,
+} from "@/lib/tutor/tutor-state"
 import {
   REVIEW_STATUSES,
   SOURCE_TYPES,
@@ -33,11 +47,13 @@ import {
   type ApprovedGeneratedQuestion,
   type GeneratedQuestionDraft,
   type GeneratedQuestionReviewItem,
+  type TutorMode,
   type TutorQuestion,
 } from "@/lib/types"
 import demoQuestionPatterns from "../data/demo/question-patterns.json"
 import generatedExamples from "../data/demo/generated-examples.json"
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
+import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
 import {
   DEFAULT_USAGE_POLICY,
   canUseLlmFallback,
@@ -52,6 +68,7 @@ import { createMemoryUsageRepository } from "@/lib/data/usage-repositories"
 
 describe("tutor engine", () => {
   beforeEach(() => {
+    resetTutorStateForTests()
     resetUsageForTests()
   })
 
@@ -67,6 +84,8 @@ describe("tutor engine", () => {
     expect(response.source).toBe("rule")
     expect(response.verdict).toBe("correct")
     expect(response.steps).toHaveLength(3)
+    expect(response.progress?.state).toBe("solved")
+    expect(response.progress?.solved).toBe(true)
   })
 
   it("returns deterministic misconception feedback for common wrong patterns", async () => {
@@ -80,6 +99,242 @@ describe("tutor engine", () => {
     expect(response.source).toBe("rule")
     expect(response.verdict).toBe("incorrect")
     expect(response.misconceptions[0]).toContain("all 36 dice outcomes")
+    expect(response.hints).toHaveLength(1)
+    expect(response.steps).toHaveLength(0)
+    expect(response.progress?.state).toBe("misconception_detected")
+  })
+
+  it("uses the shared misconception library when no question-specific match exists", async () => {
+    const response = await createTutorResponse({
+      answer: "Use normal approximation even though np<5.",
+      mode: "check",
+      questionId: "exam-z-score",
+      sessionId: "library-misconception-test",
+    })
+
+    expect(response.source).toBe("rule")
+    expect(response.verdict).toBe("incorrect")
+    expect(response.misconceptions[0]).toContain("normal approximation")
+    expect(response.progress?.state).toBe("misconception_detected")
+  })
+
+  it("does not repeat identical misconception feedback for the same answer", async () => {
+    const first = await createTutorResponse({
+      answer: "2/36",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "repeat-misconception-test",
+    })
+    const second = await createTutorResponse({
+      answer: "2/36",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "repeat-misconception-test",
+    })
+
+    expect(first.misconceptions).toHaveLength(1)
+    expect(second.misconceptions).toHaveLength(0)
+    expect(second.hints).toHaveLength(2)
+    expect(second.progress?.wrongAttemptCount).toBe(2)
+  })
+
+  it("asks for an answer before revealing new check-mode guidance", async () => {
+    const response = await createTutorResponse({
+      answer: "",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "empty-answer-test",
+    })
+
+    expect(response.source).toBe("rule")
+    expect(response.verdict).toBe("guidance")
+    expect(response.hints).toHaveLength(0)
+    expect(response.steps).toHaveLength(0)
+    expect(response.progress?.state).toBe("working")
+  })
+
+  it("reveals approved hints one at a time", async () => {
+    const first = await createTutorResponse({
+      answer: "",
+      mode: "hint",
+      questionId: "dice-sum-eight",
+      sessionId: "hint-reveal-test",
+    })
+    const second = await createTutorResponse({
+      answer: "",
+      mode: "hint",
+      questionId: "dice-sum-eight",
+      sessionId: "hint-reveal-test",
+    })
+
+    expect(first.source).toBe("rule")
+    expect(first.hints).toHaveLength(1)
+    expect(first.steps).toHaveLength(0)
+    expect(first.progress?.hintsRevealed).toBe(1)
+    expect(second.hints).toHaveLength(2)
+    expect(second.progress?.hintsRevealed).toBe(2)
+    expect(second.progress?.state).toBe("hinting")
+  })
+
+  it("reveals approved solution steps one at a time", async () => {
+    const first = await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId: "step-reveal-test",
+    })
+    const second = await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId: "step-reveal-test",
+    })
+
+    expect(first.source).toBe("rule")
+    expect(first.steps).toHaveLength(1)
+    expect(first.hints).toHaveLength(0)
+    expect(first.progress?.stepsRevealed).toBe(1)
+    expect(first.progress?.state).toBe("step_reveal")
+    expect(second.steps).toHaveLength(2)
+    expect(second.progress?.stepsRevealed).toBe(2)
+  })
+
+  it("returns the approved explanation after all solution steps are visible", async () => {
+    const sessionId = "all-steps-visible-test"
+
+    await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+    await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+    await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+    const response = await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+
+    expect(response.steps).toHaveLength(3)
+    expect(response.message).toContain("five equally likely ordered outcomes")
+    expect(response.progress?.stepsRevealed).toBe(3)
+  })
+
+  it("exposes reusable rule-engine helpers for attempts, hints, steps, and escalation", async () => {
+    const question = await getQuestionById("dice-sum-eight")
+
+    expect(question).toBeDefined()
+
+    if (!question) {
+      return
+    }
+
+    const state = getTutorSessionState("helper-test", question.id)
+    const correctAttempt = checkStudentAttempt(question, "40%")
+    const misconception = detectMisconception(question, "2/36")
+    const firstHint = getNextHint(question, state)
+    const firstStep = getNextStep(question, state)
+    const blockedFullSolution = getNextStep(question, state, {
+      fullSolutionRequested: true,
+    })
+    const fullSolution = getNextStep(question, state, {
+      allowFullSolution: true,
+      fullSolutionRequested: true,
+    })
+
+    expect(correctAttempt.answerCheck.isCorrect).toBe(true)
+    expect(misconception?.id).toBe("uses-full-sample-space")
+    expect(firstHint.hints).toHaveLength(1)
+    expect(firstHint.state.state).toBe("hinting")
+    expect(firstStep.steps).toHaveLength(1)
+    expect(firstStep.state.state).toBe("step_reveal")
+    expect(blockedFullSolution.steps).toHaveLength(1)
+    expect(blockedFullSolution.message).toContain("not available yet")
+    expect(fullSolution.steps).toHaveLength(question.solutionSteps.length)
+    expect(fullSolution.message).toBe(question.answer.explanation)
+    expect(
+      shouldEscalateToRetrieval({
+        answer: "still stuck",
+        mode: "check",
+        question,
+        state: {
+          ...state,
+          hintsRevealed: question.hints.length,
+          stepsRevealed: question.solutionSteps.length,
+        },
+      }),
+    ).toBe(true)
+    expect(
+      shouldEscalateToLLM({
+        allowLlmFallback: true,
+        answer: "still stuck",
+        mode: "check",
+        retrievalMatches: 0,
+        state,
+      }),
+    ).toBe(true)
+  })
+
+  it("decides full-solution responses only when explicitly allowed", async () => {
+    const question = await getQuestionById("dice-sum-eight")
+
+    expect(question).toBeDefined()
+
+    if (!question) {
+      return
+    }
+
+    const blocked = await decideTutorResponse({
+      answer: "",
+      mode: "full_solution",
+      question,
+      sessionId: "full-solution-blocked",
+      state: getTutorSessionState("full-solution-blocked", question.id),
+    })
+    const allowed = await decideTutorResponse({
+      allowFullSolution: true,
+      answer: "",
+      mode: "full_solution",
+      question,
+      sessionId: "full-solution-allowed",
+      state: getTutorSessionState("full-solution-allowed", question.id),
+    })
+
+    expect(blocked.response.steps).toHaveLength(1)
+    expect(blocked.response.message).toContain("not available yet")
+    expect(allowed.response.steps).toHaveLength(question.solutionSteps.length)
+    expect(allowed.response.message).toBe(question.answer.explanation)
+  })
+
+  it("matches public rule-engine eval examples", async () => {
+    expect(ruleEngineExamples.visibility).toBe("public")
+
+    for (const example of ruleEngineExamples.examples) {
+      expect(["check", "hint", "solution"]).toContain(example.mode)
+
+      const response = await createTutorResponse({
+        answer: example.studentAnswer,
+        mode: example.mode as TutorMode,
+        questionId: example.questionId,
+        sessionId: example.id,
+      })
+
+      expect(response.source).toBe(example.expectedSource)
+      expect(response.verdict).toBe(example.expectedVerdict)
+      expect(response.progress?.state).toBe(example.expectedState)
+    }
   })
 
   it("blocks overlong student input before doing tutor work", async () => {
@@ -92,6 +347,7 @@ describe("tutor engine", () => {
 
     expect(response.source).toBe("blocked")
     expect(response.verdict).toBe("blocked")
+    expect(response.progress?.state).toBe("blocked")
   })
 
   it("uses approved retrieval chunks when no question rule matches", async () => {
@@ -104,6 +360,57 @@ describe("tutor engine", () => {
 
     expect(response.source).toBe("retrieval")
     expect(response.retrievedContext[0]?.id).toBe("z-score-formula")
+    expect(response.progress?.state).toBe("retrieval_guidance")
+    expect(response.progress?.retrievalUsed).toBe(true)
+    expect(response.progress?.llmUsed).toBe(false)
+  })
+
+  it("blocks LLM fallback unless explicit fallback is requested", async () => {
+    const response = await createTutorResponse({
+      answer: "orion quilting advice",
+      allowLlmFallback: false,
+      mode: "hint",
+      sessionId: "llm-explicit-block-test",
+    })
+
+    expect(response.source).toBe("blocked")
+    expect(response.message).toContain("LLM fallback was not requested")
+    expect(response.progress?.state).toBe("blocked")
+  })
+
+  it("does not call LLM fallback from the rule-based tutor engine", async () => {
+    const response = await createTutorResponse({
+      answer: "orion quilting advice",
+      allowLlmFallback: true,
+      mode: "hint",
+      sessionId: "llm-env-block-test",
+    })
+
+    expect(response.source).toBe("blocked")
+    expect(response.message).toContain("does not call LLM fallback")
+    expect(response.progress?.state).toBe("blocked")
+    expect(response.progress?.llmUsed).toBe(false)
+  })
+
+  it("records lightweight tutor attempt snapshots", async () => {
+    const response = await createTutorResponse({
+      answer: "1/5",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "attempt-snapshot-test",
+    })
+    const attempts = getTutorAttemptSnapshotsForTests()
+
+    expect(response.verdict).toBe("incorrect")
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]).toMatchObject({
+      answerPreview: "1/5",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "attempt-snapshot-test",
+      source: "rule",
+      verdict: "incorrect",
+    })
   })
 
   it("enforces per-session LLM fallback limits", () => {

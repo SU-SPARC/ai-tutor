@@ -37,7 +37,7 @@ export async function generateLlmFallback(prompt: string): Promise<FallbackResul
         {
           role: "system",
           content:
-            "You are a concise probability and statistics tutor. Give one short hint or step. Do not claim access to course materials unless provided.",
+            "You are a concise probability and statistics tutor. Give one short conceptual hint or next step only. Do not provide a final numeric answer. Do not claim access to course materials unless provided.",
         },
         {
           role: "user",
