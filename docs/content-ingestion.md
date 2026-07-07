@@ -112,6 +112,29 @@ npm run promote:approved-questions
 `approved` items, preserves generated source labels and originality notes, and
 refuses copied-source or textbook-looking items.
 
+Prepare question retrieval chunks:
+
+```bash
+npm run prepare:question-chunks
+```
+
+This writes public-safe student chunks to
+`data/processed/demo-question-chunks.json` and private admin/dev chunks to
+`data/private/generated/question-chunks.json`. The private output is ignored by
+Git.
+
+Generate server-side embeddings for local chunks:
+
+```bash
+npm run embed:chunks
+```
+
+This reads public-safe demo chunks, ignored private question chunks, and ignored
+private reference chunks when present. It writes embeddings or a skipped
+manifest to `data/private/generated/chunk-embeddings.json`. The output does not
+store chunk text and must remain private. If `OPENAI_API_KEY` is missing, the
+script exits successfully without calling OpenAI.
+
 ## Public vs Private Outputs
 
 Private outputs:

@@ -120,15 +120,62 @@ export type TutorQuestion = QuestionContent & {
 
 export type PracticeQuestion = TutorQuestion
 
+export type RetrievalChunkType =
+  | "concept"
+  | "example"
+  | "formula"
+  | "hint"
+  | "misconception"
+  | "pattern"
+  | "question"
+  | "solution_step"
+  | "solution_summary"
+
+export type RetrievalPriorityTier =
+  | "approved_professor_course"
+  | "approved_generated"
+  | "private_reference"
+  | "safe_demo"
+  | "admin_dev_draft"
+
 export type RetrievalChunk = {
   body: string
+  chunkType: RetrievalChunkType
+  conceptTags: string[]
+  contentHash?: string
+  difficulty?: Difficulty
+  embeddingModel?: string
+  formulaRefs: string[]
   id: string
   keywords: string[]
+  llmSafeSummary?: string
+  priorityTier: RetrievalPriorityTier
+  questionId?: string
   review: ReviewMetadata
   source: SourceMetadata
   title: string
   topicId: string
-  type: "formula" | "example" | "pattern"
+}
+
+export type TutorRetrievalResult = {
+  groundingContext: LlmGroundingContext[]
+  matches: RetrievalMatch[]
+  retrievedContext: RetrievalChunk[]
+}
+
+export type RetrievalMatch = {
+  chunk: RetrievalChunk
+  priorityTier: RetrievalPriorityTier
+  score: number
+}
+
+export type LlmGroundingContext = {
+  body: string
+  id: string
+  priorityTier: RetrievalPriorityTier
+  sourceType: SourceType
+  title: string
+  topicId: string
 }
 
 export type ReviewCandidate = QuestionContent & {

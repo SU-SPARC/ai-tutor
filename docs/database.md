@@ -22,6 +22,11 @@ The `questions` table includes `review_status`, `trust_level`, `source_type`,
 and `visibility`. Student-facing views require public visibility, approved
 review status, and trusted public/course/professor trust levels.
 
+`003_retrieval_chunks.sql` adds server-side retrieval chunk storage and safe
+student/admin views. Student retrieval reads only approved public trusted chunks
+or approved private reference summaries; raw private book text must remain
+outside public APIs.
+
 ## Content Safety
 
 Do not store raw private PDFs, extracted textbook text, private chunks,

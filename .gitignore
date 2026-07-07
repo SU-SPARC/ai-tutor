@@ -31,3 +31,6 @@ data/**/*chunks*
 data/**/*embeddings*
 data/**/*embedding*
 data/**/*generated-private*
+
+# Public-safe generated retrieval chunks.
+!data/processed/demo-question-chunks.json

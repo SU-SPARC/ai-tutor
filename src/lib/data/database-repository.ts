@@ -9,6 +9,8 @@ import type {
   Difficulty,
   Misconception,
   RetrievalChunk,
+  RetrievalChunkType,
+  RetrievalPriorityTier,
   ReviewCandidate,
   ReviewMetadata,
   SourceMetadata,
@@ -47,14 +49,22 @@ type QuestionRow = {
 
 type RetrievalChunkRow = {
   body: string
+  chunk_type: RetrievalChunkType
+  concept_tags_json: unknown
+  content_hash: string | null
+  difficulty: Difficulty | null
+  embedding_model: string | null
+  formula_refs_json: unknown
   id: string
   keywords_json: unknown
+  llm_safe_summary: string | null
+  priority_tier: RetrievalPriorityTier
+  question_id: string | null
   review_status: ReviewMetadata["status"]
   source_type: SourceMetadata["sourceType"]
   title: string
   topic_id: string
   trust_level: SourceMetadata["trustLevel"]
-  type: RetrievalChunk["type"]
   visibility: SourceMetadata["visibility"]
 }
 
@@ -134,7 +144,12 @@ export function createDatabaseContentRepository(
     },
 
     async getRetrievalChunks() {
-      return []
+      const rows = await query(`
+        select *
+        from app_student_retrieval_chunks
+        order by priority_rank, topic_id, title, id
+      `)
+      return rows.map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow))
     },
 
     async getReviewQueue() {
@@ -271,10 +286,18 @@ export function mapRetrievalChunkRow(row: RetrievalChunkRow): RetrievalChunk {
   return {
     id: row.id,
     topicId: row.topic_id,
-    type: row.type,
+    chunkType: row.chunk_type,
     title: row.title,
     body: row.body,
     keywords: stringArray(row.keywords_json),
+    formulaRefs: stringArray(row.formula_refs_json),
+    conceptTags: stringArray(row.concept_tags_json),
+    priorityTier: row.priority_tier,
+    questionId: row.question_id ?? undefined,
+    difficulty: row.difficulty ?? undefined,
+    llmSafeSummary: row.llm_safe_summary ?? undefined,
+    embeddingModel: row.embedding_model ?? undefined,
+    contentHash: row.content_hash ?? undefined,
     source: {
       sourceType: row.source_type,
       trustLevel: row.trust_level,

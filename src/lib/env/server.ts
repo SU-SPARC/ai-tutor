@@ -7,6 +7,7 @@ type ServerEnv = {
   MAX_DAILY_LLM_CALLS: number
   MAX_LLM_CALLS_PER_SESSION: number
   OPENAI_API_KEY?: string
+  OPENAI_EMBEDDING_MODEL?: string
   OPENAI_MODEL: string
 }
 
@@ -34,6 +35,7 @@ export function getServerEnv(): ServerEnv {
       DEFAULTS.MAX_LLM_CALLS_PER_SESSION,
     ),
     OPENAI_API_KEY: optionalString(process.env.OPENAI_API_KEY),
+    OPENAI_EMBEDDING_MODEL: optionalString(process.env.OPENAI_EMBEDDING_MODEL),
     OPENAI_MODEL: optionalString(process.env.OPENAI_MODEL) ?? DEFAULTS.OPENAI_MODEL,
   }
 }

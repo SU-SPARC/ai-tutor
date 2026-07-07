@@ -1618,6 +1618,7 @@ describe("server environment helper", () => {
     delete process.env.APP_DEMO_MODE
     delete process.env.MAX_DAILY_LLM_CALLS
     delete process.env.MAX_LLM_CALLS_PER_SESSION
+    delete process.env.OPENAI_EMBEDDING_MODEL
     delete process.env.OPENAI_MODEL
   })
 
@@ -1627,6 +1628,7 @@ describe("server environment helper", () => {
     expect(env.APP_DEMO_MODE).toBe(true)
     expect(env.MAX_DAILY_LLM_CALLS).toBe(100)
     expect(env.MAX_LLM_CALLS_PER_SESSION).toBe(2)
+    expect(env.OPENAI_EMBEDDING_MODEL).toBeUndefined()
     expect(env.OPENAI_MODEL).toBe("gpt-4.1-mini")
   })
 })

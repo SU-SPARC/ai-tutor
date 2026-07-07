@@ -116,7 +116,15 @@ export function isStudentFacingQuestion(question: TutorQuestion) {
 }
 
 export function isStudentFacingRetrievalChunk(chunk: RetrievalChunk) {
-  return isApprovedPublicTrustedContent(chunk)
+  return (
+    isApprovedPublicTrustedContent(chunk) ||
+    (chunk.review.status === "approved" &&
+      chunk.source.visibility === "private" &&
+      chunk.source.trustLevel === "private_reference" &&
+      chunk.source.sourceType === "private_reference_pattern" &&
+      Boolean(chunk.llmSafeSummary?.trim()) &&
+      chunk.body === chunk.llmSafeSummary)
+  )
 }
 
 function cloneReviewCandidate(candidate: ReviewCandidate): ReviewCandidate {

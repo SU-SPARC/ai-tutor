@@ -160,11 +160,14 @@ export const retrievalChunks: RetrievalChunk[] = [
   {
     id: "conditional-sample-space",
     topicId: "conditional-probability",
-    type: "pattern",
+    chunkType: "pattern",
     title: "Conditional probability pattern",
     body:
       "For P(A | B), first restrict attention to outcomes where B occurred, then count or compute the proportion where A also occurred.",
     keywords: ["conditional", "given", "sample space", "dice", "sum"],
+    formulaRefs: ["P(A | B)"],
+    conceptTags: ["conditional probability", "restricted sample space"],
+    priorityTier: "safe_demo",
     source: originalDemoSource(
       "Original public-safe retrieval summary; no private source text used.",
     ),
@@ -173,11 +176,14 @@ export const retrievalChunks: RetrievalChunk[] = [
   {
     id: "binomial-formula",
     topicId: "binomial-models",
-    type: "formula",
+    chunkType: "formula",
     title: "Binomial probability formula",
     body:
       "If X follows Binomial(n, p), then P(X = k) = C(n,k)p^k(1-p)^(n-k).",
     keywords: ["binomial", "exactly", "independent", "combination", "success"],
+    formulaRefs: ["P(X = k) = C(n,k)p^k(1-p)^(n-k)"],
+    conceptTags: ["binomial model", "exact count probability"],
+    priorityTier: "safe_demo",
     source: originalDemoSource(
       "Original public-safe retrieval summary; no private source text used.",
     ),
@@ -186,11 +192,14 @@ export const retrievalChunks: RetrievalChunk[] = [
   {
     id: "z-score-formula",
     topicId: "normal-standardization",
-    type: "formula",
+    chunkType: "formula",
     title: "Z-score formula",
     body:
       "Standardize normal observations with z = (x - mean) / standard deviation.",
     keywords: ["normal", "z-score", "standardize", "mean", "standard deviation"],
+    formulaRefs: ["z = (x - mean) / standard deviation"],
+    conceptTags: ["normal standardization", "z-score"],
+    priorityTier: "safe_demo",
     source: originalDemoSource(
       "Original public-safe retrieval summary; no private source text used.",
     ),
