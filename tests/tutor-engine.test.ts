@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-import { describe, expect, it, beforeEach, vi } from "vitest"
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest"
 
 import { POST as postProfessorReview } from "@/app/api/professor/review/route"
 import {
@@ -21,7 +21,9 @@ import {
   listQuestionsByTopic,
   listTopics,
   resetReviewQueueForTests,
+  setContentRepositoryForTests,
 } from "@/lib/data/data-store"
+import type { ContentRepository } from "@/lib/data/repository"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { getServerEnv } from "@/lib/env/server"
 import {
@@ -47,6 +49,7 @@ import {
   type ApprovedGeneratedQuestion,
   type GeneratedQuestionDraft,
   type GeneratedQuestionReviewItem,
+  type RetrievalChunk,
   type TutorMode,
   type TutorQuestion,
 } from "@/lib/types"
@@ -72,6 +75,13 @@ describe("tutor engine", () => {
     resetUsageForTests()
   })
 
+  afterEach(() => {
+    setContentRepositoryForTests(undefined)
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
   it("uses approved rule-based answers before retrieval or LLM fallback", async () => {
     const response = await createTutorResponse({
       answer: "2/5",
@@ -84,6 +94,9 @@ describe("tutor engine", () => {
     expect(response.source).toBe("rule")
     expect(response.verdict).toBe("correct")
     expect(response.steps).toHaveLength(3)
+    expect(response.responseLabel).toBe("approved_course_content")
+    expect(response.usage.contextUsed).toBe(false)
+    expect(response.usage.fallbackUsed).toBe(false)
     expect(response.progress?.state).toBe("solved")
     expect(response.progress?.solved).toBe(true)
   })
@@ -360,9 +373,63 @@ describe("tutor engine", () => {
 
     expect(response.source).toBe("retrieval")
     expect(response.retrievedContext[0]?.id).toBe("z-score-formula")
+    expect(response.responseLabel).toBe("approved_course_content")
+    expect(response.usage.contextUsed).toBe(true)
+    expect(response.usage.fallbackUsed).toBe(false)
     expect(response.progress?.state).toBe("retrieval_guidance")
     expect(response.progress?.retrievalUsed).toBe(true)
     expect(response.progress?.llmUsed).toBe(false)
+  })
+
+  it("labels generated approved and private-reference retrieval responses", async () => {
+    setContentRepositoryForTests(
+      contentRepositoryWithChunks([
+        retrievalChunkFixture({
+          body:
+            "Use the approved generated exact-count pattern with independent trials.",
+          id: "generated-approved-label",
+          keywords: ["generated", "exact", "count", "independent", "trials"],
+          priorityTier: "approved_generated",
+          sourceType: "generated_original",
+          topicId: "generated-label-topic",
+          trustLevel: "professor_approved",
+        }),
+        retrievalChunkFixture({
+          body: "Raw private textbook page text that should not be returned.",
+          id: "private-reference-label",
+          keywords: ["private", "reference", "bayes", "base", "evidence"],
+          llmSafeSummary:
+            "Use Bayes' rule with the base rate and conditional evidence rate.",
+          priorityTier: "private_reference",
+          sourceType: "private_reference_pattern",
+          topicId: "private-label-topic",
+          trustLevel: "private_reference",
+          visibility: "private",
+        }),
+      ]),
+    )
+
+    const generated = await createTutorResponse({
+      answer: "generated approved exact count independent trials",
+      mode: "hint",
+      sessionId: "generated-approved-label-test",
+      topicId: "generated-label-topic",
+    })
+    const privateGrounded = await createTutorResponse({
+      answer: "private reference bayes base rate evidence",
+      mode: "hint",
+      sessionId: "private-reference-label-test",
+      topicId: "private-label-topic",
+    })
+
+    expect(generated.source).toBe("retrieval")
+    expect(generated.responseLabel).toBe("generated_approved_content")
+    expect(privateGrounded.source).toBe("retrieval")
+    expect(privateGrounded.responseLabel).toBe(
+      "private_reference_grounded_explanation",
+    )
+    expect(privateGrounded.hints[0]).toContain("Use Bayes' rule")
+    expect(privateGrounded.hints[0]).not.toContain("Raw private")
   })
 
   it("blocks LLM fallback unless explicit fallback is requested", async () => {
@@ -378,7 +445,11 @@ describe("tutor engine", () => {
     expect(response.progress?.state).toBe("blocked")
   })
 
-  it("does not call LLM fallback from the rule-based tutor engine", async () => {
+  it("blocks off-domain LLM fallback without calling the provider", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubGlobal("fetch", fetchImpl)
+
     const response = await createTutorResponse({
       answer: "orion quilting advice",
       allowLlmFallback: true,
@@ -387,8 +458,137 @@ describe("tutor engine", () => {
     })
 
     expect(response.source).toBe("blocked")
-    expect(response.message).toContain("does not call LLM fallback")
+    expect(response.message).toContain("probability and statistics")
     expect(response.progress?.state).toBe("blocked")
+    expect(response.progress?.llmUsed).toBe(false)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it("blocks LLM fallback safely when the API key is missing", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+    vi.stubEnv("OPENAI_API_KEY", "")
+    vi.stubGlobal("fetch", fetchImpl)
+
+    const response = await createTutorResponse({
+      answer: "What is a confidence interval?",
+      allowLlmFallback: true,
+      mode: "hint",
+      sessionId: "llm-missing-key-test",
+    })
+
+    expect(response.source).toBe("blocked")
+    expect(response.message).toContain("LLM fallback is not configured")
+    expect(response.progress?.state).toBe("blocked")
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it("avoids LLM when retrieval has enough context for a templated response", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubGlobal("fetch", fetchImpl)
+
+    const response = await createTutorResponse({
+      answer: "How do I standardize a normal score with a mean?",
+      allowLlmFallback: true,
+      mode: "hint",
+      sessionId: "llm-retrieval-context-test",
+      topicId: "normal-standardization",
+    })
+
+    expect(response.source).toBe("retrieval")
+    expect(response.verdict).toBe("guidance")
+    expect(response.hints[0]).toContain("z = (x - mean)")
+    expect(
+      response.retrievedContext.some((chunk) => chunk.id === "z-score-formula"),
+    ).toBe(true)
+    expect(response.responseLabel).toBe("approved_course_content")
+    expect(response.usage.contextUsed).toBe(true)
+    expect(response.usage.fallbackUsed).toBe(false)
+    expect(response.progress?.state).toBe("retrieval_guidance")
+    expect(response.progress?.llmUsed).toBe(false)
+    expect(response.progress?.retrievalUsed).toBe(true)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it("labels general probability help beyond approved course/demo content", async () => {
+    mockLlmResponse(
+      "A confidence interval describes plausible values for an unknown population parameter.",
+    )
+
+    const response = await createTutorResponse({
+      answer: "What is a confidence interval?",
+      allowLlmFallback: true,
+      mode: "hint",
+      sessionId: "llm-general-help-test",
+    })
+
+    expect(response.source).toBe("llm")
+    expect(response.retrievedContext).toHaveLength(0)
+    expect(response.responseLabel).toBe("general_ai_help")
+    expect(response.usage.contextUsed).toBe(false)
+    expect(response.usage.fallbackUsed).toBe(true)
+    expect(response.message).toContain(
+      "general AI help beyond approved course/demo content",
+    )
+    expect(response.progress?.llmUsed).toBe(true)
+  })
+
+  it("uses LLM fallback for low-confidence answer coaching without grading correct", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Focus on identifying the conditioned sample space first, then compare your expression with that smaller denominator.",
+    )
+
+    const response = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    })
+    const payload = llmRequestPayload(fetchImpl)
+    const userPrompt = payload.messages[1]?.content ?? ""
+
+    expect(response.source).toBe("llm")
+    expect(response.verdict).toBe("guidance")
+    expect(response.responseLabel).toBe("approved_course_content")
+    expect(response.usage.contextUsed).toBe(true)
+    expect(response.usage.fallbackUsed).toBe(true)
+    expect(response.progress?.state).toBe("llm_guidance")
+    expect(response.progress?.solved).toBe(false)
+    expect(response.steps).toHaveLength(0)
+    expect(userPrompt).toContain("low_confidence_answer_help")
+    expect(userPrompt).toContain("\"confidence\": 0.1")
+    expect(userPrompt).not.toContain("2/5")
+    expect(getTutorAttemptSnapshotsForTests()[0]).toMatchObject({
+      contextUsed: true,
+      fallbackUsed: true,
+      responseLabel: "approved_course_content",
+      source: "llm",
+    })
+  })
+
+  it("returns retrieved non-AI guidance when LLM fallback fails", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("bad request", { status: 400 }))
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubGlobal("fetch", fetchImpl)
+
+    const response = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-failure-retrieval-test",
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(response.source).toBe("retrieval")
+    expect(response.verdict).toBe("guidance")
+    expect(response.responseLabel).toBe("approved_course_content")
+    expect(response.usage.contextUsed).toBe(true)
+    expect(response.usage.fallbackUsed).toBe(false)
+    expect(response.progress?.state).toBe("retrieval_guidance")
     expect(response.progress?.llmUsed).toBe(false)
   })
 
@@ -409,6 +609,9 @@ describe("tutor engine", () => {
       questionId: "dice-sum-eight",
       sessionId: "attempt-snapshot-test",
       source: "rule",
+      contextUsed: false,
+      fallbackUsed: false,
+      responseLabel: "approved_course_content",
       verdict: "incorrect",
     })
   })
@@ -437,7 +640,9 @@ describe("tutor engine", () => {
       retrievedContext: [],
       steps: [],
       usage: {
+        contextUsed: false,
         estimatedTokens: 1,
+        fallbackUsed: false,
         llmFallbacksRemaining: 2,
       },
       verdict: "guidance" as const,
@@ -464,6 +669,121 @@ describe("tutor engine", () => {
     expect(await repository.readTutorCache("llm-cache")).toBeUndefined()
   })
 })
+
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>
+
+type LlmRequestPayload = {
+  max_tokens?: number
+  messages: Array<{
+    content?: string
+    role?: string
+  }>
+}
+
+function mockLlmResponse(text: string): FetchMock {
+  const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        choices: [{ message: { content: text } }],
+      }),
+      { status: 200 },
+    ),
+  )
+
+  vi.stubEnv("OPENAI_API_KEY", "test-key")
+  vi.stubGlobal("fetch", fetchImpl)
+
+  return fetchImpl
+}
+
+function llmRequestPayload(fetchImpl: FetchMock) {
+  const init = fetchImpl.mock.calls[0]?.[1]
+  const body = typeof init?.body === "string" ? init.body : ""
+
+  if (!body) {
+    throw new Error("Expected LLM fallback request body.")
+  }
+
+  return JSON.parse(body) as LlmRequestPayload
+}
+
+function contentRepositoryWithChunks(
+  retrievalChunks: RetrievalChunk[],
+): ContentRepository {
+  return {
+    async getApprovedQuestionById() {
+      return undefined
+    },
+    async getApprovedQuestions() {
+      return []
+    },
+    async getQuestionById() {
+      return undefined
+    },
+    async getQuestionCounts() {
+      return {
+        byTopic: {},
+        total: 0,
+      }
+    },
+    async getRetrievalChunks() {
+      return retrievalChunks
+    },
+    async getReviewQueue() {
+      return []
+    },
+    async getTopics() {
+      return []
+    },
+    async listQuestions() {
+      return []
+    },
+    async listQuestionsByTopic() {
+      return []
+    },
+    async listTopics() {
+      return []
+    },
+    async updateReviewCandidateStatus() {
+      return undefined
+    },
+  }
+}
+
+function retrievalChunkFixture(
+  overrides: Partial<{
+    body: string
+    id: string
+    keywords: string[]
+    llmSafeSummary: string
+    priorityTier: RetrievalChunk["priorityTier"]
+    sourceType: RetrievalChunk["source"]["sourceType"]
+    topicId: string
+    trustLevel: RetrievalChunk["source"]["trustLevel"]
+    visibility: RetrievalChunk["source"]["visibility"]
+  }>,
+): RetrievalChunk {
+  return {
+    body: overrides.body ?? "Use an approved public retrieval pattern.",
+    chunkType: "concept",
+    conceptTags: ["label test", overrides.topicId ?? "label-topic"],
+    formulaRefs: [],
+    id: overrides.id ?? "label-test",
+    keywords: overrides.keywords ?? ["label", "test"],
+    llmSafeSummary: overrides.llmSafeSummary,
+    priorityTier: overrides.priorityTier ?? "safe_demo",
+    review: {
+      status: "approved",
+    },
+    source: {
+      sourceType: overrides.sourceType ?? "original_demo",
+      trustLevel: overrides.trustLevel ?? "public_original",
+      visibility: overrides.visibility ?? "public",
+    },
+    title: "Label test retrieval chunk",
+    topicId: overrides.topicId ?? "label-topic",
+  }
+}
 
 describe("content provenance and review metadata", () => {
   beforeEach(() => {

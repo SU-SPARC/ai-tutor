@@ -63,6 +63,12 @@ export type TutorState =
 
 export type TutorVerdict = "correct" | "incorrect" | "guidance" | "blocked"
 
+export type TutorResponseLabel =
+  | "approved_course_content"
+  | "generated_approved_content"
+  | "general_ai_help"
+  | "private_reference_grounded_explanation"
+
 export type Topic = {
   description: string
   id: string
@@ -369,11 +375,14 @@ export type TutorResponse = {
   message: string
   misconceptions: string[]
   progress?: TutorProgress
+  responseLabel?: TutorResponseLabel
   retrievedContext: RetrievalChunk[]
   source: TutorSource
   steps: string[]
   usage: {
     estimatedTokens: number
+    contextUsed: boolean
+    fallbackUsed: boolean
     llmFallbacksRemaining: number
   }
   verdict: TutorVerdict

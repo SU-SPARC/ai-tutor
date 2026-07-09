@@ -478,6 +478,11 @@ function TutorResponsePanel({ response }: { response: TutorResponse }) {
             {response.verdict}
           </Badge>
           <Badge variant="outline">source: {response.source}</Badge>
+          {response.responseLabel ? (
+            <Badge variant="outline">
+              {responseLabelText(response.responseLabel)}
+            </Badge>
+          ) : null}
         </div>
         <CardTitle className="text-lg">{response.message}</CardTitle>
       </CardHeader>
@@ -667,6 +672,22 @@ function modeLabel(mode: TutorMode) {
   }
 
   return "step"
+}
+
+function responseLabelText(label: TutorResponse["responseLabel"]) {
+  if (label === "generated_approved_content") {
+    return "generated approved content"
+  }
+
+  if (label === "private_reference_grounded_explanation") {
+    return "private reference grounded explanation"
+  }
+
+  if (label === "general_ai_help") {
+    return "general AI help"
+  }
+
+  return "approved course content"
 }
 
 function createClientId(prefix: string) {

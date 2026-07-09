@@ -1,6 +1,42 @@
 import "server-only"
 
-import { getServerEnv } from "@/lib/env/server"
+import {
+  buildLlmTutorUserPrompt,
+  generateLlmTutorResponse,
+  LLM_TUTOR_OUTPUT_TOKEN_LIMIT,
+  type LlmTutorDisclosure,
+  type LlmTutorInput,
+  type LlmTutorTask,
+} from "@/lib/ai/llm-tutor"
+import type { LlmGroundingContext, TutorMode, TutorProgress } from "@/lib/types"
+
+export const LLM_FALLBACK_OUTPUT_TOKEN_LIMIT = LLM_TUTOR_OUTPUT_TOKEN_LIMIT
+
+export type LlmFallbackTask = LlmTutorTask
+
+export type LlmFallbackDisclosure = LlmTutorDisclosure
+
+export type LlmFallbackPromptInput = {
+  allowedDisclosure: LlmFallbackDisclosure
+  answerCheck?: {
+    confidence: number
+    feedback: string
+  }
+  mode: TutorMode
+  progress?: Pick<
+    TutorProgress,
+    "hintsRevealed" | "solved" | "stepsRevealed"
+  >
+  provenanceNote: string
+  question?: {
+    prompt: string
+    title: string
+  }
+  retrievedContext: LlmGroundingContext[]
+  studentInput: string
+  task: LlmFallbackTask
+  topicId?: string
+}
 
 type FallbackResult =
   | {
@@ -12,62 +48,39 @@ type FallbackResult =
       reason: string
     }
 
-export async function generateLlmFallback(prompt: string): Promise<FallbackResult> {
-  const env = getServerEnv()
+export async function generateLlmFallback(
+  input: LlmFallbackPromptInput,
+): Promise<FallbackResult> {
+  const result = await generateLlmTutorResponse(toTutorInput(input))
 
-  if (!env.OPENAI_API_KEY) {
+  if (!result.fallbackUsed) {
     return {
       ok: false,
-      reason:
-        "LLM fallback is not configured. Add OPENAI_API_KEY on the server to enable it.",
-    }
-  }
-
-  const result = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: env.OPENAI_MODEL,
-      max_tokens: 250,
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a concise probability and statistics tutor. Give one short conceptual hint or next step only. Do not provide a final numeric answer. Do not claim access to course materials unless provided.",
-        },
-        {
-          role: "user",
-          content: prompt.slice(0, 1200),
-        },
-      ],
-    }),
-  })
-
-  if (!result.ok) {
-    return {
-      ok: false,
-      reason: "The configured LLM provider rejected the fallback request.",
-    }
-  }
-
-  const payload = (await result.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
-  }
-  const text = payload.choices?.[0]?.message?.content?.trim()
-
-  if (!text) {
-    return {
-      ok: false,
-      reason: "The configured LLM provider returned an empty response.",
+      reason: result.tutorMessage,
     }
   }
 
   return {
     ok: true,
-    text,
+    text: result.tutorMessage,
+  }
+}
+
+export function buildLlmFallbackPrompt(input: LlmFallbackPromptInput) {
+  return buildLlmTutorUserPrompt(toTutorInput(input))
+}
+
+function toTutorInput(input: LlmFallbackPromptInput): LlmTutorInput {
+  return {
+    allowedDisclosure: input.allowedDisclosure,
+    answerCheck: input.answerCheck,
+    currentQuestion: input.question,
+    mode: input.mode,
+    provenanceNote: input.provenanceNote,
+    retrievedContext: input.retrievedContext,
+    sessionState: input.progress,
+    studentMessage: input.studentInput,
+    task: input.task,
+    topicId: input.topicId,
   }
 }

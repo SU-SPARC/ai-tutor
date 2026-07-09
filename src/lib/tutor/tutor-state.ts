@@ -3,6 +3,7 @@ import "server-only"
 import type {
   TutorMode,
   TutorProgress,
+  TutorResponseLabel,
   TutorSource,
   TutorState,
   TutorVerdict,
@@ -17,10 +18,13 @@ export type TutorSessionState = TutorProgress & {
 
 export type TutorAttemptSnapshot = {
   answerPreview?: string
+  contextUsed: boolean
   createdAt: string
   estimatedTokens: number
+  fallbackUsed: boolean
   mode: TutorMode
   questionId?: string
+  responseLabel?: TutorResponseLabel
   sessionId: string
   source: TutorSource
   state: TutorState

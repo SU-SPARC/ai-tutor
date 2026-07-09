@@ -8,6 +8,7 @@ import type {
   TutorMode,
   TutorQuestion,
   TutorResponse,
+  TutorResponseLabel,
   TutorSource,
   TutorVerdict,
   UsageSummary,
@@ -48,9 +49,12 @@ export type ContentRepository = {
 
 export type TutorAttemptInput = {
   answerPreview?: string
+  contextUsed?: boolean
   estimatedTokens: number
+  fallbackUsed?: boolean
   mode?: TutorMode
   questionId?: string
+  responseLabel?: TutorResponseLabel
   sessionId: string
   source: TutorSource
   topicId?: string
