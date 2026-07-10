@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
 
 import "./globals.css"
+import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
+import { getDataRepositoryMetadata } from "@/lib/data/data-store"
+import { getServerEnv } from "@/lib/env/server"
 
 export const metadata: Metadata = {
   title: "Suffolk AI Probability Tutor",
@@ -14,10 +17,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const env = getServerEnv()
+  const demoMode =
+    getDataRepositoryMetadata().mode === "demo" || !env.OPENAI_API_KEY
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <SiteHeader demoMode={demoMode} />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
