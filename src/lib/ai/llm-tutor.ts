@@ -6,6 +6,10 @@ import type { LlmGroundingContext, TutorMode, TutorProgress } from "@/lib/types"
 
 export const LLM_TUTOR_OUTPUT_TOKEN_LIMIT = 180
 
+export function getLlmTutorOutputTokenLimit() {
+  return getServerEnv().MAX_LLM_OUTPUT_TOKENS
+}
+
 export type LlmTutorTask =
   | "conceptual_explanation"
   | "hint"
@@ -108,7 +112,7 @@ export async function generateLlmTutorResponse(
         },
         body: JSON.stringify({
           model: env.OPENAI_MODEL,
-          max_tokens: LLM_TUTOR_OUTPUT_TOKEN_LIMIT,
+          max_tokens: getLlmTutorOutputTokenLimit(),
           temperature: 0.2,
           messages: [
             {
@@ -130,7 +134,8 @@ export async function generateLlmTutorResponse(
         error: "provider_rejected_request",
         estimatedTokens,
         fallbackUsed: false,
-        tutorMessage: "The configured LLM provider rejected the fallback request.",
+        tutorMessage:
+          "The configured LLM provider rejected the fallback request.",
       }
     }
 
@@ -187,8 +192,8 @@ export function estimateLlmTutorTokens(
 
   return {
     estimatedInputTokens,
-    estimatedTotalTokens: estimatedInputTokens + LLM_TUTOR_OUTPUT_TOKEN_LIMIT,
-    maxOutputTokens: LLM_TUTOR_OUTPUT_TOKEN_LIMIT,
+    estimatedTotalTokens: estimatedInputTokens + getLlmTutorOutputTokenLimit(),
+    maxOutputTokens: getLlmTutorOutputTokenLimit(),
   }
 }
 

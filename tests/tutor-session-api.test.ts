@@ -39,6 +39,7 @@ describe("tutor session API", () => {
     expect(created.session).toMatchObject({
       anonymousStudentId: "anon-123",
       attempts: [],
+      llmFallbacksRemaining: 3,
       questionId: "dice-sum-eight",
       revealedHints: 0,
       revealedSteps: 0,
@@ -79,6 +80,7 @@ describe("tutor session API", () => {
       "2/36 because I counted all dice outcomes",
     )
     expect(fetchedPayload.session).toMatchObject({
+      anonymousStudentId: "anon-123",
       id: sessionId,
       questionId: "dice-sum-eight",
       revealedHints: 1,
@@ -97,11 +99,20 @@ describe("tutor session API", () => {
       new Request("http://localhost/api/tutor/session/missing-session"),
       sessionContext("missing-session"),
     )
+    const missingIdentityResponse = await postSession(
+      jsonRequest("http://localhost/api/tutor/session", {
+        questionId: "dice-sum-eight",
+      }),
+    )
 
     expect(createResponse.status).toBe(400)
     expect(((await createResponse.json()) as SessionPayload).error).toContain(
       "questionId",
     )
+    expect(missingIdentityResponse.status).toBe(400)
+    expect(
+      ((await missingIdentityResponse.json()) as SessionPayload).error,
+    ).toContain("anonymousStudentId")
     expect(missingResponse.status).toBe(404)
   })
 
@@ -111,6 +122,7 @@ describe("tutor session API", () => {
 
     const response = await postSession(
       jsonRequest("http://localhost/api/tutor/session", {
+        anonymousStudentId: "anon-fallback",
         questionId: "dice-sum-eight",
       }),
     )
@@ -118,6 +130,7 @@ describe("tutor session API", () => {
 
     expect(response.status).toBe(201)
     expect(payload.session?.questionId).toBe("dice-sum-eight")
+    expect(payload.session?.anonymousStudentId).toBe("anon-fallback")
     expect(payload.session?.revealedHints).toBe(0)
   })
 
@@ -138,10 +151,19 @@ describe("tutor session API", () => {
       answerPreview: "2/36",
       sessionId: created.id,
     })
+    const settled = await repository.recordAttemptOutcome({
+      answerPreview: "2/36",
+      estimatedTokens: 0,
+      sessionId: created.id,
+      source: "rule",
+      verdict: "correct",
+    })
+    const studentSessions = await repository.listSessionsForStudent("anon-db")
 
     expect(created).toMatchObject({
       anonymousStudentId: "anon-db",
       attempts: [],
+      llmFallbacksRemaining: 3,
       questionId: "dice-sum-eight",
       revealedHints: 0,
       revealedSteps: 0,
@@ -153,6 +175,14 @@ describe("tutor session API", () => {
         answerPreview: "2/36",
       }),
     ])
+    expect(settled?.attempts).toEqual([
+      expect.objectContaining({
+        source: "rule",
+        verdict: "correct",
+      }),
+    ])
+    expect(studentSessions).toHaveLength(1)
+    expect(studentSessions[0].id).toBe(created.id)
   })
 })
 
@@ -178,6 +208,7 @@ function createFakeTutorSessionRows() {
         anonymous_user_id: string | null
         created_at: string
         id: string
+        last_seen_at: string
         question_id: string
         revealed_hints: number
         revealed_steps: number
@@ -187,10 +218,15 @@ function createFakeTutorSessionRows() {
     answer_preview: string | null
     created_at: string
     id: number
+    source: "blocked" | "cache" | "llm" | "retrieval" | "rule"
+    verdict: "blocked" | "correct" | "guidance" | "incorrect" | null
   }> = []
 
   return {
-    async query(sql: string, params: Array<Date | null | number | string> = []) {
+    async query(
+      sql: string,
+      params: Array<Date | null | number | string> = [],
+    ) {
       const normalizedSql = sql.replace(/\s+/g, " ").trim()
 
       if (normalizedSql.startsWith("insert into tutor_sessions")) {
@@ -198,6 +234,7 @@ function createFakeTutorSessionRows() {
           anonymous_user_id: String(params[1] ?? ""),
           created_at: "2026-07-06T00:00:00.000Z",
           id: String(params[0]),
+          last_seen_at: "2026-07-06T00:00:00.000Z",
           question_id: String(params[2]),
           revealed_hints: 0,
           revealed_steps: 0,
@@ -206,6 +243,12 @@ function createFakeTutorSessionRows() {
       }
 
       if (normalizedSql.startsWith("select * from tutor_sessions")) {
+        if (normalizedSql.includes("anonymous_user_id = $1")) {
+          return session && session.anonymous_user_id === params[0]
+            ? [session]
+            : []
+        }
+
         return session && session.id === params[0] ? [session] : []
       }
 
@@ -222,20 +265,49 @@ function createFakeTutorSessionRows() {
           session.revealed_steps += 1
         }
 
+        session.last_seen_at = "2026-07-06T00:00:02.000Z"
+
         return []
       }
 
+      if (normalizedSql.startsWith("update attempts")) {
+        const pendingAttempt = [...attempts]
+          .reverse()
+          .find((attempt) => attempt.verdict === null)
+
+        if (!pendingAttempt) {
+          return []
+        }
+
+        pendingAttempt.verdict = String(
+          params[1],
+        ) as typeof pendingAttempt.verdict
+        pendingAttempt.source = String(
+          params[2],
+        ) as typeof pendingAttempt.source
+        return [{ id: pendingAttempt.id }]
+      }
+
       if (normalizedSql.startsWith("insert into attempts")) {
+        const includesOutcome = normalizedSql.includes("verdict,")
         attempts.push({
           answer_preview: params[2] === null ? null : String(params[2]),
           created_at: "2026-07-06T00:00:01.000Z",
           id: attempts.length + 1,
+          source: includesOutcome
+            ? (String(params[3]) as (typeof attempts)[number]["source"])
+            : "rule",
+          verdict: includesOutcome
+            ? (String(params[4]) as (typeof attempts)[number]["verdict"])
+            : null,
         })
         return []
       }
 
       if (
-        normalizedSql.startsWith("select id, answer_preview, created_at from attempts")
+        normalizedSql.startsWith(
+          "select id, answer_preview, source, verdict, created_at from attempts",
+        )
       ) {
         return attempts
       }

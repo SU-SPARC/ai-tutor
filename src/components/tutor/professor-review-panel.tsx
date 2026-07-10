@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, KeyRound, Loader2, X } from "lucide-react"
+import { Check, KeyRound, Loader2, RefreshCw, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { ReviewCandidate } from "@/lib/types"
+import type { ReviewCandidate, UsageDashboard } from "@/lib/types"
 
 type ProfessorReviewPanelProps = {
   initialCandidates: ReviewCandidate[]
@@ -26,7 +26,35 @@ export function ProfessorReviewPanel({
   const [candidates, setCandidates] = useState(initialCandidates)
   const [token, setToken] = useState("")
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [isUsageLoading, setIsUsageLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [usage, setUsage] = useState<UsageDashboard | null>(null)
+
+  async function loadUsage() {
+    setIsUsageLoading(true)
+    setMessage(null)
+
+    try {
+      const result = await fetch("/api/professor/usage", {
+        headers: token ? { "x-professor-token": token } : undefined,
+      })
+      const payload = (await result.json()) as {
+        error?: string
+        usage?: UsageDashboard
+      }
+
+      if (!result.ok || !payload.usage) {
+        setMessage(payload.error ?? "Usage dashboard request failed.")
+        return
+      }
+
+      setUsage(payload.usage)
+    } catch {
+      setMessage("Usage dashboard request failed.")
+    } finally {
+      setIsUsageLoading(false)
+    }
+  }
 
   async function reviewCandidate(
     candidateId: string,
@@ -86,7 +114,94 @@ export function ProfessorReviewPanel({
           }{" "}
           needs review
         </Badge>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          aria-label="Refresh usage dashboard"
+          title="Refresh usage dashboard"
+          disabled={isUsageLoading}
+          onClick={loadUsage}
+        >
+          <RefreshCw
+            className={isUsageLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+          />
+        </Button>
       </div>
+
+      <section className="border-b pb-4" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-medium">LLM usage</h2>
+            <p className="text-sm text-muted-foreground">
+              {usage
+                ? usage.mode === "database"
+                  ? "Durable aggregate usage"
+                  : "Demo-only usage; resets when this server restarts"
+                : "Enter the admin secret, then refresh usage."}
+            </p>
+          </div>
+          {usage ? <Badge variant="secondary">{usage.mode}</Badge> : null}
+        </div>
+
+        {usage ? (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <UsageMetric
+                label="Provider calls"
+                value={`${usage.today.llmCalls}/${usage.policy.maxDailyLlmCalls}`}
+              />
+              <UsageMetric
+                label="LLM tokens"
+                value={String(usage.today.totalTokens)}
+              />
+              <UsageMetric
+                label="Cache hits"
+                value={String(usage.today.cacheHits)}
+              />
+              <UsageMetric
+                label="Limit blocks"
+                value={String(usage.today.limitBlocks)}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span>{usage.policy.maxLlmCallsPerSession}/session</span>
+              <span>
+                {usage.policy.maxLlmCallsPerQuestionPerDay}/problem/day
+              </span>
+              <span>
+                {usage.policy.maxLlmCallsPerStudentPerDay}/student/day
+              </span>
+              <span>{usage.policy.maxLlmOutputTokens} output tokens</span>
+              <span>{usage.policy.maxTutorInputChars} input characters</span>
+            </div>
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Calls</TableHead>
+                    <TableHead>Tokens</TableHead>
+                    <TableHead>Cache</TableHead>
+                    <TableHead>Blocks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usage.daily.map((day) => (
+                    <TableRow key={day.date}>
+                      <TableCell>{day.date}</TableCell>
+                      <TableCell>{day.llmCalls}</TableCell>
+                      <TableCell>{day.totalTokens}</TableCell>
+                      <TableCell>{day.cacheHits}</TableCell>
+                      <TableCell>{day.limitBlocks}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        ) : null}
+      </section>
 
       {message ? (
         <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -164,6 +279,15 @@ export function ProfessorReviewPanel({
           ))}
         </TableBody>
       </Table>
+    </div>
+  )
+}
+
+function UsageMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-border px-3 py-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-mono text-lg font-medium">{value}</div>
     </div>
   )
 }

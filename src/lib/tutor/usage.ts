@@ -4,10 +4,10 @@ import { getServerEnv } from "@/lib/env/server"
 import type { TutorSource, UsageSummary } from "@/lib/types"
 
 export const DEFAULT_USAGE_POLICY = {
-  maxInputCharacters: 800,
+  maxInputCharacters: getServerEnv().MAX_TUTOR_INPUT_CHARS,
   maxDailyLlmFallbacks: getServerEnv().MAX_DAILY_LLM_CALLS,
+  maxEstimatedTokensPerSession: getServerEnv().MAX_LLM_TOKENS_PER_SESSION,
   maxLlmFallbacksPerSession: getServerEnv().MAX_LLM_CALLS_PER_SESSION,
-  maxEstimatedTokensPerSession: 1200,
 }
 
 const dailyLlmFallbacks = new Map<string, number>()

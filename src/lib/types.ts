@@ -49,7 +49,7 @@ export const REVIEW_STATUSES = [
 
 export type TutorMode = "check" | "hint" | "solution"
 
-export type TutorSource = "rule" | "retrieval" | "llm" | "blocked"
+export type TutorSource = "rule" | "retrieval" | "llm" | "cache" | "blocked"
 
 export type TutorState =
   | "working"
@@ -354,10 +354,34 @@ export type TutorRequest = {
   topicId?: string
 }
 
+export type LlmUsageLimitReason =
+  | "input_too_long"
+  | "llm_not_eligible"
+  | "usage_persistence_unavailable"
+  | "session_call_limit"
+  | "question_daily_limit"
+  | "student_daily_limit"
+  | "global_daily_limit"
+  | "session_token_budget"
+
+export type TutorUsage = {
+  cacheHit?: boolean
+  contextUsed: boolean
+  estimatedTokens: number
+  fallbackUsed: boolean
+  limitReason?: LlmUsageLimitReason
+  llmCallMade?: boolean
+  llmFallbackEligible?: boolean
+  llmFallbacksRemaining: number
+  usagePersistence?: "database" | "demo"
+}
+
 export type TutorSessionAttempt = {
   answerPreview?: string
   createdAt: string
   id: string
+  source?: TutorSource
+  verdict?: TutorVerdict
 }
 
 export type TutorSessionRecord = {
@@ -365,9 +389,37 @@ export type TutorSessionRecord = {
   attempts: TutorSessionAttempt[]
   createdAt: string
   id: string
+  lastSeenAt: string
+  llmFallbacksRemaining: number
   questionId: string
   revealedHints: number
   revealedSteps: number
+}
+
+export type StudentProgressDashboard = {
+  mode: "database" | "demo"
+  recentSessions: Array<{
+    attemptCount: number
+    correctAttempts: number
+    hintsUsed: number
+    lastSeenAt: string
+    questionId: string
+    questionTitle: string
+    stepsRevealed: number
+    topicId: string
+    topicTitle: string
+  }>
+  summary: {
+    attemptedQuestions: number
+    correctAttempts: number
+    hintsUsed: number
+    stepsRevealed: number
+    topicsPracticed: number
+  }
+  topics: Array<{
+    id: string
+    title: string
+  }>
 }
 
 export type TutorResponse = {
@@ -379,12 +431,7 @@ export type TutorResponse = {
   retrievedContext: RetrievalChunk[]
   source: TutorSource
   steps: string[]
-  usage: {
-    estimatedTokens: number
-    contextUsed: boolean
-    fallbackUsed: boolean
-    llmFallbacksRemaining: number
-  }
+  usage: TutorUsage
   verdict: TutorVerdict
 }
 
@@ -403,4 +450,34 @@ export type UsageSummary = {
   estimatedTokens: number
   interactions: number
   llmFallbacks: number
+}
+
+export type UsageDashboardTotals = {
+  cacheHits: number
+  estimatedLlmTokens: number
+  inputTokens: number
+  interactions: number
+  limitBlocks: number
+  llmCalls: number
+  outputTokens: number
+  totalTokens: number
+}
+
+export type UsageDashboardDay = UsageDashboardTotals & {
+  date: string
+}
+
+export type UsageDashboard = {
+  daily: UsageDashboardDay[]
+  mode: "database" | "demo"
+  policy: {
+    maxDailyLlmCalls: number
+    maxLlmCallsPerQuestionPerDay: number
+    maxLlmCallsPerSession: number
+    maxLlmCallsPerStudentPerDay: number
+    maxLlmOutputTokens: number
+    maxLlmTokensPerSession: number
+    maxTutorInputChars: number
+  }
+  today: UsageDashboardTotals
 }

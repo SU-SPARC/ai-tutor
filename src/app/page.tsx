@@ -2,6 +2,7 @@ import Link from "next/link"
 import {
   ArrowRight,
   BookOpenCheck,
+  ChartNoAxesColumn,
   GraduationCap,
   ShieldCheck,
   Sparkles,
@@ -16,7 +17,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getApprovedQuestions, getReviewQueue, getTopics } from "@/lib/data/data-store"
+import {
+  getApprovedQuestions,
+  getReviewQueue,
+  getTopics,
+} from "@/lib/data/data-store"
 
 export default async function HomePage() {
   const [topics, questions, reviewQueue] = await Promise.all([
@@ -38,8 +43,8 @@ export default async function HomePage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               A server-centered tutor shell that serves approved course patterns
-              first, retrieves trusted examples second, and only falls back to an
-              LLM when policy and quota allow it.
+              first, retrieves trusted examples second, and only falls back to
+              an LLM when policy and quota allow it.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -47,6 +52,12 @@ export default async function HomePage() {
               <Link href="/practice">
                 <GraduationCap className="h-4 w-4" />
                 Practice
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/dashboard">
+                <ChartNoAxesColumn className="h-4 w-4" />
+                Progress
               </Link>
             </Button>
             <Button asChild variant="secondary">

@@ -83,6 +83,23 @@ describe("server-side LLM tutor service", () => {
     })
   })
 
+  it("uses the server-configured output token cap", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubEnv("MAX_LLM_OUTPUT_TOKENS", "73")
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "Use the sample space first." } }],
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await generateLlmTutorResponse(baseTutorInput(), { fetchImpl })
+
+    expect(llmTutorRequestPayload(fetchImpl).max_tokens).toBe(73)
+  })
+
   it("handles provider errors without exposing prompts", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key")
     const fetchImpl = vi
@@ -98,7 +115,9 @@ describe("server-side LLM tutor service", () => {
       error: "provider_rejected_request",
       fallbackUsed: false,
     })
-    expect(result.tutorMessage).not.toContain("You are a probability/statistics")
+    expect(result.tutorMessage).not.toContain(
+      "You are a probability/statistics",
+    )
   })
 
   it("repairs unsafe provider text before returning tutor output", async () => {
@@ -155,8 +174,7 @@ function baseTutorInput(): LlmTutorInput {
       "Use only the retrieved approved/demo context below. Do not claim professor approval.",
     retrievedContext: [
       {
-        body:
-          "Use the binomial model when trials are independent and the target is an exact count.",
+        body: "Use the binomial model when trials are independent and the target is an exact count.",
         id: "safe-binomial",
         priorityTier: "safe_demo",
         sourceType: "original_demo",
@@ -183,7 +201,9 @@ function baseTutorInput(): LlmTutorInput {
   }
 }
 
-function llmTutorRequestPayload(fetchImpl: ReturnType<typeof vi.fn<typeof fetch>>) {
+function llmTutorRequestPayload(
+  fetchImpl: ReturnType<typeof vi.fn<typeof fetch>>,
+) {
   const init = fetchImpl.mock.calls[0]?.[1]
   const body = typeof init?.body === "string" ? init.body : ""
 

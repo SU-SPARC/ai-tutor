@@ -7,8 +7,20 @@ import {
   type LlmTutorInput,
   type LlmTutorTask,
 } from "@/lib/ai/llm-tutor"
+import {
+  createAiResponseCacheKey,
+  getCachedAiTutorResponse,
+  saveAiTutorResponseCache,
+} from "@/lib/ai/response-cache"
 import { getApprovedQuestionById } from "@/lib/data/data-store"
 import { getServerEnv } from "@/lib/env/server"
+import {
+  createTokenBudgetScope,
+  releaseTokenBudget,
+  reserveTokenBudget,
+  settleTokenBudget,
+  validateTokenBudgetInput,
+} from "@/lib/security/token-budget"
 import type { AnswerCheckResult } from "@/lib/tutor/answer-checker"
 import { checkAnswer, normalizeAnswerText } from "@/lib/tutor/answer-checker"
 import { detectMisconceptions } from "@/lib/tutor/misconceptions"
@@ -24,14 +36,17 @@ import {
   type TutorSessionState,
 } from "@/lib/tutor/tutor-state"
 import {
-  DEFAULT_USAGE_POLICY,
-  canUseLlmFallback,
   estimateTokens,
   getLlmFallbacksRemaining,
   recordTutorInteraction,
 } from "@/lib/tutor/usage"
+import {
+  getBudgetFallbacksRemaining,
+  recordTutorUsageInteraction,
+} from "@/lib/tutor/usage-control"
 import type {
   LlmGroundingContext,
+  LlmUsageLimitReason,
   PracticeQuestion,
   RetrievalChunk,
   RetrievalMatch,
@@ -52,6 +67,11 @@ export type TutorDecisionInput = {
   question: PracticeQuestion
   sessionId: string
   state: TutorSessionState
+  studentId?: string
+}
+
+export type TutorServerContext = {
+  studentId?: string
 }
 
 export type StudentAttemptCheck = {
@@ -83,6 +103,7 @@ type LlmTutorResultInput = {
   sessionId: string
   state: TutorSessionState
   stateUpdates?: Partial<TutorSessionState>
+  studentId?: string
   task: LlmTutorTask
   topicId?: string
 }
@@ -94,8 +115,8 @@ export type MisconceptionMatch = {
 }
 
 const LOW_CONFIDENCE_THRESHOLD = 0.2
-const MAX_LLM_GROUNDING_ITEMS = 3
-const MAX_LLM_GROUNDING_CHARS_TOTAL = 1400
+const MAX_LLM_GROUNDING_ITEMS = 2
+const MAX_LLM_GROUNDING_CHARS_TOTAL = 800
 const GENERAL_AI_HELP_NOTE =
   "I'm using general AI help beyond approved course/demo content."
 
@@ -134,30 +155,12 @@ const probabilityStatisticsTerms = [
 
 export async function createTutorResponse(
   request: TutorRequest,
+  serverContext: TutorServerContext = {},
 ): Promise<TutorResponse> {
   const sessionId = request.sessionId || "anonymous-demo-session"
   const answer = request.answer.trim()
   const questionKey = questionKeyForRequest(request)
   const state = getTutorSessionState(sessionId, questionKey)
-
-  if (answer.length > DEFAULT_USAGE_POLICY.maxInputCharacters) {
-    const nextState = saveTutorSessionState(
-      nextStateForAttempt(state, {
-        state: "blocked",
-      }),
-    )
-    return finalizeResponse(
-      blockedResponse(
-        "That answer is too long for the tutor. Please shorten it and try again.",
-        sessionId,
-        nextState,
-      ),
-      request,
-      answer,
-      sessionId,
-      nextState,
-    )
-  }
 
   const question = request.questionId
     ? await getApprovedQuestionById(request.questionId)
@@ -171,10 +174,14 @@ export async function createTutorResponse(
       question,
       sessionId,
       state,
+      studentId: serverContext.studentId,
     })
     const nextState = saveTutorSessionState(result.state)
     return finalizeResponse(
-      withProgress(result.response, nextState),
+      withProgress(
+        withLlmFallbackEligibility(result.response, question, nextState),
+        nextState,
+      ),
       request,
       answer,
       sessionId,
@@ -226,6 +233,7 @@ export async function createTutorResponse(
       retrievalResult,
       sessionId,
       state,
+      studentId: serverContext.studentId,
       task: request.mode === "hint" ? "hint" : "conceptual_explanation",
       topicId: request.topicId,
     })
@@ -265,6 +273,7 @@ export async function decideTutorResponse({
   question,
   sessionId,
   state,
+  studentId,
 }: TutorDecisionInput): Promise<RuleResult> {
   if (mode === "hint") {
     if (question.hints.length === 0) {
@@ -276,6 +285,7 @@ export async function decideTutorResponse({
         question,
         sessionId,
         state,
+        studentId,
         task: "retrieval_explanation",
         topicId: question.topicId,
       })
@@ -314,6 +324,7 @@ export async function decideTutorResponse({
         question,
         sessionId,
         state,
+        studentId,
         task: "retrieval_explanation",
         topicId: question.topicId,
       })
@@ -394,6 +405,7 @@ export async function decideTutorResponse({
 
   if (
     allowLlmFallback &&
+    isLlmFallbackEligible(question, state) &&
     !attemptCheck.misconception &&
     attemptCheck.answerCheck.confidence <= LOW_CONFIDENCE_THRESHOLD
   ) {
@@ -412,6 +424,7 @@ export async function decideTutorResponse({
         lastMisconceptionIds: [],
         wrongAttemptCount: state.wrongAttemptCount + 1,
       },
+      studentId,
       task: "low_confidence_answer_help",
       topicId: question.topicId,
     })
@@ -433,6 +446,7 @@ export async function decideTutorResponse({
         ...state,
         wrongAttemptCount: state.wrongAttemptCount + 1,
       },
+      studentId,
       task: "retrieval_explanation",
       topicId: question.topicId,
     })
@@ -451,7 +465,7 @@ export async function decideTutorResponse({
     sameStringSet(
       misconceptionMatches.map((misconception) => misconception.id),
       state.lastMisconceptionIds,
-  )
+    )
   const misconceptions = repeatedMisconception
     ? []
     : misconceptionMatches.map((misconception) => misconception.feedback)
@@ -469,17 +483,17 @@ export async function decideTutorResponse({
   })
 
   return {
-      response: {
-        source: "rule",
-        verdict: "incorrect",
-        message:
-          misconceptions.length > 0
-            ? "Not quite. I found a likely misconception to check first."
-            : "Not quite. Use the next hint before jumping to the full solution.",
-        responseLabel: labelForQuestion(question),
-        hints:
-          misconceptions.length > 0 && attemptCheck.misconception?.correctiveHint
-            ? [attemptCheck.misconception.correctiveHint]
+    response: {
+      source: "rule",
+      verdict: "incorrect",
+      message:
+        misconceptions.length > 0
+          ? "Not quite. I found a likely misconception to check first."
+          : "Not quite. Use the next hint before jumping to the full solution.",
+      responseLabel: labelForQuestion(question),
+      hints:
+        misconceptions.length > 0 && attemptCheck.misconception?.correctiveHint
+          ? [attemptCheck.misconception.correctiveHint]
           : hintResult.hints,
       steps: [],
       misconceptions,
@@ -514,10 +528,7 @@ export function getNextHint(
     state?: TutorSessionState["state"]
   },
 ) {
-  const hintsRevealed = Math.min(
-    question.hints.length,
-    state.hintsRevealed + 1,
-  )
+  const hintsRevealed = Math.min(question.hints.length, state.hintsRevealed + 1)
   const nextState = nextStateForAttempt(state, {
     hintsRevealed,
     state: options?.state ?? "hinting",
@@ -596,8 +607,17 @@ export function shouldEscalateToRetrieval(input: EscalationInput) {
 }
 
 export function shouldEscalateToLLM(input: EscalationInput) {
-  return Boolean(
-    input.allowLlmFallback && input.answer.trim().length > 0,
+  return Boolean(input.allowLlmFallback && input.answer.trim().length > 0)
+}
+
+export function isLlmFallbackEligible(
+  question: PracticeQuestion,
+  state: TutorSessionState,
+) {
+  return (
+    !state.solved &&
+    state.hintsRevealed >= question.hints.length &&
+    state.stepsRevealed >= question.solutionSteps.length
   )
 }
 
@@ -643,6 +663,7 @@ async function buildRetrievalOrLlmResponse(input: {
   sessionId: string
   state: TutorSessionState
   stateUpdates?: Partial<TutorSessionState>
+  studentId?: string
   task: LlmTutorTask
   topicId?: string
 }) {
@@ -651,9 +672,12 @@ async function buildRetrievalOrLlmResponse(input: {
     topicId: input.topicId,
   })
 
+  const llmEligible =
+    !input.question || isLlmFallbackEligible(input.question, input.state)
+
   if (
     hasRetrievedContext(retrievalResult) &&
-    isRetrievalTemplateEnough(input.task)
+    (!input.allowLlmFallback || !llmEligible || !input.state.retrievalUsed)
   ) {
     return buildRetrievalResponseFromResult(
       retrievalResult,
@@ -663,7 +687,7 @@ async function buildRetrievalOrLlmResponse(input: {
     )
   }
 
-  if (!input.allowLlmFallback) {
+  if (!input.allowLlmFallback || !llmEligible) {
     return hasRetrievedContext(retrievalResult)
       ? buildRetrievalResponseFromResult(
           retrievalResult,
@@ -684,6 +708,7 @@ async function buildRetrievalOrLlmResponse(input: {
     sessionId: input.sessionId,
     state: input.state,
     stateUpdates: input.stateUpdates,
+    studentId: input.studentId,
     task:
       hasRetrievedContext(retrievalResult) &&
       input.task !== "low_confidence_answer_help"
@@ -703,9 +728,24 @@ async function buildLlmResponse({
   sessionId,
   state,
   stateUpdates,
+  studentId,
   task,
   topicId,
 }: LlmTutorResultInput): Promise<RuleResult> {
+  if (
+    question &&
+    (!isLlmFallbackEligible(question, state) || !state.retrievalUsed)
+  ) {
+    const blocked = blockedRuleResult(
+      "Limited AI guidance becomes available after you have used the approved hints, solution steps, and retrieval guidance.",
+      sessionId,
+      state,
+      stateUpdates,
+    )
+    blocked.response.usage.limitReason = "llm_not_eligible"
+    return blocked
+  }
+
   const allowedDisclosure = allowedDisclosureFor(mode, state, allowFullSolution)
   const groundingContext = selectLlmGroundingContext(
     retrievalResult,
@@ -738,6 +778,19 @@ async function buildLlmResponse({
     )
   }
 
+  const inputCheck = validateTokenBudgetInput(answer)
+  if (!inputCheck.allowed) {
+    return blockedLlmBudgetResult({
+      message: messageForUsageLimit(inputCheck.reason),
+      question,
+      reason: inputCheck.reason,
+      retrievedContext,
+      sessionId,
+      state,
+      stateUpdates,
+    })
+  }
+
   const promptInput: LlmTutorInput = {
     allowedDisclosure,
     answerCheck: answerCheck
@@ -768,18 +821,84 @@ async function buildLlmResponse({
     topicId: topicId ?? question?.topicId,
   }
   const estimatedTokens = estimateLlmTutorTokens(promptInput)
-  const policy = canUseLlmFallback(
+  const anonymousStudentId = studentId ?? sessionId
+  const budgetQuestionId = question?.id ?? `topic:${topicId ?? "general"}`
+  const scope = createTokenBudgetScope({
+    anonymousStudentId,
+    questionId: budgetQuestionId,
     sessionId,
-    estimatedTokens.estimatedTotalTokens,
-  )
+    topicId: topicId ?? question?.topicId,
+  })
+  const cacheKey = createAiResponseCacheKey({
+    allowedDisclosure,
+    mode: promptInput.mode,
+    model: getServerEnv().OPENAI_MODEL,
+    questionId: question?.id,
+    retrievedContext: groundingContext,
+    studentMessage: answer,
+    studentKeyHash: scope.studentKeyHash,
+    task,
+    topicId: topicId ?? question?.topicId,
+  })
+  const cached = await getCachedAiTutorResponse(scope, cacheKey)
 
-  if (!policy.allowed) {
-    return blockedRuleResult(policy.reason, sessionId, state, stateUpdates)
+  if (cached) {
+    const nextState = nextStateForAttempt(state, {
+      ...stateUpdates,
+      retrievalUsed: state.retrievalUsed || retrievedContext.length > 0,
+      state: "llm_guidance",
+    })
+
+    return {
+      response: {
+        source: "cache",
+        verdict: "guidance",
+        message: cached.message,
+        responseLabel: cached.responseLabel,
+        hints: [],
+        steps: [],
+        misconceptions: [],
+        retrievedContext,
+        usage: {
+          cacheHit: true,
+          contextUsed: cached.contextUsed,
+          estimatedTokens: 0,
+          fallbackUsed: false,
+          llmCallMade: false,
+          llmFallbacksRemaining: await getBudgetFallbacksRemaining(sessionId),
+        },
+      },
+      state: nextState,
+    }
+  }
+
+  const budget = await reserveTokenBudget({
+    anonymousStudentId,
+    estimatedInputTokens: estimatedTokens.estimatedInputTokens,
+    estimatedOutputTokens: estimatedTokens.maxOutputTokens,
+    questionId: budgetQuestionId,
+    scope,
+    sessionId,
+    studentMessage: answer,
+    totalTokens: estimatedTokens.estimatedTotalTokens,
+  })
+
+  if (!budget.allowed) {
+    return blockedLlmBudgetResult({
+      message: messageForUsageLimit(budget.reason),
+      question,
+      reason: budget.reason,
+      retrievedContext,
+      sessionId,
+      state,
+      stateUpdates,
+    })
   }
 
   const generated = await generateLlmTutorResponse(promptInput)
 
   if (!generated.fallbackUsed) {
+    await releaseTokenBudget(budget.reservation)
     if (hasRetrievedContext(retrievalResult)) {
       return buildRetrievalResponseFromResult(
         retrievalResult,
@@ -812,6 +931,26 @@ async function buildLlmResponse({
       ? `${GENERAL_AI_HELP_NOTE} ${generated.tutorMessage}`
       : generated.tutorMessage
 
+  await settleTokenBudget(budget.reservation, {
+    estimatedTokens:
+      generated.estimatedTokens?.estimatedTotalTokens ??
+      estimatedTokens.estimatedTotalTokens,
+    providerCompletionTokens:
+      generated.estimatedTokens?.providerCompletionTokens,
+    providerPromptTokens: generated.estimatedTokens?.providerPromptTokens,
+    providerTotalTokens: generated.estimatedTokens?.providerTotalTokens,
+  })
+  await saveAiTutorResponseCache({
+    contextUsed: generated.contextUsed,
+    message,
+    requestHash: cacheKey,
+    responseLabel:
+      groundingContext.length > 0
+        ? labelForGroundingContext(groundingContext)
+        : "general_ai_help",
+    scope,
+  })
+
   return {
     response: {
       source: "llm",
@@ -827,14 +966,13 @@ async function buildLlmResponse({
       retrievedContext,
       usage: {
         contextUsed: generated.contextUsed,
+        cacheHit: false,
         estimatedTokens:
           generated.estimatedTokens?.estimatedTotalTokens ??
           estimatedTokens.estimatedTotalTokens,
         fallbackUsed: true,
-        llmFallbacksRemaining: Math.max(
-          0,
-          getLlmFallbacksRemaining(sessionId) - 1,
-        ),
+        llmCallMade: true,
+        llmFallbacksRemaining: await getBudgetFallbacksRemaining(sessionId),
       },
     },
     state: nextState,
@@ -858,14 +996,46 @@ function blockedRuleResult(
   }
 }
 
+function blockedLlmBudgetResult({
+  message,
+  question,
+  reason,
+  retrievedContext,
+  sessionId,
+  state,
+  stateUpdates,
+}: {
+  message: string
+  question?: PracticeQuestion
+  reason: LlmUsageLimitReason
+  retrievedContext: RetrievalChunk[]
+  sessionId: string
+  state: TutorSessionState
+  stateUpdates?: Partial<TutorSessionState>
+}): RuleResult {
+  const blocked = blockedRuleResult(
+    `${message} AI fallback is temporarily unavailable. Your saved hints and solution steps are still available.`,
+    sessionId,
+    state,
+    stateUpdates,
+  )
+
+  blocked.response.hints =
+    question?.hints.slice(0, blocked.state.hintsRevealed) ?? []
+  blocked.response.steps =
+    question?.solutionSteps.slice(0, blocked.state.stepsRevealed) ?? []
+  blocked.response.retrievedContext = retrievedContext
+  blocked.response.usage.cacheHit = false
+  blocked.response.usage.limitReason = reason
+  blocked.response.usage.llmCallMade = false
+
+  return blocked
+}
+
 function hasRetrievedContext(
   retrievalResult: TutorRetrievalResult | undefined,
 ): retrievalResult is TutorRetrievalResult {
   return Boolean(retrievalResult?.retrievedContext.length)
-}
-
-function isRetrievalTemplateEnough(task: LlmTutorTask) {
-  return task !== "low_confidence_answer_help"
 }
 
 function allowedDisclosureFor(
@@ -941,7 +1111,11 @@ function labelForRetrievedContext(
 function labelForGroundingContext(
   groundingContext: LlmGroundingContext[],
 ): TutorResponseLabel {
-  if (groundingContext.some((context) => context.priorityTier === "private_reference")) {
+  if (
+    groundingContext.some(
+      (context) => context.priorityTier === "private_reference",
+    )
+  ) {
     return "private_reference_grounded_explanation"
   }
 
@@ -989,12 +1163,14 @@ function usageFor(
   metadata: {
     contextUsed?: boolean
     fallbackUsed?: boolean
+    llmFallbackEligible?: boolean
   } = {},
 ) {
   return {
     contextUsed: Boolean(metadata.contextUsed),
     estimatedTokens: estimateTokens(input),
     fallbackUsed: Boolean(metadata.fallbackUsed),
+    llmFallbackEligible: Boolean(metadata.llmFallbackEligible),
     llmFallbacksRemaining: getLlmFallbacksRemaining(sessionId),
   }
 }
@@ -1024,7 +1200,7 @@ function blockedResponse(
   )
 }
 
-function finalizeResponse(
+async function finalizeResponse(
   response: TutorResponse,
   request: TutorRequest,
   answer: string,
@@ -1036,6 +1212,10 @@ function finalizeResponse(
     response.usage.estimatedTokens,
     response.source,
   )
+  await recordTutorUsageInteraction({
+    estimatedTokens: response.usage.estimatedTokens,
+    source: response.source,
+  }).catch(() => undefined)
   recordTutorAttemptSnapshot({
     answerPreview: answerPreviewFor(answer),
     contextUsed: response.usage.contextUsed,
@@ -1052,6 +1232,45 @@ function finalizeResponse(
   })
 
   return response
+}
+
+function withLlmFallbackEligibility(
+  response: TutorResponse,
+  question: PracticeQuestion,
+  state: TutorSessionState,
+): TutorResponse {
+  const eligible =
+    (response.source === "rule" || response.source === "retrieval") &&
+    isLlmFallbackEligible(question, state)
+
+  return {
+    ...response,
+    usage: {
+      ...response.usage,
+      llmFallbackEligible: eligible,
+    },
+  }
+}
+
+function messageForUsageLimit(reason: LlmUsageLimitReason) {
+  switch (reason) {
+    case "input_too_long":
+      return `Limited AI guidance accepts messages up to ${getServerEnv().MAX_TUTOR_INPUT_CHARS} characters.`
+    case "session_call_limit":
+      return "This practice session has reached its limited AI guidance allowance. You can continue with rules and retrieved course guidance."
+    case "question_daily_limit":
+      return "You have used today’s limited AI guidance allowance for this problem. You can continue with rules and retrieved course guidance."
+    case "student_daily_limit":
+      return "You have reached today’s limited AI guidance allowance. You can continue with rules and retrieved course guidance."
+    case "global_daily_limit":
+      return "Limited AI guidance is unavailable for the rest of today. Rules and retrieved course guidance are still available."
+    case "session_token_budget":
+      return "This practice session has reached its AI token budget. You can continue with rules and retrieved course guidance."
+    case "usage_persistence_unavailable":
+      return "Limited AI guidance is disabled until durable usage controls are configured. Rules and retrieval remain available."
+    default:
+      return "Limited AI guidance is not available for this request."
+  }
 }
 
 function nextStateForAttempt(

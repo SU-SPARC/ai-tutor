@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createTutorSession } from "@/lib/data/tutor-session-repository"
+import { isAnonymousStudentId } from "@/lib/auth/anonymous-student"
 
 type CreateSessionBody = {
   anonymousStudentId?: unknown
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   }
 
   const questionId = requiredString(body.questionId)
+  const anonymousStudentId = requiredString(body.anonymousStudentId)
 
   if (!questionId) {
     return NextResponse.json(
@@ -28,8 +30,15 @@ export async function POST(request: Request) {
     )
   }
 
+  if (!isAnonymousStudentId(anonymousStudentId)) {
+    return NextResponse.json(
+      { error: "A valid anonymousStudentId is required." },
+      { status: 400 },
+    )
+  }
+
   const session = await createTutorSession({
-    anonymousStudentId: optionalString(body.anonymousStudentId),
+    anonymousStudentId,
     questionId,
   })
 
@@ -37,9 +46,5 @@ export async function POST(request: Request) {
 }
 
 function requiredString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined
-}
-
-function optionalString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined
 }

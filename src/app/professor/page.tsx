@@ -12,13 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { getReviewQueue } from "@/lib/data/data-store"
-import { getGlobalUsageSummary } from "@/lib/tutor/usage"
 
 export default async function ProfessorPage() {
-  const [reviewQueue, usage] = await Promise.all([
-    getReviewQueue(),
-    getGlobalUsageSummary(),
-  ])
+  const reviewQueue = await getReviewQueue()
 
   return (
     <main className="min-h-svh bg-background">
@@ -39,8 +35,7 @@ export default async function ProfessorPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Draft questions are separated from approved student-facing
-              content. Approval mutations require a server-side
-              ADMIN_SECRET.
+              content. Approval mutations require a server-side ADMIN_SECRET.
             </p>
           </div>
         </div>
@@ -66,11 +61,11 @@ export default async function ProfessorPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Gauge className="h-4 w-4 text-primary" />
-                Tutor interactions
+                Usage dashboard
               </CardTitle>
               <CardDescription>
-                {usage.interactions} interactions and {usage.estimatedTokens}{" "}
-                estimated tokens recorded in this demo process.
+                Aggregate LLM calls, provider tokens, cache hits, and limits
+                load after professor authentication.
               </CardDescription>
             </CardHeader>
           </Card>

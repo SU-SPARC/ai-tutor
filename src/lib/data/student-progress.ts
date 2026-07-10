@@ -1,0 +1,91 @@
+import "server-only"
+
+import { getApprovedQuestions, getTopics } from "@/lib/data/data-store"
+import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository"
+import type { StudentProgressDashboard } from "@/lib/types"
+
+const RECENT_SESSION_LIMIT = 8
+
+export async function getStudentProgress(
+  anonymousStudentId: string,
+): Promise<StudentProgressDashboard> {
+  const [{ mode, sessions }, questions, topics] = await Promise.all([
+    listTutorSessionsForStudent(anonymousStudentId),
+    getApprovedQuestions(),
+    getTopics(),
+  ])
+  const questionsById = new Map(
+    questions.map((question) => [question.id, question]),
+  )
+  const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
+  const activeSessions = sessions.filter(
+    (session) =>
+      session.attempts.length > 0 ||
+      session.revealedHints > 0 ||
+      session.revealedSteps > 0,
+  )
+  const attemptedQuestionIds = new Set<string>()
+  const practicedTopicIds = new Set<string>()
+  let correctAttempts = 0
+  let hintsUsed = 0
+  let stepsRevealed = 0
+
+  for (const session of activeSessions) {
+    const question = questionsById.get(session.questionId)
+
+    if (!question) {
+      continue
+    }
+
+    if (session.attempts.length > 0) {
+      attemptedQuestionIds.add(question.id)
+    }
+
+    practicedTopicIds.add(question.topicId)
+    correctAttempts += session.attempts.filter(
+      (attempt) => attempt.verdict === "correct",
+    ).length
+    hintsUsed += session.revealedHints
+    stepsRevealed += session.revealedSteps
+  }
+
+  return {
+    mode,
+    recentSessions: activeSessions
+      .flatMap((session) => {
+        const question = questionsById.get(session.questionId)
+        const topic = question ? topicsById.get(question.topicId) : undefined
+
+        if (!question || !topic) {
+          return []
+        }
+
+        return [
+          {
+            attemptCount: session.attempts.length,
+            correctAttempts: session.attempts.filter(
+              (attempt) => attempt.verdict === "correct",
+            ).length,
+            hintsUsed: session.revealedHints,
+            lastSeenAt: session.lastSeenAt,
+            questionId: question.id,
+            questionTitle: question.title,
+            stepsRevealed: session.revealedSteps,
+            topicId: topic.id,
+            topicTitle: topic.title,
+          },
+        ]
+      })
+      .slice(0, RECENT_SESSION_LIMIT),
+    summary: {
+      attemptedQuestions: attemptedQuestionIds.size,
+      correctAttempts,
+      hintsUsed,
+      stepsRevealed,
+      topicsPracticed: practicedTopicIds.size,
+    },
+    topics: topics
+      .filter((topic) => practicedTopicIds.has(topic.id))
+      .map(({ id, title }) => ({ id, title })),
+  }
+}

@@ -26,6 +26,7 @@ import {
 import type { ContentRepository } from "@/lib/data/repository"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { getServerEnv } from "@/lib/env/server"
+import { resetTokenBudgetForTests } from "@/lib/security/token-budget"
 import {
   checkStudentAttempt,
   createTutorResponse,
@@ -73,6 +74,7 @@ describe("tutor engine", () => {
   beforeEach(() => {
     resetTutorStateForTests()
     resetUsageForTests()
+    resetTokenBudgetForTests()
   })
 
   afterEach(() => {
@@ -350,17 +352,18 @@ describe("tutor engine", () => {
     }
   })
 
-  it("blocks overlong student input before doing tutor work", async () => {
+  it("keeps rule-based help available for overlong AI input", async () => {
     const response = await createTutorResponse({
       answer: "x".repeat(DEFAULT_USAGE_POLICY.maxInputCharacters + 1),
-      mode: "check",
+      mode: "hint",
       questionId: "dice-sum-eight",
       sessionId: "length-test",
     })
 
-    expect(response.source).toBe("blocked")
-    expect(response.verdict).toBe("blocked")
-    expect(response.progress?.state).toBe("blocked")
+    expect(response.source).toBe("rule")
+    expect(response.verdict).toBe("guidance")
+    expect(response.hints).toHaveLength(1)
+    expect(response.usage.limitReason).toBeUndefined()
   })
 
   it("uses approved retrieval chunks when no question rule matches", async () => {
@@ -385,8 +388,7 @@ describe("tutor engine", () => {
     setContentRepositoryForTests(
       contentRepositoryWithChunks([
         retrievalChunkFixture({
-          body:
-            "Use the approved generated exact-count pattern with independent trials.",
+          body: "Use the approved generated exact-count pattern with independent trials.",
           id: "generated-approved-label",
           keywords: ["generated", "exact", "count", "independent", "trials"],
           priorityTier: "approved_generated",
@@ -538,8 +540,23 @@ describe("tutor engine", () => {
       "Focus on identifying the conditioned sample space first, then compare your expression with that smaller denominator.",
     )
 
+    await exhaustApprovedHelp("llm-low-confidence-test")
+    const retrieval = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    })
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    })
+    const cached = await createTutorResponse({
+      answer: "  I AM NOT SURE HOW TO EXPRESS THIS SETUP.  ",
       allowLlmFallback: true,
       mode: "check",
       questionId: "dice-sum-eight",
@@ -557,14 +574,108 @@ describe("tutor engine", () => {
     expect(response.progress?.solved).toBe(false)
     expect(response.steps).toHaveLength(0)
     expect(userPrompt).toContain("low_confidence_answer_help")
-    expect(userPrompt).toContain("\"confidence\": 0.1")
+    expect(userPrompt).toContain('"confidence": 0.1')
     expect(userPrompt).not.toContain("2/5")
-    expect(getTutorAttemptSnapshotsForTests()[0]).toMatchObject({
+    expect(retrieval.source).toBe("retrieval")
+    expect(cached.source).toBe("cache")
+    expect(cached.usage.cacheHit).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(
+      getTutorAttemptSnapshotsForTests().findLast(
+        (attempt) => attempt.source === "llm",
+      ),
+    ).toMatchObject({
       contextUsed: true,
       fallbackUsed: true,
       responseLabel: "approved_course_content",
       source: "llm",
     })
+  })
+
+  it("applies the input cap only to LLM fallback and preserves saved help", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Start with the conditioned sample space.",
+    )
+    const sessionId = "llm-input-cap-test"
+
+    await exhaustApprovedHelp(sessionId)
+    await createTutorResponse({
+      answer: "I need probability help with the conditioned sample space.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+
+    const response = await createTutorResponse({
+      answer: "probability ".repeat(100),
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+
+    expect(response.source).toBe("blocked")
+    expect(response.usage.limitReason).toBe("input_too_long")
+    expect(response.usage.llmCallMade).toBe(false)
+    expect(response.message).toContain("AI fallback is temporarily unavailable")
+    expect(response.message).toContain(
+      "saved hints and solution steps are still available",
+    )
+    expect(response.hints).toHaveLength(3)
+    expect(response.steps).toHaveLength(3)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it("allows three LLM calls per question session without blocking rules", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Compare the favorable conditioned outcomes.",
+    )
+    const sessionId = "llm-session-cap-test"
+
+    await exhaustApprovedHelp(sessionId)
+    const retrieval = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+    expect(retrieval.source).toBe("retrieval")
+
+    for (let index = 1; index <= 3; index += 1) {
+      const response = await createTutorResponse({
+        answer: `Probability attempt ${index} using the conditioned sample space.`,
+        allowLlmFallback: true,
+        mode: "check",
+        questionId: "dice-sum-eight",
+        sessionId,
+      })
+
+      expect(response.source).toBe("llm")
+    }
+
+    const blocked = await createTutorResponse({
+      answer: "A fourth probability request with a new message.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+    const ruleHelp = await createTutorResponse({
+      answer: "x".repeat(DEFAULT_USAGE_POLICY.maxInputCharacters + 1),
+      mode: "hint",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+
+    expect(blocked.source).toBe("blocked")
+    expect(blocked.usage.limitReason).toBe("session_call_limit")
+    expect(blocked.hints).toHaveLength(3)
+    expect(blocked.steps).toHaveLength(3)
+    expect(ruleHelp.source).toBe("rule")
+    expect(ruleHelp.hints).toHaveLength(3)
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
   })
 
   it("returns retrieved non-AI guidance when LLM fallback fails", async () => {
@@ -574,6 +685,14 @@ describe("tutor engine", () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key")
     vi.stubGlobal("fetch", fetchImpl)
 
+    await exhaustApprovedHelp("llm-failure-retrieval-test")
+    const retrieval = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-failure-retrieval-test",
+    })
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
@@ -583,6 +702,7 @@ describe("tutor engine", () => {
     })
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(retrieval.source).toBe("retrieval")
     expect(response.source).toBe("retrieval")
     expect(response.verdict).toBe("guidance")
     expect(response.responseLabel).toBe("approved_course_content")
@@ -617,6 +737,7 @@ describe("tutor engine", () => {
   })
 
   it("enforces per-session LLM fallback limits", () => {
+    recordTutorInteraction("quota-test", 10, "llm")
     recordTutorInteraction("quota-test", 10, "llm")
     recordTutorInteraction("quota-test", 10, "llm")
 
@@ -681,13 +802,19 @@ type LlmRequestPayload = {
 }
 
 function mockLlmResponse(text: string): FetchMock {
-  const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
-    new Response(
-      JSON.stringify({
-        choices: [{ message: { content: text } }],
-      }),
-      { status: 200 },
-    ),
+  const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: text } }],
+          usage: {
+            completion_tokens: 20,
+            prompt_tokens: 50,
+            total_tokens: 70,
+          },
+        }),
+        { status: 200 },
+      ),
   )
 
   vi.stubEnv("OPENAI_API_KEY", "test-key")
@@ -705,6 +832,26 @@ function llmRequestPayload(fetchImpl: FetchMock) {
   }
 
   return JSON.parse(body) as LlmRequestPayload
+}
+
+async function exhaustApprovedHelp(sessionId: string) {
+  for (let index = 0; index < 3; index += 1) {
+    await createTutorResponse({
+      answer: "",
+      mode: "hint",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    await createTutorResponse({
+      answer: "",
+      mode: "solution",
+      questionId: "dice-sum-eight",
+      sessionId,
+    })
+  }
 }
 
 function contentRepositoryWithChunks(
@@ -830,12 +977,14 @@ describe("content provenance and review metadata", () => {
   })
 
   it("exposes a consistent student-facing data repository API", async () => {
-    const [topics, questions, conditionalQuestions, counts] = await Promise.all([
-      listTopics(),
-      listQuestions(),
-      listQuestionsByTopic("conditional-probability"),
-      getQuestionCounts(),
-    ])
+    const [topics, questions, conditionalQuestions, counts] = await Promise.all(
+      [
+        listTopics(),
+        listQuestions(),
+        listQuestionsByTopic("conditional-probability"),
+        getQuestionCounts(),
+      ],
+    )
     const question = await getQuestionById("dice-sum-eight")
 
     expect(topics).toHaveLength(3)
@@ -968,9 +1117,7 @@ describe("content provenance and review metadata", () => {
       expect(serialized).not.toContain(key)
     }
 
-    expect(
-      additionalDrafts.map((candidate) => candidate.topic),
-    ).toEqual(
+    expect(additionalDrafts.map((candidate) => candidate.topic)).toEqual(
       expect.arrayContaining([
         "Conditional probability",
         "Bayes formula",
@@ -1040,7 +1187,9 @@ describe("content provenance and review metadata", () => {
 
     for (const topic of requiredTopics) {
       expect(
-        demoQuestionPatterns.patterns.some((pattern) => pattern.topic === topic),
+        demoQuestionPatterns.patterns.some(
+          (pattern) => pattern.topic === topic,
+        ),
       ).toBe(true)
     }
 
@@ -1064,11 +1213,10 @@ describe("content provenance and review metadata", () => {
     const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-"))
     const outputPath = path.join(tempDir, "public-db-seed.sql")
 
-    execFileSync(
-      "npm",
-      ["run", "db:seed", "--", "--output", outputPath],
-      { cwd: process.cwd(), stdio: "pipe" },
-    )
+    execFileSync("npm", ["run", "db:seed", "--", "--output", outputPath], {
+      cwd: process.cwd(),
+      stdio: "pipe",
+    })
 
     const sql = readFileSync(outputPath, "utf8")
 
@@ -1327,11 +1475,7 @@ describe("problem-pattern generation pipeline", () => {
 
     execFileSync(
       "node",
-      [
-        "scripts/generate-questions.mjs",
-        "--output",
-        outputPath,
-      ],
+      ["scripts/generate-questions.mjs", "--output", outputPath],
       { cwd: process.cwd(), stdio: "pipe" },
     )
 
@@ -1422,9 +1566,7 @@ describe("problem-pattern generation pipeline", () => {
             "Apply Bayes-type reasoning.",
             "Compute expected value as a weighted average.",
           ],
-          misconceptionCandidates: [
-            "Confusing P(A | B) with P(B | A).",
-          ],
+          misconceptionCandidates: ["Confusing P(A | B) with P(B | A)."],
         },
         null,
         2,
@@ -1691,7 +1833,9 @@ describe("problem-pattern generation pipeline", () => {
               questionText:
                 "A private source sentence repeats exactly enough words to trigger the local overlap warning.",
               finalAnswer: "1/2",
-              solutionSteps: ["Use favorable outcomes divided by total outcomes."],
+              solutionSteps: [
+                "Use favorable outcomes divided by total outcomes.",
+              ],
               hints: ["Identify the sample space."],
               misconceptions: [
                 {
@@ -1843,7 +1987,10 @@ function reviewQueueFixture(
     id: `review-${id}`,
     question: `Original generated question for ${id}?`,
     answer: "1/2",
-    solutionSteps: ["Use the intended formula.", "Compute the requested value."],
+    solutionSteps: [
+      "Use the intended formula.",
+      "Compute the requested value.",
+    ],
     hints: ["Identify the relevant quantities."],
     misconceptions: [
       {
@@ -1947,7 +2094,7 @@ describe("server environment helper", () => {
 
     expect(env.APP_DEMO_MODE).toBe(true)
     expect(env.MAX_DAILY_LLM_CALLS).toBe(100)
-    expect(env.MAX_LLM_CALLS_PER_SESSION).toBe(2)
+    expect(env.MAX_LLM_CALLS_PER_SESSION).toBe(3)
     expect(env.OPENAI_EMBEDDING_MODEL).toBeUndefined()
     expect(env.OPENAI_MODEL).toBe("gpt-4.1-mini")
   })
