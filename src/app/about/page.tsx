@@ -3,8 +3,10 @@ import {
   BookLock,
   Layers,
   ShieldCheck,
+  Sigma,
 } from "lucide-react"
 
+import { Math, MathText } from "@/components/math/math-renderer"
 import {
   Card,
   CardContent,
@@ -74,6 +76,32 @@ export default function AboutPage() {
                 </li>
               ))}
             </ol>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sigma className="h-5 w-5 text-primary" />
+              Math rendering
+            </CardTitle>
+            <CardDescription>
+              Questions, hints, and solutions render LaTeX so notation stays
+              readable. Invalid expressions fall back to plain text.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 text-sm leading-7 text-muted-foreground">
+            <MathText>
+              {
+                "Inline example: the z-score is $z = \\frac{x - \\mu}{\\sigma}$, used to standardize a value."
+              }
+            </MathText>
+            <div>
+              <p className="mb-1">Binomial probability (display):</p>
+              <Math display>
+                {"P(X = k) = \\binom{n}{k} p^{k} (1 - p)^{\\,n-k}"}
+              </Math>
+            </div>
           </CardContent>
         </Card>
 

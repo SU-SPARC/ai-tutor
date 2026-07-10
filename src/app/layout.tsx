@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import "katex/dist/katex.min.css"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"

@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { MathText } from "@/components/math/math-renderer"
 import { listQuestionsByTopic, getTopics } from "@/lib/data/data-store"
 import {
   difficultyBadgeVariant,
@@ -103,7 +104,7 @@ export default async function TopicDetailPage({ params }: TopicPageProps) {
                   </div>
                   <CardTitle className="mt-2 text-lg">{question.title}</CardTitle>
                   <CardDescription className="line-clamp-3 leading-6">
-                    {question.prompt}
+                    <MathText>{question.prompt}</MathText>
                   </CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto">
