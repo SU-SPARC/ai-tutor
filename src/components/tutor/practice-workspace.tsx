@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react"
 
+import { MathText } from "@/components/math/math-renderer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -427,7 +428,7 @@ export function PracticeWorkspace({
                   </div>
                   <CardTitle>{selectedQuestion.title}</CardTitle>
                   <CardDescription className="text-base leading-7 text-foreground">
-                    {selectedQuestion.prompt}
+                    <MathText>{selectedQuestion.prompt}</MathText>
                   </CardDescription>
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Badge variant="outline">Attempts {attemptsMade}</Badge>
@@ -626,7 +627,9 @@ function TutorResponsePanel({ response }: { response: TutorResponse }) {
             </span>
           ) : null}
         </div>
-        <CardTitle className="text-lg">{response.message}</CardTitle>
+        <CardTitle className="text-lg">
+          <MathText>{response.message}</MathText>
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4 text-sm leading-6">
         {limitGuidance ? (
@@ -644,7 +647,9 @@ function TutorResponsePanel({ response }: { response: TutorResponse }) {
             <h2 className="mb-2 font-medium">Hints</h2>
             <ul className="list-inside list-disc text-muted-foreground">
               {response.hints.map((hint) => (
-                <li key={hint}>{hint}</li>
+                <li key={hint}>
+                  <MathText>{hint}</MathText>
+                </li>
               ))}
             </ul>
           </section>
@@ -655,7 +660,9 @@ function TutorResponsePanel({ response }: { response: TutorResponse }) {
             <h2 className="mb-2 font-medium">Solution steps</h2>
             <ol className="list-inside list-decimal text-muted-foreground">
               {response.steps.map((step) => (
-                <li key={step}>{step}</li>
+                <li key={step}>
+                  <MathText>{step}</MathText>
+                </li>
               ))}
             </ol>
           </section>
