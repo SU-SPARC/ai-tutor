@@ -23,6 +23,8 @@ export type ReviewStatus =
   | "needs_edit"
   | "needs_regeneration"
 
+export type ReviewPriority = "normal" | "priority"
+
 export const SOURCE_TYPES = [
   "original_demo",
   "professor_provided",
@@ -46,6 +48,8 @@ export const REVIEW_STATUSES = [
   "needs_edit",
   "needs_regeneration",
 ] satisfies ReviewStatus[]
+
+export const REVIEW_PRIORITIES = ["normal", "priority"] satisfies ReviewPriority[]
 
 export type TutorMode = "check" | "hint" | "solution"
 
@@ -99,6 +103,7 @@ export type ReviewMetadata = {
   notes?: string
   reviewedAt?: string
   reviewedBy?: string
+  reviewPriority?: ReviewPriority
   status: ReviewStatus
 }
 
@@ -189,6 +194,30 @@ export type ReviewCandidate = QuestionContent & {
   patternSource: string
   review: ReviewMetadata
   source: SourceMetadata
+  topic?: string
+}
+
+export type AdminQuestion = TutorQuestion & {
+  patternSource?: string
+  topicTitle?: string
+}
+
+export type AdminQuestionSection =
+  | "approved_student_facing"
+  | "generated_original"
+  | "pattern_derived_original_candidates"
+  | "professor_provided"
+
+export type AdminQuestionDashboard = {
+  mode: "database" | "demo"
+  questions: AdminQuestion[]
+  readOnly: boolean
+  readOnlyReason?: string
+  sections: Record<AdminQuestionSection, string[]>
+  topics: Array<{
+    id: string
+    title: string
+  }>
 }
 
 export type PrivateExtractionItem = {
@@ -480,4 +509,95 @@ export type UsageDashboard = {
     maxTutorInputChars: number
   }
   today: UsageDashboardTotals
+}
+
+export type ProfessorReviewAnalytics = {
+  byDifficulty: Record<Difficulty, number>
+  byPriority: Record<ReviewPriority, number>
+  byStatus: Record<ReviewStatus, number>
+  byTopic: Record<string, number>
+  totalBacklog: number
+}
+
+export type GeneratedQuestionReviewOutcomes = Record<ReviewStatus, number>
+
+export type ProfessorPracticeAnalytics = {
+  commonMisconceptions: Array<{
+    feedback: string
+    misconceptionId: string
+    missedAttempts: number
+    questionId: string
+    questionTitle: string
+    topicId: string
+    topicTitle: string
+  }>
+  generatedQuestionOutcomes: GeneratedQuestionReviewOutcomes
+  mode: "database" | "demo" | "unavailable"
+  questions: Array<{
+    attempts: number
+    correctAttempts: number
+    hintsUsed: number
+    llmAttempts: number
+    questionId: string
+    questionTitle: string
+    stepsRevealed: number
+    topicId: string
+    topicTitle: string
+  }>
+  summary: {
+    totalAttempts: number
+    totalHintsUsed: number
+    totalStepsRevealed: number
+    totalTutorSessions: number
+  }
+  topics: Array<{
+    attempts: number
+    correctAttempts: number
+    hintsUsed: number
+    llmAttempts: number
+    stepsRevealed: number
+    topicId: string
+    topicTitle: string
+  }>
+}
+
+export type InstructorAnalyticsDashboard = {
+  commonMisconceptions: ProfessorPracticeAnalytics["commonMisconceptions"]
+  generatedQuestions: {
+    approved: number
+    needsEdit: number
+    needsRegeneration: number
+    needsReview: number
+    rejected: number
+  }
+  mode: "database" | "demo"
+  mostMissedQuestions: Array<{
+    attempts: number
+    correctAttempts: number
+    missedAttempts: number
+    missRate: number
+    questionId: string
+    questionTitle: string
+    topicId: string
+    topicTitle: string
+  }>
+  mostPracticedTopics: ProfessorPracticeAnalytics["topics"]
+  notes: string[]
+  totals: {
+    averageHintsUsed: number
+    cacheHits: number
+    generatedQuestionsApproved: number
+    generatedQuestionsRejected: number
+    llmCallsUsed: number
+    totalAttempts: number
+    totalTutorSessions: number
+  }
+}
+
+export type ProfessorAnalyticsDashboard = {
+  instructor: InstructorAnalyticsDashboard
+  mode: "database" | "demo"
+  practice: ProfessorPracticeAnalytics
+  review: ProfessorReviewAnalytics
+  usage: UsageDashboard
 }

@@ -858,6 +858,9 @@ function contentRepositoryWithChunks(
   retrievalChunks: RetrievalChunk[],
 ): ContentRepository {
   return {
+    async getAdminQuestions() {
+      return []
+    },
     async getApprovedQuestionById() {
       return undefined
     },
@@ -871,6 +874,27 @@ function contentRepositoryWithChunks(
       return {
         byTopic: {},
         total: 0,
+      }
+    },
+    async getProfessorPracticeAnalytics() {
+      return {
+        commonMisconceptions: [],
+        generatedQuestionOutcomes: {
+          approved: 0,
+          needs_edit: 0,
+          needs_regeneration: 0,
+          needs_review: 0,
+          rejected: 0,
+        },
+        mode: "demo",
+        questions: [],
+        summary: {
+          totalAttempts: 0,
+          totalHintsUsed: 0,
+          totalStepsRevealed: 0,
+          totalTutorSessions: 0,
+        },
+        topics: [],
       }
     },
     async getRetrievalChunks() {
@@ -890,6 +914,27 @@ function contentRepositoryWithChunks(
     },
     async listTopics() {
       return []
+    },
+    async importReviewCandidates() {
+      return {
+        candidates: [],
+        imported: true,
+        message: "Imported into test repository.",
+        mode: "demo",
+        nonDurable: true,
+      }
+    },
+    async updateReviewCandidates() {
+      return []
+    },
+    async updateAdminQuestions() {
+      return []
+    },
+    async updateAdminQuestionDetail() {
+      return undefined
+    },
+    async regenerateAdminQuestion() {
+      return undefined
     },
     async updateReviewCandidateStatus() {
       return undefined
@@ -2041,6 +2086,19 @@ describe("professor review authorization", () => {
     process.env.ADMIN_SECRET = "local-secret"
     resetReviewQueueForTests()
 
+    const priorityResponse = await postProfessorReview(
+      new Request("http://localhost/api/professor/review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-professor-token": "local-secret",
+        },
+        body: JSON.stringify({
+          candidateId: "generated-bayes-campus-badges-1",
+          reviewPriority: "priority",
+        }),
+      }),
+    )
     const approveResponse = await postProfessorReview(
       new Request("http://localhost/api/professor/review", {
         method: "POST",
@@ -2056,6 +2114,7 @@ describe("professor review authorization", () => {
     )
     const approvedPayload = await approveResponse.json()
 
+    expect(priorityResponse.status).toBe(200)
     expect(approveResponse.status).toBe(200)
     expect(approvedPayload.candidate.review.status).toBe("approved")
 
@@ -2068,7 +2127,7 @@ describe("professor review authorization", () => {
         },
         body: JSON.stringify({
           action: "reject",
-          candidateId: "generated-bayes-campus-badges-1",
+          candidateId: "generated-binomial-study-app-1",
         }),
       }),
     )

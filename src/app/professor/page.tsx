@@ -11,11 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getReviewQueue } from "@/lib/data/data-store"
 
-export default async function ProfessorPage() {
-  const reviewQueue = await getReviewQueue()
-
+export default function ProfessorPage() {
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
@@ -48,12 +45,7 @@ export default async function ProfessorPage() {
                 Pending drafts
               </CardTitle>
               <CardDescription>
-                {
-                  reviewQueue.filter(
-                    (candidate) => candidate.review.status === "needs_review",
-                  ).length
-                }{" "}
-                question drafts need review.
+                Queue loads after professor authentication.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -92,7 +84,7 @@ export default async function ProfessorPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfessorReviewPanel initialCandidates={reviewQueue} />
+            <ProfessorReviewPanel />
           </CardContent>
         </Card>
       </section>
