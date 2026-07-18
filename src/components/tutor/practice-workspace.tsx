@@ -1,17 +1,24 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
-  BookOpenCheck,
   ChartNoAxesColumn,
   CheckCircle2,
-  CircleAlert,
+  ChevronLeft,
+  ChevronRight,
   Lightbulb,
   ListChecks,
   Loader2,
   RotateCcw,
+  Send,
   Sparkles,
 } from "lucide-react"
 
@@ -46,12 +53,13 @@ type PracticeWorkspaceProps = {
   topics: CourseTopic[]
 }
 
-type TutorTranscriptItem = {
-  content?: string
+type ChatMessage = {
   id: string
-  mode: TutorMode | "ai"
-  response?: TutorResponse
+  note?: string
   role: "student" | "tutor"
+  stepLabel?: string
+  text: string
+  tone?: "correct" | "incorrect" | "neutral"
 }
 
 type TutorSessionPayload = {
@@ -94,22 +102,24 @@ export function PracticeWorkspace({
   )
   const [session, setSession] = useState<TutorSessionRecord | null>(null)
   const [sessionError, setSessionError] = useState<string | null>(null)
-  const [transcript, setTranscript] = useState<TutorTranscriptItem[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [revealedHints, setRevealedHints] = useState<string[]>([])
+  const [hintViewIndex, setHintViewIndex] = useState(0)
+  const [revealedStepCount, setRevealedStepCount] = useState(0)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
   const selectedQuestionIdForSession = selectedQuestion?.id
   const isTutorBusy = activeMode !== null || isSessionLoading
-  const attemptsMade = session?.attempts.length ?? 0
-  const hintsUsed = Math.max(
-    session?.revealedHints ?? 0,
-    latestResponse?.progress?.hintsRevealed ?? 0,
-  )
-  const stepsRevealed = Math.max(
-    session?.revealedSteps ?? 0,
-    latestResponse?.progress?.stepsRevealed ?? 0,
-  )
   const limitedAiInputTooLong = answer.trim().length > maxTutorInputChars
   const aiExplanationsRemaining =
     latestResponse?.usage.llmFallbacksRemaining ??
     session?.llmFallbacksRemaining
+  const canSend =
+    Boolean(session) && !isTutorBusy && answer.trim().length > 0
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+  }, [messages])
 
   useEffect(() => {
     let isStale = false
@@ -119,7 +129,10 @@ export function PracticeWorkspace({
       setLatestResponse(null)
       setSession(null)
       setSessionError(null)
-      setTranscript([])
+      setMessages([])
+      setRevealedHints([])
+      setHintViewIndex(0)
+      setRevealedStepCount(0)
 
       if (!selectedQuestionIdForSession) {
         setIsSessionLoading(false)
@@ -154,6 +167,20 @@ export function PracticeWorkspace({
     }
   }, [selectedQuestionIdForSession])
 
+  function resetChat() {
+    setMessages([])
+    setRevealedHints([])
+    setHintViewIndex(0)
+    setRevealedStepCount(0)
+  }
+
+  function pushMessage(message: Omit<ChatMessage, "id">) {
+    setMessages((items) => [
+      ...items,
+      { ...message, id: createClientId(message.role) },
+    ])
+  }
+
   function chooseTopic(topicId: string) {
     const nextQuestion = questions.find(
       (question) => question.topicId === topicId,
@@ -162,59 +189,125 @@ export function PracticeWorkspace({
     setSelectedQuestionId(nextQuestion?.id ?? "")
     setAnswer("")
     setLatestResponse(null)
-    setTranscript([])
+    resetChat()
   }
 
-  async function requestTutor(mode: TutorMode) {
-    if (!selectedQuestion || !session || activeMode) {
+  async function sendAnswer() {
+    const trimmed = answer.trim()
+
+    if (!selectedQuestion || !session || activeMode || !trimmed) {
       return
     }
 
-    setActiveMode(mode)
+    setActiveMode("check")
     setSessionError(null)
-    setTranscript((items) => [
-      ...items,
-      {
-        content: studentMessageFor(mode, answer),
-        id: createClientId("student-message"),
-        mode,
-        role: "student",
-      },
-    ])
+    pushMessage({ role: "student", text: trimmed })
+    setAnswer("")
 
     try {
-      let nextSession = session
-
-      if (mode === "check") {
-        nextSession = await postTutorSessionEvent(session.id, "attempt", {
-          answer,
-        })
-      } else if (mode === "hint") {
-        nextSession = await postTutorSessionEvent(session.id, "hint")
-      } else {
-        nextSession = await postTutorSessionEvent(session.id, "step")
-      }
-
+      const nextSession = await postTutorSessionEvent(session.id, "attempt", {
+        answer: trimmed,
+      })
       setSession(nextSession)
 
       const tutorResponse = await requestTutorResponse({
-        answer,
-        mode,
+        answer: trimmed,
+        mode: "check",
         questionId: selectedQuestion.id,
         sessionId: nextSession.id,
         topicId: selectedQuestion.topicId,
       })
 
       setLatestResponse(tutorResponse)
-      setTranscript((items) => [
-        ...items,
-        {
-          id: createClientId("tutor-message"),
-          mode,
-          response: tutorResponse,
+      pushMessage({
+        note: tutorResponse.misconceptions[0],
+        role: "tutor",
+        text: tutorResponse.message,
+        tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
+      })
+    } catch (error) {
+      setSessionError(errorMessageFor(error))
+    } finally {
+      setActiveMode(null)
+    }
+  }
+
+  async function getHint() {
+    if (!selectedQuestion || !session || activeMode) {
+      return
+    }
+
+    setActiveMode("hint")
+    setSessionError(null)
+
+    try {
+      const nextSession = await postTutorSessionEvent(session.id, "hint")
+      setSession(nextSession)
+
+      const tutorResponse = await requestTutorResponse({
+        answer,
+        mode: "hint",
+        questionId: selectedQuestion.id,
+        sessionId: nextSession.id,
+        topicId: selectedQuestion.topicId,
+      })
+
+      setLatestResponse(tutorResponse)
+
+      if (tutorResponse.hints.length > 0) {
+        setRevealedHints(tutorResponse.hints)
+        setHintViewIndex(tutorResponse.hints.length - 1)
+      }
+    } catch (error) {
+      setSessionError(errorMessageFor(error))
+    } finally {
+      setActiveMode(null)
+    }
+  }
+
+  async function nextStep() {
+    if (!selectedQuestion || !session || activeMode) {
+      return
+    }
+
+    setActiveMode("solution")
+    setSessionError(null)
+
+    try {
+      const nextSession = await postTutorSessionEvent(session.id, "step")
+      setSession(nextSession)
+
+      const tutorResponse = await requestTutorResponse({
+        answer,
+        mode: "solution",
+        questionId: selectedQuestion.id,
+        sessionId: nextSession.id,
+        topicId: selectedQuestion.topicId,
+      })
+
+      setLatestResponse(tutorResponse)
+
+      if (tutorResponse.steps.length > revealedStepCount) {
+        const total = selectedQuestion.solutionSteps.length
+        const newSteps = tutorResponse.steps.slice(revealedStepCount)
+        setMessages((items) => [
+          ...items,
+          ...newSteps.map((step, offset) => ({
+            id: createClientId("tutor"),
+            role: "tutor" as const,
+            stepLabel: `Step ${revealedStepCount + offset + 1} of ${total}`,
+            text: step,
+            tone: "neutral" as const,
+          })),
+        ])
+        setRevealedStepCount(tutorResponse.steps.length)
+      } else {
+        pushMessage({
           role: "tutor",
-        },
-      ])
+          text: "That's the last step.",
+          tone: "neutral",
+        })
+      }
     } catch (error) {
       setSessionError(errorMessageFor(error))
     } finally {
@@ -223,11 +316,13 @@ export function PracticeWorkspace({
   }
 
   async function requestLimitedAiHelp() {
+    const trimmed = answer.trim()
+
     if (
       !selectedQuestion ||
       !session ||
       activeMode ||
-      !answer.trim() ||
+      !trimmed ||
       limitedAiInputTooLong
     ) {
       return
@@ -235,35 +330,25 @@ export function PracticeWorkspace({
 
     setActiveMode("ai")
     setSessionError(null)
-    setTranscript((items) => [
-      ...items,
-      {
-        content: "Requested limited AI guidance after course help.",
-        id: createClientId("student-message"),
-        mode: "ai",
-        role: "student",
-      },
-    ])
+    pushMessage({ role: "student", text: "Asked for AI help." })
 
     try {
       const tutorResponse = await requestTutorResponse({
         allowLlmFallback: true,
-        answer,
+        answer: trimmed,
         mode: "check",
         questionId: selectedQuestion.id,
         sessionId: session.id,
         topicId: selectedQuestion.topicId,
       })
+
       setLatestResponse(tutorResponse)
-      setTranscript((items) => [
-        ...items,
-        {
-          id: createClientId("tutor-message"),
-          mode: "ai",
-          response: tutorResponse,
-          role: "tutor",
-        },
-      ])
+      pushMessage({
+        note: tutorResponse.misconceptions[0],
+        role: "tutor",
+        text: tutorResponse.message,
+        tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
+      })
     } catch (error) {
       setSessionError(errorMessageFor(error))
     } finally {
@@ -295,11 +380,18 @@ export function PracticeWorkspace({
       setAnswer("")
       setLatestResponse(null)
       setSession(nextSession)
-      setTranscript([])
+      resetChat()
     } catch (error) {
       setSessionError(errorMessageFor(error))
     } finally {
       setIsSessionLoading(false)
+    }
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      void sendAnswer()
     }
   }
 
@@ -325,18 +417,14 @@ export function PracticeWorkspace({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Topics</CardTitle>
-              <CardDescription>
-                Choose the course pattern to practice.
-              </CardDescription>
+              <CardDescription>Pick a topic to practice.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               {topics.map((topic) => (
                 <Button
                   key={topic.id}
                   type="button"
-                  variant={
-                    topic.id === selectedTopicId ? "default" : "secondary"
-                  }
+                  variant={topic.id === selectedTopicId ? "default" : "secondary"}
                   className="h-auto justify-start whitespace-normal py-3 text-left"
                   onClick={() => chooseTopic(topic.id)}
                 >
@@ -349,7 +437,6 @@ export function PracticeWorkspace({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Questions</CardTitle>
-              <CardDescription>Approved demo items only.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               {topicQuestions.map((question) => (
@@ -364,7 +451,7 @@ export function PracticeWorkspace({
                     setSelectedQuestionId(question.id)
                     setAnswer("")
                     setLatestResponse(null)
-                    setTranscript([])
+                    resetChat()
                   }}
                 >
                   {question.title}
@@ -374,192 +461,223 @@ export function PracticeWorkspace({
           </Card>
         </aside>
 
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-col gap-3 border-b pb-5 md:flex-row md:items-end md:justify-between">
-            <div>
-              <Badge variant="secondary" className="mb-3">
-                Student practice
-              </Badge>
-              <h1 className="text-3xl font-semibold tracking-normal">
-                Step-by-step tutoring
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Rule-based checks and stored guidance are used before any
-                retrieval or LLM fallback.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isTutorBusy || !selectedQuestion}
-              onClick={() => {
-                void restartTutorSession()
-              }}
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </Button>
-          </div>
-
-          {sessionError ? (
-            <Card className="border-destructive/60">
-              <CardContent className="py-4 text-sm text-destructive">
-                {sessionError}
-              </CardContent>
-            </Card>
-          ) : null}
-
+        <div className="flex min-w-0 flex-col h-[75svh] lg:h-[calc(100svh-7rem)]">
           {selectedQuestion ? (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
+              <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
                     <Badge>{selectedTopic?.title}</Badge>
                     <Badge variant="outline">
                       {selectedQuestion.difficulty}
                     </Badge>
-                    <Badge variant="secondary">
-                      {isSessionLoading
-                        ? "Session loading"
-                        : session
-                          ? "Session active"
-                          : "Session unavailable"}
-                    </Badge>
                   </div>
-                  <CardTitle>{selectedQuestion.title}</CardTitle>
-                  <CardDescription className="text-base leading-7 text-foreground">
+                  <h1 className="text-base font-semibold leading-6">
+                    {selectedQuestion.title}
+                  </h1>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     <MathText>{selectedQuestion.prompt}</MathText>
-                  </CardDescription>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Badge variant="outline">Attempts {attemptsMade}</Badge>
-                    <Badge variant="outline">Hints used {hintsUsed}</Badge>
-                    <Badge variant="outline">
-                      Steps revealed {stepsRevealed}
-                    </Badge>
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Reset"
+                  aria-label="Reset conversation"
+                  disabled={isTutorBusy}
+                  onClick={() => {
+                    void restartTutorSession()
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
+                aria-live="polite"
+              >
+                {messages.length === 0 ? (
+                  <p className="m-auto max-w-xs text-center text-sm text-muted-foreground">
+                    Type your answer below to begin.
+                  </p>
+                ) : (
+                  messages.map((message) => (
+                    <ChatBubble key={message.id} message={message} />
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {revealedHints.length > 0 ? (
+                <div className="border-t px-5 py-3">
+                  <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <Lightbulb
+                      className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Hint {hintViewIndex + 1} of {revealedHints.length}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            aria-label="Previous hint"
+                            disabled={hintViewIndex === 0}
+                            onClick={() =>
+                              setHintViewIndex((index) => Math.max(0, index - 1))
+                            }
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            aria-label="Next hint"
+                            disabled={hintViewIndex >= revealedHints.length - 1}
+                            onClick={() =>
+                              setHintViewIndex((index) =>
+                                Math.min(revealedHints.length - 1, index + 1),
+                              )
+                            }
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="leading-6">
+                        <MathText>{revealedHints[hintViewIndex]}</MathText>
+                      </div>
+                    </div>
                   </div>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
+                </div>
+              ) : null}
+
+              {sessionError ? (
+                <div className="border-t px-5 py-2 text-sm text-destructive">
+                  {sessionError}
+                </div>
+              ) : null}
+
+              <div className="border-t px-5 py-4">
+                <div className="flex items-end gap-2">
                   <Textarea
                     value={answer}
                     onChange={(event) => setAnswer(event.target.value)}
-                    placeholder="Enter your answer. Fractions, decimals, and short explanations are accepted in demo mode."
-                    rows={5}
-                    aria-describedby="answer-character-count"
+                    onKeyDown={handleComposerKeyDown}
+                    placeholder="Type your answer…"
+                    rows={2}
+                    className="min-h-0 resize-none"
                   />
-                  <div
-                    id="answer-character-count"
-                    className={cn(
-                      "text-right text-xs text-muted-foreground",
-                      limitedAiInputTooLong && "text-destructive",
-                    )}
+                  <Button
+                    type="button"
+                    disabled={!canSend}
+                    onClick={() => {
+                      void sendAnswer()
+                    }}
                   >
-                    {limitedAiInputTooLong
-                      ? `${answer.trim().length - maxTutorInputChars} characters over the limited AI guidance maximum`
-                      : `${maxTutorInputChars - answer.trim().length} limited AI characters remaining`}
-                  </div>
-                  <div className="flex flex-wrap gap-3">
+                    {activeMode === "check" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Send
+                  </Button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={
+                      isTutorBusy ||
+                      !session ||
+                      revealedHints.length >= selectedQuestion.hints.length
+                    }
+                    onClick={() => {
+                      void getHint()
+                    }}
+                  >
+                    {activeMode === "hint" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Lightbulb className="h-4 w-4" />
+                    )}
+                    Get Hint
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isTutorBusy || !session}
+                    onClick={() => {
+                      void nextStep()
+                    }}
+                  >
+                    {activeMode === "solution" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ListChecks className="h-4 w-4" />
+                    )}
+                    Next Step
+                  </Button>
+                  {latestResponse?.usage.llmFallbackEligible ? (
                     <Button
                       type="button"
-                      disabled={isTutorBusy || !session}
-                      onClick={() => requestTutor("check")}
+                      variant="ghost"
+                      size="sm"
+                      disabled={
+                        isTutorBusy ||
+                        !session ||
+                        !answer.trim() ||
+                        limitedAiInputTooLong
+                      }
+                      onClick={() => {
+                        void requestLimitedAiHelp()
+                      }}
                     >
-                      {activeMode === "check" ? (
+                      {activeMode === "ai" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle2 className="h-4 w-4" />
+                        <Sparkles className="h-4 w-4" />
                       )}
-                      Submit
+                      AI help
                     </Button>
-                    {latestResponse?.usage.llmFallbackEligible ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          isTutorBusy ||
-                          !session ||
-                          !answer.trim() ||
-                          limitedAiInputTooLong
-                        }
-                        onClick={requestLimitedAiHelp}
-                      >
-                        {activeMode === "ai" ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-4 w-4" />
-                        )}
-                        Limited AI Guidance
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={isTutorBusy || !session}
-                      onClick={() => requestTutor("hint")}
-                    >
-                      {activeMode === "hint" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Lightbulb className="h-4 w-4" />
-                      )}
-                      Get Hint
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isTutorBusy || !session}
-                      onClick={() => requestTutor("solution")}
-                    >
-                      {activeMode === "solution" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ListChecks className="h-4 w-4" />
-                      )}
-                      Next Step
-                    </Button>
-                  </div>
-                  {aiExplanationsRemaining !== undefined ? (
-                    <div
+                  ) : null}
+                  {latestResponse?.usage.llmFallbackEligible &&
+                  aiExplanationsRemaining !== undefined ? (
+                    <span
                       className={cn(
-                        "flex items-center gap-2 border-t pt-3 text-xs text-muted-foreground",
+                        "ml-auto text-xs text-muted-foreground",
                         aiExplanationsRemaining === 0 && "text-destructive",
                       )}
                       aria-live="polite"
                     >
-                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>
-                        AI explanations left for this problem:{" "}
-                        <strong className="font-semibold text-foreground">
-                          {aiExplanationsRemaining}
-                        </strong>
-                      </span>
-                    </div>
+                      AI left:{" "}
+                      <strong className="font-semibold text-foreground">
+                        {aiExplanationsRemaining}
+                      </strong>
+                    </span>
                   ) : null}
-                </CardContent>
-              </Card>
+                </div>
 
-              {transcript.length > 0 ? (
-                <section className="flex flex-col gap-3" aria-live="polite">
-                  {transcript.map((item) =>
-                    item.role === "student" ? (
-                      <StudentMessagePanel key={item.id} item={item} />
-                    ) : item.response ? (
-                      <TutorResponsePanel
-                        key={item.id}
-                        response={item.response}
-                      />
-                    ) : null,
-                  )}
-                </section>
-              ) : (
-                <Card className="border-dashed">
-                  <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-                    <BookOpenCheck className="h-4 w-4" />
-                    Tutor feedback will appear here after you submit an answer,
-                    ask for a hint, or reveal a step.
-                  </CardContent>
-                </Card>
-              )}
-            </>
+                {limitedAiInputTooLong ? (
+                  <p className="mt-2 text-xs text-destructive">
+                    {answer.trim().length - maxTutorInputChars} characters over
+                    the AI-help limit.
+                  </p>
+                ) : null}
+              </div>
+            </div>
           ) : (
             <Card>
               <CardContent className="py-8 text-sm text-muted-foreground">
@@ -573,126 +691,43 @@ export function PracticeWorkspace({
   )
 }
 
-function StudentMessagePanel({ item }: { item: TutorTranscriptItem }) {
-  return (
-    <Card className="ml-auto w-full border-primary/20 bg-primary/5 md:max-w-[80%]">
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">student</Badge>
-          <Badge variant="secondary">{modeLabel(item.mode)}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="whitespace-pre-wrap text-sm leading-6">
-        {item.content}
-      </CardContent>
-    </Card>
-  )
-}
-
-function TutorResponsePanel({ response }: { response: TutorResponse }) {
-  const usageStatus = responseUsageStatusText(response)
-  const limitGuidance = aiLimitGuidanceText(
-    response.usage.limitReason,
-    response.usage.llmFallbacksRemaining,
-  )
-  const UsageIcon =
-    response.source === "llm" || response.source === "cache"
-      ? Sparkles
-      : BookOpenCheck
+function ChatBubble({ message }: { message: ChatMessage }) {
+  if (message.role === "student") {
+    return (
+      <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap">
+        {message.text}
+      </div>
+    )
+  }
 
   return (
-    <Card
+    <div
       className={cn(
-        response.verdict === "correct" && "border-success/70",
-        response.verdict === "blocked" && "border-destructive/70",
+        "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border bg-muted/40 px-4 py-2.5 text-sm",
+        message.tone === "correct" && "border-success/50 bg-success/5",
+        message.tone === "incorrect" && "border-destructive/40",
       )}
     >
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant={
-              response.verdict === "correct"
-                ? "success"
-                : response.verdict === "blocked"
-                  ? "destructive"
-                  : "secondary"
-            }
-          >
-            {response.verdict}
-          </Badge>
-          {usageStatus ? (
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <UsageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              {usageStatus}
-            </span>
-          ) : null}
+      {message.stepLabel ? (
+        <div className="mb-1 text-xs font-medium text-muted-foreground">
+          {message.stepLabel}
         </div>
-        <CardTitle className="text-lg">
-          <MathText>{response.message}</MathText>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-sm leading-6">
-        {limitGuidance ? (
-          <div className="flex gap-2 rounded-md border border-border bg-muted/50 p-3 text-muted-foreground">
-            <CircleAlert
-              className="mt-0.5 h-4 w-4 shrink-0 text-foreground"
-              aria-hidden="true"
-            />
-            <p>{limitGuidance}</p>
-          </div>
-        ) : null}
-
-        {response.hints.length > 0 ? (
-          <section>
-            <h2 className="mb-2 font-medium">Hints</h2>
-            <ul className="list-inside list-disc text-muted-foreground">
-              {response.hints.map((hint) => (
-                <li key={hint}>
-                  <MathText>{hint}</MathText>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {response.steps.length > 0 ? (
-          <section>
-            <h2 className="mb-2 font-medium">Solution steps</h2>
-            <ol className="list-inside list-decimal text-muted-foreground">
-              {response.steps.map((step) => (
-                <li key={step}>
-                  <MathText>{step}</MathText>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ) : null}
-
-        {response.misconceptions.length > 0 ? (
-          <section className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
-            <h2 className="mb-2 font-medium text-destructive">
-              Misconception to check
-            </h2>
-            <ul className="list-inside list-disc text-muted-foreground">
-              {response.misconceptions.map((misconception, index) => (
-                <li key={`${misconception}-${index}`}>{misconception}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {shouldShowRetrievedContext(response) ? (
-          <section>
-            <h2 className="mb-2 font-medium">Retrieved course pattern</h2>
-            <ul className="list-inside list-disc text-muted-foreground">
-              {response.retrievedContext.map((context) => (
-                <li key={context.id}>{context.title}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : null}
+      {message.tone === "correct" ? (
+        <div className="mb-1 inline-flex items-center gap-1 font-medium text-success">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          Correct
+        </div>
+      ) : null}
+      <div className="leading-6">
+        <MathText>{message.text}</MathText>
+      </div>
+      {message.note ? (
+        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs leading-5 text-muted-foreground">
+          <MathText>{message.note}</MathText>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -804,34 +839,6 @@ async function readTutorSessionPayload(result: Response) {
   }
 
   return payload.session
-}
-
-function studentMessageFor(mode: TutorMode, answer: string) {
-  if (mode === "check") {
-    return answer.trim() || "Submitted a blank answer."
-  }
-
-  if (mode === "hint") {
-    return "Requested a hint."
-  }
-
-  return "Requested the next step."
-}
-
-function modeLabel(mode: TutorMode | "ai") {
-  if (mode === "check") {
-    return "answer"
-  }
-
-  if (mode === "hint") {
-    return "hint"
-  }
-
-  if (mode === "solution") {
-    return "step"
-  }
-
-  return "limited AI"
 }
 
 export function responseUsageStatusText(
