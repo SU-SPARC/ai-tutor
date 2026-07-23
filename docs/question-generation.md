@@ -97,6 +97,18 @@ only.
 
 ## 4. Generate Original Drafts
 
+Generate the committed public-safe review drafts for the currently enabled
+syllabus topics:
+
+```bash
+npm run prepare:syllabus-questions
+npm run prepare:syllabus-questions -- --check
+```
+
+This deterministic generator uses only project-owned scenarios and short,
+public-safe topic metadata. Its output remains review-gated and is never loaded
+by student-facing question queries.
+
 Generate deterministic original drafts from public-safe seed patterns:
 
 ```bash

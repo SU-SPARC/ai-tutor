@@ -109,9 +109,11 @@ export function createDatabaseContentRepository(
     async getQuestionById(questionId) {
       const rows = await query(
         `
-          select *
-          from app_public_questions
-          where id = $1
+          select q.*
+          from app_public_questions q
+          join topics t on t.id = q.topic_id
+          where q.id = $1
+            and t.is_active = true
           limit 1
         `,
         [questionId],
@@ -125,10 +127,12 @@ export function createDatabaseContentRepository(
 
     async getQuestionCounts() {
       const rows = await query(`
-        select topic_id, count(*)::int as question_count
-        from app_public_questions
-        group by topic_id
-        order by topic_id
+        select q.topic_id, count(*)::int as question_count
+        from app_public_questions q
+        join topics t on t.id = q.topic_id
+        where t.is_active = true
+        group by q.topic_id, t.sort_order, t.title, t.id
+        order by t.sort_order, t.title, t.id
       `)
 
       return rows.reduce<QuestionCounts>(
@@ -306,9 +310,11 @@ export function createDatabaseContentRepository(
 
     async listQuestions() {
       const rows = await query(`
-        select *
-        from app_public_questions
-        order by topic_id, title, id
+        select q.*
+        from app_public_questions q
+        join topics t on t.id = q.topic_id
+        where t.is_active = true
+        order by t.sort_order, t.title, t.id, q.title, q.id
       `)
       return rows.map((row) => mapQuestionRow(row as QuestionRow))
     },
@@ -316,10 +322,12 @@ export function createDatabaseContentRepository(
     async listQuestionsByTopic(topicId) {
       const rows = await query(
         `
-          select *
-          from app_public_questions
-          where topic_id = $1
-          order by title, id
+          select q.*
+          from app_public_questions q
+          join topics t on t.id = q.topic_id
+          where q.topic_id = $1
+            and t.is_active = true
+          order by q.title, q.id
         `,
         [topicId],
       )
@@ -345,14 +353,22 @@ export function createDatabaseContentRepository(
       const imported: ReviewCandidate[] = []
 
       for (const candidate of candidates) {
-        await query(
+        const topicRows = await query(
           `
-            insert into topics (id, title, description)
-            values ($1, $2, '')
-            on conflict (id) do nothing
+            select id
+            from topics
+            where id = $1
+              and is_active = true
+            limit 1
           `,
-          [candidate.topicId, candidate.topic ?? candidate.topicId],
+          [candidate.topicId],
         )
+
+        if (!topicRows[0]) {
+          throw new Error(
+            `Unknown or inactive syllabus topic: ${candidate.topicId}`,
+          )
+        }
 
         const rows = await query(
           `
@@ -457,14 +473,26 @@ export function createDatabaseContentRepository(
 
     async listTopics() {
       const rows = await query(`
-        select id, title, description
+        select
+          id,
+          title,
+          description,
+          sort_order,
+          week_number,
+          module_ref,
+          is_active
         from topics
+        where is_active = true
         order by sort_order, title, id
       `)
       return rows.map((row) => ({
+        active: Boolean(row.is_active),
         description: String(row.description ?? ""),
         id: String(row.id),
+        moduleRef: String(row.module_ref ?? ""),
+        order: Number(row.sort_order),
         title: String(row.title),
+        weekNumber: Number(row.week_number),
       }))
     },
 

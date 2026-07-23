@@ -18,6 +18,7 @@
     "prepare:course-outline": "node scripts/prepare-course-outline.mjs",
     "prepare:db-seed": "npm run db:seed",
     "prepare:review-queue": "node scripts/prepare-review-queue.mjs",
+    "prepare:syllabus-questions": "node scripts/generate-syllabus-review-candidates.mjs",
     "promote:approved-questions": "node scripts/promote-approved-questions.mjs",
     "generate:questions": "node scripts/generate-questions.mjs",
     "suggest:patterns": "node scripts/suggest-patterns.mjs",

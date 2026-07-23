@@ -215,9 +215,13 @@ function contentRepositoryFixture(
     async listTopics() {
       return [
         {
+          active: true,
           description: "Generated topic",
           id: original.topicId,
+          moduleRef: "Week 1",
+          order: 1,
           title: original.topicTitle ?? original.topicId,
+          weekNumber: 1,
         },
       ]
     },

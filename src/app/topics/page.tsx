@@ -64,9 +64,10 @@ export default async function TopicsPage() {
                   <CardHeader className="flex-1">
                     <div className="flex items-start justify-between gap-3">
                       <CardTitle className="text-lg">{topic.title}</CardTitle>
-                      <Badge variant="secondary" className="shrink-0">
-                        {count}
-                      </Badge>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <Badge variant="outline">{topic.moduleRef}</Badge>
+                        <Badge variant="secondary">{count}</Badge>
+                      </div>
                     </div>
                     <CardDescription className="leading-6">
                       {topic.description}

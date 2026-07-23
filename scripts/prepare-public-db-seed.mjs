@@ -11,6 +11,7 @@ const repoRoot = path.resolve(
 )
 
 const defaultOutputPath = path.join(tmpdir(), "pf-xj-public-db-seed.sql")
+const defaultTopicsPath = path.join(repoRoot, "data/demo/topics.json")
 const defaultDemoQuestionsPath = path.join(repoRoot, "data/demo/questions.json")
 const defaultApprovedGeneratedPath = path.join(
   repoRoot,
@@ -23,6 +24,9 @@ const outputPath = args.output
 const demoQuestionsPath = args.demoQuestions
   ? path.resolve(repoRoot, args.demoQuestions)
   : defaultDemoQuestionsPath
+const topicsPath = args.topics
+  ? path.resolve(repoRoot, args.topics)
+  : defaultTopicsPath
 const approvedGeneratedPath = args.approvedGenerated
   ? path.resolve(repoRoot, args.approvedGenerated)
   : defaultApprovedGeneratedPath
@@ -42,7 +46,10 @@ const forbiddenText =
 async function main() {
   assertPublicProcessedOutput(outputPath)
 
-  const demoQuestions = await readJson(demoQuestionsPath)
+  const [demoQuestions, topics] = await Promise.all([
+    readJson(demoQuestionsPath),
+    readJson(topicsPath),
+  ])
   const approvedGenerated = includeApprovedGenerated
     ? await readJson(approvedGeneratedPath)
     : { questions: [], visibility: "public" }
@@ -50,6 +57,7 @@ async function main() {
   const payload = {
     approvedGenerated,
     demoQuestions,
+    topics,
   }
   const errors = validatePublicSeedPayload(payload, {
     includeApprovedGenerated,
@@ -67,6 +75,7 @@ async function main() {
   const sql = buildSeedSql({
     approvedGenerated: approvedGenerated.questions ?? [],
     demoQuestions,
+    topics,
   })
 
   await writeFile(outputPath, sql)
@@ -87,26 +96,17 @@ export function validatePublicSeedPayload(payload, options = {}) {
     errors.push("public seed payload contains copied-source or private-data text.")
   }
 
-  validateDemoQuestions(payload.demoQuestions, errors)
+  const topicIds = validateTopics(payload.topics, errors)
+  validateDemoQuestions(payload.demoQuestions, topicIds, errors)
 
   if (options.includeApprovedGenerated) {
-    validateApprovedGenerated(payload.approvedGenerated, errors)
+    validateApprovedGenerated(payload.approvedGenerated, topicIds, errors)
   }
 
   return errors
 }
 
-function buildSeedSql({ approvedGenerated, demoQuestions }) {
-  const topics = new Map()
-
-  for (const question of demoQuestions) {
-    topics.set(slug(question.topic), titleCase(question.topic))
-  }
-
-  for (const question of approvedGenerated) {
-    topics.set(slug(question.topic), titleCase(question.topic))
-  }
-
+function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
   const lines = [
     "-- Public-safe seed data generated from committed demo/processed fixtures.",
     "-- Review this SQL before applying it to Postgres.",
@@ -114,11 +114,15 @@ function buildSeedSql({ approvedGenerated, demoQuestions }) {
     "",
   ]
 
-  for (const [id, title] of topics) {
+  for (const topic of topics) {
     lines.push(
-      `insert into topics (id, title, description) values (${sqlString(id)}, ${sqlString(
-        title,
-      )}, ${sqlString("Public-safe probability/statistics topic.")}) on conflict (id) do update set title = excluded.title, description = excluded.description, updated_at = now();`,
+      `insert into topics (id, title, description, sort_order, week_number, module_ref, is_active) values (${sqlString(
+        topic.id,
+      )}, ${sqlString(topic.title)}, ${sqlString(topic.description)}, ${sqlNumber(
+        topic.order,
+      )}, ${sqlNumber(topic.weekNumber)}, ${sqlString(
+        topic.moduleRef,
+      )}, ${sqlBoolean(topic.active)}) on conflict (id) do update set title = excluded.title, description = excluded.description, sort_order = excluded.sort_order, week_number = excluded.week_number, module_ref = excluded.module_ref, is_active = excluded.is_active, updated_at = now();`,
     )
   }
 
@@ -187,15 +191,18 @@ function seedQuestionSql(question) {
 function normalizeDemoQuestion(question) {
   return {
     id: question.id,
-    topicId: slug(question.topic),
+    topicId: question.topicId,
     patternId: null,
-    title: titleCase(question.topic),
+    title: question.title ?? titleCase(question.topic),
     prompt: question.questionText,
     difficulty: question.difficulty,
-    acceptedAnswers: [question.finalAnswer],
-    numericValue: null,
-    tolerance: null,
-    answerExplanation: question.solutionSteps[0] ?? question.finalAnswer,
+    acceptedAnswers: question.acceptedAnswers ?? [question.finalAnswer],
+    numericValue: question.numericValue ?? null,
+    tolerance: question.tolerance ?? null,
+    answerExplanation:
+      question.answerExplanation ??
+      question.solutionSteps.at(-1) ??
+      question.finalAnswer,
     hints: question.hints,
     solutionSteps: question.solutionSteps,
     misconceptions: normalizeMisconceptions(question.misconceptions ?? []),
@@ -210,9 +217,9 @@ function normalizeDemoQuestion(question) {
 function normalizeApprovedGeneratedQuestion(question) {
   return {
     id: question.id,
-    topicId: slug(question.topic),
+    topicId: question.topicId ?? slug(question.topic),
     patternId: question.patternId,
-    title: titleCase(question.topic),
+    title: question.title ?? titleCase(question.topic),
     prompt: question.questionText,
     difficulty: question.difficulty,
     acceptedAnswers: [question.finalAnswer],
@@ -246,7 +253,54 @@ function normalizeMisconceptions(misconceptions) {
   }))
 }
 
-function validateDemoQuestions(questions, errors) {
+function validateTopics(topics, errors) {
+  if (!Array.isArray(topics) || topics.length === 0) {
+    errors.push("data/demo/topics.json must be a non-empty array.")
+    return new Set()
+  }
+
+  const ids = new Set()
+  const orders = new Set()
+  let previousOrder = 0
+
+  for (const [index, topic] of topics.entries()) {
+    const label = `topics[${index}]`
+    requireString(topic.id, `${label}.id`, errors)
+    requireString(topic.title, `${label}.title`, errors)
+    requireString(topic.description, `${label}.description`, errors)
+    requireString(topic.moduleRef, `${label}.moduleRef`, errors)
+
+    if (!Number.isInteger(topic.order) || topic.order < 1) {
+      errors.push(`${label}.order must be a positive integer.`)
+    } else if (topic.order <= previousOrder) {
+      errors.push("topics must be stored in strictly increasing syllabus order.")
+    } else {
+      previousOrder = topic.order
+    }
+
+    if (!Number.isInteger(topic.weekNumber) || topic.weekNumber < 1) {
+      errors.push(`${label}.weekNumber must be a positive integer.`)
+    }
+
+    if (typeof topic.active !== "boolean") {
+      errors.push(`${label}.active must be a boolean.`)
+    }
+
+    if (ids.has(topic.id)) {
+      errors.push(`${label}.id must be unique.`)
+    }
+    if (orders.has(topic.order)) {
+      errors.push(`${label}.order must be unique.`)
+    }
+
+    ids.add(topic.id)
+    orders.add(topic.order)
+  }
+
+  return ids
+}
+
+function validateDemoQuestions(questions, topicIds, errors) {
   if (!Array.isArray(questions)) {
     errors.push("data/demo/questions.json must be an array.")
     return
@@ -255,6 +309,7 @@ function validateDemoQuestions(questions, errors) {
   for (const [index, question] of questions.entries()) {
     const label = `demoQuestions[${index}]`
     requireString(question.id, `${label}.id`, errors)
+    requireString(question.topicId, `${label}.topicId`, errors)
     requireString(question.topic, `${label}.topic`, errors)
     requireString(question.questionText, `${label}.questionText`, errors)
     requireString(question.finalAnswer, `${label}.finalAnswer`, errors)
@@ -264,10 +319,14 @@ function validateDemoQuestions(questions, errors) {
     if (question.reviewStatus !== "approved") {
       errors.push(`${label}.reviewStatus must be approved.`)
     }
+
+    if (!topicIds.has(question.topicId)) {
+      errors.push(`${label}.topicId must reference a syllabus topic.`)
+    }
   }
 }
 
-function validateApprovedGenerated(payload, errors) {
+function validateApprovedGenerated(payload, topicIds, errors) {
   if (payload?.visibility !== "public") {
     errors.push("approved generated question payload visibility must be public.")
   }
@@ -281,6 +340,7 @@ function validateApprovedGenerated(payload, errors) {
     const label = `approvedGenerated.questions[${index}]`
 
     requireString(question.id, `${label}.id`, errors)
+    const topicId = question.topicId ?? slug(question.topic)
     requireString(question.topic, `${label}.topic`, errors)
     requireString(question.questionText, `${label}.questionText`, errors)
     requireString(question.finalAnswer, `${label}.finalAnswer`, errors)
@@ -301,6 +361,10 @@ function validateApprovedGenerated(payload, errors) {
 
     if (question.sourceMetadata?.visibility !== "public") {
       errors.push(`${label}.sourceMetadata.visibility must be public.`)
+    }
+
+    if (!topicIds.has(topicId)) {
+      errors.push(`${label}.topicId must reference a syllabus topic.`)
     }
   }
 }
@@ -377,6 +441,10 @@ function sqlNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "null"
 }
 
+function sqlBoolean(value) {
+  return value ? "true" : "false"
+}
+
 function slug(value) {
   return String(value)
     .toLowerCase()
@@ -403,6 +471,9 @@ function parseArgs(rawArgs) {
       index += 1
     } else if (arg === "--demo-questions") {
       parsed.demoQuestions = rawArgs[index + 1]
+      index += 1
+    } else if (arg === "--topics") {
+      parsed.topics = rawArgs[index + 1]
       index += 1
     } else if (
       arg === "--approved-generated" ||

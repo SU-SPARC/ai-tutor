@@ -290,7 +290,7 @@
   },
   {
     "id": "generated-additional-expected-value-ticket-credits",
-    "topicId": "expected-value",
+    "topicId": "random-variables",
     "topic": "Expected value",
     "title": "Ticket credit expected value draft",
     "prompt": "A help desk quality program awards 0, 2, 5, or 9 credits for a reviewed ticket with probabilities 0.25, 0.35, 0.25, and 0.15. What is the expected number of credits for one reviewed ticket?",
@@ -331,7 +331,7 @@
   },
   {
     "id": "generated-additional-expected-value-study-streak",
-    "topicId": "expected-value",
+    "topicId": "random-variables",
     "topic": "Expected value",
     "title": "Study streak expected value draft",
     "prompt": "A study tracker awards 1, 4, or 7 streak points at the end of a session with probabilities 0.20, 0.50, and 0.30. What is the expected number of streak points for one session?",
@@ -454,7 +454,7 @@
   },
   {
     "id": "generated-additional-combinations-workshop-topics",
-    "topicId": "counting",
+    "topicId": "axioms-probability-counting-methods",
     "topic": "Counting and combinations",
     "title": "Workshop topic group draft",
     "prompt": "A review workshop has 11 possible mini-topics and will choose 4 of them for a short practice set. The order of the chosen mini-topics does not matter. How many different practice sets can be chosen?",
@@ -495,7 +495,7 @@
   },
   {
     "id": "generated-additional-permutations-inspection-stations",
-    "topicId": "counting",
+    "topicId": "axioms-probability-counting-methods",
     "topic": "Counting and permutations",
     "title": "Inspection station order draft",
     "prompt": "A lab dashboard has 8 inspection stations available. A supervisor will assign 3 different stations to first, second, and third positions in a morning checklist. How many ordered checklists are possible?",
@@ -536,7 +536,7 @@
   },
   {
     "id": "generated-additional-hypergeometric-survey-cards",
-    "topicId": "counting",
+    "topicId": "binomial-models",
     "topic": "Counting and hypergeometric probability",
     "title": "Survey card follow-up draft",
     "prompt": "A folder has 16 survey cards, and 6 of them are marked for follow-up. A coordinator selects 5 cards without replacement. What is the probability that exactly 2 of the selected cards are marked for follow-up?",

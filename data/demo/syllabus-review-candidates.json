@@ -1,0 +1,1762 @@
+[
+  {
+    "id": "generated-syllabus-uniform-library-cards",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Library Card Selection Draft",
+    "prompt": "A tray holds 16 equally likely library cards, and 6 are marked for pickup today. If one card is selected at random, what is the probability that it is marked for pickup today?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "3/8",
+        "0.375",
+        "37.5%"
+      ],
+      "numericValue": 0.375,
+      "tolerance": 0.001,
+      "explanation": "The probability is 6/16 = 3/8."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 16 equally likely outcomes in the sample space.",
+      "6 outcomes satisfy the event.",
+      "The probability is 6/16 = 3/8."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-library-cards",
+        "matchTerms": [],
+        "feedback": "The denominator must count every equally likely outcome, not only the favorable outcomes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-uniform-spinner-sectors",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Spinner Sector Probability Draft",
+    "prompt": "A fair spinner has 12 equal sectors, 5 of which are blue. What is the probability that one spin lands on blue?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "5/12",
+        "0.416667",
+        "41.67%"
+      ],
+      "numericValue": 0.4166666666666667,
+      "tolerance": 0.001,
+      "explanation": "The probability is 5/12 = 5/12."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 12 equally likely outcomes in the sample space.",
+      "5 outcomes satisfy the event.",
+      "The probability is 5/12 = 5/12."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-spinner-sectors",
+        "matchTerms": [],
+        "feedback": "The denominator must count every equally likely outcome, not only the favorable outcomes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-uniform-numbered-tiles",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Numbered Tile Event Draft",
+    "prompt": "One tile is chosen at random from tiles numbered 1 through 18. Six of the numbers are multiples of 3. What is the probability of choosing a multiple of 3?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "1/3",
+        "0.333333",
+        "33.33%"
+      ],
+      "numericValue": 0.3333333333333333,
+      "tolerance": 0.001,
+      "explanation": "The probability is 6/18 = 1/3."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 18 equally likely outcomes in the sample space.",
+      "6 outcomes satisfy the event.",
+      "The probability is 6/18 = 1/3."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-numbered-tiles",
+        "matchTerms": [],
+        "feedback": "The denominator must count every equally likely outcome, not only the favorable outcomes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-uniform-event-tokens",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Event Token Probability Draft",
+    "prompt": "A bag contains 20 equally likely event tokens, and 7 tokens show a star. What is the probability that a randomly selected token shows a star?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "7/20",
+        "0.35",
+        "35%"
+      ],
+      "numericValue": 0.35,
+      "tolerance": 0.001,
+      "explanation": "The probability is 7/20 = 7/20."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 20 equally likely outcomes in the sample space.",
+      "7 outcomes satisfy the event.",
+      "The probability is 7/20 = 7/20."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-event-tokens",
+        "matchTerms": [],
+        "feedback": "The denominator must count every equally likely outcome, not only the favorable outcomes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-complement-not-green",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Complements",
+    "title": "Not Green Complement Draft",
+    "prompt": "A box contains 15 equally likely markers, 4 of which are green. If one marker is selected at random, what is the probability that it is not green?",
+    "patternSource": "finite complement event",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "11/15",
+        "0.733333",
+        "73.33%"
+      ],
+      "numericValue": 0.7333333333333333,
+      "tolerance": 0.001,
+      "explanation": "The probability is 11/15 = 11/15."
+    },
+    "hints": [
+      "Identify whether this is a complements question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 15 outcomes in total and 4 are in the excluded event.",
+      "The complement has 15 - 4 = 11 outcomes.",
+      "The probability is 11/15 = 11/15."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-complement-not-green",
+        "matchTerms": [],
+        "feedback": "The excluded count describes the event being avoided; subtract it from the total before forming the probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-complement-not-late",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Complements",
+    "title": "Not Late Complement Draft",
+    "prompt": "Among 24 equally likely delivery records, 5 are labeled late. If one record is selected at random, what is the probability that it is not labeled late?",
+    "patternSource": "finite complement event",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "19/24",
+        "0.791667",
+        "79.17%"
+      ],
+      "numericValue": 0.7916666666666666,
+      "tolerance": 0.001,
+      "explanation": "The probability is 19/24 = 19/24."
+    },
+    "hints": [
+      "Identify whether this is a complements question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 24 outcomes in total and 5 are in the excluded event.",
+      "The complement has 24 - 5 = 19 outcomes.",
+      "The probability is 19/24 = 19/24."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-complement-not-late",
+        "matchTerms": [],
+        "feedback": "The excluded count describes the event being avoided; subtract it from the total before forming the probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-complement-no-defect",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Complements",
+    "title": "No Defect Complement Draft",
+    "prompt": "A sample has 30 equally likely components, and 3 have a visible defect. What is the probability that a randomly selected component has no visible defect?",
+    "patternSource": "finite complement event",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "9/10",
+        "0.9",
+        "90%"
+      ],
+      "numericValue": 0.9,
+      "tolerance": 0.001,
+      "explanation": "The probability is 27/30 = 9/10."
+    },
+    "hints": [
+      "Identify whether this is a complements question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 30 outcomes in total and 3 are in the excluded event.",
+      "The complement has 30 - 3 = 27 outcomes.",
+      "The probability is 27/30 = 9/10."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-complement-no-defect",
+        "matchTerms": [],
+        "feedback": "The excluded count describes the event being avoided; subtract it from the total before forming the probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-complement-not-weekend",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Complements",
+    "title": "Not Weekend Complement Draft",
+    "prompt": "A scheduling tool chooses one of 14 equally likely time slots, and 4 slots are on a weekend. What is the probability that the chosen slot is not on a weekend?",
+    "patternSource": "finite complement event",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "5/7",
+        "0.714286",
+        "71.43%"
+      ],
+      "numericValue": 0.7142857142857143,
+      "tolerance": 0.001,
+      "explanation": "The probability is 10/14 = 5/7."
+    },
+    "hints": [
+      "Identify whether this is a complements question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "There are 14 outcomes in total and 4 are in the excluded event.",
+      "The complement has 14 - 4 = 10 outcomes.",
+      "The probability is 10/14 = 5/7."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-complement-not-weekend",
+        "matchTerms": [],
+        "feedback": "The excluded count describes the event being avoided; subtract it from the total before forming the probability."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-clubs",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Club Membership Union Draft",
+    "prompt": "In a group of 40 students, 18 joined the coding club, 14 joined the design club, and 6 joined both. If one student is selected at random, what is the probability that the student joined at least one of the two clubs?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "13/20",
+        "0.65",
+        "65%"
+      ],
+      "numericValue": 0.65,
+      "tolerance": 0.001,
+      "explanation": "The probability is 26/40 = 13/20."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Add the two group counts and subtract the overlap: 18 + 14 - 6 = 26.",
+      "The union therefore contains 26 of the 40 outcomes.",
+      "The probability is 26/40 = 13/20."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-clubs",
+        "matchTerms": [],
+        "feedback": "Adding both group counts without subtracting the overlap counts the intersection twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-workshops",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Workshop Attendance Union Draft",
+    "prompt": "Of 50 participants, 23 attended a writing workshop, 21 attended a speaking workshop, and 9 attended both. What is the probability that a randomly selected participant attended at least one workshop?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "7/10",
+        "0.7",
+        "70%"
+      ],
+      "numericValue": 0.7,
+      "tolerance": 0.001,
+      "explanation": "The probability is 35/50 = 7/10."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Add the two group counts and subtract the overlap: 23 + 21 - 9 = 35.",
+      "The union therefore contains 35 of the 50 outcomes.",
+      "The probability is 35/50 = 7/10."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-workshops",
+        "matchTerms": [],
+        "feedback": "Adding both group counts without subtracting the overlap counts the intersection twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-app-features",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "App Feature Union Draft",
+    "prompt": "Among 60 app users, 28 enabled reminders, 25 enabled calendar sync, and 11 enabled both. What is the probability that a randomly selected user enabled at least one of these features?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "7/10",
+        "0.7",
+        "70%"
+      ],
+      "numericValue": 0.7,
+      "tolerance": 0.001,
+      "explanation": "The probability is 42/60 = 7/10."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Add the two group counts and subtract the overlap: 28 + 25 - 11 = 42.",
+      "The union therefore contains 42 of the 60 outcomes.",
+      "The probability is 42/60 = 7/10."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-app-features",
+        "matchTerms": [],
+        "feedback": "Adding both group counts without subtracting the overlap counts the intersection twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-transit-passes",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Transit Pass Union Draft",
+    "prompt": "In a survey of 80 commuters, 35 use a bus pass, 32 use a rail pass, and 12 use both. What is the probability that a randomly selected commuter uses at least one of the two passes?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "11/16",
+        "0.6875",
+        "68.75%"
+      ],
+      "numericValue": 0.6875,
+      "tolerance": 0.001,
+      "explanation": "The probability is 55/80 = 11/16."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Add the two group counts and subtract the overlap: 35 + 32 - 12 = 55.",
+      "The union therefore contains 55 of the 80 outcomes.",
+      "The probability is 55/80 = 11/16."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-transit-passes",
+        "matchTerms": [],
+        "feedback": "Adding both group counts without subtracting the overlap counts the intersection twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-exactly-one-language",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Exactly One Language Group Draft",
+    "prompt": "Of 36 students, 17 study French, 15 study Spanish, and 6 study both. What is the probability that a randomly selected student studies exactly one of the two languages?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "5/9",
+        "0.555556",
+        "55.56%"
+      ],
+      "numericValue": 0.5555555555555556,
+      "tolerance": 0.001,
+      "explanation": "The probability is 20/36 = 5/9."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The union count is 17 + 15 - 6 = 26.",
+      "Exactly one group contains 17 + 15 - 2(6) = 20 outcomes.",
+      "The probability is 20/36 = 5/9."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-exactly-one-language",
+        "matchTerms": [],
+        "feedback": "The overlap belongs to both groups, so remove it from each group when counting exactly one."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-neither-newsletter",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Neither Newsletter Draft",
+    "prompt": "Among 45 subscribers, 20 read the morning newsletter, 18 read the evening newsletter, and 8 read both. What is the probability that a randomly selected subscriber reads neither newsletter?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "1/3",
+        "0.333333",
+        "33.33%"
+      ],
+      "numericValue": 0.3333333333333333,
+      "tolerance": 0.001,
+      "explanation": "The probability is 15/45 = 1/3."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The union count is 20 + 18 - 8 = 30.",
+      "The union contains 30 outcomes, so neither contains 45 - 30 = 15.",
+      "The probability is 15/45 = 1/3."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-neither-newsletter",
+        "matchTerms": [],
+        "feedback": "Neither is the complement of the union, not the complement of only one group."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-exactly-one-course",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Exactly One Course Draft",
+    "prompt": "In a cohort of 50 students, 24 take economics, 19 take programming, and 7 take both. What is the probability that a randomly selected student takes exactly one of the two courses?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "29/50",
+        "0.58",
+        "58%"
+      ],
+      "numericValue": 0.58,
+      "tolerance": 0.001,
+      "explanation": "The probability is 29/50 = 29/50."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The union count is 24 + 19 - 7 = 36.",
+      "Exactly one group contains 24 + 19 - 2(7) = 29 outcomes.",
+      "The probability is 29/50 = 29/50."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-exactly-one-course",
+        "matchTerms": [],
+        "feedback": "The overlap belongs to both groups, so remove it from each group when counting exactly one."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-neither-service",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Neither Support Service Draft",
+    "prompt": "Of 70 respondents, 31 used tutoring, 26 used advising, and 10 used both. What is the probability that a randomly selected respondent used neither service?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "23/70",
+        "0.328571",
+        "32.86%"
+      ],
+      "numericValue": 0.32857142857142857,
+      "tolerance": 0.001,
+      "explanation": "The probability is 23/70 = 23/70."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The union count is 31 + 26 - 10 = 47.",
+      "The union contains 47 outcomes, so neither contains 70 - 47 = 23.",
+      "The probability is 23/70 = 23/70."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-neither-service",
+        "matchTerms": [],
+        "feedback": "Neither is the complement of the union, not the complement of only one group."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-complement-rain",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Complement of Rain Draft",
+    "prompt": "The probability of rain during an event is 0.37. What is the probability that it does not rain during the event?",
+    "patternSource": "probability complement rule",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.63",
+        "63%"
+      ],
+      "numericValue": 0.63,
+      "tolerance": 0.001,
+      "explanation": "The complement probability is 0.63."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "An event and its complement partition the sample space.",
+      "Subtract the event probability from 1: 1 - 0.37 = 0.63.",
+      "The complement probability is 0.63."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-complement-rain",
+        "matchTerms": [],
+        "feedback": "An event and its complement must have probabilities that add to 1."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-complement-update",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Complement of an Update Draft",
+    "prompt": "The probability that a device needs an update is 0.18. What is the probability that it does not need an update?",
+    "patternSource": "probability complement rule",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.82",
+        "82%"
+      ],
+      "numericValue": 0.8200000000000001,
+      "tolerance": 0.001,
+      "explanation": "The complement probability is 0.82."
+    },
+    "hints": [
+      "Identify whether this is a introduction to probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "An event and its complement partition the sample space.",
+      "Subtract the event probability from 1: 1 - 0.18 = 0.82.",
+      "The complement probability is 0.82."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-complement-update",
+        "matchTerms": [],
+        "feedback": "An event and its complement must have probabilities that add to 1."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-intersection-from-union",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Recovering an Intersection Draft",
+    "prompt": "For two events A and B, P(A) = 0.48, P(B) = 0.39, and P(A union B) = 0.72. What is P(A intersection B)?",
+    "patternSource": "probability addition rule",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.15",
+        "15%"
+      ],
+      "numericValue": 0.15000000000000002,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A intersection B) = 0.15."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A intersection B) = P(A) + P(B) - P(A union B).",
+      "Substitute: 0.48 + 0.39 - 0.72 = 0.15.",
+      "Therefore P(A intersection B) = 0.15."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-intersection-from-union",
+        "matchTerms": [],
+        "feedback": "The addition rule includes the intersection because the overlap is counted in both individual event probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-intersection-surveys",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Survey Intersection Draft",
+    "prompt": "For two survey events A and B, P(A) = 0.52, P(B) = 0.41, and P(A union B) = 0.78. What is P(A intersection B)?",
+    "patternSource": "probability addition rule",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.15",
+        "15%"
+      ],
+      "numericValue": 0.1499999999999999,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A intersection B) = 0.15."
+    },
+    "hints": [
+      "Identify whether this is a venn diagrams question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A intersection B) = P(A) + P(B) - P(A union B).",
+      "Substitute: 0.52 + 0.41 - 0.78 = 0.15.",
+      "Therefore P(A intersection B) = 0.15."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-intersection-surveys",
+        "matchTerms": [],
+        "feedback": "The addition rule includes the intersection because the overlap is counted in both individual event probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-product-outfits",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Outfit Choice Product Draft",
+    "prompt": "A display pairs one of 3 shirts with one of 4 pairs of pants and one of 2 pairs of shoes. How many different outfits can be displayed?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "24"
+      ],
+      "numericValue": 24,
+      "tolerance": 0,
+      "explanation": "There are 24 possible outcomes."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The successive stages have 3, 4, 2 choices.",
+      "Use the multiplication principle: 3 * 4 * 2 = 24.",
+      "There are 24 possible outcomes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-outfits",
+        "matchTerms": [],
+        "feedback": "Additive counting is not appropriate when one choice is made at every stage; multiply the stage counts."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-product-menu",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Menu Choice Product Draft",
+    "prompt": "A lunch option consists of 5 sandwiches, 3 side dishes, and 4 drinks. How many different lunches can be formed by choosing one of each?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "60"
+      ],
+      "numericValue": 60,
+      "tolerance": 0,
+      "explanation": "There are 60 possible outcomes."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The successive stages have 5, 3, 4 choices.",
+      "Use the multiplication principle: 5 * 3 * 4 = 60.",
+      "There are 60 possible outcomes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-menu",
+        "matchTerms": [],
+        "feedback": "Additive counting is not appropriate when one choice is made at every stage; multiply the stage counts."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-product-route-code",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Route Code Product Draft",
+    "prompt": "A route code uses one of 6 letters followed by one of 10 digits. Repetition is irrelevant because there is one position of each kind. How many route codes are possible?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "60"
+      ],
+      "numericValue": 60,
+      "tolerance": 0,
+      "explanation": "There are 60 possible outcomes."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The successive stages have 6, 10 choices.",
+      "Use the multiplication principle: 6 * 10 = 60.",
+      "There are 60 possible outcomes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-route-code",
+        "matchTerms": [],
+        "feedback": "Additive counting is not appropriate when one choice is made at every stage; multiply the stage counts."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-product-dashboard",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Dashboard Configuration Product Draft",
+    "prompt": "A dashboard lets a user choose 4 layouts, 3 color themes, and 5 data views. How many configurations are possible?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "60"
+      ],
+      "numericValue": 60,
+      "tolerance": 0,
+      "explanation": "There are 60 possible outcomes."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "The successive stages have 4, 3, 5 choices.",
+      "Use the multiplication principle: 4 * 3 * 5 = 60.",
+      "There are 60 possible outcomes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-dashboard",
+        "matchTerms": [],
+        "feedback": "Additive counting is not appropriate when one choice is made at every stage; multiply the stage counts."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-presentations",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Ordered Presentations Draft",
+    "prompt": "Seven students volunteer to give the first three presentations. No student presents twice. How many ordered choices for first, second, and third presenter are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "210"
+      ],
+      "numericValue": 210,
+      "tolerance": 0,
+      "explanation": "The number of ordered outcomes is 210."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an ordered selection of 3 items from 7.",
+      "Use P(7,3) = 7 * 6 * 5.",
+      "The number of ordered outcomes is 210."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-presentations",
+        "matchTerms": [],
+        "feedback": "Order matters in this selection, so a combination would merge outcomes that belong in different positions."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-photo-row",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Photo Row Arrangement Draft",
+    "prompt": "Six distinct posters are arranged in a row. How many different arrangements are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "720"
+      ],
+      "numericValue": 720,
+      "tolerance": 0,
+      "explanation": "The number of ordered outcomes is 720."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an ordered selection of 6 items from 6.",
+      "Use P(6,6) = 6 * 5 * 4 * 3 * 2 * 1.",
+      "The number of ordered outcomes is 720."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-photo-row",
+        "matchTerms": [],
+        "feedback": "Order matters in this selection, so a combination would merge outcomes that belong in different positions."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-stations",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Ordered Station Visits Draft",
+    "prompt": "A tour selects 2 distinct stations from 8 and visits them in order. How many ordered station sequences are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "56"
+      ],
+      "numericValue": 56,
+      "tolerance": 0,
+      "explanation": "The number of ordered outcomes is 56."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an ordered selection of 2 items from 8.",
+      "Use P(8,2) = 8 * 7.",
+      "The number of ordered outcomes is 56."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-stations",
+        "matchTerms": [],
+        "feedback": "Order matters in this selection, so a combination would merge outcomes that belong in different positions."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-awards",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Award Placements Draft",
+    "prompt": "Nine finalists can receive first, second, and third place, with no ties. How many different award outcomes are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "504"
+      ],
+      "numericValue": 504,
+      "tolerance": 0,
+      "explanation": "The number of ordered outcomes is 504."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an ordered selection of 3 items from 9.",
+      "Use P(9,3) = 9 * 8 * 7.",
+      "The number of ordered outcomes is 504."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-awards",
+        "matchTerms": [],
+        "feedback": "Order matters in this selection, so a combination would merge outcomes that belong in different positions."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-projects",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Project Group Selection Draft",
+    "prompt": "A class has 9 distinct projects and chooses 3 for a showcase. The order of the chosen projects does not matter. How many groups are possible?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "84"
+      ],
+      "numericValue": 84,
+      "tolerance": 0,
+      "explanation": "The number of groups is 84."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an unordered selection of 3 items from 9.",
+      "Use C(9,3) = 9! / (3!(6)!).",
+      "The number of groups is 84."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-projects",
+        "matchTerms": [],
+        "feedback": "The selected items form an unordered group, so rearranging the same group does not create a new outcome."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-books",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Book Set Selection Draft",
+    "prompt": "A shelf has 10 distinct books and a reader selects 4 to borrow. How many different sets of books can be selected?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "210"
+      ],
+      "numericValue": 210,
+      "tolerance": 0,
+      "explanation": "The number of groups is 210."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an unordered selection of 4 items from 10.",
+      "Use C(10,4) = 10! / (4!(6)!).",
+      "The number of groups is 210."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-books",
+        "matchTerms": [],
+        "feedback": "The selected items form an unordered group, so rearranging the same group does not create a new outcome."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-partners",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Partner Pair Selection Draft",
+    "prompt": "A group has 12 students. How many different unordered pairs of partners can be formed?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "66"
+      ],
+      "numericValue": 66,
+      "tolerance": 0,
+      "explanation": "The number of groups is 66."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an unordered selection of 2 items from 12.",
+      "Use C(12,2) = 12! / (2!(10)!).",
+      "The number of groups is 66."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-partners",
+        "matchTerms": [],
+        "feedback": "The selected items form an unordered group, so rearranging the same group does not create a new outcome."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-samples",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Sample Group Selection Draft",
+    "prompt": "A lab has 11 distinct samples and chooses 5 for a screening batch. How many different batches are possible?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "462"
+      ],
+      "numericValue": 462,
+      "tolerance": 0,
+      "explanation": "The number of groups is 462."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "This is an unordered selection of 5 items from 11.",
+      "Use C(11,5) = 11! / (5!(6)!).",
+      "The number of groups is 462."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-samples",
+        "matchTerms": [],
+        "feedback": "The selected items form an unordered group, so rearranging the same group does not create a new outcome."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-calendar",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Calendar or Reminder Draft",
+    "prompt": "For events A and B, P(A) = 0.45, P(B) = 0.38, and P(A intersection B) = 0.20. What is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.63",
+        "63%"
+      ],
+      "numericValue": 0.6300000000000001,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A union B) = 0.63."
+    },
+    "hints": [
+      "Identify whether this is a axioms of probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A union B) = P(A) + P(B) - P(A intersection B).",
+      "Substitute: 0.45 + 0.38 - 0.2 = 0.63.",
+      "Therefore P(A union B) = 0.63."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-calendar",
+        "matchTerms": [],
+        "feedback": "Subtract the intersection once so outcomes in both events are not counted twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-transit",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Bus or Rail Event Draft",
+    "prompt": "For two commuter events A and B, P(A) = 0.51, P(B) = 0.34, and P(A intersection B) = 0.16. What is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.69",
+        "69%"
+      ],
+      "numericValue": 0.6900000000000001,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A union B) = 0.69."
+    },
+    "hints": [
+      "Identify whether this is a axioms of probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A union B) = P(A) + P(B) - P(A intersection B).",
+      "Substitute: 0.51 + 0.34 - 0.16 = 0.69.",
+      "Therefore P(A union B) = 0.69."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-transit",
+        "matchTerms": [],
+        "feedback": "Subtract the intersection once so outcomes in both events are not counted twice."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-disjoint-checks",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Disjoint Check Outcomes Draft",
+    "prompt": "Two events A and B are disjoint, with P(A) = 0.27 and P(B) = 0.31. What is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.58",
+        "58%"
+      ],
+      "numericValue": 0.5800000000000001,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A union B) = 0.58."
+    },
+    "hints": [
+      "Identify whether this is a axioms of probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A union B) = P(A) + P(B) - P(A intersection B).",
+      "Substitute: 0.27 + 0.31 - 0 = 0.58.",
+      "Therefore P(A union B) = 0.58."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-disjoint-checks",
+        "matchTerms": [],
+        "feedback": "Disjoint events have no overlap, so their union probability is the sum of the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-disjoint-labels",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Disjoint Label Outcomes Draft",
+    "prompt": "Two label events A and B cannot occur together. If P(A) = 0.22 and P(B) = 0.46, what is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.68",
+        "68%"
+      ],
+      "numericValue": 0.68,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(A union B) = 0.68."
+    },
+    "hints": [
+      "Identify whether this is a axioms of probability question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Use P(A union B) = P(A) + P(B) - P(A intersection B).",
+      "Substitute: 0.22 + 0.46 - 0 = 0.68.",
+      "Therefore P(A union B) = 0.68."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-disjoint-labels",
+        "matchTerms": [],
+        "feedback": "Disjoint events have no overlap, so their union probability is the sum of the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-role-volunteers",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Coordinator and Assistants Draft",
+    "prompt": "From 8 volunteers, choose one coordinator and then choose 2 assistants from the remaining volunteers. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "168"
+      ],
+      "numericValue": 168,
+      "tolerance": 0,
+      "explanation": "Multiply the stages: 8 * 21 = 168."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Choose the primary role in 8 ways.",
+      "Then choose 2 support members from the remaining 7: C(7,2) = 21.",
+      "Multiply the stages: 8 * 21 = 168."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-volunteers",
+        "matchTerms": [],
+        "feedback": "The primary role is distinct, while the remaining support roles form an unordered group; account for both stages."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-role-editors",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Lead and Reviewers Draft",
+    "prompt": "From 7 editors, choose one lead editor and then choose 3 reviewers from the remaining editors. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "140"
+      ],
+      "numericValue": 140,
+      "tolerance": 0,
+      "explanation": "Multiply the stages: 7 * 20 = 140."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Choose the primary role in 7 ways.",
+      "Then choose 3 support members from the remaining 6: C(6,3) = 20.",
+      "Multiply the stages: 7 * 20 = 140."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-editors",
+        "matchTerms": [],
+        "feedback": "The primary role is distinct, while the remaining support roles form an unordered group; account for both stages."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-role-guides",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Guide and Helpers Draft",
+    "prompt": "From 9 guides, choose one head guide and then choose 2 helpers from the remaining guides. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "252"
+      ],
+      "numericValue": 252,
+      "tolerance": 0,
+      "explanation": "Multiply the stages: 9 * 28 = 252."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Choose the primary role in 9 ways.",
+      "Then choose 2 support members from the remaining 8: C(8,2) = 28.",
+      "Multiply the stages: 9 * 28 = 252."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-guides",
+        "matchTerms": [],
+        "feedback": "The primary role is distinct, while the remaining support roles form an unordered group; account for both stages."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-syllabus-role-mentors",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Mentor and Support Pair Draft",
+    "prompt": "From 10 mentors, choose one primary mentor and then choose 2 support mentors from the remaining mentors. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "360"
+      ],
+      "numericValue": 360,
+      "tolerance": 0,
+      "explanation": "Multiply the stages: 10 * 36 = 360."
+    },
+    "hints": [
+      "Identify whether this is a counting methods question.",
+      "Write the relevant counts or probabilities before calculating.",
+      "Check that the result has the correct scale and interpretation."
+    ],
+    "solutionSteps": [
+      "Choose the primary role in 10 ways.",
+      "Then choose 2 support members from the remaining 9: C(9,2) = 36.",
+      "Multiply the stages: 10 * 36 = 360."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-mentors",
+        "matchTerms": [],
+        "feedback": "The primary role is distinct, while the remaining support roles form an unordered group; account for both stages."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  }
+]

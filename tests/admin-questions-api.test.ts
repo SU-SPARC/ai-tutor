@@ -183,9 +183,13 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
     async listTopics() {
       return [
         {
+          active: true,
           description: "Generated topic",
           id: current.topicId,
+          moduleRef: "Week 1",
+          order: 1,
           title: current.topicTitle ?? current.topicId,
+          weekNumber: 1,
         },
       ]
     },

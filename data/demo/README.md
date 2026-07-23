@@ -23,3 +23,19 @@ to ignored private storage by default.
 Running `npm run prepare:review-queue` keeps generated review queues under
 ignored private storage as well.
 Approved generated questions are promoted to `data/processed/`, not `data/demo/`.
+
+`topics.json` is the public-safe syllabus catalog. It contains only short topic
+titles, week/order metadata, descriptions, and active status. Keep its entries
+in strictly increasing syllabus order; the public seed validator rejects
+duplicate or out-of-order positions.
+
+`syllabus-review-candidates.json` contains original review drafts for the
+currently added syllabus topics. Rebuild and validate it with:
+
+```bash
+npm run prepare:syllabus-questions
+npm run prepare:syllabus-questions -- --check
+```
+
+These candidates must remain `needs_review` and `generated_unverified`, so they
+cannot appear in student practice until professor approval.

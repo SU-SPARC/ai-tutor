@@ -74,9 +74,13 @@ export type TutorResponseLabel =
   | "private_reference_grounded_explanation"
 
 export type Topic = {
+  active: boolean
   description: string
   id: string
+  moduleRef: string
+  order: number
   title: string
+  weekNumber: number
 }
 
 export type CourseTopic = Topic

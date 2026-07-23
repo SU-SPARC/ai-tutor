@@ -1,0 +1,56 @@
+[
+  {
+    "id": "introduction-probability-venn-diagrams",
+    "title": "Introduction to Probability and Venn Diagrams",
+    "description": "Introduce probability through finite sample spaces, events, complements, and Venn-diagram regions.",
+    "order": 1,
+    "weekNumber": 1,
+    "moduleRef": "Week 1",
+    "active": true
+  },
+  {
+    "id": "axioms-probability-counting-methods",
+    "title": "Axioms of Probability and Counting Methods",
+    "description": "Apply the probability axioms and systematic counting methods to finite outcome spaces.",
+    "order": 2,
+    "weekNumber": 2,
+    "moduleRef": "Week 2",
+    "active": true
+  },
+  {
+    "id": "conditional-probability",
+    "title": "Conditional Probability, Independence, and Bayes' Formula",
+    "description": "Restrict the sample space, test independence, and update probabilities with Bayes' formula.",
+    "order": 3,
+    "weekNumber": 3,
+    "moduleRef": "Week 3",
+    "active": true
+  },
+  {
+    "id": "random-variables",
+    "title": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "description": "Represent discrete random variables and compute probabilities, expectation, and variance.",
+    "order": 4,
+    "weekNumber": 4,
+    "moduleRef": "Week 4",
+    "active": true
+  },
+  {
+    "id": "binomial-models",
+    "title": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "description": "Work with the named discrete probability models introduced together in the course schedule.",
+    "order": 5,
+    "weekNumber": 5,
+    "moduleRef": "Week 5",
+    "active": true
+  },
+  {
+    "id": "normal-standardization",
+    "title": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "description": "Use normal models and normal approximations, then study distributions of transformed random variables.",
+    "order": 9,
+    "weekNumber": 9,
+    "moduleRef": "Week 9",
+    "active": true
+  }
+]

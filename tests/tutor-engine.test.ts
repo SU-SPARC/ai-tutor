@@ -57,6 +57,7 @@ import {
 import demoQuestionPatterns from "../data/demo/question-patterns.json"
 import generatedExamples from "../data/demo/generated-examples.json"
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
+import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json"
 import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
 import {
   DEFAULT_USAGE_POLICY,
@@ -1032,14 +1033,15 @@ describe("content provenance and review metadata", () => {
     )
     const question = await getQuestionById("dice-sum-eight")
 
-    expect(topics).toHaveLength(3)
-    expect(questions).toHaveLength(3)
+    expect(topics).toHaveLength(6)
+    expect(questions).toHaveLength(8)
     expect(question?.id).toBe("dice-sum-eight")
     expect(conditionalQuestions.map((item) => item.id)).toEqual([
+      "demo-conditional-spinner-coin",
       "dice-sum-eight",
     ])
     expect(counts.total).toBe(questions.length)
-    expect(counts.byTopic["conditional-probability"]).toBe(1)
+    expect(counts.byTopic["conditional-probability"]).toBe(2)
     expect(
       questions.every(
         (item) =>
@@ -1064,7 +1066,7 @@ describe("content provenance and review metadata", () => {
       expect(questions.map((question) => question.id)).toContain(
         "dice-sum-eight",
       )
-      expect(counts.total).toBe(3)
+      expect(counts.total).toBe(8)
       expect(
         questions.every(
           (question) => question.source.trustLevel !== "generated_unverified",
@@ -1107,7 +1109,9 @@ describe("content provenance and review metadata", () => {
       candidate.id.startsWith("generated-additional-"),
     )
 
-    expect(queue).toHaveLength(generatedReviewCandidates.length)
+    expect(queue).toHaveLength(
+      generatedReviewCandidates.length + syllabusReviewCandidates.length,
+    )
     expect(additionalDrafts).toHaveLength(12)
     expect(
       queue.every(
@@ -1130,7 +1134,10 @@ describe("content provenance and review metadata", () => {
       "sourceStoryFamilies",
       "patternIds",
     ]
-    const serialized = JSON.stringify(generatedReviewCandidates)
+    const serialized = JSON.stringify([
+      ...generatedReviewCandidates,
+      ...syllabusReviewCandidates,
+    ])
     const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),
     )
@@ -1295,6 +1302,7 @@ describe("content provenance and review metadata", () => {
           questions: [
             {
               id: "approved-generated-seed-fixture",
+              topicId: "introduction-probability-venn-diagrams",
               topic: "basic probability",
               difficulty: "foundational",
               questionText:

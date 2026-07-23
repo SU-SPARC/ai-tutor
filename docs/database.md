@@ -22,6 +22,12 @@ The `questions` table includes `review_status`, `trust_level`, `source_type`,
 and `visibility`. Student-facing views require public visibility, approved
 review status, and trusted public/course/professor trust levels.
 
+`006_syllabus_topic_order.sql` adds week/module metadata and active status to
+`topics`. Student reads filter to active topics and order by `sort_order` with
+stable title/id tie-breakers. The public seed reads the canonical catalog from
+`data/demo/topics.json` and validates unique, strictly increasing syllabus
+positions before writing SQL.
+
 `003_retrieval_chunks.sql` adds server-side retrieval chunk storage and safe
 student/admin views. Student retrieval reads only approved public trusted chunks
 or approved private reference summaries; raw private book text must remain
