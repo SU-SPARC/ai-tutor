@@ -9,6 +9,7 @@ import type {
   TutorQuestion,
 } from "@/lib/types"
 import generatedReviewCandidateData from "../../../data/demo/generated-review-candidates.json"
+import nextSyllabusReviewCandidateData from "../../../data/demo/next-syllabus-review-candidates.json"
 import demoQuestionData from "../../../data/demo/questions.json"
 import syllabusReviewCandidateData from "../../../data/demo/syllabus-review-candidates.json"
 import topicData from "../../../data/demo/topics.json"
@@ -129,6 +130,7 @@ export const retrievalChunks: RetrievalChunk[] = [
 export const reviewCandidates: ReviewCandidate[] = [
   ...(generatedReviewCandidateData as ReviewCandidate[]),
   ...(syllabusReviewCandidateData as ReviewCandidate[]),
+  ...(nextSyllabusReviewCandidateData as ReviewCandidate[]),
 ]
 
 function validateAndSortTopics(topics: Topic[]) {

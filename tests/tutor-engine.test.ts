@@ -57,6 +57,7 @@ import {
 import demoQuestionPatterns from "../data/demo/question-patterns.json"
 import generatedExamples from "../data/demo/generated-examples.json"
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
+import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json"
 import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json"
 import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
 import {
@@ -1110,7 +1111,9 @@ describe("content provenance and review metadata", () => {
     )
 
     expect(queue).toHaveLength(
-      generatedReviewCandidates.length + syllabusReviewCandidates.length,
+      generatedReviewCandidates.length +
+        syllabusReviewCandidates.length +
+        nextSyllabusReviewCandidates.length,
     )
     expect(additionalDrafts).toHaveLength(12)
     expect(
@@ -1137,6 +1140,7 @@ describe("content provenance and review metadata", () => {
     const serialized = JSON.stringify([
       ...generatedReviewCandidates,
       ...syllabusReviewCandidates,
+      ...nextSyllabusReviewCandidates,
     ])
     const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),

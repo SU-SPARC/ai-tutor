@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import syllabusReviewCandidateData from "../data/demo/syllabus-review-candidates.json"
 import {
   demoQuestions,
@@ -11,8 +12,15 @@ import type { ReviewCandidate } from "@/lib/types"
 
 const INTRO_TOPIC_ID = "introduction-probability-venn-diagrams"
 const AXIOMS_TOPIC_ID = "axioms-probability-counting-methods"
+const NEXT_TOPIC_IDS = [
+  "conditional-probability",
+  "random-variables",
+  "binomial-models",
+] as const
 const syllabusCandidates =
   syllabusReviewCandidateData as unknown as ReviewCandidate[]
+const nextSyllabusCandidates =
+  nextSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 
 describe("syllabus topic catalog", () => {
   it("keeps active topics in deterministic syllabus order", () => {
@@ -118,5 +126,50 @@ describe("syllabus topic catalog", () => {
         reviewCandidates.some((review) => review.id === candidate.id),
       ),
     ).toBe(true)
+  })
+
+  it("creates exactly 20 original review drafts for each of the next three topics", () => {
+    expect(nextSyllabusCandidates).toHaveLength(60)
+
+    for (const topicId of NEXT_TOPIC_IDS) {
+      const topic = demoTopics.find((candidate) => candidate.id === topicId)
+      const candidates = nextSyllabusCandidates.filter(
+        (candidate) => candidate.topicId === topicId,
+      )
+
+      expect(candidates).toHaveLength(20)
+      expect(
+        candidates.every((candidate) => candidate.topic === topic?.title),
+      ).toBe(true)
+    }
+
+    expect(new Set(nextSyllabusCandidates.map(({ id }) => id))).toHaveProperty(
+      "size",
+      60,
+    )
+    expect(
+      nextSyllabusCandidates.every(
+        (candidate) =>
+          candidate.review.status === "needs_review" &&
+          candidate.source.trustLevel === "generated_unverified" &&
+          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.visibility === "public" &&
+          Boolean(candidate.patternSource) &&
+          Boolean(candidate.source.originalityNote) &&
+          candidate.answer.acceptedAnswers.length > 0 &&
+          candidate.hints.length >= 2 &&
+          candidate.solutionSteps.length >= 3 &&
+          candidate.misconceptions.length > 0 &&
+          !isStudentFacingQuestion(candidate),
+      ),
+    ).toBe(true)
+    expect(
+      nextSyllabusCandidates.every((candidate) =>
+        reviewCandidates.some((review) => review.id === candidate.id),
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(nextSyllabusCandidates)).not.toMatch(
+      /patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText/i,
+    )
   })
 })

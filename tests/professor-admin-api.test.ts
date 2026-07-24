@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import {
   GET as getAnalytics,
 } from "@/app/api/professor/analytics/route"
@@ -13,6 +14,8 @@ import { resetUsageControlForTests } from "@/lib/tutor/usage-control"
 import type { ProfessorAnalyticsDashboard, ReviewCandidate } from "@/lib/types"
 
 const TOKEN = "review-secret"
+const nextSyllabusCandidates =
+  nextSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 
 describe("professor admin APIs", () => {
   beforeEach(() => {
@@ -48,6 +51,55 @@ describe("professor admin APIs", () => {
     expect(JSON.stringify(payload)).not.toMatch(
       /sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|source page/i,
     )
+  })
+
+  it("makes all 60 next-syllabus drafts available in the protected review workflow", async () => {
+    const expectedIds = new Set(
+      nextSyllabusCandidates.map((candidate) => candidate.id),
+    )
+    const response = await getReviewQueue(authedRequest())
+    const payload = (await response.json()) as {
+      candidates: ReviewCandidate[]
+    }
+    const returnedIds = new Set(
+      payload.candidates.map((candidate) => candidate.id),
+    )
+
+    expect(response.status).toBe(200)
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true)
+    expect(expectedIds.size).toBe(60)
+
+    for (const topicId of [
+      "conditional-probability",
+      "random-variables",
+      "binomial-models",
+    ]) {
+      const filtered = await getReviewQueue(
+        new Request(
+          `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
+          {
+            headers: { "x-professor-token": TOKEN },
+          },
+        ),
+      )
+      const filteredPayload = (await filtered.json()) as {
+        candidates: ReviewCandidate[]
+      }
+      const expectedTopicIds = new Set(
+        nextSyllabusCandidates
+          .filter((candidate) => candidate.topicId === topicId)
+          .map((candidate) => candidate.id),
+      )
+
+      expect(filtered.status).toBe(200)
+      expect(
+        filteredPayload.candidates.filter((candidate) =>
+          expectedTopicIds.has(candidate.id),
+        ),
+      ).toHaveLength(20)
+    }
   })
 
   it("requires priority before approving selected generated drafts", async () => {

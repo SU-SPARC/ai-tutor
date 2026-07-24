@@ -1,0 +1,2578 @@
+[
+  {
+    "id": "generated-next-makerspace-evening",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Makerspace Evening Session Draft",
+    "prompt": "A makerspace has 21 members registered for the evening session. Of those members, 8 reserved a soldering station. Given that a randomly selected member is registered for the evening session, what is the probability that the member reserved a soldering station?",
+    "patternSource": "conditional restricted-sample-space pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "8/21",
+        "0.380952",
+        "38.1%"
+      ],
+      "numericValue": 0.38095238095238093,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 8/21, or about 0.380952."
+    },
+    "hints": [
+      "Use the group named after the word given as the sample space.",
+      "Divide the favorable count within that group by its total."
+    ],
+    "solutionSteps": [
+      "The condition restricts the sample space to 21 outcomes.",
+      "8 of those outcomes are favorable.",
+      "The conditional probability is 8/21, or about 0.380952."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-unconditioned-space",
+        "matchTerms": [],
+        "feedback": "The denominator must be the conditioned group, not a larger original population."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-transit-mobile-pass",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Transit Mobile Pass Draft",
+    "prompt": "Among 28 commuters who ride the express route, 11 use a mobile pass. Given that a randomly selected commuter rides the express route, what is the probability that the commuter uses a mobile pass?",
+    "patternSource": "conditional restricted-sample-space pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "11/28",
+        "0.392857",
+        "39.29%"
+      ],
+      "numericValue": 0.39285714285714285,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 11/28, or about 0.392857."
+    },
+    "hints": [
+      "Use the group named after the word given as the sample space.",
+      "Divide the favorable count within that group by its total."
+    ],
+    "solutionSteps": [
+      "The condition restricts the sample space to 28 outcomes.",
+      "11 of those outcomes are favorable.",
+      "The conditional probability is 11/28, or about 0.392857."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-unconditioned-space",
+        "matchTerms": [],
+        "feedback": "The denominator must be the conditioned group, not a larger original population."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-studio-window-seat",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Studio Window Seat Draft",
+    "prompt": "A design studio has 24 participants in its morning group, and 9 of them selected a window seat. Given that a randomly selected participant is in the morning group, what is the probability that the participant selected a window seat?",
+    "patternSource": "conditional restricted-sample-space pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "3/8",
+        "0.375",
+        "37.5%"
+      ],
+      "numericValue": 0.375,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 3/8, or about 0.375."
+    },
+    "hints": [
+      "Use the group named after the word given as the sample space.",
+      "Divide the favorable count within that group by its total."
+    ],
+    "solutionSteps": [
+      "The condition restricts the sample space to 24 outcomes.",
+      "9 of those outcomes are favorable.",
+      "The conditional probability is 3/8, or about 0.375."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-unconditioned-space",
+        "matchTerms": [],
+        "feedback": "The denominator must be the conditioned group, not a larger original population."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-garden-tool-loan",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Garden Tool Loan Draft",
+    "prompt": "Of 30 volunteers assigned to the community garden, 13 borrowed a tool kit. Given that a randomly selected volunteer is assigned to the garden, what is the probability that the volunteer borrowed a tool kit?",
+    "patternSource": "conditional restricted-sample-space pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "13/30",
+        "0.433333",
+        "43.33%"
+      ],
+      "numericValue": 0.43333333333333335,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 13/30, or about 0.433333."
+    },
+    "hints": [
+      "Use the group named after the word given as the sample space.",
+      "Divide the favorable count within that group by its total."
+    ],
+    "solutionSteps": [
+      "The condition restricts the sample space to 30 outcomes.",
+      "13 of those outcomes are favorable.",
+      "The conditional probability is 13/30, or about 0.433333."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-unconditioned-space",
+        "matchTerms": [],
+        "feedback": "The denominator must be the conditioned group, not a larger original population."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-badge-and-coffee",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Independent Badge and Coffee Choices Draft",
+    "prompt": "At an event, a visitor independently receives a blue badge with probability 0.4 and chooses coffee with probability 0.3. What is the probability that the visitor receives a blue badge and chooses coffee?",
+    "patternSource": "independent-event intersection pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.12",
+        "12%"
+      ],
+      "numericValue": 0.12,
+      "tolerance": 0.001,
+      "explanation": "The probability of both events is 0.12."
+    },
+    "hints": [
+      "The problem states that the two events are independent.",
+      "For independent events, multiply their probabilities."
+    ],
+    "solutionSteps": [
+      "For independent events A and B, P(A and B) = P(A)P(B).",
+      "Substitute the probabilities: 0.4 * 0.3.",
+      "The probability of both events is 0.12."
+    ],
+    "misconceptions": [
+      {
+        "id": "adds-independent-probabilities",
+        "matchTerms": [],
+        "feedback": "For an intersection of independent events, multiply rather than add the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-bus-and-locker",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Independent Bus and Locker Events Draft",
+    "prompt": "A student rides the bus with probability 0.65 and, independently, rents a locker with probability 0.2. What is the probability that both events occur?",
+    "patternSource": "independent-event intersection pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.13",
+        "13%"
+      ],
+      "numericValue": 0.13,
+      "tolerance": 0.001,
+      "explanation": "The probability of both events is 0.13."
+    },
+    "hints": [
+      "The problem states that the two events are independent.",
+      "For independent events, multiply their probabilities."
+    ],
+    "solutionSteps": [
+      "For independent events A and B, P(A and B) = P(A)P(B).",
+      "Substitute the probabilities: 0.65 * 0.2.",
+      "The probability of both events is 0.13."
+    ],
+    "misconceptions": [
+      {
+        "id": "adds-independent-probabilities",
+        "matchTerms": [],
+        "feedback": "For an intersection of independent events, multiply rather than add the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-quiz-and-reminder",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Independent Quiz and Reminder Events Draft",
+    "prompt": "A learner completes a daily quiz with probability 0.75 and, independently, opens a study reminder with probability 0.8. What is the probability that the learner does both?",
+    "patternSource": "independent-event intersection pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.6",
+        "60%"
+      ],
+      "numericValue": 0.6000000000000001,
+      "tolerance": 0.001,
+      "explanation": "The probability of both events is 0.6."
+    },
+    "hints": [
+      "The problem states that the two events are independent.",
+      "For independent events, multiply their probabilities."
+    ],
+    "solutionSteps": [
+      "For independent events A and B, P(A and B) = P(A)P(B).",
+      "Substitute the probabilities: 0.75 * 0.8.",
+      "The probability of both events is 0.6."
+    ],
+    "misconceptions": [
+      {
+        "id": "adds-independent-probabilities",
+        "matchTerms": [],
+        "feedback": "For an intersection of independent events, multiply rather than add the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-poster-and-table",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Independent Poster and Table Choices Draft",
+    "prompt": "An exhibitor selects a large poster with probability 0.25 and, independently, selects a corner table with probability 0.6. What is the probability that both selections are made?",
+    "patternSource": "independent-event intersection pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.15",
+        "15%"
+      ],
+      "numericValue": 0.15,
+      "tolerance": 0.001,
+      "explanation": "The probability of both events is 0.15."
+    },
+    "hints": [
+      "The problem states that the two events are independent.",
+      "For independent events, multiply their probabilities."
+    ],
+    "solutionSteps": [
+      "For independent events A and B, P(A and B) = P(A)P(B).",
+      "Substitute the probabilities: 0.25 * 0.6.",
+      "The probability of both events is 0.15."
+    ],
+    "misconceptions": [
+      {
+        "id": "adds-independent-probabilities",
+        "matchTerms": [],
+        "feedback": "For an intersection of independent events, multiply rather than add the two probabilities."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-repair-routing",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Repair Routing Probability Draft",
+    "prompt": "A service desk routes 30% of requests to team A and the rest to team B. Team A resolves a request on the first attempt with probability 0.8, while team B does so with probability 0.2. What is the probability that a randomly selected request is resolved on the first attempt?",
+    "patternSource": "two-group total-probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.38",
+        "38%"
+      ],
+      "numericValue": 0.38,
+      "tolerance": 0.001,
+      "explanation": "Their sum is 0.38."
+    },
+    "hints": [
+      "Split the desired event by the two mutually exclusive groups.",
+      "Weight each conditional rate by its group probability, then add."
+    ],
+    "solutionSteps": [
+      "The second group has probability 1 - 0.3 = 0.7.",
+      "The two weighted contributions are 0.3 * 0.8 and 0.7 * 0.2.",
+      "Their sum is 0.38."
+    ],
+    "misconceptions": [
+      {
+        "id": "averages-conditional-rates",
+        "matchTerms": [],
+        "feedback": "The conditional rates need group-probability weights; a simple average is generally incorrect."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-greenhouse-germination",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Greenhouse Germination Probability Draft",
+    "prompt": "A greenhouse places 40% of seeds in tray A and the rest in tray B. A seed germinates with probability 0.7 in tray A and 0.1 in tray B. What is the probability that a randomly selected seed germinates?",
+    "patternSource": "two-group total-probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.34",
+        "34%"
+      ],
+      "numericValue": 0.33999999999999997,
+      "tolerance": 0.001,
+      "explanation": "Their sum is 0.34."
+    },
+    "hints": [
+      "Split the desired event by the two mutually exclusive groups.",
+      "Weight each conditional rate by its group probability, then add."
+    ],
+    "solutionSteps": [
+      "The second group has probability 1 - 0.4 = 0.6.",
+      "The two weighted contributions are 0.4 * 0.7 and 0.6 * 0.1.",
+      "Their sum is 0.34."
+    ],
+    "misconceptions": [
+      {
+        "id": "averages-conditional-rates",
+        "matchTerms": [],
+        "feedback": "The conditional rates need group-probability weights; a simple average is generally incorrect."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-library-return",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Library Return Probability Draft",
+    "prompt": "A library sends 25% of reminders by text and the rest by email. A borrowed item is returned that day with probability 0.9 after a text reminder and 0.3 after an email reminder. What is the probability that a randomly selected reminded item is returned that day?",
+    "patternSource": "two-group total-probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.45",
+        "45%"
+      ],
+      "numericValue": 0.44999999999999996,
+      "tolerance": 0.001,
+      "explanation": "Their sum is 0.45."
+    },
+    "hints": [
+      "Split the desired event by the two mutually exclusive groups.",
+      "Weight each conditional rate by its group probability, then add."
+    ],
+    "solutionSteps": [
+      "The second group has probability 1 - 0.25 = 0.75.",
+      "The two weighted contributions are 0.25 * 0.9 and 0.75 * 0.3.",
+      "Their sum is 0.45."
+    ],
+    "misconceptions": [
+      {
+        "id": "averages-conditional-rates",
+        "matchTerms": [],
+        "feedback": "The conditional rates need group-probability weights; a simple average is generally incorrect."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-workshop-completion",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Workshop Completion Probability Draft",
+    "prompt": "A workshop assigns 60% of participants to a guided track and the rest to a self-paced track. Completion probabilities are 0.5 for the guided track and 0.15 for the self-paced track. What is the probability that a randomly selected participant completes the workshop?",
+    "patternSource": "two-group total-probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.36",
+        "36%"
+      ],
+      "numericValue": 0.36,
+      "tolerance": 0.001,
+      "explanation": "Their sum is 0.36."
+    },
+    "hints": [
+      "Split the desired event by the two mutually exclusive groups.",
+      "Weight each conditional rate by its group probability, then add."
+    ],
+    "solutionSteps": [
+      "The second group has probability 1 - 0.6 = 0.4.",
+      "The two weighted contributions are 0.6 * 0.5 and 0.4 * 0.15.",
+      "Their sum is 0.36."
+    ],
+    "misconceptions": [
+      {
+        "id": "averages-conditional-rates",
+        "matchTerms": [],
+        "feedback": "The conditional rates need group-probability weights; a simple average is generally incorrect."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-sensor-alert",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Sensor Alert Update Draft",
+    "prompt": "A sensor is installed in a location with an issue on 20% of days. It sends an alert with probability 0.8 when an issue is present and with probability 0.1 when no issue is present. If the sensor sends an alert, what is the probability that an issue is present?",
+    "patternSource": "Bayes posterior-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.666667",
+        "66.67%"
+      ],
+      "numericValue": 0.6666666666666666,
+      "tolerance": 0.001,
+      "explanation": "Bayes' formula gives 0.16 / 0.24 = 0.666667."
+    },
+    "hints": [
+      "Compute the joint probability of the target group and the observed mark.",
+      "Divide that joint probability by the total probability of the mark."
+    ],
+    "solutionSteps": [
+      "The target-and-marked probability is 0.2 * 0.8 = 0.16.",
+      "The other-and-marked probability is 0.8 * 0.1 = 0.08.",
+      "Bayes' formula gives 0.16 / 0.24 = 0.666667."
+    ],
+    "misconceptions": [
+      {
+        "id": "ignores-base-rate",
+        "matchTerms": [],
+        "feedback": "A conditional mark rate is not the posterior probability; include the base rates of both groups."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-portfolio-shortlist",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Portfolio Shortlist Update Draft",
+    "prompt": "Twenty-five percent of submitted portfolios use format A. A portfolio is shortlisted with probability 0.75 when it uses format A and with probability 0.15 otherwise. Given that a portfolio was shortlisted, what is the probability that it used format A?",
+    "patternSource": "Bayes posterior-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.625",
+        "62.5%"
+      ],
+      "numericValue": 0.625,
+      "tolerance": 0.001,
+      "explanation": "Bayes' formula gives 0.1875 / 0.3 = 0.625."
+    },
+    "hints": [
+      "Compute the joint probability of the target group and the observed mark.",
+      "Divide that joint probability by the total probability of the mark."
+    ],
+    "solutionSteps": [
+      "The target-and-marked probability is 0.25 * 0.75 = 0.1875.",
+      "The other-and-marked probability is 0.75 * 0.15 = 0.1125.",
+      "Bayes' formula gives 0.1875 / 0.3 = 0.625."
+    ],
+    "misconceptions": [
+      {
+        "id": "ignores-base-rate",
+        "matchTerms": [],
+        "feedback": "A conditional mark rate is not the posterior probability; include the base rates of both groups."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-maintenance-flag",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Maintenance Flag Update Draft",
+    "prompt": "Ten percent of machines need maintenance. A monitor flags a machine with probability 0.9 when maintenance is needed and with probability 0.05 otherwise. Given that a machine is flagged, what is the probability that it needs maintenance?",
+    "patternSource": "Bayes posterior-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.666667",
+        "66.67%"
+      ],
+      "numericValue": 0.6666666666666667,
+      "tolerance": 0.001,
+      "explanation": "Bayes' formula gives 0.09 / 0.135 = 0.666667."
+    },
+    "hints": [
+      "Compute the joint probability of the target group and the observed mark.",
+      "Divide that joint probability by the total probability of the mark."
+    ],
+    "solutionSteps": [
+      "The target-and-marked probability is 0.1 * 0.9 = 0.09.",
+      "The other-and-marked probability is 0.9 * 0.05 = 0.045.",
+      "Bayes' formula gives 0.09 / 0.135 = 0.666667."
+    ],
+    "misconceptions": [
+      {
+        "id": "ignores-base-rate",
+        "matchTerms": [],
+        "feedback": "A conditional mark rate is not the posterior probability; include the base rates of both groups."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-priority-message",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Priority Message Update Draft",
+    "prompt": "Thirty percent of incoming messages are priority messages. A filter marks a priority message with probability 0.7 and marks a nonpriority message with probability 0.2. Given that a message is marked, what is the probability that it is a priority message?",
+    "patternSource": "Bayes posterior-update pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.6",
+        "60%"
+      ],
+      "numericValue": 0.6,
+      "tolerance": 0.001,
+      "explanation": "Bayes' formula gives 0.21 / 0.35 = 0.6."
+    },
+    "hints": [
+      "Compute the joint probability of the target group and the observed mark.",
+      "Divide that joint probability by the total probability of the mark."
+    ],
+    "solutionSteps": [
+      "The target-and-marked probability is 0.3 * 0.7 = 0.21.",
+      "The other-and-marked probability is 0.7 * 0.2 = 0.14.",
+      "Bayes' formula gives 0.21 / 0.35 = 0.6."
+    ],
+    "misconceptions": [
+      {
+        "id": "ignores-base-rate",
+        "matchTerms": [],
+        "feedback": "A conditional mark rate is not the posterior probability; include the base rates of both groups."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-blue-gold-tokens",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Second Gold Token Draft",
+    "prompt": "A bag contains 6 blue tokens and 4 gold tokens. Two tokens are drawn without replacement. Given that the first token is blue, what is the probability that the second token is gold?",
+    "patternSource": "conditional draw-without-replacement pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "4/9",
+        "0.444444",
+        "44.44%"
+      ],
+      "numericValue": 0.4444444444444444,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 4/9, or about 0.444444."
+    },
+    "hints": [
+      "Condition on the stated first draw before counting what remains.",
+      "The total number of remaining objects is one less than the original total."
+    ],
+    "solutionSteps": [
+      "After the stated first draw, 9 objects remain.",
+      "The first draw removed a different type, so all 4 favorable objects remain.",
+      "The conditional probability is 4/9, or about 0.444444."
+    ],
+    "misconceptions": [
+      {
+        "id": "keeps-original-denominator",
+        "matchTerms": [],
+        "feedback": "Without replacement, the second-draw denominator is one less than the original total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-novel-reference-books",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Second Reference Book Draft",
+    "prompt": "A shelf has 7 novels and 5 reference books. Two books are selected without replacement. Given that the first selected book is a novel, what is the probability that the second book is a reference book?",
+    "patternSource": "conditional draw-without-replacement pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "5/11",
+        "0.454545",
+        "45.45%"
+      ],
+      "numericValue": 0.45454545454545453,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 5/11, or about 0.454545."
+    },
+    "hints": [
+      "Condition on the stated first draw before counting what remains.",
+      "The total number of remaining objects is one less than the original total."
+    ],
+    "solutionSteps": [
+      "After the stated first draw, 11 objects remain.",
+      "The first draw removed a different type, so all 5 favorable objects remain.",
+      "The conditional probability is 5/11, or about 0.454545."
+    ],
+    "misconceptions": [
+      {
+        "id": "keeps-original-denominator",
+        "matchTerms": [],
+        "feedback": "Without replacement, the second-draw denominator is one less than the original total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-standard-express-tickets",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Second Express Ticket Draft",
+    "prompt": "A box holds 9 standard tickets and 3 express tickets. Two tickets are drawn without replacement. Given that the first ticket is standard, what is the probability that the second ticket is express?",
+    "patternSource": "conditional draw-without-replacement pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "3/11",
+        "0.272727",
+        "27.27%"
+      ],
+      "numericValue": 0.2727272727272727,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 3/11, or about 0.272727."
+    },
+    "hints": [
+      "Condition on the stated first draw before counting what remains.",
+      "The total number of remaining objects is one less than the original total."
+    ],
+    "solutionSteps": [
+      "After the stated first draw, 11 objects remain.",
+      "The first draw removed a different type, so all 3 favorable objects remain.",
+      "The conditional probability is 3/11, or about 0.272727."
+    ],
+    "misconceptions": [
+      {
+        "id": "keeps-original-denominator",
+        "matchTerms": [],
+        "feedback": "Without replacement, the second-draw denominator is one less than the original total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-oak-maple-saplings",
+    "topicId": "conditional-probability",
+    "topic": "Conditional Probability, Independence, and Bayes' Formula",
+    "title": "Second Maple Sapling Draft",
+    "prompt": "A nursery row contains 8 oak saplings and 6 maple saplings. Two saplings are chosen without replacement. Given that the first chosen sapling is oak, what is the probability that the second is maple?",
+    "patternSource": "conditional draw-without-replacement pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "6/13",
+        "0.461538",
+        "46.15%"
+      ],
+      "numericValue": 0.46153846153846156,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 6/13, or about 0.461538."
+    },
+    "hints": [
+      "Condition on the stated first draw before counting what remains.",
+      "The total number of remaining objects is one less than the original total."
+    ],
+    "solutionSteps": [
+      "After the stated first draw, 13 objects remain.",
+      "The first draw removed a different type, so all 6 favorable objects remain.",
+      "The conditional probability is 6/13, or about 0.461538."
+    ],
+    "misconceptions": [
+      {
+        "id": "keeps-original-denominator",
+        "matchTerms": [],
+        "feedback": "Without replacement, the second-draw denominator is one less than the original total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-missing-deliveries",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Missing Delivery PMF Value Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.18, P(X = 1) = 0.35, P(X = 2) = 0.27, P(X = 3) = ?. What is P(X = 3)?",
+    "patternSource": "complete-a-discrete-PMF pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.2",
+        "20%"
+      ],
+      "numericValue": 0.19999999999999996,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(X = 3) = 0.2."
+    },
+    "hints": [
+      "All probabilities in a PMF must add to 1.",
+      "Subtract the sum of the known probabilities from 1."
+    ],
+    "solutionSteps": [
+      "The known probabilities sum to 0.8.",
+      "The missing probability is 1 - 0.8.",
+      "Therefore P(X = 3) = 0.2."
+    ],
+    "misconceptions": [
+      {
+        "id": "does-not-normalize-pmf",
+        "matchTerms": [],
+        "feedback": "A valid PMF has total probability 1, so the missing value must complete that total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-missing-calls",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Missing Call PMF Value Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.12, P(X = 1) = ?, P(X = 2) = 0.31, P(X = 3) = 0.22. What is P(X = 1)?",
+    "patternSource": "complete-a-discrete-PMF pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.35",
+        "35%"
+      ],
+      "numericValue": 0.35,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(X = 1) = 0.35."
+    },
+    "hints": [
+      "All probabilities in a PMF must add to 1.",
+      "Subtract the sum of the known probabilities from 1."
+    ],
+    "solutionSteps": [
+      "The known probabilities sum to 0.65.",
+      "The missing probability is 1 - 0.65.",
+      "Therefore P(X = 1) = 0.35."
+    ],
+    "misconceptions": [
+      {
+        "id": "does-not-normalize-pmf",
+        "matchTerms": [],
+        "feedback": "A valid PMF has total probability 1, so the missing value must complete that total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-missing-tasks",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Missing Task PMF Value Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 1) = 0.2, P(X = 2) = 0.3, P(X = 3) = ?, P(X = 4) = 0.1. What is P(X = 3)?",
+    "patternSource": "complete-a-discrete-PMF pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.4",
+        "40%"
+      ],
+      "numericValue": 0.4,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(X = 3) = 0.4."
+    },
+    "hints": [
+      "All probabilities in a PMF must add to 1.",
+      "Subtract the sum of the known probabilities from 1."
+    ],
+    "solutionSteps": [
+      "The known probabilities sum to 0.6.",
+      "The missing probability is 1 - 0.6.",
+      "Therefore P(X = 3) = 0.4."
+    ],
+    "misconceptions": [
+      {
+        "id": "does-not-normalize-pmf",
+        "matchTerms": [],
+        "feedback": "A valid PMF has total probability 1, so the missing value must complete that total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-missing-visits",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Missing Visit PMF Value Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.1, P(X = 1) = 0.25, P(X = 2) = 0.3, P(X = 3) = ?, P(X = 4) = 0.15. What is P(X = 3)?",
+    "patternSource": "complete-a-discrete-PMF pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.2",
+        "20%"
+      ],
+      "numericValue": 0.20000000000000007,
+      "tolerance": 0.001,
+      "explanation": "Therefore P(X = 3) = 0.2."
+    },
+    "hints": [
+      "All probabilities in a PMF must add to 1.",
+      "Subtract the sum of the known probabilities from 1."
+    ],
+    "solutionSteps": [
+      "The known probabilities sum to 0.8.",
+      "The missing probability is 1 - 0.8.",
+      "Therefore P(X = 3) = 0.2."
+    ],
+    "misconceptions": [
+      {
+        "id": "does-not-normalize-pmf",
+        "matchTerms": [],
+        "feedback": "A valid PMF has total probability 1, so the missing value must complete that total."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-event-ge-two",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "PMF Event at Least Two Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.1, P(X = 1) = 0.25, P(X = 2) = 0.4, P(X = 3) = 0.25. Find the probability that X is at least 2.",
+    "patternSource": "sum-PMF-event-probabilities pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.65",
+        "65%"
+      ],
+      "numericValue": 0.65,
+      "tolerance": 0.001,
+      "explanation": "The event probability is 0.65."
+    },
+    "hints": [
+      "Identify every value of X that belongs to the event.",
+      "Add the PMF values for those outcomes."
+    ],
+    "solutionSteps": [
+      "The event includes X values 2, 3.",
+      "Add their probabilities: 0.4 + 0.25.",
+      "The event probability is 0.65."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-values-instead-of-probabilities",
+        "matchTerms": [],
+        "feedback": "Add the probabilities attached to qualifying values, not the values of the random variable themselves."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-event-le-one",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "PMF Event at Most One Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.22, P(X = 1) = 0.33, P(X = 2) = 0.28, P(X = 3) = 0.17. Find the probability that X is at most 1.",
+    "patternSource": "sum-PMF-event-probabilities pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.55",
+        "55%"
+      ],
+      "numericValue": 0.55,
+      "tolerance": 0.001,
+      "explanation": "The event probability is 0.55."
+    },
+    "hints": [
+      "Identify every value of X that belongs to the event.",
+      "Add the PMF values for those outcomes."
+    ],
+    "solutionSteps": [
+      "The event includes X values 0, 1.",
+      "Add their probabilities: 0.22 + 0.33.",
+      "The event probability is 0.55."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-values-instead-of-probabilities",
+        "matchTerms": [],
+        "feedback": "Add the probabilities attached to qualifying values, not the values of the random variable themselves."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-event-odd",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "PMF Odd-Value Event Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.12, P(X = 1) = 0.18, P(X = 2) = 0.26, P(X = 3) = 0.24, P(X = 4) = 0.2. Find the probability that X is odd.",
+    "patternSource": "sum-PMF-event-probabilities pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.42",
+        "42%"
+      ],
+      "numericValue": 0.42,
+      "tolerance": 0.001,
+      "explanation": "The event probability is 0.42."
+    },
+    "hints": [
+      "Identify every value of X that belongs to the event.",
+      "Add the PMF values for those outcomes."
+    ],
+    "solutionSteps": [
+      "The event includes X values 1, 3.",
+      "Add their probabilities: 0.18 + 0.24.",
+      "The event probability is 0.42."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-values-instead-of-probabilities",
+        "matchTerms": [],
+        "feedback": "Add the probabilities attached to qualifying values, not the values of the random variable themselves."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-pmf-event-between",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "PMF Middle-Value Event Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 1) = 0.15, P(X = 2) = 0.3, P(X = 3) = 0.35, P(X = 4) = 0.2. Find the probability that 2 <= X <= 3.",
+    "patternSource": "sum-PMF-event-probabilities pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.65",
+        "65%"
+      ],
+      "numericValue": 0.6499999999999999,
+      "tolerance": 0.001,
+      "explanation": "The event probability is 0.65."
+    },
+    "hints": [
+      "Identify every value of X that belongs to the event.",
+      "Add the PMF values for those outcomes."
+    ],
+    "solutionSteps": [
+      "The event includes X values 2, 3.",
+      "Add their probabilities: 0.3 + 0.35.",
+      "The event probability is 0.65."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-values-instead-of-probabilities",
+        "matchTerms": [],
+        "feedback": "Add the probabilities attached to qualifying values, not the values of the random variable themselves."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-cdf-at-one",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "CDF at One Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.16, P(X = 1) = 0.34, P(X = 2) = 0.29, P(X = 3) = 0.21. Find F(1) = P(X <= 1).",
+    "patternSource": "discrete-CDF evaluation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5",
+        "50%"
+      ],
+      "numericValue": 0.5,
+      "tolerance": 0.001,
+      "explanation": "Thus F(1) = 0.5."
+    },
+    "hints": [
+      "A CDF includes every probability at or below its input.",
+      "Sum the PMF values for all X values no greater than the threshold."
+    ],
+    "solutionSteps": [
+      "The values no greater than 1 are 0, 1.",
+      "Their probabilities are 0.16, 0.34.",
+      "Thus F(1) = 0.5."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-point-probability-for-cdf",
+        "matchTerms": [],
+        "feedback": "A CDF is cumulative; it includes all probability at or below the threshold."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-cdf-at-two-point-five",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "CDF at 2.5 Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.08, P(X = 1) = 0.2, P(X = 2) = 0.32, P(X = 3) = 0.25, P(X = 4) = 0.15. Find F(2.5) = P(X <= 2.5).",
+    "patternSource": "discrete-CDF evaluation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.6",
+        "60%"
+      ],
+      "numericValue": 0.6000000000000001,
+      "tolerance": 0.001,
+      "explanation": "Thus F(2.5) = 0.6."
+    },
+    "hints": [
+      "A CDF includes every probability at or below its input.",
+      "Sum the PMF values for all X values no greater than the threshold."
+    ],
+    "solutionSteps": [
+      "The values no greater than 2.5 are 0, 1, 2.",
+      "Their probabilities are 0.08, 0.2, 0.32.",
+      "Thus F(2.5) = 0.6."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-point-probability-for-cdf",
+        "matchTerms": [],
+        "feedback": "A CDF is cumulative; it includes all probability at or below the threshold."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-cdf-at-negative-one",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "CDF at Negative One Draft",
+    "prompt": "A discrete random variable X has PMF P(X = -2) = 0.15, P(X = -1) = 0.25, P(X = 0) = 0.4, P(X = 1) = 0.2. Find F(-1) = P(X <= -1).",
+    "patternSource": "discrete-CDF evaluation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.4",
+        "40%"
+      ],
+      "numericValue": 0.4,
+      "tolerance": 0.001,
+      "explanation": "Thus F(-1) = 0.4."
+    },
+    "hints": [
+      "A CDF includes every probability at or below its input.",
+      "Sum the PMF values for all X values no greater than the threshold."
+    ],
+    "solutionSteps": [
+      "The values no greater than -1 are -2, -1.",
+      "Their probabilities are 0.15, 0.25.",
+      "Thus F(-1) = 0.4."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-point-probability-for-cdf",
+        "matchTerms": [],
+        "feedback": "A CDF is cumulative; it includes all probability at or below the threshold."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-cdf-at-three",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "CDF at Three Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 1) = 0.1, P(X = 2) = 0.18, P(X = 3) = 0.27, P(X = 4) = 0.25, P(X = 5) = 0.2. Find F(3) = P(X <= 3).",
+    "patternSource": "discrete-CDF evaluation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.55",
+        "55%"
+      ],
+      "numericValue": 0.55,
+      "tolerance": 0.001,
+      "explanation": "Thus F(3) = 0.55."
+    },
+    "hints": [
+      "A CDF includes every probability at or below its input.",
+      "Sum the PMF values for all X values no greater than the threshold."
+    ],
+    "solutionSteps": [
+      "The values no greater than 3 are 1, 2, 3.",
+      "Their probabilities are 0.1, 0.18, 0.27.",
+      "Thus F(3) = 0.55."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-point-probability-for-cdf",
+        "matchTerms": [],
+        "feedback": "A CDF is cumulative; it includes all probability at or below the threshold."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-expectation-reward",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Expected Reward Points Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.3, P(X = 2) = 0.5, P(X = 5) = 0.2. Find E[X].",
+    "patternSource": "discrete-expectation weighted-sum pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "2"
+      ],
+      "numericValue": 2,
+      "tolerance": 0.001,
+      "explanation": "Their sum is E[X] = 2."
+    },
+    "hints": [
+      "Multiply each possible value by its probability.",
+      "Add all of the value-probability products."
+    ],
+    "solutionSteps": [
+      "Use E[X] = sum of x times P(X = x).",
+      "The products are 0, 1, 1.",
+      "Their sum is E[X] = 2."
+    ],
+    "misconceptions": [
+      {
+        "id": "takes-unweighted-average",
+        "matchTerms": [],
+        "feedback": "Expectation is a probability-weighted sum, not an unweighted average of the possible values."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-expectation-repairs",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Expected Repair Count Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.25, P(X = 1) = 0.4, P(X = 2) = 0.25, P(X = 3) = 0.1. Find E[X].",
+    "patternSource": "discrete-expectation weighted-sum pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "1.2"
+      ],
+      "numericValue": 1.2000000000000002,
+      "tolerance": 0.001,
+      "explanation": "Their sum is E[X] = 1.2."
+    },
+    "hints": [
+      "Multiply each possible value by its probability.",
+      "Add all of the value-probability products."
+    ],
+    "solutionSteps": [
+      "Use E[X] = sum of x times P(X = x).",
+      "The products are 0, 0.4, 0.5, 0.3.",
+      "Their sum is E[X] = 1.2."
+    ],
+    "misconceptions": [
+      {
+        "id": "takes-unweighted-average",
+        "matchTerms": [],
+        "feedback": "Expectation is a probability-weighted sum, not an unweighted average of the possible values."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-expectation-tokens",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Expected Token Count Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 1) = 0.45, P(X = 3) = 0.35, P(X = 6) = 0.2. Find E[X].",
+    "patternSource": "discrete-expectation weighted-sum pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "2.7"
+      ],
+      "numericValue": 2.7,
+      "tolerance": 0.001,
+      "explanation": "Their sum is E[X] = 2.7."
+    },
+    "hints": [
+      "Multiply each possible value by its probability.",
+      "Add all of the value-probability products."
+    ],
+    "solutionSteps": [
+      "Use E[X] = sum of x times P(X = x).",
+      "The products are 0.45, 1.05, 1.2.",
+      "Their sum is E[X] = 2.7."
+    ],
+    "misconceptions": [
+      {
+        "id": "takes-unweighted-average",
+        "matchTerms": [],
+        "feedback": "Expectation is a probability-weighted sum, not an unweighted average of the possible values."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-expectation-hours",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Expected Support Hours Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.1, P(X = 2) = 0.35, P(X = 4) = 0.4, P(X = 6) = 0.15. Find E[X].",
+    "patternSource": "discrete-expectation weighted-sum pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "3.2"
+      ],
+      "numericValue": 3.1999999999999997,
+      "tolerance": 0.001,
+      "explanation": "Their sum is E[X] = 3.2."
+    },
+    "hints": [
+      "Multiply each possible value by its probability.",
+      "Add all of the value-probability products."
+    ],
+    "solutionSteps": [
+      "Use E[X] = sum of x times P(X = x).",
+      "The products are 0, 0.7, 1.6, 0.9.",
+      "Their sum is E[X] = 3.2."
+    ],
+    "misconceptions": [
+      {
+        "id": "takes-unweighted-average",
+        "matchTerms": [],
+        "feedback": "Expectation is a probability-weighted sum, not an unweighted average of the possible values."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-variance-small-count",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Variance of a Small Count Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.2, P(X = 1) = 0.5, P(X = 2) = 0.3. Find Var(X).",
+    "patternSource": "discrete-variance moment pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.49"
+      ],
+      "numericValue": 0.48999999999999977,
+      "tolerance": 0.001,
+      "explanation": "Var(X) = 1.7 - (1.1) squared = 0.49."
+    },
+    "hints": [
+      "First compute E[X] and E[X squared].",
+      "Use Var(X) = E[X squared] - (E[X]) squared."
+    ],
+    "solutionSteps": [
+      "The mean is E[X] = 1.1.",
+      "The second moment is E[X squared] = 1.7.",
+      "Var(X) = 1.7 - (1.1) squared = 0.49."
+    ],
+    "misconceptions": [
+      {
+        "id": "forgets-to-square-mean",
+        "matchTerms": [],
+        "feedback": "The shortcut subtracts the square of E[X], not E[X] itself."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-variance-credit",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Variance of a Credit Value Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.25, P(X = 2) = 0.5, P(X = 4) = 0.25. Find Var(X).",
+    "patternSource": "discrete-variance moment pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "2"
+      ],
+      "numericValue": 2,
+      "tolerance": 0.001,
+      "explanation": "Var(X) = 6 - (2) squared = 2."
+    },
+    "hints": [
+      "First compute E[X] and E[X squared].",
+      "Use Var(X) = E[X squared] - (E[X]) squared."
+    ],
+    "solutionSteps": [
+      "The mean is E[X] = 2.",
+      "The second moment is E[X squared] = 6.",
+      "Var(X) = 6 - (2) squared = 2."
+    ],
+    "misconceptions": [
+      {
+        "id": "forgets-to-square-mean",
+        "matchTerms": [],
+        "feedback": "The shortcut subtracts the square of E[X], not E[X] itself."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-variance-visits",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Variance of Visit Count Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 1) = 0.1, P(X = 2) = 0.4, P(X = 3) = 0.3, P(X = 4) = 0.2. Find Var(X).",
+    "patternSource": "discrete-variance moment pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.84"
+      ],
+      "numericValue": 0.8400000000000025,
+      "tolerance": 0.001,
+      "explanation": "Var(X) = 7.6 - (2.6) squared = 0.84."
+    },
+    "hints": [
+      "First compute E[X] and E[X squared].",
+      "Use Var(X) = E[X squared] - (E[X]) squared."
+    ],
+    "solutionSteps": [
+      "The mean is E[X] = 2.6.",
+      "The second moment is E[X squared] = 7.6.",
+      "Var(X) = 7.6 - (2.6) squared = 0.84."
+    ],
+    "misconceptions": [
+      {
+        "id": "forgets-to-square-mean",
+        "matchTerms": [],
+        "feedback": "The shortcut subtracts the square of E[X], not E[X] itself."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-variance-delay",
+    "topicId": "random-variables",
+    "topic": "Random Variables, PMFs, CDFs, Expectation, and Variance",
+    "title": "Variance of Delay Units Draft",
+    "prompt": "A discrete random variable X has PMF P(X = 0) = 0.4, P(X = 1) = 0.35, P(X = 3) = 0.25. Find Var(X).",
+    "patternSource": "discrete-variance moment pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "1.39"
+      ],
+      "numericValue": 1.39,
+      "tolerance": 0.001,
+      "explanation": "Var(X) = 2.6 - (1.1) squared = 1.39."
+    },
+    "hints": [
+      "First compute E[X] and E[X squared].",
+      "Use Var(X) = E[X squared] - (E[X]) squared."
+    ],
+    "solutionSteps": [
+      "The mean is E[X] = 1.1.",
+      "The second moment is E[X squared] = 2.6.",
+      "Var(X) = 2.6 - (1.1) squared = 1.39."
+    ],
+    "misconceptions": [
+      {
+        "id": "forgets-to-square-mean",
+        "matchTerms": [],
+        "feedback": "The shortcut subtracts the square of E[X], not E[X] itself."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-bernoulli-mean-checkin",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Bernoulli Check-In Mean Draft",
+    "prompt": "Let X equal 1 when a participant checks in before noon and 0 otherwise. If the probability of checking in before noon is 0.72, what is E[X]?",
+    "patternSource": "Bernoulli mean-or-variance pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.72"
+      ],
+      "numericValue": 0.72,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[X] = 0.72."
+    },
+    "hints": [
+      "A Bernoulli random variable takes values 0 and 1.",
+      "Its expected value equals its success probability."
+    ],
+    "solutionSteps": [
+      "For a Bernoulli random variable, E[X] = p.",
+      "Here p = 0.72.",
+      "Therefore E[X] = 0.72."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-wrong-bernoulli-formula",
+        "matchTerms": [],
+        "feedback": "The Bernoulli mean is p; no extra factor is needed."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-bernoulli-variance-reply",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Bernoulli Reply Variance Draft",
+    "prompt": "Let X equal 1 when a message receives a reply and 0 otherwise. If P(X = 1) = 0.4, what is Var(X)?",
+    "patternSource": "Bernoulli mean-or-variance pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.24"
+      ],
+      "numericValue": 0.24,
+      "tolerance": 0.001,
+      "explanation": "Therefore Var(X) = 0.24."
+    },
+    "hints": [
+      "A Bernoulli random variable has variance p(1 - p).",
+      "Use p = 0.4 and 1 - p = 0.6."
+    ],
+    "solutionSteps": [
+      "For a Bernoulli random variable, Var(X) = p(1 - p).",
+      "Substitute p = 0.4: 0.4 * 0.6.",
+      "Therefore Var(X) = 0.24."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-wrong-bernoulli-formula",
+        "matchTerms": [],
+        "feedback": "Bernoulli variance is p(1 - p), not p alone."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-bernoulli-mean-pass",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Bernoulli Pass Mean Draft",
+    "prompt": "Let X equal 1 when a quality check passes and 0 otherwise. If the pass probability is 0.85, what is E[X]?",
+    "patternSource": "Bernoulli mean-or-variance pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.85"
+      ],
+      "numericValue": 0.85,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[X] = 0.85."
+    },
+    "hints": [
+      "A Bernoulli random variable takes values 0 and 1.",
+      "Its expected value equals its success probability."
+    ],
+    "solutionSteps": [
+      "For a Bernoulli random variable, E[X] = p.",
+      "Here p = 0.85.",
+      "Therefore E[X] = 0.85."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-wrong-bernoulli-formula",
+        "matchTerms": [],
+        "feedback": "The Bernoulli mean is p; no extra factor is needed."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-bernoulli-variance-open",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Bernoulli Open Variance Draft",
+    "prompt": "Let X equal 1 when a notification is opened and 0 otherwise. If P(X = 1) = 0.25, what is Var(X)?",
+    "patternSource": "Bernoulli mean-or-variance pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.1875"
+      ],
+      "numericValue": 0.1875,
+      "tolerance": 0.001,
+      "explanation": "Therefore Var(X) = 0.1875."
+    },
+    "hints": [
+      "A Bernoulli random variable has variance p(1 - p).",
+      "Use p = 0.25 and 1 - p = 0.75."
+    ],
+    "solutionSteps": [
+      "For a Bernoulli random variable, Var(X) = p(1 - p).",
+      "Substitute p = 0.25: 0.25 * 0.75.",
+      "Therefore Var(X) = 0.1875."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-wrong-bernoulli-formula",
+        "matchTerms": [],
+        "feedback": "Bernoulli variance is p(1 - p), not p alone."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-binomial-samples",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Exactly Three Successful Samples Draft",
+    "prompt": "Eight independent samples each pass a check with probability 0.55. What is the probability that exactly 3 samples pass?",
+    "patternSource": "binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.171925",
+        "17.19%"
+      ],
+      "numericValue": 0.1719248540625,
+      "tolerance": 0.001,
+      "explanation": "The result is 0.171925."
+    },
+    "hints": [
+      "Use the binomial model with n trials, k successes, and success probability p.",
+      "Include the combination factor for all placements of the successes."
+    ],
+    "solutionSteps": [
+      "Here n = 8, k = 3, and p = 0.55.",
+      "Compute C(8, 3)(0.55)^3(0.45)^5.",
+      "The result is 0.171925."
+    ],
+    "misconceptions": [
+      {
+        "id": "omits-binomial-coefficient",
+        "matchTerms": [],
+        "feedback": "The combination factor counts every possible placement of the specified number of successes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-binomial-signups",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Exactly Four Signups Draft",
+    "prompt": "Ten independent visitors each sign up for a newsletter with probability 0.3. What is the probability that exactly 4 visitors sign up?",
+    "patternSource": "binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.200121",
+        "20.01%"
+      ],
+      "numericValue": 0.2001209489999999,
+      "tolerance": 0.001,
+      "explanation": "The result is 0.200121."
+    },
+    "hints": [
+      "Use the binomial model with n trials, k successes, and success probability p.",
+      "Include the combination factor for all placements of the successes."
+    ],
+    "solutionSteps": [
+      "Here n = 10, k = 4, and p = 0.3.",
+      "Compute C(10, 4)(0.3)^4(0.7)^6.",
+      "The result is 0.200121."
+    ],
+    "misconceptions": [
+      {
+        "id": "omits-binomial-coefficient",
+        "matchTerms": [],
+        "feedback": "The combination factor counts every possible placement of the specified number of successes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-binomial-goals",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Exactly Five Daily Goals Draft",
+    "prompt": "Seven independent daily goals are each completed with probability 0.7. What is the probability that exactly 5 goals are completed?",
+    "patternSource": "binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.317652",
+        "31.77%"
+      ],
+      "numericValue": 0.3176523,
+      "tolerance": 0.001,
+      "explanation": "The result is 0.317652."
+    },
+    "hints": [
+      "Use the binomial model with n trials, k successes, and success probability p.",
+      "Include the combination factor for all placements of the successes."
+    ],
+    "solutionSteps": [
+      "Here n = 7, k = 5, and p = 0.7.",
+      "Compute C(7, 5)(0.7)^5(0.3)^2.",
+      "The result is 0.317652."
+    ],
+    "misconceptions": [
+      {
+        "id": "omits-binomial-coefficient",
+        "matchTerms": [],
+        "feedback": "The combination factor counts every possible placement of the specified number of successes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-binomial-arrivals",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Exactly Two On-Time Arrivals Draft",
+    "prompt": "Six independent arrivals are each on time with probability 0.8. What is the probability that exactly 2 arrivals are on time?",
+    "patternSource": "binomial exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.01536",
+        "1.54%"
+      ],
+      "numericValue": 0.015359999999999988,
+      "tolerance": 0.001,
+      "explanation": "The result is 0.01536."
+    },
+    "hints": [
+      "Use the binomial model with n trials, k successes, and success probability p.",
+      "Include the combination factor for all placements of the successes."
+    ],
+    "solutionSteps": [
+      "Here n = 6, k = 2, and p = 0.8.",
+      "Compute C(6, 2)(0.8)^2(0.2)^4.",
+      "The result is 0.01536."
+    ],
+    "misconceptions": [
+      {
+        "id": "omits-binomial-coefficient",
+        "matchTerms": [],
+        "feedback": "The combination factor counts every possible placement of the specified number of successes."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-geometric-first-reply",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "First Reply on Attempt Four Draft",
+    "prompt": "Independent contact attempts receive a reply with probability 0.35. What is the probability that the first reply occurs on the 4th attempt?",
+    "patternSource": "geometric first-success pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.096119",
+        "9.61%"
+      ],
+      "numericValue": 0.09611875,
+      "tolerance": 0.001,
+      "explanation": "The first-success probability is 0.096119."
+    },
+    "hints": [
+      "The first 3 trials must fail.",
+      "Multiply those failure probabilities by a success on trial 4."
+    ],
+    "solutionSteps": [
+      "The failure probability is 1 - 0.35 = 0.65.",
+      "Use (0.65)^3 * 0.35.",
+      "The first-success probability is 0.096119."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-success-too-early",
+        "matchTerms": [],
+        "feedback": "For the first success to occur on trial k, every earlier trial must be a failure."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-geometric-first-success",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "First Success on Trial Three Draft",
+    "prompt": "Independent trials succeed with probability 0.6. What is the probability that the first success occurs on the 3rd trial?",
+    "patternSource": "geometric first-success pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.096",
+        "9.6%"
+      ],
+      "numericValue": 0.09600000000000002,
+      "tolerance": 0.001,
+      "explanation": "The first-success probability is 0.096."
+    },
+    "hints": [
+      "The first 2 trials must fail.",
+      "Multiply those failure probabilities by a success on trial 3."
+    ],
+    "solutionSteps": [
+      "The failure probability is 1 - 0.6 = 0.4.",
+      "Use (0.4)^2 * 0.6.",
+      "The first-success probability is 0.096."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-success-too-early",
+        "matchTerms": [],
+        "feedback": "For the first success to occur on trial k, every earlier trial must be a failure."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-geometric-first-defect",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "First Defect on Inspection Five Draft",
+    "prompt": "Independent inspected items are defective with probability 0.1. What is the probability that the first defective item is found on the 5th inspection?",
+    "patternSource": "geometric first-success pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.06561",
+        "6.56%"
+      ],
+      "numericValue": 0.06561,
+      "tolerance": 0.001,
+      "explanation": "The first-success probability is 0.06561."
+    },
+    "hints": [
+      "The first 4 trials must fail.",
+      "Multiply those failure probabilities by a success on trial 5."
+    ],
+    "solutionSteps": [
+      "The failure probability is 1 - 0.1 = 0.9.",
+      "Use (0.9)^4 * 0.1.",
+      "The first-success probability is 0.06561."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-success-too-early",
+        "matchTerms": [],
+        "feedback": "For the first success to occur on trial k, every earlier trial must be a failure."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-geometric-first-booking",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "First Booking on Call Two Draft",
+    "prompt": "Independent calls produce a booking with probability 0.25. What is the probability that the first booking occurs on the 2nd call?",
+    "patternSource": "geometric first-success pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.1875",
+        "18.75%"
+      ],
+      "numericValue": 0.1875,
+      "tolerance": 0.001,
+      "explanation": "The first-success probability is 0.1875."
+    },
+    "hints": [
+      "The first 1 trials must fail.",
+      "Multiply those failure probabilities by a success on trial 2."
+    ],
+    "solutionSteps": [
+      "The failure probability is 1 - 0.25 = 0.75.",
+      "Use (0.75)^1 * 0.25.",
+      "The first-success probability is 0.1875."
+    ],
+    "misconceptions": [
+      {
+        "id": "counts-success-too-early",
+        "matchTerms": [],
+        "feedback": "For the first success to occur on trial k, every earlier trial must be a failure."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-poisson-two-arrivals",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Two Arrivals in an Interval Draft",
+    "prompt": "Arrivals in a 10-minute interval follow a Poisson distribution with mean 1.8. What is the probability of exactly 2 arrivals in an interval?",
+    "patternSource": "Poisson exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.267784",
+        "26.78%"
+      ],
+      "numericValue": 0.2677841989189702,
+      "tolerance": 0.001,
+      "explanation": "The probability is approximately 0.267784."
+    },
+    "hints": [
+      "Use P(X = k) = exp(-lambda) times lambda^k divided by k factorial.",
+      "Substitute the mean for lambda and the requested count for k."
+    ],
+    "solutionSteps": [
+      "Here lambda = 1.8 and k = 2.",
+      "Compute exp(-1.8)(1.8)^2/2!.",
+      "The probability is approximately 0.267784."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-poisson-mean-as-probability",
+        "matchTerms": [],
+        "feedback": "The Poisson mean is a rate parameter, not the final event probability; use the full PMF."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-poisson-zero-errors",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Zero Errors on a Page Draft",
+    "prompt": "The number of errors on a page follows a Poisson distribution with mean 0.7. What is the probability of zero errors on a page?",
+    "patternSource": "Poisson exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.496585",
+        "49.66%"
+      ],
+      "numericValue": 0.4965853037914095,
+      "tolerance": 0.001,
+      "explanation": "The probability is approximately 0.496585."
+    },
+    "hints": [
+      "Use P(X = k) = exp(-lambda) times lambda^k divided by k factorial.",
+      "Substitute the mean for lambda and the requested count for k."
+    ],
+    "solutionSteps": [
+      "Here lambda = 0.7 and k = 0.",
+      "Compute exp(-0.7)(0.7)^0/0!.",
+      "The probability is approximately 0.496585."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-poisson-mean-as-probability",
+        "matchTerms": [],
+        "feedback": "The Poisson mean is a rate parameter, not the final event probability; use the full PMF."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-poisson-three-requests",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Three Requests per Minute Draft",
+    "prompt": "Requests per minute follow a Poisson distribution with mean 2.4. What is the probability of exactly 3 requests in a minute?",
+    "patternSource": "Poisson exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.209014",
+        "20.9%"
+      ],
+      "numericValue": 0.2090141643788064,
+      "tolerance": 0.001,
+      "explanation": "The probability is approximately 0.209014."
+    },
+    "hints": [
+      "Use P(X = k) = exp(-lambda) times lambda^k divided by k factorial.",
+      "Substitute the mean for lambda and the requested count for k."
+    ],
+    "solutionSteps": [
+      "Here lambda = 2.4 and k = 3.",
+      "Compute exp(-2.4)(2.4)^3/3!.",
+      "The probability is approximately 0.209014."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-poisson-mean-as-probability",
+        "matchTerms": [],
+        "feedback": "The Poisson mean is a rate parameter, not the final event probability; use the full PMF."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-poisson-one-repair",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "One Repair per Day Draft",
+    "prompt": "Repair calls per day follow a Poisson distribution with mean 1.2. What is the probability of exactly 1 repair call in a day?",
+    "patternSource": "Poisson exact-count pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.361433",
+        "36.14%"
+      ],
+      "numericValue": 0.3614330542946425,
+      "tolerance": 0.001,
+      "explanation": "The probability is approximately 0.361433."
+    },
+    "hints": [
+      "Use P(X = k) = exp(-lambda) times lambda^k divided by k factorial.",
+      "Substitute the mean for lambda and the requested count for k."
+    ],
+    "solutionSteps": [
+      "Here lambda = 1.2 and k = 1.",
+      "Compute exp(-1.2)(1.2)^1/1!.",
+      "The probability is approximately 0.361433."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-poisson-mean-as-probability",
+        "matchTerms": [],
+        "feedback": "The Poisson mean is a rate parameter, not the final event probability; use the full PMF."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-hypergeometric-blue-parts",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Two Blue Parts Draft",
+    "prompt": "A bin contains 7 blue parts and 5 silver parts. Four parts are selected without replacement. What is the probability that exactly 2 selected parts are blue?",
+    "patternSource": "hypergeometric exact-count pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.424242",
+        "42.42%"
+      ],
+      "numericValue": 0.42424242424242425,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.424242."
+    },
+    "hints": [
+      "Because selection is without replacement, use combinations rather than a binomial model.",
+      "Choose the requested successes and the remaining draws from the other group."
+    ],
+    "solutionSteps": [
+      "Choose 2 of the 7 target objects and 2 of the 5 other objects.",
+      "Divide C(7, 2)C(5, 2) by C(12, 4).",
+      "The probability is 0.424242."
+    ],
+    "misconceptions": [
+      {
+        "id": "assumes-replacement",
+        "matchTerms": [],
+        "feedback": "Selections without replacement are dependent, so a fixed-p binomial calculation is not appropriate."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-hypergeometric-featured-books",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "One Featured Book Draft",
+    "prompt": "A shelf contains 6 featured books and 9 other books. Three books are selected without replacement. What is the probability that exactly 1 selected book is featured?",
+    "patternSource": "hypergeometric exact-count pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.474725",
+        "47.47%"
+      ],
+      "numericValue": 0.4747252747252747,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.474725."
+    },
+    "hints": [
+      "Because selection is without replacement, use combinations rather than a binomial model.",
+      "Choose the requested successes and the remaining draws from the other group."
+    ],
+    "solutionSteps": [
+      "Choose 1 of the 6 target objects and 2 of the 9 other objects.",
+      "Divide C(6, 1)C(9, 2) by C(15, 3).",
+      "The probability is 0.474725."
+    ],
+    "misconceptions": [
+      {
+        "id": "assumes-replacement",
+        "matchTerms": [],
+        "feedback": "Selections without replacement are dependent, so a fixed-p binomial calculation is not appropriate."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-hypergeometric-priority-tickets",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Three Priority Tickets Draft",
+    "prompt": "A queue contains 8 priority tickets and 12 standard tickets. Five tickets are selected without replacement. What is the probability that exactly 3 selected tickets are priority tickets?",
+    "patternSource": "hypergeometric exact-count pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.23839",
+        "23.84%"
+      ],
+      "numericValue": 0.23839009287925697,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.23839."
+    },
+    "hints": [
+      "Because selection is without replacement, use combinations rather than a binomial model.",
+      "Choose the requested successes and the remaining draws from the other group."
+    ],
+    "solutionSteps": [
+      "Choose 3 of the 8 target objects and 2 of the 12 other objects.",
+      "Divide C(8, 3)C(12, 2) by C(20, 5).",
+      "The probability is 0.23839."
+    ],
+    "misconceptions": [
+      {
+        "id": "assumes-replacement",
+        "matchTerms": [],
+        "feedback": "Selections without replacement are dependent, so a fixed-p binomial calculation is not appropriate."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-next-hypergeometric-green-seeds",
+    "topicId": "binomial-models",
+    "topic": "Bernoulli, Binomial, Geometric, Poisson, and Other Discrete Random Variables",
+    "title": "Two Green Seed Packets Draft",
+    "prompt": "A tray contains 5 green seed packets and 7 yellow seed packets. Three packets are selected without replacement. What is the probability that exactly 2 selected packets are green?",
+    "patternSource": "hypergeometric exact-count pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.318182",
+        "31.82%"
+      ],
+      "numericValue": 0.3181818181818182,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.318182."
+    },
+    "hints": [
+      "Because selection is without replacement, use combinations rather than a binomial model.",
+      "Choose the requested successes and the remaining draws from the other group."
+    ],
+    "solutionSteps": [
+      "Choose 2 of the 5 target objects and 1 of the 7 other objects.",
+      "Divide C(5, 2)C(7, 1) by C(12, 3).",
+      "The probability is 0.318182."
+    ],
+    "misconceptions": [
+      {
+        "id": "assumes-replacement",
+        "matchTerms": [],
+        "feedback": "Selections without replacement are dependent, so a fixed-p binomial calculation is not appropriate."
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from an abstract probability pattern."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  }
+]
