@@ -39,3 +39,14 @@ npm run prepare:syllabus-questions -- --check
 
 These candidates must remain `needs_review` and `generated_unverified`, so they
 cannot appear in student practice until professor approval.
+
+`next-syllabus-review-candidates.json` preserves the 60-question batch for the
+first three topics after the initial syllabus topics.
+`following-syllabus-review-candidates.json` contains the separate 60-question
+batch for the following three content topics. Rebuild and validate the latter
+without overwriting the earlier batch with:
+
+```bash
+npm run prepare:following-syllabus-questions
+npm run prepare:following-syllabus-questions -- --check
+```

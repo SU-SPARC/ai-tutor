@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import syllabusReviewCandidateData from "../data/demo/syllabus-review-candidates.json"
 import {
@@ -17,6 +18,13 @@ const NEXT_TOPIC_IDS = [
   "random-variables",
   "binomial-models",
 ] as const
+const FOLLOWING_TOPIC_IDS = [
+  "continuous-random-variables",
+  "normal-standardization",
+  "moment-generating-functions-joint-distributions",
+] as const
+const followingSyllabusCandidates =
+  followingSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 const syllabusCandidates =
   syllabusReviewCandidateData as unknown as ReviewCandidate[]
 const nextSyllabusCandidates =
@@ -63,10 +71,22 @@ describe("syllabus topic catalog", () => {
         weekNumber: 5,
       },
       {
+        id: "continuous-random-variables",
+        moduleRef: "Week 8",
+        order: 8,
+        weekNumber: 8,
+      },
+      {
         id: "normal-standardization",
         moduleRef: "Week 9",
         order: 9,
         weekNumber: 9,
+      },
+      {
+        id: "moment-generating-functions-joint-distributions",
+        moduleRef: "Week 10",
+        order: 10,
+        weekNumber: 10,
       },
     ])
     expect(demoTopics.every((topic) => topic.active)).toBe(true)
@@ -170,6 +190,52 @@ describe("syllabus topic catalog", () => {
     ).toBe(true)
     expect(JSON.stringify(nextSyllabusCandidates)).not.toMatch(
       /patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText/i,
+    )
+  })
+
+  it("creates a separate 20-draft batch for each of the following three content topics", () => {
+    expect(followingSyllabusCandidates).toHaveLength(60)
+
+    for (const topicId of FOLLOWING_TOPIC_IDS) {
+      const topic = demoTopics.find((candidate) => candidate.id === topicId)
+      const candidates = followingSyllabusCandidates.filter(
+        (candidate) => candidate.topicId === topicId,
+      )
+
+      expect(candidates).toHaveLength(20)
+      expect(
+        candidates.every((candidate) => candidate.topic === topic?.title),
+      ).toBe(true)
+    }
+
+    const earlierIds = new Set(
+      nextSyllabusCandidates.map((candidate) => candidate.id),
+    )
+    expect(
+      followingSyllabusCandidates.every(
+        (candidate) =>
+          !earlierIds.has(candidate.id) &&
+          candidate.id.startsWith("generated-following-") &&
+          candidate.review.status === "needs_review" &&
+          candidate.source.trustLevel === "generated_unverified" &&
+          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.visibility === "public" &&
+          Boolean(candidate.patternSource) &&
+          Boolean(candidate.source.originalityNote) &&
+          candidate.answer.acceptedAnswers.length > 0 &&
+          candidate.hints.length >= 2 &&
+          candidate.solutionSteps.length >= 3 &&
+          candidate.misconceptions.length > 0 &&
+          !isStudentFacingQuestion(candidate),
+      ),
+    ).toBe(true)
+    expect(
+      followingSyllabusCandidates.every((candidate) =>
+        reviewCandidates.some((review) => review.id === candidate.id),
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(followingSyllabusCandidates)).not.toMatch(
+      /patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText|locator/i,
     )
   })
 })

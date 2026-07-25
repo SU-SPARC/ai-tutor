@@ -109,6 +109,18 @@ This deterministic generator uses only project-owned scenarios and short,
 public-safe topic metadata. Its output remains review-gated and is never loaded
 by student-facing question queries.
 
+The later syllabus batches are preserved as separate review fixtures. Generate
+and verify the batch after `next-syllabus-review-candidates.json` with:
+
+```bash
+npm run prepare:following-syllabus-questions
+npm run prepare:following-syllabus-questions -- --check
+```
+
+This writes `data/demo/following-syllabus-review-candidates.json` without
+overwriting either earlier batch. It also rejects ID or prompt reuse from the
+earlier committed syllabus batches.
+
 Generate deterministic original drafts from public-safe seed patterns:
 
 ```bash

@@ -55,6 +55,7 @@ import {
   type TutorQuestion,
 } from "@/lib/types"
 import demoQuestionPatterns from "../data/demo/question-patterns.json"
+import followingSyllabusReviewCandidates from "../data/demo/following-syllabus-review-candidates.json"
 import generatedExamples from "../data/demo/generated-examples.json"
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
 import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json"
@@ -1034,7 +1035,7 @@ describe("content provenance and review metadata", () => {
     )
     const question = await getQuestionById("dice-sum-eight")
 
-    expect(topics).toHaveLength(6)
+    expect(topics).toHaveLength(8)
     expect(questions).toHaveLength(8)
     expect(question?.id).toBe("dice-sum-eight")
     expect(conditionalQuestions.map((item) => item.id)).toEqual([
@@ -1113,7 +1114,8 @@ describe("content provenance and review metadata", () => {
     expect(queue).toHaveLength(
       generatedReviewCandidates.length +
         syllabusReviewCandidates.length +
-        nextSyllabusReviewCandidates.length,
+        nextSyllabusReviewCandidates.length +
+        followingSyllabusReviewCandidates.length,
     )
     expect(additionalDrafts).toHaveLength(12)
     expect(
@@ -1141,6 +1143,7 @@ describe("content provenance and review metadata", () => {
       ...generatedReviewCandidates,
       ...syllabusReviewCandidates,
       ...nextSyllabusReviewCandidates,
+      ...followingSyllabusReviewCandidates,
     ])
     const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import {
   GET as getAnalytics,
@@ -14,6 +15,8 @@ import { resetUsageControlForTests } from "@/lib/tutor/usage-control"
 import type { ProfessorAnalyticsDashboard, ReviewCandidate } from "@/lib/types"
 
 const TOKEN = "review-secret"
+const followingSyllabusCandidates =
+  followingSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 const nextSyllabusCandidates =
   nextSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 
@@ -89,6 +92,55 @@ describe("professor admin APIs", () => {
       }
       const expectedTopicIds = new Set(
         nextSyllabusCandidates
+          .filter((candidate) => candidate.topicId === topicId)
+          .map((candidate) => candidate.id),
+      )
+
+      expect(filtered.status).toBe(200)
+      expect(
+        filteredPayload.candidates.filter((candidate) =>
+          expectedTopicIds.has(candidate.id),
+        ),
+      ).toHaveLength(20)
+    }
+  })
+
+  it("makes all 60 following-syllabus drafts available only in the protected review workflow", async () => {
+    const expectedIds = new Set(
+      followingSyllabusCandidates.map((candidate) => candidate.id),
+    )
+    const response = await getReviewQueue(authedRequest())
+    const payload = (await response.json()) as {
+      candidates: ReviewCandidate[]
+    }
+    const returnedIds = new Set(
+      payload.candidates.map((candidate) => candidate.id),
+    )
+
+    expect(response.status).toBe(200)
+    expect(expectedIds.size).toBe(60)
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true)
+
+    for (const topicId of [
+      "continuous-random-variables",
+      "normal-standardization",
+      "moment-generating-functions-joint-distributions",
+    ]) {
+      const filtered = await getReviewQueue(
+        new Request(
+          `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
+          {
+            headers: { "x-professor-token": TOKEN },
+          },
+        ),
+      )
+      const filteredPayload = (await filtered.json()) as {
+        candidates: ReviewCandidate[]
+      }
+      const expectedTopicIds = new Set(
+        followingSyllabusCandidates
           .filter((candidate) => candidate.topicId === topicId)
           .map((candidate) => candidate.id),
       )

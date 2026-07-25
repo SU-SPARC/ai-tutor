@@ -8,6 +8,7 @@ import type {
   Topic,
   TutorQuestion,
 } from "@/lib/types"
+import followingSyllabusReviewCandidateData from "../../../data/demo/following-syllabus-review-candidates.json"
 import generatedReviewCandidateData from "../../../data/demo/generated-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../../../data/demo/next-syllabus-review-candidates.json"
 import demoQuestionData from "../../../data/demo/questions.json"
@@ -131,6 +132,7 @@ export const reviewCandidates: ReviewCandidate[] = [
   ...(generatedReviewCandidateData as ReviewCandidate[]),
   ...(syllabusReviewCandidateData as ReviewCandidate[]),
   ...(nextSyllabusReviewCandidateData as ReviewCandidate[]),
+  ...(followingSyllabusReviewCandidateData as ReviewCandidate[]),
 ]
 
 function validateAndSortTopics(topics: Topic[]) {

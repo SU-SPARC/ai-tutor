@@ -45,12 +45,30 @@
     "active": true
   },
   {
+    "id": "continuous-random-variables",
+    "title": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "description": "Use continuous densities and distribution functions to find probabilities, moments, and uniform or exponential model quantities.",
+    "order": 8,
+    "weekNumber": 8,
+    "moduleRef": "Week 8",
+    "active": true
+  },
+  {
     "id": "normal-standardization",
     "title": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
     "description": "Use normal models and normal approximations, then study distributions of transformed random variables.",
     "order": 9,
     "weekNumber": 9,
     "moduleRef": "Week 9",
+    "active": true
+  },
+  {
+    "id": "moment-generating-functions-joint-distributions",
+    "title": "Moment Generating Functions and Joint Distributions",
+    "description": "Use moment generating functions and analyze joint, marginal, conditional, and dependence relationships for random variables.",
+    "order": 10,
+    "weekNumber": 10,
+    "moduleRef": "Week 10",
     "active": true
   }
 ]

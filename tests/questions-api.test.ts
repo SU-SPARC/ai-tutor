@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 
+import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import { GET as getQuestion } from "@/app/api/questions/[id]/route"
 import { GET as listQuestionsRoute } from "@/app/api/questions/route"
@@ -9,6 +10,8 @@ import type { TutorQuestion } from "@/lib/types"
 
 const nextSyllabusCandidates =
   nextSyllabusReviewCandidateData as unknown as TutorQuestion[]
+const followingSyllabusCandidates =
+  followingSyllabusReviewCandidateData as unknown as TutorQuestion[]
 
 afterEach(() => {
   setContentRepositoryForTests(undefined)
@@ -147,6 +150,28 @@ describe("questions API", () => {
 
     const detail = await getQuestion(request("http://test/api/questions/x"), {
       params: Promise.resolve({ id: nextSyllabusCandidates[0].id }),
+    })
+
+    expect(detail.status).toBe(404)
+  })
+
+  it("never lists or retrieves following-syllabus review drafts", async () => {
+    const response = await listQuestionsRoute(
+      request("http://test/api/questions"),
+    )
+    const payload = (await response.json()) as {
+      questions: Array<{ id: string }>
+    }
+    const studentIds = new Set(payload.questions.map((question) => question.id))
+
+    expect(
+      followingSyllabusCandidates.every(
+        (candidate) => !studentIds.has(candidate.id),
+      ),
+    ).toBe(true)
+
+    const detail = await getQuestion(request("http://test/api/questions/x"), {
+      params: Promise.resolve({ id: followingSyllabusCandidates[0].id }),
     })
 
     expect(detail.status).toBe(404)

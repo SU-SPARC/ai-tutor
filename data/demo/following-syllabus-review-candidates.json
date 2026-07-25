@@ -1,0 +1,2546 @@
+[
+  {
+    "id": "generated-following-uniform-transit-window",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Transit Window Interval Draft",
+    "prompt": "A shuttle's arrival offset X is modeled as uniform from 2 to 14 minutes. What is P(5 <= X <= 9)?",
+    "patternSource": "continuous-uniform interval-length pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.333333",
+        "33.33%"
+      ],
+      "numericValue": 0.3333333333333333,
+      "tolerance": 0.001,
+      "explanation": "The probability is 4/12 = 0.333333."
+    },
+    "hints": [
+      "For a uniform model, probability is proportional to interval length.",
+      "Divide the favorable interval length by the full support length."
+    ],
+    "solutionSteps": [
+      "The full support length is 14 - (2) = 12.",
+      "The favorable interval length is 9 - (5) = 4.",
+      "The probability is 4/12 = 0.333333."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform probabilities use interval lengths, not a ratio of endpoint values.",
+        "id": "uses-endpoints-instead-of-lengths",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-queue-tail",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Queue Duration Tail Draft",
+    "prompt": "A service queue duration X is uniformly distributed from 6 to 26 minutes. What is P(X > 18)?",
+    "patternSource": "continuous-uniform interval-length pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.4",
+        "40%"
+      ],
+      "numericValue": 0.4,
+      "tolerance": 0.001,
+      "explanation": "The probability is 8/20 = 0.4."
+    },
+    "hints": [
+      "For a uniform model, probability is proportional to interval length.",
+      "Divide the favorable interval length by the full support length."
+    ],
+    "solutionSteps": [
+      "The full support length is 26 - (6) = 20.",
+      "The favorable interval length is 26 - (18) = 8.",
+      "The probability is 8/20 = 0.4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform probabilities use interval lengths, not a ratio of endpoint values.",
+        "id": "uses-endpoints-instead-of-lengths",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-calibration-band",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Calibration Offset Band Draft",
+    "prompt": "A calibration offset X is uniform on the interval from -3 to 5 units. What is P(-1 < X < 2)?",
+    "patternSource": "continuous-uniform interval-length pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.375",
+        "37.5%"
+      ],
+      "numericValue": 0.375,
+      "tolerance": 0.001,
+      "explanation": "The probability is 3/8 = 0.375."
+    },
+    "hints": [
+      "For a uniform model, probability is proportional to interval length.",
+      "Divide the favorable interval length by the full support length."
+    ],
+    "solutionSteps": [
+      "The full support length is 5 - (-3) = 8.",
+      "The favorable interval length is 2 - (-1) = 3.",
+      "The probability is 3/8 = 0.375."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform probabilities use interval lengths, not a ratio of endpoint values.",
+        "id": "uses-endpoints-instead-of-lengths",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-cycle-threshold",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Cycle Point Threshold Draft",
+    "prompt": "A cycle point X is uniformly distributed from 10 to 34 seconds. What is P(X <= 16)?",
+    "patternSource": "continuous-uniform interval-length pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.25",
+        "25%"
+      ],
+      "numericValue": 0.25,
+      "tolerance": 0.001,
+      "explanation": "The probability is 6/24 = 0.25."
+    },
+    "hints": [
+      "For a uniform model, probability is proportional to interval length.",
+      "Divide the favorable interval length by the full support length."
+    ],
+    "solutionSteps": [
+      "The full support length is 34 - (10) = 24.",
+      "The favorable interval length is 16 - (10) = 6.",
+      "The probability is 6/24 = 0.25."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform probabilities use interval lengths, not a ratio of endpoint values.",
+        "id": "uses-endpoints-instead-of-lengths",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-density-normalize-four",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Normalize a Linear Density on Four Units Draft",
+    "prompt": "A continuous random variable has density f(x) = c x for 0 <= x <= 4 and f(x) = 0 otherwise. Find c.",
+    "patternSource": "continuous-density normalization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.125"
+      ],
+      "numericValue": 0.125,
+      "tolerance": 0.001,
+      "explanation": "Solving gives c = 0.125."
+    },
+    "hints": [
+      "A probability density must integrate to 1 over its support.",
+      "Integrate c x from 0 to the stated endpoint and solve for c."
+    ],
+    "solutionSteps": [
+      "Set the total area equal to 1: integral from 0 to 4 of c x dx = 1.",
+      "The integral is c(4^2)/2 = 8c.",
+      "Solving gives c = 0.125."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A density's total area must be 1; the density value itself need not equal 1.",
+        "id": "sets-density-height-to-one",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-density-normalize-five",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Normalize a Linear Density on Five Units Draft",
+    "prompt": "A continuous random variable has density f(x) = c x for 0 <= x <= 5 and f(x) = 0 otherwise. Find c.",
+    "patternSource": "continuous-density normalization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.08"
+      ],
+      "numericValue": 0.08,
+      "tolerance": 0.001,
+      "explanation": "Solving gives c = 0.08."
+    },
+    "hints": [
+      "A probability density must integrate to 1 over its support.",
+      "Integrate c x from 0 to the stated endpoint and solve for c."
+    ],
+    "solutionSteps": [
+      "Set the total area equal to 1: integral from 0 to 5 of c x dx = 1.",
+      "The integral is c(5^2)/2 = 12.5c.",
+      "Solving gives c = 0.08."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A density's total area must be 1; the density value itself need not equal 1.",
+        "id": "sets-density-height-to-one",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-density-normalize-six",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Normalize a Linear Density on Six Units Draft",
+    "prompt": "A continuous random variable has density f(x) = c x for 0 <= x <= 6 and f(x) = 0 otherwise. Find c.",
+    "patternSource": "continuous-density normalization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.055556"
+      ],
+      "numericValue": 0.05555555555555555,
+      "tolerance": 0.001,
+      "explanation": "Solving gives c = 0.055556."
+    },
+    "hints": [
+      "A probability density must integrate to 1 over its support.",
+      "Integrate c x from 0 to the stated endpoint and solve for c."
+    ],
+    "solutionSteps": [
+      "Set the total area equal to 1: integral from 0 to 6 of c x dx = 1.",
+      "The integral is c(6^2)/2 = 18c.",
+      "Solving gives c = 0.055556."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A density's total area must be 1; the density value itself need not equal 1.",
+        "id": "sets-density-height-to-one",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-density-normalize-eight",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Normalize a Linear Density on Eight Units Draft",
+    "prompt": "A continuous random variable has density f(x) = c x for 0 <= x <= 8 and f(x) = 0 otherwise. Find c.",
+    "patternSource": "continuous-density normalization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.03125"
+      ],
+      "numericValue": 0.03125,
+      "tolerance": 0.001,
+      "explanation": "Solving gives c = 0.03125."
+    },
+    "hints": [
+      "A probability density must integrate to 1 over its support.",
+      "Integrate c x from 0 to the stated endpoint and solve for c."
+    ],
+    "solutionSteps": [
+      "Set the total area equal to 1: integral from 0 to 8 of c x dx = 1.",
+      "The integral is c(8^2)/2 = 32c.",
+      "Solving gives c = 0.03125."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A density's total area must be 1; the density value itself need not equal 1.",
+        "id": "sets-density-height-to-one",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-cdf-square-zero-four",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Quadratic CDF Interval from One to Three Draft",
+    "prompt": "A continuous random variable has CDF F(x) = 0 for x < 0, F(x) = ((x - (0))/4)^2 for 0 <= x <= 4, and F(x) = 1 for x > 4. Find P(1 < X <= 3).",
+    "patternSource": "continuous-CDF interval-difference pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5",
+        "50%"
+      ],
+      "numericValue": 0.5,
+      "tolerance": 0.001,
+      "explanation": "The interval probability is 0.5625 - 0.0625 = 0.5."
+    },
+    "hints": [
+      "Use P(a < X <= b) = F(b) - F(a).",
+      "Evaluate the middle CDF formula at both interval endpoints."
+    ],
+    "solutionSteps": [
+      "F(3) = 0.5625.",
+      "F(1) = 0.0625.",
+      "The interval probability is 0.5625 - 0.0625 = 0.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An interval probability is the upper CDF value minus the lower CDF value.",
+        "id": "adds-cdf-endpoints",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-cdf-square-two-eight",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Quadratic CDF Interval from Three to Five Draft",
+    "prompt": "A continuous random variable has CDF F(x) = 0 for x < 2, F(x) = ((x - (2))/6)^2 for 2 <= x <= 8, and F(x) = 1 for x > 8. Find P(3 < X <= 5).",
+    "patternSource": "continuous-CDF interval-difference pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.222222",
+        "22.22%"
+      ],
+      "numericValue": 0.2222222222222222,
+      "tolerance": 0.001,
+      "explanation": "The interval probability is 0.25 - 0.027778 = 0.222222."
+    },
+    "hints": [
+      "Use P(a < X <= b) = F(b) - F(a).",
+      "Evaluate the middle CDF formula at both interval endpoints."
+    ],
+    "solutionSteps": [
+      "F(5) = 0.25.",
+      "F(3) = 0.027778.",
+      "The interval probability is 0.25 - 0.027778 = 0.222222."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An interval probability is the upper CDF value minus the lower CDF value.",
+        "id": "adds-cdf-endpoints",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-cdf-square-negative-one-four",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Quadratic CDF Interval from Zero to Two Draft",
+    "prompt": "A continuous random variable has CDF F(x) = 0 for x < -1, F(x) = ((x - (-1))/5)^2 for -1 <= x <= 4, and F(x) = 1 for x > 4. Find P(0 < X <= 2).",
+    "patternSource": "continuous-CDF interval-difference pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.32",
+        "32%"
+      ],
+      "numericValue": 0.31999999999999995,
+      "tolerance": 0.001,
+      "explanation": "The interval probability is 0.36 - 0.04 = 0.32."
+    },
+    "hints": [
+      "Use P(a < X <= b) = F(b) - F(a).",
+      "Evaluate the middle CDF formula at both interval endpoints."
+    ],
+    "solutionSteps": [
+      "F(2) = 0.36.",
+      "F(0) = 0.04.",
+      "The interval probability is 0.36 - 0.04 = 0.32."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An interval probability is the upper CDF value minus the lower CDF value.",
+        "id": "adds-cdf-endpoints",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-cdf-square-one-four",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Quadratic CDF Interval from One Point Five to Three Draft",
+    "prompt": "A continuous random variable has CDF F(x) = 0 for x < 1, F(x) = ((x - (1))/3)^2 for 1 <= x <= 4, and F(x) = 1 for x > 4. Find P(1.5 < X <= 3).",
+    "patternSource": "continuous-CDF interval-difference pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.416667",
+        "41.67%"
+      ],
+      "numericValue": 0.41666666666666663,
+      "tolerance": 0.001,
+      "explanation": "The interval probability is 0.444444 - 0.027778 = 0.416667."
+    },
+    "hints": [
+      "Use P(a < X <= b) = F(b) - F(a).",
+      "Evaluate the middle CDF formula at both interval endpoints."
+    ],
+    "solutionSteps": [
+      "F(3) = 0.444444.",
+      "F(1.5) = 0.027778.",
+      "The interval probability is 0.444444 - 0.027778 = 0.416667."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An interval probability is the upper CDF value minus the lower CDF value.",
+        "id": "adds-cdf-endpoints",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-mean-negative-two-ten",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Uniform Mean on a Twelve-Unit Range Draft",
+    "prompt": "Let X be uniform on [-2, 10]. Find E[X].",
+    "patternSource": "continuous-uniform moment pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "4"
+      ],
+      "numericValue": 4,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[X] = 4."
+    },
+    "hints": [
+      "The mean of Uniform(a,b) is the midpoint of the interval.",
+      "Average the two endpoints."
+    ],
+    "solutionSteps": [
+      "Use E[X] = (a + b)/2.",
+      "Substitute the endpoints: (-2 + 10)/2.",
+      "Therefore E[X] = 4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The uniform mean is the interval midpoint, not its width.",
+        "id": "uses-interval-width-as-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-variance-three-fifteen",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Uniform Variance from Three to Fifteen Draft",
+    "prompt": "Let X be uniform on [3, 15]. Find Var(X).",
+    "patternSource": "continuous-uniform moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "12"
+      ],
+      "numericValue": 12,
+      "tolerance": 0.001,
+      "explanation": "Therefore Var(X) = 12^2/12 = 12."
+    },
+    "hints": [
+      "For Uniform(a,b), Var(X) = (b - a)^2 / 12.",
+      "Find the interval width before squaring."
+    ],
+    "solutionSteps": [
+      "Use Var(X) = (b - a)^2/12.",
+      "The interval width is 15 - (3) = 12.",
+      "Therefore Var(X) = 12^2/12 = 12."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform variance uses the square of the interval width divided by 12.",
+        "id": "forgets-square-in-uniform-variance",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-mean-eight-twenty",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Uniform Mean from Eight to Twenty Draft",
+    "prompt": "Let X be uniform on [8, 20]. Find E[X].",
+    "patternSource": "continuous-uniform moment pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "14"
+      ],
+      "numericValue": 14,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[X] = 14."
+    },
+    "hints": [
+      "The mean of Uniform(a,b) is the midpoint of the interval.",
+      "Average the two endpoints."
+    ],
+    "solutionSteps": [
+      "Use E[X] = (a + b)/2.",
+      "Substitute the endpoints: (8 + 20)/2.",
+      "Therefore E[X] = 14."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The uniform mean is the interval midpoint, not its width.",
+        "id": "uses-interval-width-as-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-uniform-variance-negative-five-seven",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Uniform Variance from Negative Five to Seven Draft",
+    "prompt": "Let X be uniform on [-5, 7]. Find Var(X).",
+    "patternSource": "continuous-uniform moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "12"
+      ],
+      "numericValue": 12,
+      "tolerance": 0.001,
+      "explanation": "Therefore Var(X) = 12^2/12 = 12."
+    },
+    "hints": [
+      "For Uniform(a,b), Var(X) = (b - a)^2 / 12.",
+      "Find the interval width before squaring."
+    ],
+    "solutionSteps": [
+      "Use Var(X) = (b - a)^2/12.",
+      "The interval width is 7 - (-5) = 12.",
+      "Therefore Var(X) = 12^2/12 = 12."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Uniform variance uses the square of the interval width divided by 12.",
+        "id": "forgets-square-in-uniform-variance",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-exponential-tail-rate-point-four",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Exponential Tail after Five Units Draft",
+    "prompt": "A waiting time X follows an exponential distribution with rate 0.4 per minute. Find P(X > 5).",
+    "patternSource": "exponential-tail pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.135335",
+        "13.53%"
+      ],
+      "numericValue": 0.1353352832366127,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.135335."
+    },
+    "hints": [
+      "For an exponential variable, P(X > t) = exp(-rate times t).",
+      "Substitute the rate and the requested time."
+    ],
+    "solutionSteps": [
+      "Use the exponential survival function P(X > t) = exp(-lambda t).",
+      "Substitute lambda = 0.4 and t = 5: exp(-2).",
+      "The probability is 0.135335."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Use the exponential CDF or survival function; the density at one point is not an interval probability.",
+        "id": "uses-exponential-density-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-exponential-cdf-rate-point-two-five",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Exponential CDF by Six Units Draft",
+    "prompt": "A component lifetime X follows an exponential distribution with rate 0.25 per hour. Find P(X <= 6).",
+    "patternSource": "exponential-cdf pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.77687",
+        "77.69%"
+      ],
+      "numericValue": 0.7768698398515702,
+      "tolerance": 0.001,
+      "explanation": "The probability is 1 - exp(-1.5) = 0.77687."
+    },
+    "hints": [
+      "The exponential CDF is 1 - exp(-rate times t).",
+      "Compute the tail first, then subtract it from 1."
+    ],
+    "solutionSteps": [
+      "Use P(X <= t) = 1 - exp(-lambda t).",
+      "Substitute lambda = 0.25 and t = 6.",
+      "The probability is 1 - exp(-1.5) = 0.77687."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Use the exponential CDF or survival function; the density at one point is not an interval probability.",
+        "id": "uses-exponential-density-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-exponential-between-rate-point-three",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Exponential Probability between Two Times Draft",
+    "prompt": "A response delay X follows an exponential distribution with rate 0.3 per second. Find P(2 < X <= 7).",
+    "patternSource": "exponential-between pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.426355",
+        "42.64%"
+      ],
+      "numericValue": 0.4263552078410446,
+      "tolerance": 0.001,
+      "explanation": "Subtracting gives 0.548812 - 0.122456 = 0.426355."
+    },
+    "hints": [
+      "Express the interval probability as a difference of exponential tails.",
+      "Use P(a < X <= b) = exp(-lambda a) - exp(-lambda b)."
+    ],
+    "solutionSteps": [
+      "P(X > 2) = 0.548812.",
+      "P(X > 7) = 0.122456.",
+      "Subtracting gives 0.548812 - 0.122456 = 0.426355."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Use the exponential CDF or survival function; the density at one point is not an interval probability.",
+        "id": "uses-exponential-density-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-exponential-memoryless-rate-point-one-five",
+    "topicId": "continuous-random-variables",
+    "topic": "Continuous Random Variables, PDFs, CDFs, Uniform, and Exponential Models",
+    "title": "Exponential Memoryless Update Draft",
+    "prompt": "A device lifetime X is exponential with rate 0.15 per day. Given that it has lasted 4 days, what is the probability that it lasts at least 3 additional days?",
+    "patternSource": "exponential-memoryless pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.637628",
+        "63.76%"
+      ],
+      "numericValue": 0.6376281516217733,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.637628."
+    },
+    "hints": [
+      "Use the memoryless property of the exponential distribution.",
+      "Only the additional lifetime matters after conditioning on survival so far."
+    ],
+    "solutionSteps": [
+      "The memoryless property removes the elapsed 4 days from the calculation.",
+      "The needed probability is exp(-0.15 times 3).",
+      "The conditional probability is 0.637628."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "For an exponential lifetime, the conditional remaining-life probability depends only on the additional time.",
+        "id": "restarts-with-total-elapsed-time",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-zscore-sensor-reading",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Sensor Reading Z-Score Draft",
+    "prompt": "Sensor readings are approximately normal with mean 48 and standard deviation 6. What is the z-score of a reading of 57?",
+    "patternSource": "normal-standardization z-score pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "1.5"
+      ],
+      "numericValue": 1.5,
+      "tolerance": 0.001,
+      "explanation": "The z-score is 1.5."
+    },
+    "hints": [
+      "Subtract the mean from the observation.",
+      "Divide that difference by the standard deviation."
+    ],
+    "solutionSteps": [
+      "Use z = (x - mean)/standard deviation.",
+      "Substitute the values: (57 - 48)/6.",
+      "The z-score is 1.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Standardization subtracts the mean from the observation, not the observation from the mean.",
+        "id": "reverses-z-score-subtraction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-zscore-packing-time",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Packing Time Z-Score Draft",
+    "prompt": "Packing times are approximately normal with mean 32 minutes and standard deviation 4 minutes. What is the z-score of a 25-minute packing time?",
+    "patternSource": "normal-standardization z-score pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "-1.75"
+      ],
+      "numericValue": -1.75,
+      "tolerance": 0.001,
+      "explanation": "The z-score is -1.75."
+    },
+    "hints": [
+      "Subtract the mean from the observation.",
+      "Divide that difference by the standard deviation."
+    ],
+    "solutionSteps": [
+      "Use z = (x - mean)/standard deviation.",
+      "Substitute the values: (25 - 32)/4.",
+      "The z-score is -1.75."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Standardization subtracts the mean from the observation, not the observation from the mean.",
+        "id": "reverses-z-score-subtraction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-zscore-signal-strength",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Signal Strength Z-Score Draft",
+    "prompt": "Signal strengths are approximately normal with mean 70 units and standard deviation 8 units. What is the z-score of a signal strength of 86 units?",
+    "patternSource": "normal-standardization z-score pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "2"
+      ],
+      "numericValue": 2,
+      "tolerance": 0.001,
+      "explanation": "The z-score is 2."
+    },
+    "hints": [
+      "Subtract the mean from the observation.",
+      "Divide that difference by the standard deviation."
+    ],
+    "solutionSteps": [
+      "Use z = (x - mean)/standard deviation.",
+      "Substitute the values: (86 - 70)/8.",
+      "The z-score is 2."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Standardization subtracts the mean from the observation, not the observation from the mean.",
+        "id": "reverses-z-score-subtraction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-zscore-refill-volume",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Refill Volume Z-Score Draft",
+    "prompt": "Refill volumes are approximately normal with mean 520 milliliters and standard deviation 15 milliliters. What is the z-score of a 497.5-milliliter refill?",
+    "patternSource": "normal-standardization z-score pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "-1.5"
+      ],
+      "numericValue": -1.5,
+      "tolerance": 0.001,
+      "explanation": "The z-score is -1.5."
+    },
+    "hints": [
+      "Subtract the mean from the observation.",
+      "Divide that difference by the standard deviation."
+    ],
+    "solutionSteps": [
+      "Use z = (x - mean)/standard deviation.",
+      "Substitute the values: (497.5 - 520)/15.",
+      "The z-score is -1.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Standardization subtracts the mean from the observation, not the observation from the mean.",
+        "id": "reverses-z-score-subtraction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-cdf-one-sd",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Probability below One Standard Deviation Draft",
+    "prompt": "A delivery score is normally distributed with mean 40 and standard deviation 5. Find P(X <= 45).",
+    "patternSource": "standard-normal probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.841345",
+        "84.13%"
+      ],
+      "numericValue": 0.8413447361676363,
+      "tolerance": 0.001,
+      "explanation": "Using a standard normal table or calculator gives 0.841345."
+    },
+    "hints": [
+      "Convert each boundary to a z-score.",
+      "Use the standard normal CDF and subtract for an interval."
+    ],
+    "solutionSteps": [
+      "Standardize the stated boundary or boundaries.",
+      "The probability is Phi(1).",
+      "Using a standard normal table or calculator gives 0.841345."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A z-score is a standardized location; use the normal CDF to turn it into a probability.",
+        "id": "uses-z-score-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-tail-at-mean",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Probability above the Mean Draft",
+    "prompt": "A stability measure is normally distributed with mean 18 and standard deviation 3. Find P(X > 18).",
+    "patternSource": "standard-normal probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5",
+        "50%"
+      ],
+      "numericValue": 0.49999999949999996,
+      "tolerance": 0.001,
+      "explanation": "Using a standard normal table or calculator gives 0.5."
+    },
+    "hints": [
+      "Convert each boundary to a z-score.",
+      "Use the standard normal CDF and subtract for an interval."
+    ],
+    "solutionSteps": [
+      "Standardize the stated boundary or boundaries.",
+      "The probability is 1 - Phi(0).",
+      "Using a standard normal table or calculator gives 0.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A z-score is a standardized location; use the normal CDF to turn it into a probability.",
+        "id": "uses-z-score-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-within-one-point-five",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Probability within One Point Five Deviations Draft",
+    "prompt": "A process index is normally distributed with mean 100 and standard deviation 12. Find P(82 <= X <= 118).",
+    "patternSource": "standard-normal probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.866386",
+        "86.64%"
+      ],
+      "numericValue": 0.8663855380469954,
+      "tolerance": 0.001,
+      "explanation": "Using a standard normal table or calculator gives 0.866386."
+    },
+    "hints": [
+      "Convert each boundary to a z-score.",
+      "Use the standard normal CDF and subtract for an interval."
+    ],
+    "solutionSteps": [
+      "Standardize the stated boundary or boundaries.",
+      "The probability is Phi(1.5) - Phi(-1.5).",
+      "Using a standard normal table or calculator gives 0.866386."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A z-score is a standardized location; use the normal CDF to turn it into a probability.",
+        "id": "uses-z-score-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-asymmetric-interval",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Probability on an Asymmetric Interval Draft",
+    "prompt": "A measurement is normally distributed with mean 64 and standard deviation 7. Find P(57 <= X <= 78).",
+    "patternSource": "standard-normal probability pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.818595",
+        "81.86%"
+      ],
+      "numericValue": 0.8185946732803799,
+      "tolerance": 0.001,
+      "explanation": "Using a standard normal table or calculator gives 0.818595."
+    },
+    "hints": [
+      "Convert each boundary to a z-score.",
+      "Use the standard normal CDF and subtract for an interval."
+    ],
+    "solutionSteps": [
+      "Standardize the stated boundary or boundaries.",
+      "The probability is Phi(2) - Phi(-1).",
+      "Using a standard normal table or calculator gives 0.818595."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A z-score is a standardized location; use the normal CDF to turn it into a probability.",
+        "id": "uses-z-score-as-probability",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-percentile-ninety",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Ninetieth Percentile Cutoff Draft",
+    "prompt": "A score is normal with mean 62 and standard deviation 9. Using z = 1.2816 for the 90th percentile, find the corresponding score cutoff.",
+    "patternSource": "normal-percentile unstandardization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "73.5344"
+      ],
+      "numericValue": 73.5344,
+      "tolerance": 0.001,
+      "explanation": "The cutoff is 73.5344."
+    },
+    "hints": [
+      "Convert a z-score back to the original scale with x = mean + z times standard deviation.",
+      "Use the supplied percentile z-value."
+    ],
+    "solutionSteps": [
+      "Use x = mean + z standard deviation.",
+      "Substitute: 62 + (1.2816)(9).",
+      "The cutoff is 73.5344."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A percentile z-value must be converted back with mean plus z times standard deviation.",
+        "id": "standardizes-instead-of-unstandardizes",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-percentile-tenth",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Tenth Percentile Cutoff Draft",
+    "prompt": "A duration is normal with mean 44 and standard deviation 6. Using z = -1.2816 for the 10th percentile, find the corresponding duration cutoff.",
+    "patternSource": "normal-percentile unstandardization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "36.3104"
+      ],
+      "numericValue": 36.3104,
+      "tolerance": 0.001,
+      "explanation": "The cutoff is 36.3104."
+    },
+    "hints": [
+      "Convert a z-score back to the original scale with x = mean + z times standard deviation.",
+      "Use the supplied percentile z-value."
+    ],
+    "solutionSteps": [
+      "Use x = mean + z standard deviation.",
+      "Substitute: 44 + (-1.2816)(6).",
+      "The cutoff is 36.3104."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A percentile z-value must be converted back with mean plus z times standard deviation.",
+        "id": "standardizes-instead-of-unstandardizes",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-percentile-seventy-five",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Seventy-Fifth Percentile Cutoff Draft",
+    "prompt": "A calibration result is normal with mean 125 and standard deviation 10. Using z = 0.6745 for the 75th percentile, find the corresponding result.",
+    "patternSource": "normal-percentile unstandardization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "131.745"
+      ],
+      "numericValue": 131.745,
+      "tolerance": 0.001,
+      "explanation": "The cutoff is 131.745."
+    },
+    "hints": [
+      "Convert a z-score back to the original scale with x = mean + z times standard deviation.",
+      "Use the supplied percentile z-value."
+    ],
+    "solutionSteps": [
+      "Use x = mean + z standard deviation.",
+      "Substitute: 125 + (0.6745)(10).",
+      "The cutoff is 131.745."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A percentile z-value must be converted back with mean plus z times standard deviation.",
+        "id": "standardizes-instead-of-unstandardizes",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-percentile-twenty-five",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Normal Twenty-Fifth Percentile Cutoff Draft",
+    "prompt": "A response metric is normal with mean 30 and standard deviation 4. Using z = -0.6745 for the 25th percentile, find the corresponding metric value.",
+    "patternSource": "normal-percentile unstandardization pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "27.302"
+      ],
+      "numericValue": 27.302,
+      "tolerance": 0.001,
+      "explanation": "The cutoff is 27.302."
+    },
+    "hints": [
+      "Convert a z-score back to the original scale with x = mean + z times standard deviation.",
+      "Use the supplied percentile z-value."
+    ],
+    "solutionSteps": [
+      "Use x = mean + z standard deviation.",
+      "Substitute: 30 + (-0.6745)(4).",
+      "The cutoff is 27.302."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A percentile z-value must be converted back with mean plus z times standard deviation.",
+        "id": "standardizes-instead-of-unstandardizes",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-approx-at-least-forty-two",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Approximate At Least Forty-Two Successes Draft",
+    "prompt": "Let X be binomial with n = 80 and p = 0.45. Use a normal approximation with continuity correction to estimate P(X >= 42).",
+    "patternSource": "binomial normal-approximation continuity-correction pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.108223",
+        "10.82%"
+      ],
+      "numericValue": 0.10822320159402721,
+      "tolerance": 0.001,
+      "explanation": "The requested normal probability is approximately 0.108223."
+    },
+    "hints": [
+      "Use mean np and standard deviation sqrt(np(1-p)).",
+      "Apply the stated half-unit continuity correction before standardizing."
+    ],
+    "solutionSteps": [
+      "The approximating normal model has mean 36 and standard deviation 4.449719.",
+      "After continuity correction, z = (41.5 - 36)/4.449719 = 1.236033.",
+      "The requested normal probability is approximately 0.108223."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A binomial count uses half-unit boundaries when it is approximated by a continuous normal model.",
+        "id": "omits-continuity-correction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-approx-at-most-forty",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Approximate At Most Forty Successes Draft",
+    "prompt": "Let X be binomial with n = 120 and p = 0.3. Use a normal approximation with continuity correction to estimate P(X <= 40).",
+    "patternSource": "binomial normal-approximation continuity-correction pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.814986",
+        "81.5%"
+      ],
+      "numericValue": 0.8149861747159824,
+      "tolerance": 0.001,
+      "explanation": "The requested normal probability is approximately 0.814986."
+    },
+    "hints": [
+      "Use mean np and standard deviation sqrt(np(1-p)).",
+      "Apply the stated half-unit continuity correction before standardizing."
+    ],
+    "solutionSteps": [
+      "The approximating normal model has mean 36 and standard deviation 5.01996.",
+      "After continuity correction, z = (40.5 - 36)/5.01996 = 0.896421.",
+      "The requested normal probability is approximately 0.814986."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A binomial count uses half-unit boundaries when it is approximated by a continuous normal model.",
+        "id": "omits-continuity-correction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-approx-between-fifty-sixty",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Approximate a Binomial Middle Range Draft",
+    "prompt": "Let X be binomial with n = 90 and p = 0.6. Use a normal approximation with continuity correction to estimate P(50 <= X <= 60).",
+    "patternSource": "binomial normal-approximation continuity-correction pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.752569",
+        "75.26%"
+      ],
+      "numericValue": 0.7525692578994795,
+      "tolerance": 0.001,
+      "explanation": "The requested normal probability is approximately 0.752569."
+    },
+    "hints": [
+      "Use mean np and standard deviation sqrt(np(1-p)).",
+      "Apply the stated half-unit continuity correction before standardizing."
+    ],
+    "solutionSteps": [
+      "The approximating normal model has mean 54 and standard deviation 4.64758.",
+      "After continuity correction, the corrected z-boundaries are -0.968246 and 1.398577.",
+      "The requested normal probability is approximately 0.752569."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A binomial count uses half-unit boundaries when it is approximated by a continuous normal model.",
+        "id": "omits-continuity-correction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-approx-more-than-thirty-five",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Approximate More Than Thirty-Five Successes Draft",
+    "prompt": "Let X be binomial with n = 150 and p = 0.2. Use a normal approximation with continuity correction to estimate P(X > 35).",
+    "patternSource": "binomial normal-approximation continuity-correction pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.130786",
+        "13.08%"
+      ],
+      "numericValue": 0.13078616836546852,
+      "tolerance": 0.001,
+      "explanation": "The requested normal probability is approximately 0.130786."
+    },
+    "hints": [
+      "Use mean np and standard deviation sqrt(np(1-p)).",
+      "Apply the stated half-unit continuity correction before standardizing."
+    ],
+    "solutionSteps": [
+      "The approximating normal model has mean 30 and standard deviation 4.898979.",
+      "After continuity correction, z = (35.5 - 30)/4.898979 = 1.122683.",
+      "The requested normal probability is approximately 0.130786."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A binomial count uses half-unit boundaries when it is approximated by a continuous normal model.",
+        "id": "omits-continuity-correction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-transform-mean-positive",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Mean of a Positive Linear Transform Draft",
+    "prompt": "A normal random variable X has mean 12 and standard deviation 3. Let Y = 4X - 5. Find E[Y].",
+    "patternSource": "linear-transformation of normal variable pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "43"
+      ],
+      "numericValue": 43,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[Y] = 43."
+    },
+    "hints": [
+      "Expectation follows the full linear transformation.",
+      "Use E[aX + b] = aE[X] + b."
+    ],
+    "solutionSteps": [
+      "Use E[Y] = aE[X] + b.",
+      "Substitute: (4)(12) + (-5).",
+      "Therefore E[Y] = 43."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The additive shift changes the transformed mean and must be included.",
+        "id": "drops-shift-from-transformed-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-transform-sd-negative",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Standard Deviation of a Negative Linear Transform Draft",
+    "prompt": "A normal random variable X has mean 20 and standard deviation 2.5. Let Y = -3X + 8. Find the standard deviation of Y.",
+    "patternSource": "linear-transformation of normal variable pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "7.5"
+      ],
+      "numericValue": 7.5,
+      "tolerance": 0.001,
+      "explanation": "Therefore SD(Y) = |-3|(2.5) = 7.5."
+    },
+    "hints": [
+      "Adding a constant does not change standard deviation.",
+      "Scaling by a multiplies standard deviation by the absolute value of a."
+    ],
+    "solutionSteps": [
+      "Use SD(Y) = |a|SD(X).",
+      "The shift 8 does not affect spread.",
+      "Therefore SD(Y) = |-3|(2.5) = 7.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An additive shift changes location but not standard deviation.",
+        "id": "adds-shift-to-standard-deviation",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-transform-mean-half",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Mean of a Half-Scale Transform Draft",
+    "prompt": "A normal random variable X has mean 50 and standard deviation 6. Let Y = 0.5X + 7. Find E[Y].",
+    "patternSource": "linear-transformation of normal variable pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "32"
+      ],
+      "numericValue": 32,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[Y] = 32."
+    },
+    "hints": [
+      "Expectation follows the full linear transformation.",
+      "Use E[aX + b] = aE[X] + b."
+    ],
+    "solutionSteps": [
+      "Use E[Y] = aE[X] + b.",
+      "Substitute: (0.5)(50) + (7).",
+      "Therefore E[Y] = 32."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The additive shift changes the transformed mean and must be included.",
+        "id": "drops-shift-from-transformed-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-normal-transform-sd-one-point-two",
+    "topicId": "normal-standardization",
+    "topic": "Normal Distribution, Normal Approximation, and Functions of a Random Variable",
+    "title": "Standard Deviation of a Scaled Normal Variable Draft",
+    "prompt": "A normal random variable X has mean -4 and standard deviation 5. Let Y = 1.2X - 9. Find the standard deviation of Y.",
+    "patternSource": "linear-transformation of normal variable pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "6"
+      ],
+      "numericValue": 6,
+      "tolerance": 0.001,
+      "explanation": "Therefore SD(Y) = |1.2|(5) = 6."
+    },
+    "hints": [
+      "Adding a constant does not change standard deviation.",
+      "Scaling by a multiplies standard deviation by the absolute value of a."
+    ],
+    "solutionSteps": [
+      "Use SD(Y) = |a|SD(X).",
+      "The shift -9 does not affect spread.",
+      "Therefore SD(Y) = |1.2|(5) = 6."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "An additive shift changes location but not standard deviation.",
+        "id": "adds-shift-to-standard-deviation",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-normal-mean-three",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Mean from a Quadratic-Exponent MGF Draft",
+    "prompt": "A random variable has moment generating function M(t) = exp(3t + 2t^2). Find E[X].",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "3"
+      ],
+      "numericValue": 3,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested mean is 3."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = exp(3t + 2t^2).",
+      "Its parameters or derivatives give E[X] = 3 and Var(X) = 4.",
+      "Therefore the requested mean is 3."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-normal-variance-nine",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Variance from a Quadratic-Exponent MGF Draft",
+    "prompt": "A random variable has moment generating function M(t) = exp(-2t + 4.5t^2). Find Var(X).",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "9"
+      ],
+      "numericValue": 9,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested variance is 9."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = exp(-2t + 4.5t^2).",
+      "Its parameters or derivatives give E[X] = -2 and Var(X) = 9.",
+      "Therefore the requested variance is 9."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-bernoulli-mean-point-three-five",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Bernoulli Mean from Its MGF Draft",
+    "prompt": "A random variable has moment generating function M(t) = 0.65 + 0.35e^t. Find E[X].",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.35"
+      ],
+      "numericValue": 0.35,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested mean is 0.35."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = 0.65 + 0.35e^t.",
+      "Its parameters or derivatives give E[X] = 0.35 and Var(X) = 0.2275.",
+      "Therefore the requested mean is 0.35."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-bernoulli-variance-point-one-six",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Bernoulli Variance from Its MGF Draft",
+    "prompt": "A random variable has moment generating function M(t) = 0.2 + 0.8e^t. Find Var(X).",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.16"
+      ],
+      "numericValue": 0.16,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested variance is 0.16."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = 0.2 + 0.8e^t.",
+      "Its parameters or derivatives give E[X] = 0.8 and Var(X) = 0.16.",
+      "Therefore the requested variance is 0.16."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-poisson-variance-two-point-four",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Poisson Variance from Its MGF Draft",
+    "prompt": "A random variable has moment generating function M(t) = exp(2.4(e^t - 1)). Find Var(X).",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "2.4"
+      ],
+      "numericValue": 2.4,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested variance is 2.4."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = exp(2.4(e^t - 1)).",
+      "Its parameters or derivatives give E[X] = 2.4 and Var(X) = 2.4.",
+      "Therefore the requested variance is 2.4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-exponential-mean-one-fifth",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Exponential Mean from Its MGF Draft",
+    "prompt": "A nonnegative random variable has moment generating function M(t) = 5/(5 - t) for t < 5. Find E[X].",
+    "patternSource": "MGF derivative moment pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.2"
+      ],
+      "numericValue": 0.2,
+      "tolerance": 0.001,
+      "explanation": "Therefore the requested mean is 0.2."
+    },
+    "hints": [
+      "The first MGF derivative at zero gives E[X].",
+      "Variance can be found from M''(0) - (M'(0))^2 or from the recognized MGF family."
+    ],
+    "solutionSteps": [
+      "Start from M(t) = 5/(5 - t).",
+      "Its parameters or derivatives give E[X] = 0.2 and Var(X) = 0.04.",
+      "Therefore the requested mean is 0.2."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "M(0) equals 1 for an MGF; moments come from derivatives evaluated at zero.",
+        "id": "evaluates-mgf-instead-of-derivative",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-independent-poisson-sum",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Mean of a Sum from Product MGFs Draft",
+    "prompt": "Independent random variables X and Y have MGFs exp(1.2(e^t - 1)) and exp(0.8(e^t - 1)). Let S = X + Y. Find E[S].",
+    "patternSource": "MGF independent-sum or scaling pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "2"
+      ],
+      "numericValue": 2,
+      "tolerance": 0.001,
+      "explanation": "This is a Poisson MGF with mean 2, so E[S] = 2."
+    },
+    "hints": [
+      "Use products of MGFs for independent sums or M_X(at) for a scaled variable.",
+      "Then read the mean from the resulting MGF or apply linearity."
+    ],
+    "solutionSteps": [
+      "Independence gives M_S(t) = M_X(t)M_Y(t).",
+      "Multiplying combines the exponents to exp(2(e^t - 1)).",
+      "This is a Poisson MGF with mean 2, so E[S] = 2."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums correspond to multiplying MGFs, not adding them.",
+        "id": "adds-independent-mgfs",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-mgf-scaled-poisson-mean",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Mean after Scaling from an MGF Draft",
+    "prompt": "A random variable X has MGF M_X(t) = exp(1.5(e^t - 1)). Let Y = 2X. Find E[Y].",
+    "patternSource": "MGF independent-sum or scaling pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "3"
+      ],
+      "numericValue": 3,
+      "tolerance": 0.001,
+      "explanation": "Therefore E[Y] = 2(1.5) = 3."
+    },
+    "hints": [
+      "Use products of MGFs for independent sums or M_X(at) for a scaled variable.",
+      "Then read the mean from the resulting MGF or apply linearity."
+    ],
+    "solutionSteps": [
+      "The given MGF is Poisson with E[X] = 1.5.",
+      "For Y = 2X, linearity gives E[Y] = 2E[X].",
+      "Therefore E[Y] = 2(1.5) = 3."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums correspond to multiplying MGFs, not adding them.",
+        "id": "adds-independent-mgfs",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-marginal-x-one-table-a",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Marginal Probability of X Equal to One Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.12, P(X=0,Y=1)=0.18, P(X=1,Y=0)=0.28, P(X=1,Y=1)=0.42}. Find P(X = 1).",
+    "patternSource": "joint-PMF marginalization pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.7",
+        "70%"
+      ],
+      "numericValue": 0.7,
+      "tolerance": 0.001,
+      "explanation": "The marginal probability is 0.7."
+    },
+    "hints": [
+      "Hold the requested variable fixed and sum over every value of the other variable.",
+      "A marginal probability is a row sum or column sum of the joint PMF."
+    ],
+    "solutionSteps": [
+      "The relevant joint probabilities are 0.28 and 0.42.",
+      "Sum them: 0.28 + 0.42.",
+      "The marginal probability is 0.7."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A marginal probability sums all joint cells compatible with the requested value.",
+        "id": "uses-one-joint-cell-as-marginal",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-marginal-y-zero-table-b",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Marginal Probability of Y Equal to Zero Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.15, P(X=0,Y=1)=0.25, P(X=1,Y=0)=0.2, P(X=1,Y=1)=0.4}. Find P(Y = 0).",
+    "patternSource": "joint-PMF marginalization pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.35",
+        "35%"
+      ],
+      "numericValue": 0.35,
+      "tolerance": 0.001,
+      "explanation": "The marginal probability is 0.35."
+    },
+    "hints": [
+      "Hold the requested variable fixed and sum over every value of the other variable.",
+      "A marginal probability is a row sum or column sum of the joint PMF."
+    ],
+    "solutionSteps": [
+      "The relevant joint probabilities are 0.15 and 0.2.",
+      "Sum them: 0.15 + 0.2.",
+      "The marginal probability is 0.35."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A marginal probability sums all joint cells compatible with the requested value.",
+        "id": "uses-one-joint-cell-as-marginal",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-marginal-x-zero-table-c",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Marginal Probability of X Equal to Zero Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.1, P(X=0,Y=1)=0.3, P(X=1,Y=0)=0.25, P(X=1,Y=1)=0.35}. Find P(X = 0).",
+    "patternSource": "joint-PMF marginalization pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.4",
+        "40%"
+      ],
+      "numericValue": 0.4,
+      "tolerance": 0.001,
+      "explanation": "The marginal probability is 0.4."
+    },
+    "hints": [
+      "Hold the requested variable fixed and sum over every value of the other variable.",
+      "A marginal probability is a row sum or column sum of the joint PMF."
+    ],
+    "solutionSteps": [
+      "The relevant joint probabilities are 0.1 and 0.3.",
+      "Sum them: 0.1 + 0.3.",
+      "The marginal probability is 0.4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A marginal probability sums all joint cells compatible with the requested value.",
+        "id": "uses-one-joint-cell-as-marginal",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-marginal-y-one-table-d",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Marginal Probability of Y Equal to One Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.22, P(X=0,Y=1)=0.18, P(X=1,Y=0)=0.33, P(X=1,Y=1)=0.27}. Find P(Y = 1).",
+    "patternSource": "joint-PMF marginalization pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.45",
+        "45%"
+      ],
+      "numericValue": 0.45,
+      "tolerance": 0.001,
+      "explanation": "The marginal probability is 0.45."
+    },
+    "hints": [
+      "Hold the requested variable fixed and sum over every value of the other variable.",
+      "A marginal probability is a row sum or column sum of the joint PMF."
+    ],
+    "solutionSteps": [
+      "The relevant joint probabilities are 0.18 and 0.27.",
+      "Sum them: 0.18 + 0.27.",
+      "The marginal probability is 0.45."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A marginal probability sums all joint cells compatible with the requested value.",
+        "id": "uses-one-joint-cell-as-marginal",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-conditional-y-one-given-x-zero",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Conditional Y Given X from Table A Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.12, P(X=0,Y=1)=0.18, P(X=1,Y=0)=0.28, P(X=1,Y=1)=0.42}. Find P(Y = 1 | X = 0).",
+    "patternSource": "joint-PMF conditional-distribution pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.6",
+        "60%"
+      ],
+      "numericValue": 0.6,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.18/0.3 = 0.6."
+    },
+    "hints": [
+      "Use the joint probability in the numerator.",
+      "Divide by the marginal probability of the conditioning event."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.18.",
+      "The conditioning marginal is 0.3.",
+      "The conditional probability is 0.18/0.3 = 0.6."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The denominator is the marginal probability of the event after the conditioning bar.",
+        "id": "reverses-conditional-denominator",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-conditional-x-one-given-y-one",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Conditional X Given Y from Table B Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.15, P(X=0,Y=1)=0.25, P(X=1,Y=0)=0.2, P(X=1,Y=1)=0.4}. Find P(X = 1 | Y = 1).",
+    "patternSource": "joint-PMF conditional-distribution pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.615385",
+        "61.54%"
+      ],
+      "numericValue": 0.6153846153846154,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.4/0.65 = 0.615385."
+    },
+    "hints": [
+      "Use the joint probability in the numerator.",
+      "Divide by the marginal probability of the conditioning event."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.4.",
+      "The conditioning marginal is 0.65.",
+      "The conditional probability is 0.4/0.65 = 0.615385."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The denominator is the marginal probability of the event after the conditioning bar.",
+        "id": "reverses-conditional-denominator",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-conditional-y-zero-given-x-one",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Conditional Y Given X from Table C Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.1, P(X=0,Y=1)=0.3, P(X=1,Y=0)=0.25, P(X=1,Y=1)=0.35}. Find P(Y = 0 | X = 1).",
+    "patternSource": "joint-PMF conditional-distribution pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.416667",
+        "41.67%"
+      ],
+      "numericValue": 0.4166666666666667,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.25/0.6 = 0.416667."
+    },
+    "hints": [
+      "Use the joint probability in the numerator.",
+      "Divide by the marginal probability of the conditioning event."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.25.",
+      "The conditioning marginal is 0.6.",
+      "The conditional probability is 0.25/0.6 = 0.416667."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The denominator is the marginal probability of the event after the conditioning bar.",
+        "id": "reverses-conditional-denominator",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-conditional-x-zero-given-y-zero",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Conditional X Given Y from Table D Draft",
+    "prompt": "Binary random variables X and Y have joint PMF {P(X=0,Y=0)=0.22, P(X=0,Y=1)=0.18, P(X=1,Y=0)=0.33, P(X=1,Y=1)=0.27}. Find P(X = 0 | Y = 0).",
+    "patternSource": "joint-PMF conditional-distribution pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.4",
+        "40%"
+      ],
+      "numericValue": 0.39999999999999997,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.22/0.55 = 0.4."
+    },
+    "hints": [
+      "Use the joint probability in the numerator.",
+      "Divide by the marginal probability of the conditioning event."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.22.",
+      "The conditioning marginal is 0.55.",
+      "The conditional probability is 0.22/0.55 = 0.4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The denominator is the marginal probability of the event after the conditioning bar.",
+        "id": "reverses-conditional-denominator",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-independence-table-a",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Check Independence in Table A Draft",
+    "prompt": "Binary random variables X and Y have the joint PMF shown. Are X and Y independent? {P(X=0,Y=0)=0.12, P(X=0,Y=1)=0.18, P(X=1,Y=0)=0.28, P(X=1,Y=1)=0.42}",
+    "patternSource": "joint-PMF independence-check pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "Yes, independent"
+      ],
+      "explanation": "The joint PMF factors into the marginal PMFs across all four cells, so X and Y are independent."
+    },
+    "hints": [
+      "Compare joint probabilities with products of the corresponding marginals.",
+      "For binary variables, verify the factorization across the table."
+    ],
+    "solutionSteps": [
+      "The marginals are P(X = 1) = 0.7 and P(Y = 1) = 0.6.",
+      "Their product is 0.42, while P(X = 1,Y = 1) = 0.42.",
+      "The joint PMF factors into the marginal PMFs across all four cells, so X and Y are independent."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independence requires joint probabilities to factor into marginal products; equal marginals alone are not enough.",
+        "id": "checks-only-equal-marginals",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-covariance-positive-table-e",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Positive Covariance from a Binary Joint PMF Draft",
+    "prompt": "Binary random variables X and Y have the joint PMF shown. Find Cov(X,Y). {P(X=0,Y=0)=0.4, P(X=0,Y=1)=0.1, P(X=1,Y=0)=0.1, P(X=1,Y=1)=0.4}",
+    "patternSource": "binary-joint-PMF covariance pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.15"
+      ],
+      "numericValue": 0.15000000000000002,
+      "tolerance": 0.001,
+      "explanation": "Therefore Cov(X,Y) = 0.15."
+    },
+    "hints": [
+      "Use Cov(X,Y) = E[XY] - E[X]E[Y].",
+      "For binary variables, E[XY] equals P(X = 1,Y = 1)."
+    ],
+    "solutionSteps": [
+      "E[X] = 0.5, E[Y] = 0.5, and E[XY] = 0.4.",
+      "Compute 0.4 - (0.5)(0.5).",
+      "Therefore Cov(X,Y) = 0.15."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Covariance subtracts the product of the means from E[XY]; it is not just E[X]E[Y].",
+        "id": "uses-product-of-means-as-covariance",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-covariance-negative-table-f",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Negative Covariance from a Binary Joint PMF Draft",
+    "prompt": "Binary random variables X and Y have the joint PMF shown. Find Cov(X,Y). {P(X=0,Y=0)=0.1, P(X=0,Y=1)=0.4, P(X=1,Y=0)=0.4, P(X=1,Y=1)=0.1}",
+    "patternSource": "binary-joint-PMF covariance pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "-0.15"
+      ],
+      "numericValue": -0.15,
+      "tolerance": 0.001,
+      "explanation": "Therefore Cov(X,Y) = -0.15."
+    },
+    "hints": [
+      "Use Cov(X,Y) = E[XY] - E[X]E[Y].",
+      "For binary variables, E[XY] equals P(X = 1,Y = 1)."
+    ],
+    "solutionSteps": [
+      "E[X] = 0.5, E[Y] = 0.5, and E[XY] = 0.1.",
+      "Compute 0.1 - (0.5)(0.5).",
+      "Therefore Cov(X,Y) = -0.15."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Covariance subtracts the product of the means from E[XY]; it is not just E[X]E[Y].",
+        "id": "uses-product-of-means-as-covariance",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-following-joint-independence-table-g",
+    "topicId": "moment-generating-functions-joint-distributions",
+    "topic": "Moment Generating Functions and Joint Distributions",
+    "title": "Check Independence in Table G Draft",
+    "prompt": "Binary random variables X and Y have the joint PMF shown. Are X and Y independent? {P(X=0,Y=0)=0.21, P(X=0,Y=1)=0.09, P(X=1,Y=0)=0.49, P(X=1,Y=1)=0.21}",
+    "patternSource": "joint-PMF independence-check pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "Yes, independent"
+      ],
+      "explanation": "The joint PMF factors into the marginal PMFs across all four cells, so X and Y are independent."
+    },
+    "hints": [
+      "Compare joint probabilities with products of the corresponding marginals.",
+      "For binary variables, verify the factorization across the table."
+    ],
+    "solutionSteps": [
+      "The marginals are P(X = 1) = 0.7 and P(Y = 1) = 0.3.",
+      "Their product is 0.21, while P(X = 1,Y = 1) = 0.21.",
+      "The joint PMF factors into the marginal PMFs across all four cells, so X and Y are independent."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independence requires joint probabilities to factor into marginal products; equal marginals alone are not enough.",
+        "id": "checks-only-equal-marginals",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  }
+]
