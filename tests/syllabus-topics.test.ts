@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
+import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json"
 import syllabusReviewCandidateData from "../data/demo/syllabus-review-candidates.json"
 import {
   demoQuestions,
@@ -23,8 +24,15 @@ const FOLLOWING_TOPIC_IDS = [
   "normal-standardization",
   "moment-generating-functions-joint-distributions",
 ] as const
+const NEXT_UNCOVERED_TOPIC_IDS = [
+  "independent-random-variables-sums-correlation",
+  "chebyshev-law-large-numbers",
+  "central-limit-theorem",
+] as const
 const followingSyllabusCandidates =
   followingSyllabusReviewCandidateData as unknown as ReviewCandidate[]
+const nextUncoveredSyllabusCandidates =
+  nextUncoveredSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 const syllabusCandidates =
   syllabusReviewCandidateData as unknown as ReviewCandidate[]
 const nextSyllabusCandidates =
@@ -87,6 +95,24 @@ describe("syllabus topic catalog", () => {
         moduleRef: "Week 10",
         order: 10,
         weekNumber: 10,
+      },
+      {
+        id: "independent-random-variables-sums-correlation",
+        moduleRef: "Week 11",
+        order: 11,
+        weekNumber: 11,
+      },
+      {
+        id: "chebyshev-law-large-numbers",
+        moduleRef: "Week 12",
+        order: 12,
+        weekNumber: 12,
+      },
+      {
+        id: "central-limit-theorem",
+        moduleRef: "Week 13",
+        order: 13,
+        weekNumber: 13,
       },
     ])
     expect(demoTopics.every((topic) => topic.active)).toBe(true)
@@ -235,6 +261,64 @@ describe("syllabus topic catalog", () => {
       ),
     ).toBe(true)
     expect(JSON.stringify(followingSyllabusCandidates)).not.toMatch(
+      /patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText|locator/i,
+    )
+  })
+
+  it("creates a separate 20-draft batch for each next uncovered syllabus topic", () => {
+    expect(nextUncoveredSyllabusCandidates).toHaveLength(60)
+
+    for (const topicId of NEXT_UNCOVERED_TOPIC_IDS) {
+      const topic = demoTopics.find((candidate) => candidate.id === topicId)
+      const candidates = nextUncoveredSyllabusCandidates.filter(
+        (candidate) => candidate.topicId === topicId,
+      )
+
+      expect(candidates).toHaveLength(20)
+      expect(
+        candidates.every((candidate) => candidate.topic === topic?.title),
+      ).toBe(true)
+    }
+
+    const earlierIds = new Set(
+      [
+        ...syllabusCandidates,
+        ...nextSyllabusCandidates,
+        ...followingSyllabusCandidates,
+      ].map((candidate) => candidate.id),
+    )
+    const earlierPrompts = new Set(
+      [
+        ...syllabusCandidates,
+        ...nextSyllabusCandidates,
+        ...followingSyllabusCandidates,
+      ].map((candidate) => candidate.prompt),
+    )
+    expect(
+      nextUncoveredSyllabusCandidates.every(
+        (candidate) =>
+          !earlierIds.has(candidate.id) &&
+          !earlierPrompts.has(candidate.prompt) &&
+          candidate.id.startsWith("generated-uncovered-") &&
+          candidate.review.status === "needs_review" &&
+          candidate.source.trustLevel === "generated_unverified" &&
+          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.visibility === "public" &&
+          Boolean(candidate.patternSource) &&
+          Boolean(candidate.source.originalityNote) &&
+          candidate.answer.acceptedAnswers.length > 0 &&
+          candidate.hints.length >= 2 &&
+          candidate.solutionSteps.length >= 3 &&
+          candidate.misconceptions.length > 0 &&
+          !isStudentFacingQuestion(candidate),
+      ),
+    ).toBe(true)
+    expect(
+      nextUncoveredSyllabusCandidates.every((candidate) =>
+        reviewCandidates.some((review) => review.id === candidate.id),
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(nextUncoveredSyllabusCandidates)).not.toMatch(
       /patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText|locator/i,
     )
   })

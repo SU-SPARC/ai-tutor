@@ -59,6 +59,7 @@ import followingSyllabusReviewCandidates from "../data/demo/following-syllabus-r
 import generatedExamples from "../data/demo/generated-examples.json"
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
 import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json"
+import nextUncoveredSyllabusReviewCandidates from "../data/demo/next-uncovered-syllabus-review-candidates.json"
 import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json"
 import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
 import {
@@ -1035,7 +1036,7 @@ describe("content provenance and review metadata", () => {
     )
     const question = await getQuestionById("dice-sum-eight")
 
-    expect(topics).toHaveLength(8)
+    expect(topics).toHaveLength(11)
     expect(questions).toHaveLength(8)
     expect(question?.id).toBe("dice-sum-eight")
     expect(conditionalQuestions.map((item) => item.id)).toEqual([
@@ -1115,7 +1116,8 @@ describe("content provenance and review metadata", () => {
       generatedReviewCandidates.length +
         syllabusReviewCandidates.length +
         nextSyllabusReviewCandidates.length +
-        followingSyllabusReviewCandidates.length,
+        followingSyllabusReviewCandidates.length +
+        nextUncoveredSyllabusReviewCandidates.length,
     )
     expect(additionalDrafts).toHaveLength(12)
     expect(
@@ -1144,6 +1146,7 @@ describe("content provenance and review metadata", () => {
       ...syllabusReviewCandidates,
       ...nextSyllabusReviewCandidates,
       ...followingSyllabusReviewCandidates,
+      ...nextUncoveredSyllabusReviewCandidates,
     ])
     const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),

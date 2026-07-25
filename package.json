@@ -20,6 +20,7 @@
     "prepare:review-queue": "node scripts/prepare-review-queue.mjs",
     "prepare:following-syllabus-questions": "node scripts/generate-following-syllabus-review-candidates.mjs",
     "prepare:next-syllabus-questions": "node scripts/generate-next-syllabus-review-candidates.mjs",
+    "prepare:next-uncovered-syllabus-questions": "node scripts/generate-next-uncovered-syllabus-review-candidates.mjs",
     "prepare:syllabus-questions": "node scripts/generate-syllabus-review-candidates.mjs",
     "promote:approved-questions": "node scripts/promote-approved-questions.mjs",
     "generate:questions": "node scripts/generate-questions.mjs",

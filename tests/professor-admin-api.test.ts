@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
+import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json"
 import {
   GET as getAnalytics,
 } from "@/app/api/professor/analytics/route"
@@ -19,6 +20,8 @@ const followingSyllabusCandidates =
   followingSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 const nextSyllabusCandidates =
   nextSyllabusReviewCandidateData as unknown as ReviewCandidate[]
+const nextUncoveredSyllabusCandidates =
+  nextUncoveredSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 
 describe("professor admin APIs", () => {
   beforeEach(() => {
@@ -141,6 +144,55 @@ describe("professor admin APIs", () => {
       }
       const expectedTopicIds = new Set(
         followingSyllabusCandidates
+          .filter((candidate) => candidate.topicId === topicId)
+          .map((candidate) => candidate.id),
+      )
+
+      expect(filtered.status).toBe(200)
+      expect(
+        filteredPayload.candidates.filter((candidate) =>
+          expectedTopicIds.has(candidate.id),
+        ),
+      ).toHaveLength(20)
+    }
+  })
+
+  it("makes all 60 next-uncovered drafts available only in the protected review workflow", async () => {
+    const expectedIds = new Set(
+      nextUncoveredSyllabusCandidates.map((candidate) => candidate.id),
+    )
+    const response = await getReviewQueue(authedRequest())
+    const payload = (await response.json()) as {
+      candidates: ReviewCandidate[]
+    }
+    const returnedIds = new Set(
+      payload.candidates.map((candidate) => candidate.id),
+    )
+
+    expect(response.status).toBe(200)
+    expect(expectedIds.size).toBe(60)
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true)
+
+    for (const topicId of [
+      "independent-random-variables-sums-correlation",
+      "chebyshev-law-large-numbers",
+      "central-limit-theorem",
+    ]) {
+      const filtered = await getReviewQueue(
+        new Request(
+          `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
+          {
+            headers: { "x-professor-token": TOKEN },
+          },
+        ),
+      )
+      const filteredPayload = (await filtered.json()) as {
+        candidates: ReviewCandidate[]
+      }
+      const expectedTopicIds = new Set(
+        nextUncoveredSyllabusCandidates
           .filter((candidate) => candidate.topicId === topicId)
           .map((candidate) => candidate.id),
       )

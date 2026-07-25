@@ -1,0 +1,2559 @@
+[
+  {
+    "id": "generated-uncovered-sum-mean-two-service-counts",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Mean of Two Independent Service Counts Draft",
+    "prompt": "Independent random variables X and Y have means 4.2 and 7.8. Find E[X + Y].",
+    "patternSource": "independent-variable moment-combination pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "12"
+      ],
+      "numericValue": 12,
+      "tolerance": 0.001,
+      "explanation": "The mean of the sum is 12."
+    },
+    "hints": [
+      "Apply linearity for means and squared coefficients for variances.",
+      "Use independence to remove covariance terms when computing variance."
+    ],
+    "solutionSteps": [
+      "Use linearity: E[X + Y] = E[X] + E[Y].",
+      "Substitute 4.2 + 7.8.",
+      "The mean of the sum is 12."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Variances add for independent sums, and scaling coefficients must be squared in a variance calculation.",
+        "id": "adds-standard-deviations-or-unsquared-scales",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sum-variance-two-workloads",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Variance of Two Independent Workloads Draft",
+    "prompt": "Independent random variables X and Y have variances 3.5 and 2.1. Find Var(X + Y).",
+    "patternSource": "independent-variable moment-combination pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "5.6"
+      ],
+      "numericValue": 5.6,
+      "tolerance": 0.001,
+      "explanation": "The variance of the sum is 5.6."
+    },
+    "hints": [
+      "Apply linearity for means and squared coefficients for variances.",
+      "Use independence to remove covariance terms when computing variance."
+    ],
+    "solutionSteps": [
+      "Independence makes the covariance term zero.",
+      "Add the variances: 3.5 + 2.1.",
+      "The variance of the sum is 5.6."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Variances add for independent sums, and scaling coefficients must be squared in a variance calculation.",
+        "id": "adds-standard-deviations-or-unsquared-scales",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-linear-combination-mean",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Mean of a Linear Combination Draft",
+    "prompt": "Random variables X and Y have means 5 and 2. Find E[2X - 3Y].",
+    "patternSource": "independent-variable moment-combination pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "4"
+      ],
+      "numericValue": 4,
+      "tolerance": 0.001,
+      "explanation": "The result is 4."
+    },
+    "hints": [
+      "Apply linearity for means and squared coefficients for variances.",
+      "Use independence to remove covariance terms when computing variance."
+    ],
+    "solutionSteps": [
+      "Use E[aX + bY] = aE[X] + bE[Y].",
+      "Substitute (2)(5) + (-3)(2).",
+      "The result is 4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Variances add for independent sums, and scaling coefficients must be squared in a variance calculation.",
+        "id": "adds-standard-deviations-or-unsquared-scales",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-linear-combination-variance",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Variance of an Independent Linear Combination Draft",
+    "prompt": "Independent random variables X and Y have variances 1.5 and 4. Find Var(2X - Y).",
+    "patternSource": "independent-variable moment-combination pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "10"
+      ],
+      "numericValue": 10,
+      "tolerance": 0.001,
+      "explanation": "The result is 10."
+    },
+    "hints": [
+      "Apply linearity for means and squared coefficients for variances.",
+      "Use independence to remove covariance terms when computing variance."
+    ],
+    "solutionSteps": [
+      "For independent variables, Var(aX + bY) = a^2 Var(X) + b^2 Var(Y).",
+      "Substitute (2)^2(1.5) + (-1)^2(4).",
+      "The result is 10."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Variances add for independent sums, and scaling coefficients must be squared in a variance calculation.",
+        "id": "adds-standard-deviations-or-unsquared-scales",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sum-standard-deviation-three-four",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Standard Deviation of an Independent Sum Draft",
+    "prompt": "Independent random variables X and Y have standard deviations 3 and 4. Find the standard deviation of X + Y.",
+    "patternSource": "independent-variable moment-combination pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "5"
+      ],
+      "numericValue": 5,
+      "tolerance": 0.001,
+      "explanation": "Taking the square root gives standard deviation 5."
+    },
+    "hints": [
+      "Apply linearity for means and squared coefficients for variances.",
+      "Use independence to remove covariance terms when computing variance."
+    ],
+    "solutionSteps": [
+      "For an independent sum, add variances rather than standard deviations.",
+      "The sum variance is 3^2 + 4^2 = 25.",
+      "Taking the square root gives standard deviation 5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Variances add for independent sums, and scaling coefficients must be squared in a variance calculation.",
+        "id": "adds-standard-deviations-or-unsquared-scales",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-poisson-sum-exact-three",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Exact Count from a Poisson Sum Draft",
+    "prompt": "Independent counts X and Y are Poisson with means 2.3 and 1.7. Find P(X + Y = 3).",
+    "patternSource": "independent-sum distribution pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.195367",
+        "19.54%"
+      ],
+      "numericValue": 0.19536681481316456,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.195367."
+    },
+    "hints": [
+      "First identify the distribution and parameters of the sum, difference, or average.",
+      "Then evaluate the requested probability in that combined distribution."
+    ],
+    "solutionSteps": [
+      "The independent Poisson sum has mean 2.3 + 1.7 = 4.",
+      "Use P(S = 3) = exp(-4)4^3/3!.",
+      "The probability is 0.195367."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums combine means and variances; standard deviations are not added directly.",
+        "id": "combines-distribution-parameters-incorrectly",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-binomial-sum-exact-five",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Exact Count from a Binomial Sum Draft",
+    "prompt": "Independent variables X and Y are Binomial(6, 0.4) and Binomial(9, 0.4). Find P(X + Y = 5).",
+    "patternSource": "independent-sum distribution pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.185938",
+        "18.59%"
+      ],
+      "numericValue": 0.18593784476467198,
+      "tolerance": 0.001,
+      "explanation": "The probability is 0.185938."
+    },
+    "hints": [
+      "First identify the distribution and parameters of the sum, difference, or average.",
+      "Then evaluate the requested probability in that combined distribution."
+    ],
+    "solutionSteps": [
+      "The independent binomial variables share p, so their sum is Binomial(15, 0.4).",
+      "Use C(15,5)(0.4)^5(0.6)^10.",
+      "The probability is 0.185938."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums combine means and variances; standard deviations are not added directly.",
+        "id": "combines-distribution-parameters-incorrectly",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-normal-sum-below-thirty",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Normal Sum below a Threshold Draft",
+    "prompt": "Independent normal variables X and Y have means 10 and 15 and variances 4 and 9. Find P(X + Y <= 30).",
+    "patternSource": "independent-sum distribution pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.917241",
+        "91.72%"
+      ],
+      "numericValue": 0.9172410135348682,
+      "tolerance": 0.001,
+      "explanation": "The lower-tail probability is 0.917241."
+    },
+    "hints": [
+      "First identify the distribution and parameters of the sum, difference, or average.",
+      "Then evaluate the requested probability in that combined distribution."
+    ],
+    "solutionSteps": [
+      "The sum is normal with mean 25 and variance 13.",
+      "Standardize 30: z = (30 - 25)/3.605551 = 1.38675.",
+      "The lower-tail probability is 0.917241."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums combine means and variances; standard deviations are not added directly.",
+        "id": "combines-distribution-parameters-incorrectly",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-normal-difference-above-fifteen",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Normal Difference above a Threshold Draft",
+    "prompt": "Independent normal variables X and Y have means 20 and 8 and variances 9 and 4. Find P(X - Y > 15).",
+    "patternSource": "independent-sum distribution pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.20269",
+        "20.27%"
+      ],
+      "numericValue": 0.2026902263222039,
+      "tolerance": 0.001,
+      "explanation": "The upper-tail probability is 0.20269."
+    },
+    "hints": [
+      "First identify the distribution and parameters of the sum, difference, or average.",
+      "Then evaluate the requested probability in that combined distribution."
+    ],
+    "solutionSteps": [
+      "The difference is normal with mean 12 and variance 13.",
+      "Standardize 15: z = (15 - 12)/3.605551 = 0.83205.",
+      "The upper-tail probability is 0.20269."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums combine means and variances; standard deviations are not added directly.",
+        "id": "combines-distribution-parameters-incorrectly",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-normal-average-below-fifty",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Average of Two Independent Normal Variables Draft",
+    "prompt": "Independent normal variables X and Y have means 40 and 50 and standard deviations 6 and 8. Let A = (X + Y)/2. Find P(A < 50).",
+    "patternSource": "independent-sum distribution pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.841345",
+        "84.13%"
+      ],
+      "numericValue": 0.8413447361676363,
+      "tolerance": 0.001,
+      "explanation": "The lower-tail probability is 0.841345."
+    },
+    "hints": [
+      "First identify the distribution and parameters of the sum, difference, or average.",
+      "Then evaluate the requested probability in that combined distribution."
+    ],
+    "solutionSteps": [
+      "The average is normal with mean 45 and variance 25.",
+      "Its standard deviation is 5, so z = 1 at 50.",
+      "The lower-tail probability is 0.841345."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Independent sums combine means and variances; standard deviations are not added directly.",
+        "id": "combines-distribution-parameters-incorrectly",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-conditional-y-two-given-x-zero",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Conditional Probability from a Three-Column Joint PMF Draft",
+    "prompt": "X in {0,1} and Y in {0,1,2} have joint PMF {P(0,0)=0.1, P(0,1)=0.15, P(0,2)=0.25, P(1,0)=0.2, P(1,1)=0.2, P(1,2)=0.1}. Find P(Y = 2 | X = 0).",
+    "patternSource": "conditional-distribution from joint-PMF pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5",
+        "50%"
+      ],
+      "numericValue": 0.5,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.25/0.5 = 0.5."
+    },
+    "hints": [
+      "Restrict the joint table to the row named by the conditioning event.",
+      "Normalize that row before finding a probability or conditional mean."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.25.",
+      "The marginal P(X = 0) is 0.5.",
+      "The conditional probability is 0.25/0.5 = 0.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A conditional distribution must divide the selected joint row by its marginal row total.",
+        "id": "uses-unnormalized-joint-row",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-conditional-mean-y-given-x-one-table-i",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Conditional Mean from Joint PMF Table I Draft",
+    "prompt": "X in {0,1} and Y in {0,1,2} have joint PMF {P(0,0)=0.12, P(0,1)=0.18, P(0,2)=0.1, P(1,0)=0.08, P(1,1)=0.22, P(1,2)=0.3}. Find E[Y | X = 1].",
+    "patternSource": "conditional-distribution from joint-PMF pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "1.366667"
+      ],
+      "numericValue": 1.3666666666666667,
+      "tolerance": 0.001,
+      "explanation": "Divide to obtain E[Y | X = 1] = 1.366667."
+    },
+    "hints": [
+      "Restrict the joint table to the row named by the conditioning event.",
+      "Normalize that row before finding a probability or conditional mean."
+    ],
+    "solutionSteps": [
+      "Conditioning on X = 1 gives row total 0.6.",
+      "The joint weighted sum across Y = 0, 1, 2 is 0.82.",
+      "Divide to obtain E[Y | X = 1] = 1.366667."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A conditional distribution must divide the selected joint row by its marginal row total.",
+        "id": "uses-unnormalized-joint-row",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-conditional-y-zero-given-x-one",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Conditional Probability from Joint PMF Table J Draft",
+    "prompt": "X in {0,1} and Y in {0,1,2} have joint PMF {P(0,0)=0.05, P(0,1)=0.15, P(0,2)=0.2, P(1,0)=0.25, P(1,1)=0.2, P(1,2)=0.15}. Find P(Y = 0 | X = 1).",
+    "patternSource": "conditional-distribution from joint-PMF pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.416667",
+        "41.67%"
+      ],
+      "numericValue": 0.4166666666666667,
+      "tolerance": 0.001,
+      "explanation": "The conditional probability is 0.25/0.6 = 0.416667."
+    },
+    "hints": [
+      "Restrict the joint table to the row named by the conditioning event.",
+      "Normalize that row before finding a probability or conditional mean."
+    ],
+    "solutionSteps": [
+      "The joint numerator is 0.25.",
+      "The marginal P(X = 1) is 0.6.",
+      "The conditional probability is 0.25/0.6 = 0.416667."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A conditional distribution must divide the selected joint row by its marginal row total.",
+        "id": "uses-unnormalized-joint-row",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-conditional-mean-y-given-x-zero-table-k",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Conditional Mean from Joint PMF Table K Draft",
+    "prompt": "X in {0,1} and Y in {0,1,2} have joint PMF {P(0,0)=0.18, P(0,1)=0.12, P(0,2)=0.1, P(1,0)=0.12, P(1,1)=0.18, P(1,2)=0.3}. Find E[Y | X = 0].",
+    "patternSource": "conditional-distribution from joint-PMF pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.8"
+      ],
+      "numericValue": 0.7999999999999999,
+      "tolerance": 0.001,
+      "explanation": "Divide to obtain E[Y | X = 0] = 0.8."
+    },
+    "hints": [
+      "Restrict the joint table to the row named by the conditioning event.",
+      "Normalize that row before finding a probability or conditional mean."
+    ],
+    "solutionSteps": [
+      "Conditioning on X = 0 gives row total 0.4.",
+      "The joint weighted sum across Y = 0, 1, 2 is 0.32.",
+      "Divide to obtain E[Y | X = 0] = 0.8."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A conditional distribution must divide the selected joint row by its marginal row total.",
+        "id": "uses-unnormalized-joint-row",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-correlation-from-positive-covariance",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Correlation from Positive Covariance Draft",
+    "prompt": "Random variables X and Y have Cov(X,Y) = 6, SD(X) = 3, and SD(Y) = 4. Find Corr(X,Y).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5"
+      ],
+      "numericValue": 0.5,
+      "tolerance": 0.001,
+      "explanation": "The correlation is 0.5."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Use Corr(X,Y) = Cov(X,Y)/(SD(X)SD(Y)).",
+      "Substitute 6/(3 times 4).",
+      "The correlation is 0.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-correlation-from-negative-covariance",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Correlation from Negative Covariance Draft",
+    "prompt": "Random variables X and Y have Cov(X,Y) = -4.5, SD(X) = 3, and SD(Y) = 5. Find Corr(X,Y).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "-0.3"
+      ],
+      "numericValue": -0.3,
+      "tolerance": 0.001,
+      "explanation": "The correlation is -0.3."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Use Corr(X,Y) = Cov(X,Y)/(SD(X)SD(Y)).",
+      "Substitute -4.5/(3 times 5).",
+      "The correlation is -0.3."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-covariance-from-correlation",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Covariance from Correlation Draft",
+    "prompt": "Random variables X and Y have Corr(X,Y) = 0.25, SD(X) = 2, and SD(Y) = 6. Find Cov(X,Y).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "3"
+      ],
+      "numericValue": 3,
+      "tolerance": 0.001,
+      "explanation": "The covariance is 3."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Rearrange to Cov(X,Y) = Corr(X,Y)SD(X)SD(Y).",
+      "Substitute (0.25)(2)(6).",
+      "The covariance is 3."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-variance-sum-with-covariance",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Variance of a Sum with Covariance Draft",
+    "prompt": "Random variables X and Y have variances 4 and 9 and covariance 3. Find Var(X + Y).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "19"
+      ],
+      "numericValue": 19,
+      "tolerance": 0.001,
+      "explanation": "The variance is 19."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Use Var(X + Y) = Var(X) + Var(Y) + 2Cov(X,Y).",
+      "Substitute 4 + 9 + 2(3).",
+      "The variance is 19."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-variance-difference-negative-covariance",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Variance of a Difference with Negative Covariance Draft",
+    "prompt": "Random variables X and Y have variances 16 and 25 and covariance -4. Find Var(X - Y).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "49"
+      ],
+      "numericValue": 49,
+      "tolerance": 0.001,
+      "explanation": "The variance is 49."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Use Var(X - Y) = Var(X) + Var(Y) - 2Cov(X,Y).",
+      "Substitute 16 + 25 - 2(-4).",
+      "The variance is 49."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-correlation-after-opposite-scaling",
+    "topicId": "independent-random-variables-sums-correlation",
+    "topic": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "title": "Correlation after Opposite-Sign Scaling Draft",
+    "prompt": "Suppose Corr(X,Y) = 0.4. Let U = -2X + 5 and V = 3Y - 1. Find Corr(U,V).",
+    "patternSource": "covariance-correlation identity pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "-0.4"
+      ],
+      "numericValue": -0.4,
+      "tolerance": 0.001,
+      "explanation": "Because -2 and 3 have opposite signs, Corr(U,V) = -0.4."
+    },
+    "hints": [
+      "Choose the covariance, correlation, or variance identity that matches the request.",
+      "Keep the sign of covariance and any scale factors throughout the calculation."
+    ],
+    "solutionSteps": [
+      "Additive shifts do not change correlation.",
+      "Scaling both variables changes only the sign when the scale factors have opposite signs.",
+      "Because -2 and 3 have opposite signs, Corr(U,V) = -0.4."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Dependence calculations must retain covariance terms and the signs of transformation coefficients.",
+        "id": "drops-covariance-or-scale-sign",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-two-standard-deviations",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound within Two Standard Deviations Draft",
+    "prompt": "Using Chebyshev's inequality, give the minimum probability that a random variable lies within 2 standard deviations of its mean.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.75",
+        "75%"
+      ],
+      "numericValue": 0.75,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.75."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 1/2^2 = 0.25.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.75."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-three-standard-deviations",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound within Three Standard Deviations Draft",
+    "prompt": "Using Chebyshev's inequality, give the minimum probability that a random variable lies within 3 standard deviations of its mean.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.888889",
+        "88.89%"
+      ],
+      "numericValue": 0.8888888888888888,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.888889."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 1/3^2 = 0.111111.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.888889."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-one-point-five-standard-deviations",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound within One Point Five Deviations Draft",
+    "prompt": "Using Chebyshev's inequality, give the minimum probability that a random variable lies within 1.5 standard deviations of its mean.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.555556",
+        "55.56%"
+      ],
+      "numericValue": 0.5555555555555556,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.555556."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 1/1.5^2 = 0.444444.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.555556."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-four-standard-deviations",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound within Four Standard Deviations Draft",
+    "prompt": "Using Chebyshev's inequality, give the minimum probability that a random variable lies within 4 standard deviations of its mean.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.9375",
+        "93.75%"
+      ],
+      "numericValue": 0.9375,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.9375."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 1/4^2 = 0.0625.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.9375."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-eight-variance-sixteen",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound with Variance Sixteen Draft",
+    "prompt": "A random variable has mean 30 and variance 16. Use Chebyshev's inequality to bound P(|X - 30| < 8) from below.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.75",
+        "75%"
+      ],
+      "numericValue": 0.75,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.75."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 16/8^2 = 0.25.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.75."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-ten-variance-twenty-five",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound with Variance Twenty-Five Draft",
+    "prompt": "A random variable has mean 12 and variance 25. Use Chebyshev's inequality to bound P(|X - 12| < 10) from below.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.75",
+        "75%"
+      ],
+      "numericValue": 0.75,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.75."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 25/10^2 = 0.25.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.75."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-fifteen-standard-deviation-six",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound with Standard Deviation Six Draft",
+    "prompt": "A random variable has mean 80 and standard deviation 6. Use Chebyshev's inequality to bound P(|X - 80| < 15) from below.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.84",
+        "84%"
+      ],
+      "numericValue": 0.84,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.84."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 36/15^2 = 0.16.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.84."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-within-six-variance-nine",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Bound with Variance Nine Draft",
+    "prompt": "A random variable has mean -4 and variance 9. Use Chebyshev's inequality to bound P(|X + 4| < 6) from below.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.75",
+        "75%"
+      ],
+      "numericValue": 0.75,
+      "tolerance": 0.001,
+      "explanation": "The lower bound is 0.75."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 9/6^2 = 0.25.",
+      "Convert the outside upper bound to an inside lower bound by subtracting from 1.",
+      "The lower bound is 0.75."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-outside-five-variance-four",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Upper Bound outside Five Units Draft",
+    "prompt": "A random variable has mean 9 and variance 4. Use Chebyshev's inequality to bound P(|X - 9| >= 5) from above.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.16",
+        "16%"
+      ],
+      "numericValue": 0.16,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.16."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 4/5^2 = 0.16.",
+      "The requested event is already the outside event.",
+      "The upper bound is 0.16."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-outside-seven-standard-deviation-three",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Chebyshev Upper Bound outside Seven Units Draft",
+    "prompt": "A random variable has mean 22 and standard deviation 3. Use Chebyshev's inequality to bound P(|X - 22| >= 7) from above.",
+    "patternSource": "Chebyshev probability-bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.183673",
+        "18.37%"
+      ],
+      "numericValue": 0.1836734693877551,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.183673."
+    },
+    "hints": [
+      "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
+      "For an inside probability, subtract the outside bound from 1."
+    ],
+    "solutionSteps": [
+      "The outside bound is 9/7^2 = 0.183673.",
+      "The requested event is already the outside event.",
+      "The upper bound is 0.183673."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Chebyshev gives an upper bound outside the interval and a lower bound inside it.",
+        "id": "reverses-chebyshev-bound-direction",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-bound-variance-thirty-six",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Sample Mean Bound with One Hundred Observations Draft",
+    "prompt": "Independent observations have population variance 36. For a sample of size 100, use Chebyshev's inequality to bound P(|sample mean - population mean| >= 1) from above.",
+    "patternSource": "Chebyshev sample-mean bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.36",
+        "36%"
+      ],
+      "numericValue": 0.36,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.36."
+    },
+    "hints": [
+      "The sample mean variance is the population variance divided by n.",
+      "Apply Chebyshev using the requested distance from the mean."
+    ],
+    "solutionSteps": [
+      "Var(sample mean) = 36/100 = 0.36.",
+      "The bound is Var(sample mean)/1^2.",
+      "The upper bound is 0.36."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean variance is population variance divided by sample size.",
+        "id": "uses-population-variance-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-bound-variance-sixteen",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Sample Mean Bound with Sixty-Four Observations Draft",
+    "prompt": "Independent observations have population variance 16. For a sample of size 64, use Chebyshev's inequality to bound P(|sample mean - population mean| >= 1) from above.",
+    "patternSource": "Chebyshev sample-mean bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.25",
+        "25%"
+      ],
+      "numericValue": 0.25,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.25."
+    },
+    "hints": [
+      "The sample mean variance is the population variance divided by n.",
+      "Apply Chebyshev using the requested distance from the mean."
+    ],
+    "solutionSteps": [
+      "Var(sample mean) = 16/64 = 0.25.",
+      "The bound is Var(sample mean)/1^2.",
+      "The upper bound is 0.25."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean variance is population variance divided by sample size.",
+        "id": "uses-population-variance-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-bound-half-unit",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Sample Mean Bound within Half a Unit Draft",
+    "prompt": "Independent observations have population variance 25. For a sample of size 200, use Chebyshev's inequality to bound P(|sample mean - population mean| >= 0.5) from above.",
+    "patternSource": "Chebyshev sample-mean bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.5",
+        "50%"
+      ],
+      "numericValue": 0.5,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.5."
+    },
+    "hints": [
+      "The sample mean variance is the population variance divided by n.",
+      "Apply Chebyshev using the requested distance from the mean."
+    ],
+    "solutionSteps": [
+      "Var(sample mean) = 25/200 = 0.125.",
+      "The bound is Var(sample mean)/0.5^2.",
+      "The upper bound is 0.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean variance is population variance divided by sample size.",
+        "id": "uses-population-variance-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-bound-standard-deviation-ten",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Sample Mean Bound with Four Hundred Observations Draft",
+    "prompt": "Independent observations have population variance 100. For a sample of size 400, use Chebyshev's inequality to bound P(|sample mean - population mean| >= 1.5) from above.",
+    "patternSource": "Chebyshev sample-mean bound pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.111111",
+        "11.11%"
+      ],
+      "numericValue": 0.1111111111111111,
+      "tolerance": 0.001,
+      "explanation": "The upper bound is 0.111111."
+    },
+    "hints": [
+      "The sample mean variance is the population variance divided by n.",
+      "Apply Chebyshev using the requested distance from the mean."
+    ],
+    "solutionSteps": [
+      "Var(sample mean) = 100/400 = 0.25.",
+      "The bound is Var(sample mean)/1.5^2.",
+      "The upper bound is 0.111111."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean variance is population variance divided by sample size.",
+        "id": "uses-population-variance-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-required-n-variance-nine",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "LLN Sample Size with Variance Nine Draft",
+    "prompt": "Independent observations have variance 9. Use the Chebyshev form of the law of large numbers to find the smallest integer n that guarantees P(|sample mean - population mean| >= 0.5) <= 0.1.",
+    "patternSource": "law-of-large-numbers sample-size guarantee pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "360"
+      ],
+      "numericValue": 360,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 360."
+    },
+    "hints": [
+      "Use variance/(n times distance squared) as the Chebyshev upper bound.",
+      "Solve the inequality for n and round up to an integer."
+    ],
+    "solutionSteps": [
+      "Require 9/(n times 0.5^2) <= 0.1.",
+      "This gives n >= 360.",
+      "The smallest integer sample size is 360."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A guaranteed sample-size inequality must be rounded up, not down.",
+        "id": "rounds-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-required-n-variance-four",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "LLN Sample Size with Variance Four Draft",
+    "prompt": "Independent observations have variance 4. Use the Chebyshev form of the law of large numbers to find the smallest integer n that guarantees P(|sample mean - population mean| >= 0.25) <= 0.2.",
+    "patternSource": "law-of-large-numbers sample-size guarantee pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "320"
+      ],
+      "numericValue": 320,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 320."
+    },
+    "hints": [
+      "Use variance/(n times distance squared) as the Chebyshev upper bound.",
+      "Solve the inequality for n and round up to an integer."
+    ],
+    "solutionSteps": [
+      "Require 4/(n times 0.25^2) <= 0.2.",
+      "This gives n >= 320.",
+      "The smallest integer sample size is 320."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A guaranteed sample-size inequality must be rounded up, not down.",
+        "id": "rounds-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-required-n-bernoulli-point-four",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "LLN Sample Size for a Bernoulli Proportion Draft",
+    "prompt": "Independent observations have variance 0.24. Use the Chebyshev form of the law of large numbers to find the smallest integer n that guarantees P(|sample mean - population mean| >= 0.05) <= 0.1.",
+    "patternSource": "law-of-large-numbers sample-size guarantee pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "960"
+      ],
+      "numericValue": 960,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 960."
+    },
+    "hints": [
+      "Use variance/(n times distance squared) as the Chebyshev upper bound.",
+      "Solve the inequality for n and round up to an integer."
+    ],
+    "solutionSteps": [
+      "Require 0.24/(n times 0.05^2) <= 0.1.",
+      "This gives n >= 960.",
+      "The smallest integer sample size is 960."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A guaranteed sample-size inequality must be rounded up, not down.",
+        "id": "rounds-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-required-n-variance-sixteen",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "LLN Sample Size with Five Percent Error Bound Draft",
+    "prompt": "Independent observations have variance 16. Use the Chebyshev form of the law of large numbers to find the smallest integer n that guarantees P(|sample mean - population mean| >= 1) <= 0.05.",
+    "patternSource": "law-of-large-numbers sample-size guarantee pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "320"
+      ],
+      "numericValue": 320,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 320."
+    },
+    "hints": [
+      "Use variance/(n times distance squared) as the Chebyshev upper bound.",
+      "Solve the inequality for n and round up to an integer."
+    ],
+    "solutionSteps": [
+      "Require 16/(n times 1^2) <= 0.05.",
+      "This gives n >= 320.",
+      "The smallest integer sample size is 320."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A guaranteed sample-size inequality must be rounded up, not down.",
+        "id": "rounds-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-convergence-sample-average",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Long-Run Limit of a Sample Average Draft",
+    "prompt": "Independent identically distributed observations have finite mean 7.5. According to the law of large numbers, what value does their sample average approach?",
+    "patternSource": "law-of-large-numbers convergence-target pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "7.5"
+      ],
+      "numericValue": 7.5,
+      "tolerance": 0.001,
+      "explanation": "The limiting value is 7.5."
+    },
+    "hints": [
+      "The law of large numbers centers the sample average at the population mean.",
+      "For Bernoulli trials, the population mean equals the success probability."
+    ],
+    "solutionSteps": [
+      "Identify the population mean of one observation.",
+      "The law of large numbers says the sample average or proportion approaches that mean.",
+      "The limiting value is 7.5."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample average converges to the population mean, not automatically to zero.",
+        "id": "expects-convergence-to-zero",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-lln-convergence-sample-proportion",
+    "topicId": "chebyshev-law-large-numbers",
+    "topic": "Chebyshev's Inequality and the Law of Large Numbers",
+    "title": "Long-Run Limit of a Sample Proportion Draft",
+    "prompt": "Independent Bernoulli trials have success probability 0.38. According to the law of large numbers, what value does the sample proportion of successes approach?",
+    "patternSource": "law-of-large-numbers convergence-target pattern",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.38"
+      ],
+      "numericValue": 0.38,
+      "tolerance": 0.001,
+      "explanation": "The limiting value is 0.38."
+    },
+    "hints": [
+      "The law of large numbers centers the sample average at the population mean.",
+      "For Bernoulli trials, the population mean equals the success probability."
+    ],
+    "solutionSteps": [
+      "Identify the population mean of one observation.",
+      "The law of large numbers says the sample average or proportion approaches that mean.",
+      "The limiting value is 0.38."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample average converges to the population mean, not automatically to zero.",
+        "id": "expects-convergence-to-zero",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-below-fifty-three",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean below Fifty-Three Draft",
+    "prompt": "A population has mean 50 and standard deviation 12. For an independent sample of size 36, use the central limit theorem to approximate P(sample mean <= 53).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.933193",
+        "93.32%"
+      ],
+      "numericValue": 0.9331927690234977,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.933193."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 50 and standard deviation 2.",
+      "After standardizing, z = (53 - 50)/2 = 1.5.",
+      "The approximate probability is 0.933193."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-above-twenty-one-point-five",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean above Twenty-One Point Five Draft",
+    "prompt": "A population has mean 20 and standard deviation 5. For an independent sample of size 25, use the central limit theorem to approximate P(sample mean > 21.5).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.066807",
+        "6.68%"
+      ],
+      "numericValue": 0.06680723097650232,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.066807."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 20 and standard deviation 1.",
+      "After standardizing, z = (21.5 - 20)/1 = 1.5.",
+      "The approximate probability is 0.066807."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-between-seventy-eight-eighty-three",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean in an Asymmetric Interval Draft",
+    "prompt": "A population has mean 80 and standard deviation 16. For an independent sample of size 64, use the central limit theorem to approximate P(78 <= sample mean <= 83).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.774538",
+        "77.45%"
+      ],
+      "numericValue": 0.774537505191134,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.774538."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 80 and standard deviation 2.",
+      "After standardizing, the z-boundaries are -1 and 1.5.",
+      "The approximate probability is 0.774538."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-below-ninety-four",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean below Ninety-Four Draft",
+    "prompt": "A population has mean 100 and standard deviation 30. For an independent sample of size 100, use the central limit theorem to approximate P(sample mean <= 94).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.02275",
+        "2.28%"
+      ],
+      "numericValue": 0.022750062887256395,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.02275."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 100 and standard deviation 3.",
+      "After standardizing, z = (94 - 100)/3 = -2.",
+      "The approximate probability is 0.02275."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-above-seven-point-six",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean above Seven Point Six Draft",
+    "prompt": "A population has mean 7 and standard deviation 2.4. For an independent sample of size 64, use the central limit theorem to approximate P(sample mean > 7.6).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.02275",
+        "2.28%"
+      ],
+      "numericValue": 0.02275006288725645,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.02275."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 7 and standard deviation 0.3.",
+      "After standardizing, z = (7.6 - 7)/0.3 = 2.",
+      "The approximate probability is 0.02275."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-between-one-ninety-two-ten",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean around Two Hundred Draft",
+    "prompt": "A population has mean 200 and standard deviation 40. For an independent sample of size 25, use the central limit theorem to approximate P(190 <= sample mean <= 210).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.7887",
+        "78.87%"
+      ],
+      "numericValue": 0.788700315589248,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.7887."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 200 and standard deviation 8.",
+      "After standardizing, the z-boundaries are -1.25 and 1.25.",
+      "The approximate probability is 0.7887."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-below-sixteen",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean below Sixteen Draft",
+    "prompt": "A population has mean 15 and standard deviation 9. For an independent sample of size 81, use the central limit theorem to approximate P(sample mean <= 16).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.841345",
+        "84.13%"
+      ],
+      "numericValue": 0.8413447361676363,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.841345."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 15 and standard deviation 1.",
+      "After standardizing, z = (16 - 15)/1 = 1.",
+      "The approximate probability is 0.841345."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-mean-above-one-twenty-six",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Mean above One Twenty-Six Draft",
+    "prompt": "A population has mean 120 and standard deviation 18. For an independent sample of size 36, use the central limit theorem to approximate P(sample mean > 126).",
+    "patternSource": "CLT sample-mean normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.02275",
+        "2.28%"
+      ],
+      "numericValue": 0.02275006288725634,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.02275."
+    },
+    "hints": [
+      "The sample mean has standard error population SD divided by square root of n.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample mean distribution has center 120 and standard deviation 3.",
+      "After standardizing, z = (126 - 120)/3 = 2.",
+      "The approximate probability is 0.02275."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "The sample mean standard error divides the population standard deviation by square root of n.",
+        "id": "uses-population-sd-for-sample-mean",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-sum-below-four-thirty",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Sum below Four Hundred Thirty Draft",
+    "prompt": "A population has mean 4 and standard deviation 2. For an independent sample of size 100, use the central limit theorem to approximate P(sample sum <= 430).",
+    "patternSource": "CLT sample-sum normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.933193",
+        "93.32%"
+      ],
+      "numericValue": 0.9331927690234977,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.933193."
+    },
+    "hints": [
+      "The sample sum has mean n times the population mean and SD square root of n times the population SD.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample sum distribution has center 400 and standard deviation 20.",
+      "After standardizing, z = (430 - 400)/20 = 1.5.",
+      "The approximate probability is 0.933193."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample sum multiplies the population standard deviation by square root of n.",
+        "id": "uses-mean-standard-error-for-sum",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-sum-above-six-sixty-four",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Sum above Six Hundred Sixty-Four Draft",
+    "prompt": "A population has mean 10 and standard deviation 3. For an independent sample of size 64, use the central limit theorem to approximate P(sample sum > 664).",
+    "patternSource": "CLT sample-sum normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.158655",
+        "15.87%"
+      ],
+      "numericValue": 0.15865526383236372,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.158655."
+    },
+    "hints": [
+      "The sample sum has mean n times the population mean and SD square root of n times the population SD.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample sum distribution has center 640 and standard deviation 24.",
+      "After standardizing, z = (664 - 640)/24 = 1.",
+      "The approximate probability is 0.158655."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample sum multiplies the population standard deviation by square root of n.",
+        "id": "uses-mean-standard-error-for-sum",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-sum-between-eight-sixty-four-nine-thirty-six",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Sum around Nine Hundred Draft",
+    "prompt": "A population has mean 25 and standard deviation 6. For an independent sample of size 36, use the central limit theorem to approximate P(864 <= sample sum <= 936).",
+    "patternSource": "CLT sample-sum normal-approximation pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.682689",
+        "68.27%"
+      ],
+      "numericValue": 0.6826894723352726,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.682689."
+    },
+    "hints": [
+      "The sample sum has mean n times the population mean and SD square root of n times the population SD.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample sum distribution has center 900 and standard deviation 36.",
+      "After standardizing, the z-boundaries are -1 and 1.",
+      "The approximate probability is 0.682689."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample sum multiplies the population standard deviation by square root of n.",
+        "id": "uses-mean-standard-error-for-sum",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-sum-below-one-fifty-eight",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Sum below One Hundred Fifty-Eight Draft",
+    "prompt": "A population has mean 1.5 and standard deviation 0.8. For an independent sample of size 100, use the central limit theorem to approximate P(sample sum <= 158).",
+    "patternSource": "CLT sample-sum normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.841345",
+        "84.13%"
+      ],
+      "numericValue": 0.8413447361676363,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.841345."
+    },
+    "hints": [
+      "The sample sum has mean n times the population mean and SD square root of n times the population SD.",
+      "Standardize the requested boundary or boundaries and use the normal CDF."
+    ],
+    "solutionSteps": [
+      "The approximate sample sum distribution has center 150 and standard deviation 8.",
+      "After standardizing, z = (158 - 150)/8 = 1.",
+      "The approximate probability is 0.841345."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample sum multiplies the population standard deviation by square root of n.",
+        "id": "uses-mean-standard-error-for-sum",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-proportion-below-point-four-five",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Proportion below Point Four Five Draft",
+    "prompt": "Independent Bernoulli trials have success probability 0.4. For n = 200, use a normal approximation to find P(sample proportion <= 0.45).",
+    "patternSource": "CLT sample-proportion normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.925543",
+        "92.55%"
+      ],
+      "numericValue": 0.9255426185589896,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.925543."
+    },
+    "hints": [
+      "Center the sample proportion at p.",
+      "Its standard error is sqrt(p(1-p)/n)."
+    ],
+    "solutionSteps": [
+      "The sample proportion has approximate mean 0.4 and standard error 0.034641.",
+      "After standardizing, z = (0.45 - 0.4)/0.034641 = 1.443376.",
+      "The approximate probability is 0.925543."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample proportion uses standard error sqrt(p(1-p)/n), not sqrt(np(1-p)).",
+        "id": "uses-count-standard-deviation-for-proportion",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-proportion-above-point-seven",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Proportion above Point Seven Draft",
+    "prompt": "Independent Bernoulli trials have success probability 0.65. For n = 400, use a normal approximation to find P(sample proportion > 0.7).",
+    "patternSource": "CLT sample-proportion normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.018016",
+        "1.8%"
+      ],
+      "numericValue": 0.018015780276706472,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.018016."
+    },
+    "hints": [
+      "Center the sample proportion at p.",
+      "Its standard error is sqrt(p(1-p)/n)."
+    ],
+    "solutionSteps": [
+      "The sample proportion has approximate mean 0.65 and standard error 0.023848.",
+      "After standardizing, z = (0.7 - 0.65)/0.023848 = 2.09657.",
+      "The approximate probability is 0.018016."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample proportion uses standard error sqrt(p(1-p)/n), not sqrt(np(1-p)).",
+        "id": "uses-count-standard-deviation-for-proportion",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-proportion-between-point-two-two-point-two-eight",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Proportion around One Quarter Draft",
+    "prompt": "Independent Bernoulli trials have success probability 0.25. For n = 300, use a normal approximation to find P(0.22 <= sample proportion <= 0.28).",
+    "patternSource": "CLT sample-proportion normal-approximation pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "0.769861",
+        "76.99%"
+      ],
+      "numericValue": 0.7698605299320496,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.769861."
+    },
+    "hints": [
+      "Center the sample proportion at p.",
+      "Its standard error is sqrt(p(1-p)/n)."
+    ],
+    "solutionSteps": [
+      "The sample proportion has approximate mean 0.25 and standard error 0.025.",
+      "After standardizing, the z-boundaries are -1.2 and 1.2.",
+      "The approximate probability is 0.769861."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample proportion uses standard error sqrt(p(1-p)/n), not sqrt(np(1-p)).",
+        "id": "uses-count-standard-deviation-for-proportion",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-proportion-below-point-five-eight",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Proportion below Point Five Eight Draft",
+    "prompt": "Independent Bernoulli trials have success probability 0.5. For n = 100, use a normal approximation to find P(sample proportion <= 0.58).",
+    "patternSource": "CLT sample-proportion normal-approximation pattern",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.945201",
+        "94.52%"
+      ],
+      "numericValue": 0.9452007086954111,
+      "tolerance": 0.001,
+      "explanation": "The approximate probability is 0.945201."
+    },
+    "hints": [
+      "Center the sample proportion at p.",
+      "Its standard error is sqrt(p(1-p)/n)."
+    ],
+    "solutionSteps": [
+      "The sample proportion has approximate mean 0.5 and standard error 0.05.",
+      "After standardizing, z = (0.58 - 0.5)/0.05 = 1.6.",
+      "The approximate probability is 0.945201."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "A sample proportion uses standard error sqrt(p(1-p)/n), not sqrt(np(1-p)).",
+        "id": "uses-count-standard-deviation-for-proportion",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-size-standard-error-two",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Size for Standard Error Two Draft",
+    "prompt": "A population has standard deviation 12. Find the smallest integer sample size that makes the standard error of the sample mean at most 2.",
+    "patternSource": "CLT standard-error sample-size pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "36"
+      ],
+      "numericValue": 36,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 36."
+    },
+    "hints": [
+      "Use standard error = population SD divided by square root of n.",
+      "Solve for n and round up to preserve the requested maximum."
+    ],
+    "solutionSteps": [
+      "Require 12/sqrt(n) <= 2.",
+      "Solving gives n >= 36.",
+      "The smallest integer sample size is 36."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Round a required sample size up so the standard error does not exceed the target.",
+        "id": "rounds-standard-error-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-size-standard-error-two-point-five",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Size for Standard Error Two Point Five Draft",
+    "prompt": "A population has standard deviation 20. Find the smallest integer sample size that makes the standard error of the sample mean at most 2.5.",
+    "patternSource": "CLT standard-error sample-size pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "64"
+      ],
+      "numericValue": 64,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 64."
+    },
+    "hints": [
+      "Use standard error = population SD divided by square root of n.",
+      "Solve for n and round up to preserve the requested maximum."
+    ],
+    "solutionSteps": [
+      "Require 20/sqrt(n) <= 2.5.",
+      "Solving gives n >= 64.",
+      "The smallest integer sample size is 64."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Round a required sample size up so the standard error does not exceed the target.",
+        "id": "rounds-standard-error-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-size-proportion-worst-case",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Worst-Case Proportion Standard Error Draft",
+    "prompt": "Without a prior value of p, find the smallest integer sample size that makes the worst-case standard error of a sample proportion at most 0.025.",
+    "patternSource": "CLT standard-error sample-size pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "400"
+      ],
+      "numericValue": 400,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 400."
+    },
+    "hints": [
+      "For a worst-case proportion standard error, use p(1-p) <= 0.25.",
+      "Solve for n and round up to preserve the requested maximum."
+    ],
+    "solutionSteps": [
+      "Require sqrt(0.25/n) <= 0.025.",
+      "Solving gives n >= 400.",
+      "The smallest integer sample size is 400."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Round a required sample size up so the standard error does not exceed the target.",
+        "id": "rounds-standard-error-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  },
+  {
+    "id": "generated-uncovered-sample-size-standard-error-one",
+    "topicId": "central-limit-theorem",
+    "topic": "Central Limit Theorem",
+    "title": "Sample Size for Standard Error One Draft",
+    "prompt": "A population has standard deviation 15. Find the smallest integer sample size that makes the standard error of the sample mean at most 1.",
+    "patternSource": "CLT standard-error sample-size pattern",
+    "difficulty": "challenge",
+    "answer": {
+      "acceptedAnswers": [
+        "225"
+      ],
+      "numericValue": 225,
+      "tolerance": 0.001,
+      "explanation": "The smallest integer sample size is 225."
+    },
+    "hints": [
+      "Use standard error = population SD divided by square root of n.",
+      "Solve for n and round up to preserve the requested maximum."
+    ],
+    "solutionSteps": [
+      "Require 15/sqrt(n) <= 1.",
+      "Solving gives n >= 225.",
+      "The smallest integer sample size is 225."
+    ],
+    "misconceptions": [
+      {
+        "feedback": "Round a required sample size up so the standard error does not exceed the target.",
+        "id": "rounds-standard-error-sample-size-down",
+        "matchTerms": []
+      }
+    ],
+    "source": {
+      "sourceType": "pattern_derived_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
+    },
+    "review": {
+      "status": "needs_review"
+    }
+  }
+]

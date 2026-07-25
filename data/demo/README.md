@@ -50,3 +50,11 @@ without overwriting the earlier batch with:
 npm run prepare:following-syllabus-questions
 npm run prepare:following-syllabus-questions -- --check
 ```
+
+`next-uncovered-syllabus-review-candidates.json` contains the next separate
+60-question batch after the Week 8-10 content. Rebuild and validate it with:
+
+```bash
+npm run prepare:next-uncovered-syllabus-questions
+npm run prepare:next-uncovered-syllabus-questions -- --check
+```

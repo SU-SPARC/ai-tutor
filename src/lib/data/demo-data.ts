@@ -11,6 +11,7 @@ import type {
 import followingSyllabusReviewCandidateData from "../../../data/demo/following-syllabus-review-candidates.json"
 import generatedReviewCandidateData from "../../../data/demo/generated-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../../../data/demo/next-syllabus-review-candidates.json"
+import nextUncoveredSyllabusReviewCandidateData from "../../../data/demo/next-uncovered-syllabus-review-candidates.json"
 import demoQuestionData from "../../../data/demo/questions.json"
 import syllabusReviewCandidateData from "../../../data/demo/syllabus-review-candidates.json"
 import topicData from "../../../data/demo/topics.json"
@@ -133,6 +134,7 @@ export const reviewCandidates: ReviewCandidate[] = [
   ...(syllabusReviewCandidateData as ReviewCandidate[]),
   ...(nextSyllabusReviewCandidateData as ReviewCandidate[]),
   ...(followingSyllabusReviewCandidateData as ReviewCandidate[]),
+  ...(nextUncoveredSyllabusReviewCandidateData as ReviewCandidate[]),
 ]
 
 function validateAndSortTopics(topics: Topic[]) {

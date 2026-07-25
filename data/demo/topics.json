@@ -70,5 +70,32 @@
     "weekNumber": 10,
     "moduleRef": "Week 10",
     "active": true
+  },
+  {
+    "id": "independent-random-variables-sums-correlation",
+    "title": "Independent Random Variables, Conditional Distributions, Sums, Covariance, and Correlation",
+    "description": "Combine independent random variables, work with conditional distributions, and analyze covariance and correlation.",
+    "order": 11,
+    "weekNumber": 11,
+    "moduleRef": "Week 11",
+    "active": true
+  },
+  {
+    "id": "chebyshev-law-large-numbers",
+    "title": "Chebyshev's Inequality and the Law of Large Numbers",
+    "description": "Use probability bounds and explain how averages stabilize as the number of observations grows.",
+    "order": 12,
+    "weekNumber": 12,
+    "moduleRef": "Week 12",
+    "active": true
+  },
+  {
+    "id": "central-limit-theorem",
+    "title": "Central Limit Theorem",
+    "description": "Approximate distributions of sample means, sums, and proportions using normal models.",
+    "order": 13,
+    "weekNumber": 13,
+    "moduleRef": "Week 13",
+    "active": true
   }
 ]

@@ -121,6 +121,16 @@ This writes `data/demo/following-syllabus-review-candidates.json` without
 overwriting either earlier batch. It also rejects ID or prompt reuse from the
 earlier committed syllabus batches.
 
+Generate and verify the next uncovered syllabus batch with:
+
+```bash
+npm run prepare:next-uncovered-syllabus-questions
+npm run prepare:next-uncovered-syllabus-questions -- --check
+```
+
+This writes `data/demo/next-uncovered-syllabus-review-candidates.json` and
+checks all earlier review fixtures for reused IDs or prompts.
+
 Generate deterministic original drafts from public-safe seed patterns:
 
 ```bash

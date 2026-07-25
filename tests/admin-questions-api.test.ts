@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
+import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json"
 import {
   GET as getAdminQuestions,
   PATCH as patchAdminQuestions,
@@ -15,6 +16,9 @@ import type { AdminQuestion } from "@/lib/types"
 const TOKEN = "admin-secret"
 const followingSyllabusIds = new Set(
   followingSyllabusReviewCandidateData.map((candidate) => candidate.id),
+)
+const nextUncoveredSyllabusIds = new Set(
+  nextUncoveredSyllabusReviewCandidateData.map((candidate) => candidate.id),
 )
 
 describe("admin questions API", () => {
@@ -111,6 +115,35 @@ describe("admin questions API", () => {
     expect(followingSyllabusIds.size).toBe(60)
     expect(
       [...followingSyllabusIds].every(
+        (candidateId) =>
+          returnedIds.has(candidateId) && reviewSectionIds.has(candidateId),
+      ),
+    ).toBe(true)
+  })
+
+  it("shows all 60 next-uncovered drafts in the admin review section", async () => {
+    const response = await getAdminQuestions(
+      new Request(
+        "http://test/api/admin/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
+      ),
+    )
+    const payload = (await response.json()) as {
+      dashboard: {
+        questions: AdminQuestion[]
+        sections: Record<string, string[]>
+      }
+    }
+    const returnedIds = new Set(
+      payload.dashboard.questions.map((question) => question.id),
+    )
+    const reviewSectionIds = new Set(
+      payload.dashboard.sections.pattern_derived_original_candidates,
+    )
+
+    expect(response.status).toBe(200)
+    expect(nextUncoveredSyllabusIds.size).toBe(60)
+    expect(
+      [...nextUncoveredSyllabusIds].every(
         (candidateId) =>
           returnedIds.has(candidateId) && reviewSectionIds.has(candidateId),
       ),
