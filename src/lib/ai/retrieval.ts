@@ -12,10 +12,6 @@ import type {
   TrustLevel,
   Visibility,
 } from "../types"
-import {
-  createOpenAIEmbeddingProvider,
-  type EmbeddingProvider,
-} from "./embeddings"
 
 export type LocalRetrievalAudience = "admin_dev" | "server" | "student"
 
@@ -36,11 +32,6 @@ export type LocalKeywordRetrievalOptions = {
   topicId?: string
 }
 
-export type LocalVectorRetrievalOptions = LocalKeywordRetrievalOptions & {
-  embeddingProvider?: EmbeddingProvider
-  embeddingsPath?: string
-}
-
 export type LocalRetrievalMetadataFilters = {
   questionId?: string | string[]
   reviewStatus?: ReviewStatus | ReviewStatus[]
@@ -50,7 +41,7 @@ export type LocalRetrievalMetadataFilters = {
   trustLevel?: TrustLevel | TrustLevel[]
 }
 
-export type LocalRetrievalMode = "keyword" | "vector"
+export type LocalRetrievalMode = "keyword"
 
 export type LocalRetrievalSourceConfig = {
   label: LocalRetrievalSourceLabel
@@ -76,7 +67,6 @@ export type LocalRetrievalDebugMetadata = {
   mode: LocalRetrievalMode
   topicBoost: number
   trustBoost: number
-  vectorScore?: number
 }
 
 export type LocalRetrievalMetadata = {
@@ -97,12 +87,6 @@ type NormalizedLocalChunk = LocalRetrievalMetadata & {
   keywords: string[]
   sourceLabel: LocalRetrievalSourceLabel
   text: string
-}
-
-type LocalEmbeddingRecord = {
-  chunkId: string
-  contentHash?: string
-  embedding: number[]
 }
 
 const DEFAULT_MAX_RESULTS = 5
@@ -146,42 +130,8 @@ const trustBoosts: Record<TrustLevel, number> = {
 
 export async function searchLocalRetrieval(
   query: string,
-  options: LocalVectorRetrievalOptions = {},
+  options: LocalKeywordRetrievalOptions = {},
 ): Promise<LocalKeywordRetrievalResult[]> {
-  const audience = options.audience ?? "student"
-  const queryTerms = tokenize(query)
-
-  if (queryTerms.size === 0 && !options.topic && !options.topicId) {
-    return []
-  }
-
-  const chunks = (await loadLocalRetrievalChunks(options)).filter(
-    (chunk) =>
-      isChunkAllowedForAudience(chunk, audience) &&
-      matchesMetadataFilters(chunk, options),
-  )
-  const provider = options.embeddingProvider ?? createOpenAIEmbeddingProvider()
-  const embeddings = await loadLocalEmbeddingRecords(options)
-
-  if (provider.isConfigured() && embeddings.size > 0) {
-    const embeddedQuery = await provider.embed(query)
-
-    if (embeddedQuery.ok) {
-      const vectorResults = scoreVectorResults(chunks, embeddings, {
-        queryEmbedding: embeddedQuery.embedding,
-        topic: options.topic,
-        topicId: options.topicId,
-      })
-
-      if (vectorResults.length > 0) {
-        return limitResultContext(
-          sortAndLimitResults(vectorResults, options.maxResults),
-          options,
-        )
-      }
-    }
-  }
-
   return searchLocalKeywordRetrieval(query, options)
 }
 
@@ -229,45 +179,6 @@ export async function loadLocalRetrievalChunks(
   )
 
   return loadedSources.flat()
-}
-
-export async function loadLocalEmbeddingRecords(
-  options: Pick<LocalVectorRetrievalOptions, "embeddingsPath" | "repoRoot"> = {},
-): Promise<Map<string, LocalEmbeddingRecord>> {
-  const repoRoot = options.repoRoot ?? process.cwd()
-  const embeddingsPath =
-    options.embeddingsPath ??
-    path.join(repoRoot, "data/private/generated/chunk-embeddings.json")
-  const payload = await readJsonOptional(embeddingsPath)
-  const embeddings =
-    payload && typeof payload === "object" && "embeddings" in payload
-      ? (payload.embeddings as unknown)
-      : []
-  const records = new Map<string, LocalEmbeddingRecord>()
-
-  if (!Array.isArray(embeddings)) {
-    return records
-  }
-
-  for (const item of embeddings) {
-    if (!item || typeof item !== "object") {
-      continue
-    }
-
-    const record = item as Record<string, unknown>
-    const chunkId = stringValue(record.chunkId)
-    const embedding = record.embedding
-
-    if (chunkId && isNumberArray(embedding)) {
-      records.set(chunkId, {
-        chunkId,
-        contentHash: stringValue(record.contentHash) || undefined,
-        embedding,
-      })
-    }
-  }
-
-  return records
 }
 
 export function localResultToRetrievalChunk(
@@ -571,48 +482,6 @@ function topicBoostFor(
   return boost
 }
 
-function scoreVectorResults(
-  chunks: NormalizedLocalChunk[],
-  embeddings: Map<string, LocalEmbeddingRecord>,
-  input: {
-    queryEmbedding: number[]
-    topic?: string
-    topicId?: string
-  },
-) {
-  return chunks
-    .map((chunk) => {
-      const record = embeddings.get(chunk.chunkId)
-
-      if (!record) {
-        return undefined
-      }
-
-      const similarity = cosineSimilarity(input.queryEmbedding, record.embedding)
-      const vectorScore = Math.max(0, similarity) * 100
-      const topicBoost = topicBoostFor(chunk, input)
-      const trustBoost = trustBoosts[chunk.trustLevel]
-      const approvedBoost = chunk.reviewStatus === "approved" ? 6 : 0
-
-      if (vectorScore === 0 && topicBoost === 0) {
-        return undefined
-      }
-
-      return resultFromChunk(chunk, {
-        approvedBoost,
-        contentHash: record.contentHash,
-        keywordOverlap: 0,
-        keywordScore: 0,
-        mode: "vector",
-        score: vectorScore + topicBoost + trustBoost + approvedBoost,
-        topicBoost,
-        trustBoost,
-        vectorScore,
-      })
-    })
-    .filter((result): result is LocalKeywordRetrievalResult => Boolean(result))
-}
-
 function resultFromChunk(
   chunk: NormalizedLocalChunk,
   score: LocalRetrievalDebugMetadata & { score: number },
@@ -627,7 +496,6 @@ function resultFromChunk(
           mode: score.mode,
           topicBoost: score.topicBoost,
           trustBoost: score.trustBoost,
-          vectorScore: score.vectorScore,
         }
       : undefined,
     metadata: {
@@ -741,30 +609,6 @@ function matchesFilterValue<T extends string>(
   )
 }
 
-function cosineSimilarity(left: number[], right: number[]) {
-  const length = Math.min(left.length, right.length)
-
-  if (length === 0) {
-    return 0
-  }
-
-  let dotProduct = 0
-  let leftMagnitude = 0
-  let rightMagnitude = 0
-
-  for (let index = 0; index < length; index += 1) {
-    dotProduct += left[index] * right[index]
-    leftMagnitude += left[index] ** 2
-    rightMagnitude += right[index] ** 2
-  }
-
-  if (leftMagnitude === 0 || rightMagnitude === 0) {
-    return 0
-  }
-
-  return dotProduct / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude))
-}
-
 function truncateText(text: string, maxLength: number) {
   const trimmed = text.trim()
 
@@ -796,10 +640,6 @@ function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : []
-}
-
-function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "number")
 }
 
 function stringValue(value: unknown) {

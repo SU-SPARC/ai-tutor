@@ -11,8 +11,8 @@ describe("server-side LLM tutor service", () => {
     vi.unstubAllEnvs()
   })
 
-  it("fails gracefully without OPENAI_API_KEY and does not call fetch", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "")
+  it("fails gracefully without OPENROUTER_API_KEY and does not call fetch", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "")
     const fetchImpl = vi.fn<typeof fetch>()
 
     const result = await generateLlmTutorResponse(baseTutorInput(), {
@@ -30,8 +30,8 @@ describe("server-side LLM tutor service", () => {
   })
 
   it("uses env model/key, sends structured context, and returns token metadata", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
-    vi.stubEnv("OPENAI_MODEL", "test-model")
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    vi.stubEnv("AI_MODEL", "test-model")
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -49,7 +49,7 @@ describe("server-side LLM tutor service", () => {
             total_tokens: 95,
           },
         }),
-        { status: 200 },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     )
 
@@ -61,7 +61,7 @@ describe("server-side LLM tutor service", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(request.model).toBe("test-model")
-    expect(request.max_tokens).toBe(180)
+    expect(request.max_tokens).toBe(400)
     expect(request.messages[0]?.role).toBe("system")
     expect(request.messages[1]?.role).toBe("user")
     expect(userPrompt).toContain("student_message")
@@ -84,14 +84,14 @@ describe("server-side LLM tutor service", () => {
   })
 
   it("uses the server-configured output token cap", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     vi.stubEnv("MAX_LLM_OUTPUT_TOKENS", "73")
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
           choices: [{ message: { content: "Use the sample space first." } }],
         }),
-        { status: 200 },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     )
 
@@ -101,7 +101,7 @@ describe("server-side LLM tutor service", () => {
   })
 
   it("handles provider errors without exposing prompts", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response("bad request", { status: 400 }))
@@ -121,21 +121,22 @@ describe("server-side LLM tutor service", () => {
   })
 
   it("repairs unsafe provider text before returning tutor output", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content:
-                  "From textbook page 12 and the answer key: the final answer is 2/5.",
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content:
+                    "From textbook page 12 and the answer key: the final answer is 2/5.",
+                },
               },
-            },
-          ],
-        }),
-        { status: 200 },
-      ),
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     )
 
     const result = await generateLlmTutorResponse(baseTutorInput(), {

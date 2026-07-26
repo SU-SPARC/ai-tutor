@@ -17,20 +17,29 @@ describe("AI tutor response guardrails", () => {
     expect(result.violations).toEqual([])
   })
 
-  it("repairs empty and off-topic responses with a math redirect", () => {
+  it("repairs empty responses with a math redirect", () => {
     const empty = applyTutorResponseGuardrails({
       allowedDisclosure: "hint_only",
       response: "   ",
     })
-    const offTopic = applyTutorResponseGuardrails({
-      allowedDisclosure: "hint_only",
-      response: "That movie is fun, and the soundtrack is great.",
-    })
 
     expect(empty.violations).toContain("empty_response")
     expect(empty.response).toContain("probability/statistics")
-    expect(offTopic.violations).toContain("off_topic")
-    expect(offTopic.response).toContain("probability/statistics")
+  })
+
+  it("does not flag on-topic guidance that happens to avoid keyword vocabulary", () => {
+    // Off-topic keyword matching was removed: it produced high false-positive
+    // rates against legitimate but truncated/keyword-light model output.
+    // The pre-flight isProbabilityStatisticsRequest gate in tutor-engine.ts
+    // already keeps genuinely off-topic student requests from reaching the
+    // LLM at all.
+    const result = applyTutorResponseGuardrails({
+      allowedDisclosure: "hint_only",
+      response: "First, list all the ordered outcomes that satisfy the given condition.",
+    })
+
+    expect(result.violations).toEqual([])
+    expect(result.response).toContain("ordered outcomes")
   })
 
   it("shortens overly long responses", () => {

@@ -3,10 +3,6 @@ import path from "node:path"
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import {
-  createOpenAIEmbeddingProvider,
-  retrievalContentHash,
-} from "@/lib/ai/embeddings"
 import { createDatabaseContentRepository } from "@/lib/data/database-repository"
 import {
   buildLlmGroundingContext,
@@ -144,23 +140,6 @@ describe("retrieval ranking and safety", () => {
     expect(context.every((item) => item.body.length <= 40)).toBe(true)
     expect(context.reduce((total, item) => total + item.body.length, 0)).toBeLessThanOrEqual(
       90,
-    )
-  })
-
-  it("skips embedding search when embedding env vars are missing", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "")
-    vi.stubEnv("OPENAI_EMBEDDING_MODEL", "")
-
-    const provider = createOpenAIEmbeddingProvider()
-    const result = await provider.embed("binomial model")
-
-    expect(provider.isConfigured()).toBe(false)
-    expect(result).toMatchObject({
-      ok: false,
-      skipped: true,
-    })
-    expect(retrievalContentHash(" binomial model ")).toBe(
-      retrievalContentHash("binomial model"),
     )
   })
 })

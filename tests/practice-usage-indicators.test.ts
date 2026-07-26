@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  aiLimitGuidanceText,
   responseUsageStatusText,
   shouldShowRetrievedContext,
 } from "@/components/tutor/practice-workspace"
@@ -38,22 +37,6 @@ describe("practice usage indicators", () => {
         source: "cache",
       }),
     ).toBe("Using AI fallback")
-  })
-
-  it("gives actionable guidance when AI input or quota is limited", () => {
-    expect(aiLimitGuidanceText("input_too_long", 2)).toContain(
-      "Ask a shorter question",
-    )
-    expect(aiLimitGuidanceText("input_too_long", 2)).toContain(
-      "Hints and steps still work",
-    )
-    expect(aiLimitGuidanceText("session_call_limit", 0)).toContain(
-      "saved solution steps",
-    )
-    expect(aiLimitGuidanceText(undefined, 0)).toContain(
-      "used the AI explanations",
-    )
-    expect(aiLimitGuidanceText("llm_not_eligible", 3)).toBeUndefined()
   })
 
   it("does not expose source excerpts in status text", () => {

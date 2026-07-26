@@ -4,7 +4,6 @@ import {
   searchLocalRetrieval,
   type LocalKeywordRetrievalResult,
   type LocalRetrievalAudience,
-  type LocalRetrievalMode,
 } from "@/lib/ai/retrieval"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
       chunks: results.map((result) => toApiChunk(result)),
       count: results.length,
       mode: parsed.input.mode,
-      retrievalMode: resultRetrievalMode(results),
+      retrievalMode: "keyword" as const,
     })
   } catch {
     return NextResponse.json(
@@ -222,14 +221,6 @@ function parseMode(value: unknown):
     error: "mode must be one of: student, server, admin_dev.",
     ok: false,
   }
-}
-
-function resultRetrievalMode(
-  results: LocalKeywordRetrievalResult[],
-): LocalRetrievalMode {
-  return results.some((result) => result.retrievalMode === "vector")
-    ? "vector"
-    : "keyword"
 }
 
 function toApiChunk(result: LocalKeywordRetrievalResult) {

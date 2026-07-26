@@ -5,7 +5,6 @@ import {
   getProfessorPracticeAnalytics,
   getReviewQueue,
 } from "@/lib/data/data-store"
-import { getUsageDashboard } from "@/lib/tutor/usage-control"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin"
 
@@ -17,9 +16,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [reviewQueue, usage, practice] = await Promise.all([
+    const [reviewQueue, practice] = await Promise.all([
       getReviewQueue(),
-      getUsageDashboard(),
       getProfessorPracticeAnalytics(),
     ])
 
@@ -28,7 +26,6 @@ export async function GET(request: Request) {
         mode: getContentRepositoryMode(),
         practice,
         reviewQueue,
-        usage,
       }),
     })
   } catch {

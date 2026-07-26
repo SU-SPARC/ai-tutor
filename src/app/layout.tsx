@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   const env = getServerEnv()
   const demoMode =
-    getDataRepositoryMetadata().mode === "demo" || !env.OPENAI_API_KEY
+    getDataRepositoryMetadata().mode === "demo" || !env.OPENROUTER_API_KEY
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>

@@ -6,7 +6,6 @@ export type TutorResponseGuardrailViolation =
   | "copied_source_like_text"
   | "empty_response"
   | "full_solution_too_early"
-  | "off_topic"
   | "private_or_raw_content"
   | "too_long"
   | "unsupported_professor_approval"
@@ -45,9 +44,6 @@ const copiedSourceSignals =
 const fullSolutionSignals =
   /final answer|the answer is|therefore the answer|complete solution|full solution|so the probability is|so p\(|=\s*\d+(?:\.\d+)?%?\s*$/i
 
-const probabilityStatisticsSignals =
-  /probability|statistics|statistical|random|sample space|event|conditional|independent|binomial|normal|z-score|mean|variance|standard deviation|expected value|bayes|distribution|permutation|combination|hypothesis|confidence interval|p-value|poisson|bernoulli|regression|percentile|likelihood/i
-
 export function applyTutorResponseGuardrails(
   input: TutorResponseGuardrailInput,
 ): TutorResponseGuardrailResult {
@@ -58,7 +54,6 @@ export function applyTutorResponseGuardrails(
 
   if (
     violations.includes("empty_response") ||
-    violations.includes("off_topic") ||
     violations.includes("private_or_raw_content") ||
     violations.includes("copied_source_like_text") ||
     violations.includes("system_prompt_exposure")
@@ -109,10 +104,6 @@ export function validateTutorResponseGuardrails(
     unsupportedProfessorApprovalSignals.test(response)
   ) {
     violations.push("unsupported_professor_approval")
-  }
-
-  if (!probabilityStatisticsSignals.test(response)) {
-    violations.push("off_topic")
   }
 
   if (

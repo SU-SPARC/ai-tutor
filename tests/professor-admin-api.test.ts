@@ -12,7 +12,6 @@ import {
 } from "@/app/api/professor/review/route"
 import { POST as uploadGeneratedReview } from "@/app/api/professor/upload/route"
 import { resetReviewQueueForTests } from "@/lib/data/data-store"
-import { resetUsageControlForTests } from "@/lib/tutor/usage-control"
 import type { ProfessorAnalyticsDashboard, ReviewCandidate } from "@/lib/types"
 
 const TOKEN = "review-secret"
@@ -26,7 +25,6 @@ const nextUncoveredSyllabusCandidates =
 describe("professor admin APIs", () => {
   beforeEach(() => {
     resetReviewQueueForTests()
-    resetUsageControlForTests()
     vi.stubEnv("ADMIN_SECRET", TOKEN)
     vi.stubEnv("APP_DEMO_MODE", "true")
   })

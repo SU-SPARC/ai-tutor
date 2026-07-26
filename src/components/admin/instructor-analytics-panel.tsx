@@ -131,7 +131,6 @@ function AnalyticsDashboard({
           value={formatDecimal(analytics.totals.averageHintsUsed)}
         />
         <MetricTile label="LLM calls used" value={analytics.totals.llmCallsUsed} />
-        <MetricTile label="Cache hits" value={analytics.totals.cacheHits} />
         <MetricTile
           label="Generated approved"
           value={analytics.totals.generatedQuestionsApproved}

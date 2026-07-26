@@ -10,13 +10,7 @@ import type {
   RetrievalChunk,
   SourceType,
   Topic,
-  TutorMode,
   TutorQuestion,
-  TutorResponse,
-  TutorResponseLabel,
-  TutorSource,
-  TutorVerdict,
-  UsageSummary,
 } from "@/lib/types"
 
 export type ReviewAction =
@@ -146,44 +140,6 @@ export type ContentRepository = {
     action: ReviewAction,
     reviewedBy?: string,
   ): Promise<ReviewCandidate | undefined>
-}
-
-export type TutorAttemptInput = {
-  answerPreview?: string
-  contextUsed?: boolean
-  estimatedTokens: number
-  fallbackUsed?: boolean
-  mode?: TutorMode
-  questionId?: string
-  responseLabel?: TutorResponseLabel
-  sessionId: string
-  source: TutorSource
-  topicId?: string
-  verdict?: TutorVerdict
-}
-
-export type TutorCacheRecord = {
-  expiresAt: Date
-  requestHash: string
-  response: TutorResponse
-}
-
-export type UsageRepository = {
-  canUseLlmFallback(
-    sessionId: string,
-    estimatedTokens: number,
-  ): Promise<{ allowed: boolean; reason: string }>
-  getGlobalUsageSummary(): Promise<UsageSummary>
-  getLlmFallbacksRemaining(sessionId: string): Promise<number>
-  getSessionUsage(sessionId: string): Promise<UsageSummary>
-  readTutorCache(requestHash: string): Promise<TutorCacheRecord | undefined>
-  recordTutorAttempt(input: TutorAttemptInput): Promise<void>
-  recordTutorInteraction(
-    sessionId: string,
-    estimatedTokens: number,
-    source: TutorSource,
-  ): Promise<void>
-  writeTutorCache(record: TutorCacheRecord): Promise<void>
 }
 
 export function reviewStatusForAction(action: ReviewAction): ReviewStatus {
