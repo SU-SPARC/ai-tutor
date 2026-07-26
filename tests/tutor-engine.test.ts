@@ -26,7 +26,6 @@ import {
 import type { ContentRepository } from "@/lib/data/repository"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { getServerEnv } from "@/lib/env/server"
-import { resetTokenBudgetForTests } from "@/lib/security/token-budget"
 import {
   checkStudentAttempt,
   createTutorResponse,
@@ -34,6 +33,7 @@ import {
   detectMisconception,
   getNextHint,
   getNextStep,
+  isLlmFallbackEligible,
   shouldEscalateToLLM,
   shouldEscalateToRetrieval,
 } from "@/lib/tutor/tutor-engine"
@@ -61,22 +61,13 @@ import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-cand
 import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json"
 import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
 import {
-  DEFAULT_USAGE_POLICY,
-  canUseLlmFallback,
-  recordTutorInteraction,
-  resetUsageForTests,
-} from "@/lib/tutor/usage"
-import {
   approvedPublicWhereClauseForTests,
   mapQuestionRow,
 } from "@/lib/data/database-repository"
-import { createMemoryUsageRepository } from "@/lib/data/usage-repositories"
 
 describe("tutor engine", () => {
   beforeEach(() => {
     resetTutorStateForTests()
-    resetUsageForTests()
-    resetTokenBudgetForTests()
   })
 
   afterEach(() => {
@@ -249,6 +240,48 @@ describe("tutor engine", () => {
     expect(response.progress?.stepsRevealed).toBe(3)
   })
 
+  it("becomes LLM-fallback eligible once hints alone are exhausted, without any steps revealed", async () => {
+    const question = await getQuestionById("dice-sum-eight")
+
+    expect(question).toBeDefined()
+
+    if (!question) {
+      return
+    }
+
+    const state = getTutorSessionState("hints-only-eligibility-test", question.id)
+
+    expect(isLlmFallbackEligible(question, state)).toBe(false)
+
+    const exhaustedHintsState = {
+      ...state,
+      hintsRevealed: question.hints.length,
+    }
+
+    expect(isLlmFallbackEligible(question, exhaustedHintsState)).toBe(true)
+    expect(
+      shouldEscalateToRetrieval({
+        answer: "still stuck",
+        mode: "check",
+        question,
+        state: exhaustedHintsState,
+      }),
+    ).toBe(true)
+  })
+
+  it("reveals the full solution in one call via mode: full_solution, without marking the question solved", async () => {
+    const response = await createTutorResponse({
+      answer: "",
+      mode: "full_solution",
+      questionId: "dice-sum-eight",
+      sessionId: "full-solution-reveal-test",
+    })
+
+    expect(response.steps).toHaveLength(3)
+    expect(response.message).toContain("five equally likely ordered outcomes")
+    expect(response.progress?.solved).toBe(false)
+  })
+
   it("exposes reusable rule-engine helpers for attempts, hints, steps, and escalation", async () => {
     const question = await getQuestionById("dice-sum-eight")
 
@@ -354,20 +387,6 @@ describe("tutor engine", () => {
     }
   })
 
-  it("keeps rule-based help available for overlong AI input", async () => {
-    const response = await createTutorResponse({
-      answer: "x".repeat(DEFAULT_USAGE_POLICY.maxInputCharacters + 1),
-      mode: "hint",
-      questionId: "dice-sum-eight",
-      sessionId: "length-test",
-    })
-
-    expect(response.source).toBe("rule")
-    expect(response.verdict).toBe("guidance")
-    expect(response.hints).toHaveLength(1)
-    expect(response.usage.limitReason).toBeUndefined()
-  })
-
   it("uses approved retrieval chunks when no question rule matches", async () => {
     const response = await createTutorResponse({
       answer: "How do I standardize a normal score with a mean?",
@@ -449,28 +468,24 @@ describe("tutor engine", () => {
     expect(response.progress?.state).toBe("blocked")
   })
 
-  it("blocks off-domain LLM fallback without calling the provider", async () => {
-    const fetchImpl = vi.fn<typeof fetch>()
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
-    vi.stubGlobal("fetch", fetchImpl)
+  it("calls the LLM fallback even for requests that don't look like probability/statistics", async () => {
+    const fetchImpl = mockLlmResponse("Here's some general guidance.")
 
     const response = await createTutorResponse({
       answer: "orion quilting advice",
       allowLlmFallback: true,
       mode: "hint",
-      sessionId: "llm-env-block-test",
+      sessionId: "llm-off-domain-test",
     })
 
-    expect(response.source).toBe("blocked")
-    expect(response.message).toContain("probability and statistics")
-    expect(response.progress?.state).toBe("blocked")
-    expect(response.progress?.llmUsed).toBe(false)
-    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(response.source).toBe("llm")
+    expect(response.progress?.llmUsed).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it("blocks LLM fallback safely when the API key is missing", async () => {
+  it("surfaces the LLM's own message when the API key is missing, without blocking", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
-    vi.stubEnv("OPENAI_API_KEY", "")
+    vi.stubEnv("OPENROUTER_API_KEY", "")
     vi.stubGlobal("fetch", fetchImpl)
 
     const response = await createTutorResponse({
@@ -480,15 +495,15 @@ describe("tutor engine", () => {
       sessionId: "llm-missing-key-test",
     })
 
-    expect(response.source).toBe("blocked")
+    expect(response.source).toBe("llm")
+    expect(response.usage.fallbackUsed).toBe(false)
     expect(response.message).toContain("LLM fallback is not configured")
-    expect(response.progress?.state).toBe("blocked")
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it("avoids LLM when retrieval has enough context for a templated response", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     vi.stubGlobal("fetch", fetchImpl)
 
     const response = await createTutorResponse({
@@ -537,19 +552,31 @@ describe("tutor engine", () => {
     expect(response.progress?.llmUsed).toBe(true)
   })
 
+  it("skips a self-referential retrieval echo and goes straight to real LLM help", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Try listing the outcomes that satisfy the conditional probability first.",
+    )
+
+    await exhaustApprovedHelp("no-self-echo-test")
+    const response = await createTutorResponse({
+      answer: "I still don't understand this at all.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "no-self-echo-test",
+    })
+
+    expect(response.source).toBe("llm")
+    expect(response.message).not.toContain("I found an approved course pattern")
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it("uses LLM fallback for low-confidence answer coaching without grading correct", async () => {
     const fetchImpl = mockLlmResponse(
       "Focus on identifying the conditioned sample space first, then compare your expression with that smaller denominator.",
     )
 
     await exhaustApprovedHelp("llm-low-confidence-test")
-    const retrieval = await createTutorResponse({
-      answer: "I am not sure how to express this setup.",
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId: "llm-low-confidence-test",
-    })
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
@@ -557,7 +584,7 @@ describe("tutor engine", () => {
       questionId: "dice-sum-eight",
       sessionId: "llm-low-confidence-test",
     })
-    const cached = await createTutorResponse({
+    const second = await createTutorResponse({
       answer: "  I AM NOT SURE HOW TO EXPRESS THIS SETUP.  ",
       allowLlmFallback: true,
       mode: "check",
@@ -578,10 +605,8 @@ describe("tutor engine", () => {
     expect(userPrompt).toContain("low_confidence_answer_help")
     expect(userPrompt).toContain('"confidence": 0.1')
     expect(userPrompt).not.toContain("2/5")
-    expect(retrieval.source).toBe("retrieval")
-    expect(cached.source).toBe("cache")
-    expect(cached.usage.cacheHit).toBe(true)
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(second.source).toBe("llm")
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(
       getTutorAttemptSnapshotsForTests().findLast(
         (attempt) => attempt.source === "llm",
@@ -594,107 +619,14 @@ describe("tutor engine", () => {
     })
   })
 
-  it("applies the input cap only to LLM fallback and preserves saved help", async () => {
-    const fetchImpl = mockLlmResponse(
-      "Start with the conditioned sample space.",
-    )
-    const sessionId = "llm-input-cap-test"
-
-    await exhaustApprovedHelp(sessionId)
-    await createTutorResponse({
-      answer: "I need probability help with the conditioned sample space.",
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId,
-    })
-
-    const response = await createTutorResponse({
-      answer: "probability ".repeat(100),
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId,
-    })
-
-    expect(response.source).toBe("blocked")
-    expect(response.usage.limitReason).toBe("input_too_long")
-    expect(response.usage.llmCallMade).toBe(false)
-    expect(response.message).toContain("AI fallback is temporarily unavailable")
-    expect(response.message).toContain(
-      "saved hints and solution steps are still available",
-    )
-    expect(response.hints).toHaveLength(3)
-    expect(response.steps).toHaveLength(3)
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
-
-  it("allows three LLM calls per question session without blocking rules", async () => {
-    const fetchImpl = mockLlmResponse(
-      "Compare the favorable conditioned outcomes.",
-    )
-    const sessionId = "llm-session-cap-test"
-
-    await exhaustApprovedHelp(sessionId)
-    const retrieval = await createTutorResponse({
-      answer: "I am not sure how to express this setup.",
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId,
-    })
-    expect(retrieval.source).toBe("retrieval")
-
-    for (let index = 1; index <= 3; index += 1) {
-      const response = await createTutorResponse({
-        answer: `Probability attempt ${index} using the conditioned sample space.`,
-        allowLlmFallback: true,
-        mode: "check",
-        questionId: "dice-sum-eight",
-        sessionId,
-      })
-
-      expect(response.source).toBe("llm")
-    }
-
-    const blocked = await createTutorResponse({
-      answer: "A fourth probability request with a new message.",
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId,
-    })
-    const ruleHelp = await createTutorResponse({
-      answer: "x".repeat(DEFAULT_USAGE_POLICY.maxInputCharacters + 1),
-      mode: "hint",
-      questionId: "dice-sum-eight",
-      sessionId,
-    })
-
-    expect(blocked.source).toBe("blocked")
-    expect(blocked.usage.limitReason).toBe("session_call_limit")
-    expect(blocked.hints).toHaveLength(3)
-    expect(blocked.steps).toHaveLength(3)
-    expect(ruleHelp.source).toBe("rule")
-    expect(ruleHelp.hints).toHaveLength(3)
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
-  })
-
-  it("returns retrieved non-AI guidance when LLM fallback fails", async () => {
+  it("surfaces the LLM's own message when the provider request fails", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response("bad request", { status: 400 }))
-    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     vi.stubGlobal("fetch", fetchImpl)
 
     await exhaustApprovedHelp("llm-failure-retrieval-test")
-    const retrieval = await createTutorResponse({
-      answer: "I am not sure how to express this setup.",
-      allowLlmFallback: true,
-      mode: "check",
-      questionId: "dice-sum-eight",
-      sessionId: "llm-failure-retrieval-test",
-    })
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
@@ -704,14 +636,10 @@ describe("tutor engine", () => {
     })
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(retrieval.source).toBe("retrieval")
-    expect(response.source).toBe("retrieval")
-    expect(response.verdict).toBe("guidance")
-    expect(response.responseLabel).toBe("approved_course_content")
-    expect(response.usage.contextUsed).toBe(true)
+    expect(response.source).toBe("llm")
     expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.progress?.state).toBe("retrieval_guidance")
-    expect(response.progress?.llmUsed).toBe(false)
+    expect(response.message).toContain("rejected the fallback request")
+    expect(response.progress?.llmUsed).toBe(true)
   })
 
   it("records lightweight tutor attempt snapshots", async () => {
@@ -738,59 +666,6 @@ describe("tutor engine", () => {
     })
   })
 
-  it("enforces per-session LLM fallback limits", () => {
-    recordTutorInteraction("quota-test", 10, "llm")
-    recordTutorInteraction("quota-test", 10, "llm")
-    recordTutorInteraction("quota-test", 10, "llm")
-
-    expect(canUseLlmFallback("quota-test", 10)).toEqual({
-      allowed: false,
-      reason: "The session has reached its LLM fallback limit.",
-    })
-  })
-
-  it("exposes the configured daily LLM fallback limit in policy", () => {
-    expect(DEFAULT_USAGE_POLICY.maxDailyLlmFallbacks).toBe(100)
-  })
-
-  it("keeps the usage repository cache rule-first and retrieval-only", async () => {
-    const repository = createMemoryUsageRepository()
-    const expiresAt = new Date(Date.now() + 60_000)
-    const baseResponse = {
-      hints: [],
-      message: "Cached response.",
-      misconceptions: [],
-      retrievedContext: [],
-      steps: [],
-      usage: {
-        contextUsed: false,
-        estimatedTokens: 1,
-        fallbackUsed: false,
-        llmFallbacksRemaining: 2,
-      },
-      verdict: "guidance" as const,
-    }
-
-    await repository.writeTutorCache({
-      expiresAt,
-      requestHash: "rule-cache",
-      response: {
-        ...baseResponse,
-        source: "rule",
-      },
-    })
-    await repository.writeTutorCache({
-      expiresAt,
-      requestHash: "llm-cache",
-      response: {
-        ...baseResponse,
-        source: "llm",
-      },
-    })
-
-    expect(await repository.readTutorCache("rule-cache")).toBeDefined()
-    expect(await repository.readTutorCache("llm-cache")).toBeUndefined()
-  })
 })
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>
@@ -815,11 +690,11 @@ function mockLlmResponse(text: string): FetchMock {
             total_tokens: 70,
           },
         }),
-        { status: 200 },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
   )
 
-  vi.stubEnv("OPENAI_API_KEY", "test-key")
+  vi.stubEnv("OPENROUTER_API_KEY", "test-key")
   vi.stubGlobal("fetch", fetchImpl)
 
   return fetchImpl
@@ -2154,19 +2029,13 @@ describe("server environment helper", () => {
   beforeEach(() => {
     vi.unstubAllEnvs()
     delete process.env.APP_DEMO_MODE
-    delete process.env.MAX_DAILY_LLM_CALLS
-    delete process.env.MAX_LLM_CALLS_PER_SESSION
-    delete process.env.OPENAI_EMBEDDING_MODEL
-    delete process.env.OPENAI_MODEL
+    delete process.env.AI_MODEL
   })
 
   it("provides safe defaults when optional local env values are missing", () => {
     const env = getServerEnv()
 
     expect(env.APP_DEMO_MODE).toBe(true)
-    expect(env.MAX_DAILY_LLM_CALLS).toBe(100)
-    expect(env.MAX_LLM_CALLS_PER_SESSION).toBe(3)
-    expect(env.OPENAI_EMBEDDING_MODEL).toBeUndefined()
-    expect(env.OPENAI_MODEL).toBe("gpt-4.1-mini")
+    expect(env.AI_MODEL).toBe("nvidia/nemotron-3-ultra-550b-a55b:free")
   })
 })

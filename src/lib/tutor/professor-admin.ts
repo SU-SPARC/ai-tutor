@@ -17,7 +17,6 @@ import {
   type SourceType,
   type Topic,
   type TrustLevel,
-  type UsageDashboard,
 } from "@/lib/types"
 
 export type GeneratedReviewUploadResult =
@@ -67,14 +66,12 @@ export function buildProfessorAnalyticsDashboard(input: {
   mode: "database" | "demo"
   practice: ProfessorPracticeAnalytics
   reviewQueue: ReviewCandidate[]
-  usage: UsageDashboard
 }): ProfessorAnalyticsDashboard {
   return {
     instructor: buildInstructorAnalyticsDashboard(input),
     mode: input.mode,
     practice: input.practice,
     review: buildReviewAnalytics(input.reviewQueue),
-    usage: input.usage,
   }
 }
 
@@ -82,15 +79,7 @@ export function buildInstructorAnalyticsDashboard(input: {
   mode: "database" | "demo"
   practice: ProfessorPracticeAnalytics
   reviewQueue: ReviewCandidate[]
-  usage: UsageDashboard
 }): InstructorAnalyticsDashboard {
-  const usageTotals = input.usage.daily.reduce(
-    (totals, day) => ({
-      cacheHits: totals.cacheHits + day.cacheHits,
-      llmCalls: totals.llmCalls + day.llmCalls,
-    }),
-    { cacheHits: 0, llmCalls: 0 },
-  )
   const generated = normalizeGeneratedOutcomes(
     input.practice.generatedQuestionOutcomes,
   )
@@ -134,10 +123,7 @@ export function buildInstructorAnalyticsDashboard(input: {
         left.feedback.localeCompare(right.feedback),
     )
     .slice(0, 8)
-  const mode =
-    input.practice.mode === "database" && input.usage.mode === "database"
-      ? "database"
-      : "demo"
+  const mode = input.practice.mode === "database" ? "database" : "demo"
 
   return {
     commonMisconceptions,
@@ -163,15 +149,12 @@ export function buildInstructorAnalyticsDashboard(input: {
           ? input.practice.summary.totalHintsUsed /
             input.practice.summary.totalTutorSessions
           : 0,
-      cacheHits: usageTotals.cacheHits,
       generatedQuestionsApproved: generated.approved,
       generatedQuestionsRejected: generated.rejected,
-      llmCallsUsed:
-        usageTotals.llmCalls ||
-        input.practice.questions.reduce(
-          (total, question) => total + question.llmAttempts,
-          0,
-        ),
+      llmCallsUsed: input.practice.questions.reduce(
+        (total, question) => total + question.llmAttempts,
+        0,
+      ),
       totalAttempts: input.practice.summary.totalAttempts,
       totalTutorSessions: input.practice.summary.totalTutorSessions,
     },

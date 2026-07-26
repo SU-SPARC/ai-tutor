@@ -51,7 +51,7 @@ export const REVIEW_STATUSES = [
 
 export const REVIEW_PRIORITIES = ["normal", "priority"] satisfies ReviewPriority[]
 
-export type TutorMode = "check" | "hint" | "solution"
+export type TutorMode = "check" | "hint" | "solution" | "full_solution"
 
 export type TutorSource = "rule" | "retrieval" | "llm" | "cache" | "blocked"
 
@@ -387,26 +387,11 @@ export type TutorRequest = {
   topicId?: string
 }
 
-export type LlmUsageLimitReason =
-  | "input_too_long"
-  | "llm_not_eligible"
-  | "usage_persistence_unavailable"
-  | "session_call_limit"
-  | "question_daily_limit"
-  | "student_daily_limit"
-  | "global_daily_limit"
-  | "session_token_budget"
-
 export type TutorUsage = {
-  cacheHit?: boolean
   contextUsed: boolean
   estimatedTokens: number
   fallbackUsed: boolean
-  limitReason?: LlmUsageLimitReason
-  llmCallMade?: boolean
   llmFallbackEligible?: boolean
-  llmFallbacksRemaining: number
-  usagePersistence?: "database" | "demo"
 }
 
 export type TutorSessionAttempt = {
@@ -423,7 +408,6 @@ export type TutorSessionRecord = {
   createdAt: string
   id: string
   lastSeenAt: string
-  llmFallbacksRemaining: number
   questionId: string
   revealedHints: number
   revealedSteps: number
@@ -477,42 +461,6 @@ export type TutorProgress = {
   state: TutorState
   stepsRevealed: number
   wrongAttemptCount: number
-}
-
-export type UsageSummary = {
-  estimatedTokens: number
-  interactions: number
-  llmFallbacks: number
-}
-
-export type UsageDashboardTotals = {
-  cacheHits: number
-  estimatedLlmTokens: number
-  inputTokens: number
-  interactions: number
-  limitBlocks: number
-  llmCalls: number
-  outputTokens: number
-  totalTokens: number
-}
-
-export type UsageDashboardDay = UsageDashboardTotals & {
-  date: string
-}
-
-export type UsageDashboard = {
-  daily: UsageDashboardDay[]
-  mode: "database" | "demo"
-  policy: {
-    maxDailyLlmCalls: number
-    maxLlmCallsPerQuestionPerDay: number
-    maxLlmCallsPerSession: number
-    maxLlmCallsPerStudentPerDay: number
-    maxLlmOutputTokens: number
-    maxLlmTokensPerSession: number
-    maxTutorInputChars: number
-  }
-  today: UsageDashboardTotals
 }
 
 export type ProfessorReviewAnalytics = {
@@ -589,7 +537,6 @@ export type InstructorAnalyticsDashboard = {
   notes: string[]
   totals: {
     averageHintsUsed: number
-    cacheHits: number
     generatedQuestionsApproved: number
     generatedQuestionsRejected: number
     llmCallsUsed: number
@@ -603,5 +550,4 @@ export type ProfessorAnalyticsDashboard = {
   mode: "database" | "demo"
   practice: ProfessorPracticeAnalytics
   review: ProfessorReviewAnalytics
-  usage: UsageDashboard
 }

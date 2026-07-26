@@ -808,7 +808,7 @@ function AnalyticsView({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Metric label="Backlog" value={String(analytics.review.totalBacklog)} />
         <Metric
           label="Priority"
@@ -816,11 +816,7 @@ function AnalyticsView({
         />
         <Metric
           label="LLM calls"
-          value={`${analytics.usage.today.llmCalls}/${analytics.usage.policy.maxDailyLlmCalls}`}
-        />
-        <Metric
-          label="LLM tokens"
-          value={String(analytics.usage.today.totalTokens)}
+          value={String(analytics.instructor.totals.llmCallsUsed)}
         />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">

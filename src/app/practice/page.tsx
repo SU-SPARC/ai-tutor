@@ -1,6 +1,5 @@
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace"
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store"
-import { getServerEnv } from "@/lib/env/server"
 
 type PracticePageProps = {
   searchParams: Promise<{
@@ -25,7 +24,6 @@ export default async function PracticePage({
   return (
     <PracticeWorkspace
       initialQuestionId={initialQuestionId}
-      maxTutorInputChars={getServerEnv().MAX_TUTOR_INPUT_CHARS}
       topics={topics}
       questions={questions}
     />

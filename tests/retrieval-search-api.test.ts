@@ -44,7 +44,6 @@ describe("retrieval search API", () => {
     vi.stubEnv("ADMIN_SECRET", "review-secret")
     searchLocalRetrievalMock.mockResolvedValue([
       retrievalResult({
-        retrievalMode: "vector",
         score: 91,
         text: "A binomial exact count question asks for exactly k successes.",
       }),
@@ -86,11 +85,11 @@ describe("retrieval search API", () => {
     expect(payload).toMatchObject({
       count: 1,
       mode: "student",
-      retrievalMode: "vector",
+      retrievalMode: "keyword",
       chunks: [
         {
           id: "public-binomial",
-          retrievalMode: "vector",
+          retrievalMode: "keyword",
           score: 91,
           serverOnly: false,
           sourceLabel: "demo_question_chunks",

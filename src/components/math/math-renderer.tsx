@@ -41,66 +41,64 @@ export function Math({ children, display = false, className }: MathProps) {
   )
 }
 
-type Segment =
-  | { type: "text"; value: string }
-  | { type: "inline"; value: string }
-  | { type: "display"; value: string }
-
-// Matches $$...$$ (display) or $...$ (inline). Display is tried first.
-const MATH_PATTERN = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g
-
-function parseSegments(text: string): Segment[] {
-  const segments: Segment[] = []
-  let lastIndex = 0
-
-  for (const match of text.matchAll(MATH_PATTERN)) {
-    const index = match.index ?? 0
-    if (index > lastIndex) {
-      segments.push({ type: "text", value: text.slice(lastIndex, index) })
-    }
-
-    const token = match[0]
-    if (token.startsWith("$$")) {
-      segments.push({ type: "display", value: token.slice(2, -2).trim() })
-    } else {
-      segments.push({ type: "inline", value: token.slice(1, -1).trim() })
-    }
-
-    lastIndex = index + token.length
-  }
-
-  if (lastIndex < text.length) {
-    segments.push({ type: "text", value: text.slice(lastIndex) })
-  }
-
-  return segments
-}
-
 type MathTextProps = {
   children: string
   className?: string
 }
 
+// Matches display math ($$...$$) before inline math ($...$) so `$$x$$`
+// isn't parsed as an empty inline expression followed by stray `$`s.
+const MATH_SEGMENT_PATTERN = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g
+
 /**
- * Renders a string that may mix plain text with inline `$...$` and display
- * `$$...$$` LaTeX. Text with no delimiters renders as-is, so it is safe to use
- * everywhere (questions, hints, solution steps, answers, tutor messages).
+ * Renders plain text with inline `$...$` and display `$$...$$` LaTeX picked
+ * out and passed to KaTeX. Everything else is rendered as literal text with
+ * line breaks preserved — no markdown syntax (bold, lists, headers, ...) is
+ * interpreted, so stray `**` or `-` from AI output shows up as-is instead of
+ * being parsed and mis-rendered.
  */
 export function MathText({ children, className }: MathTextProps) {
-  const segments = parseSegments(children)
+  const nodes: React.ReactNode[] = []
+  let lastIndex = 0
+  let matchIndex = 0
+
+  for (const match of children.matchAll(MATH_SEGMENT_PATTERN)) {
+    const [fullMatch, displayExpression, inlineExpression] = match
+    const index = match.index ?? 0
+
+    if (index > lastIndex) {
+      nodes.push(
+        <span key={`text-${matchIndex}`} className="whitespace-pre-wrap">
+          {children.slice(lastIndex, index)}
+        </span>,
+      )
+    }
+
+    if (displayExpression !== undefined) {
+      nodes.push(
+        <Math key={`math-${matchIndex}`} display>
+          {displayExpression}
+        </Math>,
+      )
+    } else {
+      nodes.push(<Math key={`math-${matchIndex}`}>{inlineExpression}</Math>)
+    }
+
+    lastIndex = index + fullMatch.length
+    matchIndex += 1
+  }
+
+  if (lastIndex < children.length) {
+    nodes.push(
+      <span key={`text-${matchIndex}`} className="whitespace-pre-wrap">
+        {children.slice(lastIndex)}
+      </span>,
+    )
+  }
 
   return (
-    <span className={className}>
-      {segments.map((segment, index) => {
-        if (segment.type === "text") {
-          return <span key={index}>{segment.value}</span>
-        }
-        return (
-          <Math key={index} display={segment.type === "display"}>
-            {segment.value}
-          </Math>
-        )
-      })}
-    </span>
+    <div className={cn("[&_.katex-display]:overflow-x-auto", className)}>
+      {nodes}
+    </div>
   )
 }

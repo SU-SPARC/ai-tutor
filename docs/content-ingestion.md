@@ -123,17 +123,8 @@ This writes public-safe student chunks to
 `data/private/generated/question-chunks.json`. The private output is ignored by
 Git.
 
-Generate server-side embeddings for local chunks:
-
-```bash
-npm run embed:chunks
-```
-
-This reads public-safe demo chunks, ignored private question chunks, and ignored
-private reference chunks when present. It writes embeddings or a skipped
-manifest to `data/private/generated/chunk-embeddings.json`. The output does not
-store chunk text and must remain private. If `OPENAI_API_KEY` is missing, the
-script exits successfully without calling OpenAI.
+Server-side retrieval ranks these chunks with local keyword matching — no
+embedding generation step is required.
 
 ## Public vs Private Outputs
 

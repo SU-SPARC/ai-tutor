@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto"
 
 import { queryPostgres } from "@/lib/data/postgres"
 import { getServerEnv } from "@/lib/env/server"
-import { getBudgetFallbacksRemaining } from "@/lib/tutor/usage-control"
 import type {
   TutorSessionAttempt,
   TutorSessionRecord,
@@ -23,7 +22,6 @@ type TutorSessionRow = {
   created_at: Date | string
   id: string
   last_seen_at: Date | string
-  llm_calls?: number
   question_id: string
   revealed_hints: number
   revealed_steps: number
@@ -74,35 +72,25 @@ export type TutorSessionRepository = {
 const memoryTutorSessionRepository = createMemoryTutorSessionRepository()
 
 export async function createTutorSession(input: CreateTutorSessionInput) {
-  const session = await writeWithDemoFallback((repository) =>
-    repository.createSession(input),
-  )
-  return withCurrentLlmUsage(session)
+  return writeWithDemoFallback((repository) => repository.createSession(input))
 }
 
 export async function getTutorSession(sessionId: string) {
-  const session = await readWithDemoFallback((repository) =>
-    repository.getSession(sessionId),
-  )
-  return withCurrentLlmUsage(session)
+  return readWithDemoFallback((repository) => repository.getSession(sessionId))
 }
 
 export async function recordTutorSessionAttempt(
   input: RecordTutorSessionAttemptInput,
 ) {
-  const session = await writeWithDemoFallback((repository) =>
-    repository.recordAttempt(input),
-  )
-  return withCurrentLlmUsage(session)
+  return writeWithDemoFallback((repository) => repository.recordAttempt(input))
 }
 
 export async function recordTutorSessionAttemptOutcome(
   input: RecordTutorSessionAttemptOutcomeInput,
 ) {
-  const session = await writeWithDemoFallback((repository) =>
+  return writeWithDemoFallback((repository) =>
     repository.recordAttemptOutcome(input),
   )
-  return withCurrentLlmUsage(session)
 }
 
 export async function listTutorSessionsForStudent(
@@ -144,17 +132,11 @@ export async function listTutorSessionsForStudent(
 }
 
 export async function revealTutorSessionHint(sessionId: string) {
-  const session = await writeWithDemoFallback((repository) =>
-    repository.revealHint(sessionId),
-  )
-  return withCurrentLlmUsage(session)
+  return writeWithDemoFallback((repository) => repository.revealHint(sessionId))
 }
 
 export async function revealTutorSessionStep(sessionId: string) {
-  const session = await writeWithDemoFallback((repository) =>
-    repository.revealStep(sessionId),
-  )
-  return withCurrentLlmUsage(session)
+  return writeWithDemoFallback((repository) => repository.revealStep(sessionId))
 }
 
 export function createMemoryTutorSessionRepository(): TutorSessionRepository {
@@ -168,7 +150,6 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         createdAt: new Date().toISOString(),
         id: randomUUID(),
         lastSeenAt: new Date().toISOString(),
-        llmFallbacksRemaining: getServerEnv().MAX_LLM_CALLS_PER_SESSION,
         questionId: input.questionId,
         revealedHints: 0,
         revealedSteps: 0,
@@ -500,11 +481,6 @@ function mapTutorSession(
     createdAt: toIsoString(sessionRow.created_at),
     id: String(sessionRow.id),
     lastSeenAt: toIsoString(sessionRow.last_seen_at),
-    llmFallbacksRemaining: Math.max(
-      0,
-      getServerEnv().MAX_LLM_CALLS_PER_SESSION -
-        Number(sessionRow.llm_calls ?? 0),
-    ),
     questionId: String(sessionRow.question_id),
     revealedHints: Number(sessionRow.revealed_hints ?? 0),
     revealedSteps: Number(sessionRow.revealed_steps ?? 0),
@@ -525,25 +501,6 @@ function cloneSession(session: TutorSessionRecord): TutorSessionRecord {
   return {
     ...session,
     attempts: session.attempts.map((attempt) => ({ ...attempt })),
-  }
-}
-
-async function withCurrentLlmUsage(
-  session: TutorSessionRecord,
-): Promise<TutorSessionRecord>
-async function withCurrentLlmUsage(
-  session: TutorSessionRecord | undefined,
-): Promise<TutorSessionRecord | undefined>
-async function withCurrentLlmUsage(
-  session: TutorSessionRecord | undefined,
-): Promise<TutorSessionRecord | undefined> {
-  if (!session) {
-    return undefined
-  }
-
-  return {
-    ...session,
-    llmFallbacksRemaining: await getBudgetFallbacksRemaining(session.id),
   }
 }
 

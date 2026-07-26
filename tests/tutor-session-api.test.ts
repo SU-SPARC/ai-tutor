@@ -39,7 +39,6 @@ describe("tutor session API", () => {
     expect(created.session).toMatchObject({
       anonymousStudentId: "anon-123",
       attempts: [],
-      llmFallbacksRemaining: 3,
       questionId: "dice-sum-eight",
       revealedHints: 0,
       revealedSteps: 0,
@@ -163,7 +162,6 @@ describe("tutor session API", () => {
     expect(created).toMatchObject({
       anonymousStudentId: "anon-db",
       attempts: [],
-      llmFallbacksRemaining: 3,
       questionId: "dice-sum-eight",
       revealedHints: 0,
       revealedSteps: 0,

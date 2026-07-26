@@ -142,59 +142,11 @@ describe("local keyword retrieval", () => {
     expect(results[0].sourceLabel).toBe("demo_question_chunks")
   })
 
-  it("uses local embeddings when available and falls back to keyword otherwise", async () => {
+  it("supports metadata filters", async () => {
     const repoRoot = createRetrievalFixture()
-    const embeddingProvider = {
-      model: "test-embedding-model",
-      isConfigured: () => true,
-      embed: vi.fn(async () => ({
-        ok: true as const,
-        embedding: [1, 0],
-        model: "test-embedding-model",
-      })),
-    }
-
-    const vectorResults = await searchLocalRetrieval("unrelated query", {
-      audience: "server",
-      embeddingProvider,
-      maxResults: 2,
-      repoRoot,
-    })
-
-    expect(embeddingProvider.embed).toHaveBeenCalledTimes(1)
-    expect(vectorResults[0].metadata.chunkId).toBe("private-approved-course")
-    expect(vectorResults[0].retrievalMode).toBe("vector")
-
-    const fallbackProvider = {
-      model: "test-embedding-model",
-      isConfigured: () => false,
-      embed: vi.fn(),
-    }
-    const fallbackResults = await searchLocalRetrieval("binomial exact count", {
-      embeddingProvider: fallbackProvider,
-      repoRoot,
-    })
-
-    expect(fallbackProvider.embed).not.toHaveBeenCalled()
-    expect(fallbackResults[0].metadata.chunkId).toBe("public-binomial")
-    expect(fallbackResults[0].retrievalMode).toBe("keyword")
-  })
-
-  it("supports metadata filters with vector retrieval", async () => {
-    const repoRoot = createRetrievalFixture()
-    const embeddingProvider = {
-      model: "test-embedding-model",
-      isConfigured: () => true,
-      embed: vi.fn(async () => ({
-        ok: true as const,
-        embedding: [1, 0],
-        model: "test-embedding-model",
-      })),
-    }
 
     const results = await searchLocalRetrieval("conditional probability", {
       audience: "server",
-      embeddingProvider,
       filters: {
         reviewStatus: "approved",
         questionId: "private-approved-question",
@@ -210,21 +162,11 @@ describe("local keyword retrieval", () => {
     ])
   })
 
-  it("does not expose private vector matches to student retrieval", async () => {
+  it("does not expose private matches to student retrieval", async () => {
     const repoRoot = createRetrievalFixture()
-    const embeddingProvider = {
-      model: "test-embedding-model",
-      isConfigured: () => true,
-      embed: vi.fn(async () => ({
-        ok: true as const,
-        embedding: [1, 0],
-        model: "test-embedding-model",
-      })),
-    }
 
     const results = await searchLocalRetrieval("conditional probability", {
       audience: "student",
-      embeddingProvider,
       maxResults: 5,
       repoRoot,
     })
@@ -240,19 +182,9 @@ describe("local keyword retrieval", () => {
 
   it("limits returned context size and emits debug metadata only in development", async () => {
     const repoRoot = createRetrievalFixture()
-    const embeddingProvider = {
-      model: "test-embedding-model",
-      isConfigured: () => true,
-      embed: vi.fn(async () => ({
-        ok: true as const,
-        embedding: [1, 0],
-        model: "test-embedding-model",
-      })),
-    }
 
     const productionResults = await searchLocalRetrieval("conditional probability", {
       audience: "server",
-      embeddingProvider,
       maxChunkCharacters: 24,
       maxContextCharacters: 24,
       repoRoot,
@@ -266,14 +198,13 @@ describe("local keyword retrieval", () => {
       "conditional probability",
       {
         audience: "server",
-        embeddingProvider,
         maxResults: 1,
         repoRoot,
       },
     )
 
     expect(developmentResults[0].debug).toMatchObject({
-      mode: "vector",
+      mode: "keyword",
       trustBoost: 7,
       approvedBoost: 6,
     })
@@ -344,31 +275,6 @@ function createRetrievalFixture() {
       },
     ],
   })
-  writeJson(
-    path.join(repoRoot, "data/private/generated/chunk-embeddings.json"),
-    {
-      visibility: "private",
-      status: "completed",
-      embeddings: [
-        {
-          chunkId: "public-binomial",
-          contentHash: "public-binomial-hash",
-          embedding: [0.2, 0],
-        },
-        {
-          chunkId: "private-approved-course",
-          contentHash: "private-approved-course-hash",
-          embedding: [1, 0],
-        },
-        {
-          chunkId: "private-reference-bayes",
-          contentHash: "private-reference-bayes-hash",
-          embedding: [0, 1],
-        },
-      ],
-    },
-  )
-
   return repoRoot
 }
 

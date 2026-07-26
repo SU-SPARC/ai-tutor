@@ -4,6 +4,8 @@ import {
   getTutorSession,
   recordTutorSessionAttemptOutcome,
 } from "@/lib/data/tutor-session-repository"
+import { getServerEnv } from "@/lib/env/server"
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { createTutorResponse } from "@/lib/tutor/tutor-engine"
 import type { TutorRequest } from "@/lib/types"
 
@@ -13,6 +15,22 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Tutor requests must be smaller than 8192 bytes." },
       { status: 413 },
+    )
+  }
+
+  const env = getServerEnv()
+  const rateLimit = checkRateLimit(getClientIp(request), {
+    max: env.RATE_LIMIT_MAX_REQUESTS,
+    windowMs: env.RATE_LIMIT_WINDOW_SECONDS * 1_000,
+  })
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        status: 429,
+      },
     )
   }
 
@@ -27,9 +45,12 @@ export async function POST(request: Request) {
     )
   }
 
-  if (!body.mode || !["check", "hint", "solution"].includes(body.mode)) {
+  if (
+    !body.mode ||
+    !["check", "hint", "solution", "full_solution"].includes(body.mode)
+  ) {
     return NextResponse.json(
-      { error: "mode must be one of: check, hint, solution." },
+      { error: "mode must be one of: check, hint, solution, full_solution." },
       { status: 400 },
     )
   }
@@ -57,19 +78,14 @@ export async function POST(request: Request) {
   }
 
   const answer = typeof body.answer === "string" ? body.answer : ""
-  const response = await createTutorResponse(
-    {
-      answer,
-      allowLlmFallback: body.allowLlmFallback ?? false,
-      mode: body.mode,
-      questionId: body.questionId,
-      sessionId: body.sessionId,
-      topicId: body.topicId,
-    },
-    {
-      studentId: session.anonymousStudentId ?? session.id,
-    },
-  )
+  const response = await createTutorResponse({
+    answer,
+    allowLlmFallback: body.allowLlmFallback ?? false,
+    mode: body.mode,
+    questionId: body.questionId,
+    sessionId: body.sessionId,
+    topicId: body.topicId,
+  })
 
   if (body.mode === "check") {
     await recordTutorSessionAttemptOutcome({

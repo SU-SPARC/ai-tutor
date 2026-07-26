@@ -14,8 +14,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Lightbulb,
-  ListChecks,
   Loader2,
   RotateCcw,
   Send,
@@ -48,7 +48,6 @@ import { cn } from "@/lib/utils"
 
 type PracticeWorkspaceProps = {
   initialQuestionId?: string
-  maxTutorInputChars: number
   questions: PracticeQuestion[]
   topics: CourseTopic[]
 }
@@ -69,7 +68,6 @@ type TutorSessionPayload = {
 
 export function PracticeWorkspace({
   initialQuestionId,
-  maxTutorInputChars,
   questions,
   topics,
 }: PracticeWorkspaceProps) {
@@ -105,17 +103,15 @@ export function PracticeWorkspace({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [revealedHints, setRevealedHints] = useState<string[]>([])
   const [hintViewIndex, setHintViewIndex] = useState(0)
-  const [revealedStepCount, setRevealedStepCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const selectedQuestionIdForSession = selectedQuestion?.id
   const isTutorBusy = activeMode !== null || isSessionLoading
-  const limitedAiInputTooLong = answer.trim().length > maxTutorInputChars
-  const aiExplanationsRemaining =
-    latestResponse?.usage.llmFallbacksRemaining ??
-    session?.llmFallbacksRemaining
   const canSend =
     Boolean(session) && !isTutorBusy && answer.trim().length > 0
+  const hintsExhausted = Boolean(
+    selectedQuestion && revealedHints.length >= selectedQuestion.hints.length,
+  )
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -132,7 +128,6 @@ export function PracticeWorkspace({
       setMessages([])
       setRevealedHints([])
       setHintViewIndex(0)
-      setRevealedStepCount(0)
 
       if (!selectedQuestionIdForSession) {
         setIsSessionLoading(false)
@@ -171,7 +166,6 @@ export function PracticeWorkspace({
     setMessages([])
     setRevealedHints([])
     setHintViewIndex(0)
-    setRevealedStepCount(0)
   }
 
   function pushMessage(message: Omit<ChatMessage, "id">) {
@@ -265,12 +259,12 @@ export function PracticeWorkspace({
     }
   }
 
-  async function nextStep() {
-    if (!selectedQuestion || !session || activeMode) {
+  async function showAnswer() {
+    if (!selectedQuestion || !session || activeMode || !hintsExhausted) {
       return
     }
 
-    setActiveMode("solution")
+    setActiveMode("full_solution")
     setSessionError(null)
 
     try {
@@ -279,7 +273,7 @@ export function PracticeWorkspace({
 
       const tutorResponse = await requestTutorResponse({
         answer,
-        mode: "solution",
+        mode: "full_solution",
         questionId: selectedQuestion.id,
         sessionId: nextSession.id,
         topicId: selectedQuestion.topicId,
@@ -287,27 +281,24 @@ export function PracticeWorkspace({
 
       setLatestResponse(tutorResponse)
 
-      if (tutorResponse.steps.length > revealedStepCount) {
-        const total = selectedQuestion.solutionSteps.length
-        const newSteps = tutorResponse.steps.slice(revealedStepCount)
-        setMessages((items) => [
-          ...items,
-          ...newSteps.map((step, offset) => ({
-            id: createClientId("tutor"),
-            role: "tutor" as const,
-            stepLabel: `Step ${revealedStepCount + offset + 1} of ${total}`,
-            text: step,
-            tone: "neutral" as const,
-          })),
-        ])
-        setRevealedStepCount(tutorResponse.steps.length)
-      } else {
-        pushMessage({
-          role: "tutor",
-          text: "That's the last step.",
-          tone: "neutral",
-        })
-      }
+      const total = tutorResponse.steps.length
+      setMessages((items) => [
+        ...items,
+        ...tutorResponse.steps.map((step, index) => ({
+          id: createClientId("tutor"),
+          role: "tutor" as const,
+          stepLabel: `Step ${index + 1} of ${total}`,
+          text: step,
+          tone: "neutral" as const,
+        })),
+        {
+          id: createClientId("tutor"),
+          role: "tutor" as const,
+          stepLabel: "Full solution",
+          text: tutorResponse.message,
+          tone: "neutral" as const,
+        },
+      ])
     } catch (error) {
       setSessionError(errorMessageFor(error))
     } finally {
@@ -316,15 +307,9 @@ export function PracticeWorkspace({
   }
 
   async function requestLimitedAiHelp() {
-    const trimmed = answer.trim()
+    const trimmed = answer.trim() || "I'm stuck and not sure how to proceed."
 
-    if (
-      !selectedQuestion ||
-      !session ||
-      activeMode ||
-      !trimmed ||
-      limitedAiInputTooLong
-    ) {
+    if (!selectedQuestion || !session || activeMode) {
       return
     }
 
@@ -346,7 +331,10 @@ export function PracticeWorkspace({
       pushMessage({
         note: tutorResponse.misconceptions[0],
         role: "tutor",
-        text: tutorResponse.message,
+        text:
+          tutorResponse.source === "retrieval" && tutorResponse.hints[0]
+            ? `${tutorResponse.message} ${tutorResponse.hints[0]}`
+            : tutorResponse.message,
         tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
       })
     } catch (error) {
@@ -475,9 +463,9 @@ export function PracticeWorkspace({
                   <h1 className="text-base font-semibold leading-6">
                     {selectedQuestion.title}
                   </h1>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  <div className="mt-1 text-sm leading-6 text-muted-foreground">
                     <MathText>{selectedQuestion.prompt}</MathText>
-                  </p>
+                  </div>
                 </div>
                 <Button
                   type="button"
@@ -596,7 +584,6 @@ export function PracticeWorkspace({
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
-                    variant="secondary"
                     size="sm"
                     disabled={
                       isTutorBusy ||
@@ -612,35 +599,32 @@ export function PracticeWorkspace({
                     ) : (
                       <Lightbulb className="h-4 w-4" />
                     )}
-                    Get Hint
+                    Hint
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isTutorBusy || !session}
-                    onClick={() => {
-                      void nextStep()
-                    }}
-                  >
-                    {activeMode === "solution" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ListChecks className="h-4 w-4" />
-                    )}
-                    Next Step
-                  </Button>
+                  {hintsExhausted ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isTutorBusy || !session}
+                      onClick={() => {
+                        void showAnswer()
+                      }}
+                    >
+                      {activeMode === "full_solution" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      Show answer
+                    </Button>
+                  ) : null}
                   {latestResponse?.usage.llmFallbackEligible ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={
-                        isTutorBusy ||
-                        !session ||
-                        !answer.trim() ||
-                        limitedAiInputTooLong
-                      }
+                      disabled={isTutorBusy || !session}
                       onClick={() => {
                         void requestLimitedAiHelp()
                       }}
@@ -650,32 +634,10 @@ export function PracticeWorkspace({
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      AI help
+                      I&apos;m stuck
                     </Button>
                   ) : null}
-                  {latestResponse?.usage.llmFallbackEligible &&
-                  aiExplanationsRemaining !== undefined ? (
-                    <span
-                      className={cn(
-                        "ml-auto text-xs text-muted-foreground",
-                        aiExplanationsRemaining === 0 && "text-destructive",
-                      )}
-                      aria-live="polite"
-                    >
-                      AI left:{" "}
-                      <strong className="font-semibold text-foreground">
-                        {aiExplanationsRemaining}
-                      </strong>
-                    </span>
-                  ) : null}
                 </div>
-
-                {limitedAiInputTooLong ? (
-                  <p className="mt-2 text-xs text-destructive">
-                    {answer.trim().length - maxTutorInputChars} characters over
-                    the AI-help limit.
-                  </p>
-                ) : null}
               </div>
             </div>
           ) : (
@@ -862,25 +824,6 @@ export function responseUsageStatusText(
 
   if (response.responseLabel === "approved_course_content") {
     return "Using saved course content"
-  }
-
-  return undefined
-}
-
-export function aiLimitGuidanceText(
-  reason: TutorResponse["usage"]["limitReason"],
-  remaining: number,
-) {
-  if (reason === "input_too_long") {
-    return "Ask a shorter question for AI help. Hints and steps still work, and you can continue with your saved solution steps."
-  }
-
-  if (reason && reason !== "llm_not_eligible") {
-    return "AI help is temporarily unavailable. Hints and steps still work, and you can continue with your saved solution steps."
-  }
-
-  if (remaining === 0) {
-    return "You have used the AI explanations for this problem. Hints and steps still work, and you can continue with your saved solution steps."
   }
 
   return undefined

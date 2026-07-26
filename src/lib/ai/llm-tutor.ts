@@ -1,8 +1,27 @@
 import "server-only"
 
-import { applyTutorResponseGuardrails } from "@/lib/ai/response-guardrails"
+import OpenAI from "openai"
+
+import {
+  applyTutorResponseGuardrails,
+  validateTutorResponseGuardrails,
+  type TutorResponseGuardrailViolation,
+} from "@/lib/ai/response-guardrails"
 import { getServerEnv } from "@/lib/env/server"
 import type { LlmGroundingContext, TutorMode, TutorProgress } from "@/lib/types"
+
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+const MAX_LLM_ATTEMPTS = 3
+// Violations that make applyTutorResponseGuardrails discard the whole
+// response (as opposed to a surgical edit) — worth retrying, since some
+// free reasoning models occasionally leak raw chain-of-thought text into
+// the response instead of a clean answer.
+const RETRYABLE_GUARDRAIL_VIOLATIONS: TutorResponseGuardrailViolation[] = [
+  "empty_response",
+  "private_or_raw_content",
+  "copied_source_like_text",
+  "system_prompt_exposure",
+]
 
 export const LLM_TUTOR_OUTPUT_TOKEN_LIMIT = 180
 
@@ -78,6 +97,7 @@ const llmTutorSystemPrompt = [
   "Keep the answer concise.",
   "Do not claim professor approval unless the provided context explicitly says approved.",
   "Do not expose raw private textbook chunks.",
+  "Respond in plain text only: no markdown, no **bold**, no bullet or numbered lists, no headers. Use $...$ for inline math.",
 ].join(" ")
 
 const forbiddenPrivateSignal =
@@ -90,7 +110,7 @@ export async function generateLlmTutorResponse(
   const env = getServerEnv()
   const estimatedTokens = estimateLlmTutorTokens(input)
 
-  if (!env.OPENAI_API_KEY) {
+  if (!env.OPENROUTER_API_KEY) {
     return {
       contextUsed: false,
       error: "missing_api_key",
@@ -101,59 +121,64 @@ export async function generateLlmTutorResponse(
     }
   }
 
+  const client = new OpenAI({
+    apiKey: env.OPENROUTER_API_KEY,
+    baseURL: OPENROUTER_BASE_URL,
+    fetch: options.fetchImpl ?? fetch,
+  })
+
   try {
-    const result = await (options.fetchImpl ?? fetch)(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: env.OPENAI_MODEL,
-          max_tokens: getLlmTutorOutputTokenLimit(),
-          temperature: 0.2,
-          messages: [
-            {
-              role: "system",
-              content: llmTutorSystemPrompt,
-            },
-            {
-              role: "user",
-              content: buildLlmTutorUserPrompt(input),
-            },
-          ],
-        }),
-      },
-    )
+    let text: string | undefined
+    let usage: OpenAI.Chat.Completions.ChatCompletion["usage"]
 
-    if (!result.ok) {
-      return {
-        contextUsed: false,
-        error: "provider_rejected_request",
-        estimatedTokens,
-        fallbackUsed: false,
-        tutorMessage:
-          "The configured LLM provider rejected the fallback request.",
+    for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
+      const completion = await client.chat.completions.create({
+        model: env.AI_MODEL,
+        max_tokens: getLlmTutorOutputTokenLimit(),
+        temperature: 0.2,
+        messages: [
+          {
+            role: "system",
+            content: llmTutorSystemPrompt,
+          },
+          {
+            role: "user",
+            content: buildLlmTutorUserPrompt(input),
+          },
+        ],
+        // OpenRouter-specific: some free-tier models (e.g. reasoning-tuned
+        // Nemotron variants) otherwise leak raw chain-of-thought text into
+        // the response content instead of a clean answer.
+        reasoning: { exclude: true },
+      } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming)
+
+      usage = completion.usage
+      const candidate = completion.choices?.[0]?.message?.content?.trim()
+
+      if (!candidate) {
+        continue
+      }
+
+      text = candidate
+
+      const violations = validateTutorResponseGuardrails({
+        allowedDisclosure: input.allowedDisclosure,
+        response: candidate,
+      })
+      const shouldRetry = violations.some((violation) =>
+        RETRYABLE_GUARDRAIL_VIOLATIONS.includes(violation),
+      )
+
+      if (!shouldRetry || attempt === MAX_LLM_ATTEMPTS) {
+        break
       }
     }
-
-    const payload = (await result.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-      usage?: {
-        completion_tokens?: number
-        prompt_tokens?: number
-        total_tokens?: number
-      }
-    }
-    const text = payload.choices?.[0]?.message?.content?.trim()
 
     if (!text) {
       return {
         contextUsed: false,
         error: "empty_provider_response",
-        estimatedTokens: withProviderUsage(estimatedTokens, payload.usage),
+        estimatedTokens: withProviderUsage(estimatedTokens, usage),
         fallbackUsed: false,
         tutorMessage: "The configured LLM provider returned an empty response.",
       }
@@ -168,11 +193,32 @@ export async function generateLlmTutorResponse(
 
     return {
       contextUsed: sanitizedContextForPrompt(input.retrievedContext).length > 0,
-      estimatedTokens: withProviderUsage(estimatedTokens, payload.usage),
+      estimatedTokens: withProviderUsage(estimatedTokens, usage),
       fallbackUsed: true,
       tutorMessage: guarded.response,
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof OpenAI.APIError) {
+      console.error("OpenRouter chat completion request was rejected", {
+        message: error.message,
+        model: env.AI_MODEL,
+        status: error.status,
+      })
+
+      return {
+        contextUsed: false,
+        error: "provider_rejected_request",
+        estimatedTokens,
+        fallbackUsed: false,
+        tutorMessage:
+          error.status === 429
+            ? "The free AI model has hit its daily request limit on OpenRouter. Try again after the daily reset, or add credits to your OpenRouter account to raise the limit."
+            : "The configured LLM provider rejected the fallback request.",
+      }
+    }
+
+    console.error("OpenRouter chat completion request failed", error)
+
     return {
       contextUsed: false,
       error: "request_failed",
