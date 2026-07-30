@@ -15,54 +15,78 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  professorReviewProgress,
+  advanceProfessorTopicReviewProgress,
+  professorReviewQueuePath,
   sortProfessorReviewCandidates,
 } from "@/lib/tutor/professor-review-mode"
-import type { ReviewCandidate } from "@/lib/types"
+import type {
+  ProfessorTopicReviewProgress,
+  ReviewCandidate,
+} from "@/lib/types"
 
 type ReviewAction = "approve" | "needs_edit" | "reject" | "request_regeneration"
 
-export function ProfessorFriendlyReviewPanel() {
+export type ProfessorReviewTopicOption = {
+  id: string
+  title: string
+}
+
+export function ProfessorFriendlyReviewPanel({
+  topics,
+}: {
+  topics: ProfessorReviewTopicOption[]
+}) {
   const [activeAction, setActiveAction] = useState<ReviewAction | null>(null)
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [loadedTopicId, setLoadedTopicId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [note, setNote] = useState("")
   const [reviewedCount, setReviewedCount] = useState(0)
+  const [selectedTopicId, setSelectedTopicId] = useState("")
   const [token, setToken] = useState("")
+  const [topicProgress, setTopicProgress] =
+    useState<ProfessorTopicReviewProgress | null>(null)
 
   const current = candidates[0]
-  const progress = useMemo(
-    () => professorReviewProgress(candidates, reviewedCount),
-    [candidates, reviewedCount],
+  const loadedTopic = useMemo(
+    () => topics.find((topic) => topic.id === loadedTopicId),
+    [loadedTopicId, topics],
   )
 
   async function loadQueue() {
+    if (!selectedTopicId) {
+      return
+    }
+
     setIsLoading(true)
     setMessage(null)
 
     try {
-      const result = await fetch("/api/professor/review?status=needs_review", {
+      const result = await fetch(professorReviewQueuePath(selectedTopicId), {
         headers: token ? { "x-professor-token": token } : undefined,
       })
       const payload = (await result.json()) as {
         candidates?: ReviewCandidate[]
         error?: string
+        topicProgress?: ProfessorTopicReviewProgress
       }
 
-      if (!result.ok || !payload.candidates) {
+      if (!result.ok || !payload.candidates || !payload.topicProgress) {
         setMessage(payload.error ?? "Review queue could not load.")
         return
       }
 
       const sorted = sortProfessorReviewCandidates(payload.candidates)
       setCandidates(sorted)
+      setLoadedTopicId(selectedTopicId)
       setReviewedCount(0)
       setNote("")
+      setTopicProgress(payload.topicProgress)
       setMessage(
         sorted.length > 0
-          ? `Loaded ${sorted.length} generated review item(s).`
-          : "No generated questions need review right now.",
+          ? `Loaded ${sorted.length} generated review item(s) for this topic.`
+          : "No generated questions need review for this topic right now.",
       )
     } catch {
       setMessage("Review queue could not load.")
@@ -106,10 +130,21 @@ export function ProfessorFriendlyReviewPanel() {
         return
       }
 
+      const reviewedCandidate = payload.candidate
       setCandidates((items) => items.slice(1))
       setReviewedCount((count) => count + 1)
       setNote("")
-      setMessage(`Marked ${payload.candidate.title} as ${payload.candidate.review.status}.`)
+      setTopicProgress((progress) =>
+        progress
+          ? advanceProfessorTopicReviewProgress(
+              progress,
+              reviewedCandidate.review.status,
+            )
+          : progress,
+      )
+      setMessage(
+        `Marked ${reviewedCandidate.title} as ${reviewedCandidate.review.status}.`,
+      )
     } catch {
       setMessage("Review action failed.")
     } finally {
@@ -117,9 +152,35 @@ export function ProfessorFriendlyReviewPanel() {
     }
   }
 
+  function selectTopic(topicId: string) {
+    setSelectedTopicId(topicId)
+    setLoadedTopicId(null)
+    setCandidates([])
+    setMessage(null)
+    setNote("")
+    setReviewedCount(0)
+    setTopicProgress(null)
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Syllabus topic
+          <select
+            value={selectedTopicId}
+            disabled={isLoading}
+            onChange={(event) => selectTopic(event.target.value)}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <option value="">Choose a topic</option>
+            {topics.map((topic) => (
+              <option key={topic.id} value={topic.id}>
+                {topic.title}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="relative">
           <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -130,7 +191,11 @@ export function ProfessorFriendlyReviewPanel() {
             placeholder="Admin secret"
           />
         </div>
-        <Button type="button" disabled={isLoading} onClick={loadQueue}>
+        <Button
+          type="button"
+          disabled={!selectedTopicId || isLoading}
+          onClick={loadQueue}
+        >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
@@ -140,17 +205,29 @@ export function ProfessorFriendlyReviewPanel() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">
-          {progress.reviewedCount} reviewed
-        </Badge>
-        <Badge variant="outline">
-          {progress.remainingPriorityItems} priority remaining
-        </Badge>
-        <Badge variant="outline">
-          {progress.totalCount} loaded total
-        </Badge>
-      </div>
+      {topicProgress ? (
+        <div className="space-y-2">
+          <section
+            aria-label={`${loadedTopic?.title ?? "Selected topic"} review progress`}
+            className="grid grid-cols-2 gap-2 sm:grid-cols-5"
+          >
+            <ProgressCount
+              label="Total drafts"
+              value={topicProgress.totalDrafts}
+            />
+            <ProgressCount
+              label="Needs review"
+              value={topicProgress.needsReview}
+            />
+            <ProgressCount label="Approved" value={topicProgress.approved} />
+            <ProgressCount label="Rejected" value={topicProgress.rejected} />
+            <ProgressCount label="Remaining" value={topicProgress.remaining} />
+          </section>
+          <p className="text-xs text-muted-foreground">
+            Remaining includes drafts awaiting review, edits, or regeneration.
+          </p>
+        </div>
+      ) : null}
 
       {message ? (
         <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -163,13 +240,18 @@ export function ProfessorFriendlyReviewPanel() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <Badge variant="outline" className="mb-2">
-                {current.topic ?? current.topicId}
+                {loadedTopic?.title ?? current.topic ?? current.topicId}
               </Badge>
               <h2 className="text-xl font-semibold tracking-normal">
                 {current.title}
               </h2>
             </div>
-            <Badge variant="secondary">{current.difficulty}</Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                {reviewedCount + 1} of {reviewedCount + candidates.length}
+              </Badge>
+              <Badge variant="secondary">{current.difficulty}</Badge>
+            </div>
           </div>
 
           <ReviewBlock title="Question" values={[current.prompt]} />
@@ -243,9 +325,20 @@ export function ProfessorFriendlyReviewPanel() {
         </article>
       ) : (
         <div className="border border-border p-6 text-sm text-muted-foreground">
-          Load the queue to review generated questions one at a time.
+          {loadedTopicId
+            ? `No needs-review drafts remain for ${loadedTopic?.title ?? "this topic"}.`
+            : "Select one syllabus topic, then load its review queue."}
         </div>
       )}
+    </div>
+  )
+}
+
+function ProgressCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/40 px-3 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
     </div>
   )
 }

@@ -21,6 +21,7 @@ import type {
 } from "@/lib/data/repository"
 import type { AdminQuestionDashboard, ReviewCandidate } from "@/lib/types"
 import { getServerEnv } from "@/lib/env/server"
+import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode"
 
 let contentRepositoryOverride: ContentRepository | undefined
 
@@ -29,7 +30,10 @@ export async function listTopics() {
 }
 
 export async function listQuestions() {
-  return readWithDemoFallback((repository) => repository.listQuestions())
+  const questions = await readWithDemoFallback((repository) =>
+    repository.listQuestions(),
+  )
+  return questions.filter(isStudentFacingQuestion)
 }
 
 export async function getAdminQuestionDashboard(
@@ -149,15 +153,17 @@ export async function regenerateAdminQuestionStrict(
 }
 
 export async function getQuestionById(questionId: string) {
-  return readWithDemoFallback((repository) =>
+  const question = await readWithDemoFallback((repository) =>
     repository.getQuestionById(questionId),
   )
+  return question && isStudentFacingQuestion(question) ? question : undefined
 }
 
 export async function listQuestionsByTopic(topicId: string) {
-  return readWithDemoFallback((repository) =>
+  const questions = await readWithDemoFallback((repository) =>
     repository.listQuestionsByTopic(topicId),
   )
+  return questions.filter(isStudentFacingQuestion)
 }
 
 export async function getQuestionCounts() {
@@ -188,6 +194,17 @@ export async function getRetrievalChunks() {
 
 export async function getReviewQueue(filters?: ReviewQueueFilters) {
   return readWithDemoFallback((repository) => repository.getReviewQueue(filters))
+}
+
+export async function getProfessorTopicReviewProgress(topicId: string) {
+  const candidates = await readWithDemoFallback((repository) =>
+    repository.getAdminQuestions({
+      generatedOnly: true,
+      topicId,
+    }),
+  )
+
+  return buildProfessorTopicReviewProgress(topicId, candidates)
 }
 
 export async function importReviewCandidates(

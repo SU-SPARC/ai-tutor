@@ -6,7 +6,12 @@ import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovere
 import { GET as getQuestion } from "@/app/api/questions/[id]/route"
 import { GET as listQuestionsRoute } from "@/app/api/questions/route"
 import type { ContentRepository } from "@/lib/data/repository"
-import { setContentRepositoryForTests } from "@/lib/data/data-store"
+import {
+  getApprovedQuestionById,
+  getApprovedQuestions,
+  listQuestionsByTopic,
+  setContentRepositoryForTests,
+} from "@/lib/data/data-store"
 import type { TutorQuestion } from "@/lib/types"
 
 const nextSyllabusCandidates =
@@ -40,6 +45,23 @@ const draftQuestion: TutorQuestion = {
     visibility: "public",
   },
   review: { status: "needs_review" },
+}
+
+const needsReviewTrustedQuestion: TutorQuestion = {
+  ...draftQuestion,
+  id: "needs-review-trusted",
+  prompt: "NEEDS REVIEW CONTENT that students must never see.",
+  source: {
+    ...draftQuestion.source,
+    trustLevel: "professor_approved",
+  },
+}
+
+const approvedUnverifiedQuestion: TutorQuestion = {
+  ...draftQuestion,
+  id: "approved-unverified",
+  prompt: "UNVERIFIED CONTENT that students must never see.",
+  review: { status: "approved" },
 }
 
 describe("questions API", () => {
@@ -134,6 +156,48 @@ describe("questions API", () => {
 
     expect(response.status).toBe(404)
     expect(body).not.toContain("SECRET DRAFT PROMPT")
+  })
+
+  it("independently hides needs-review and generated-unverified questions from student pages and APIs", async () => {
+    const hiddenQuestions = [
+      needsReviewTrustedQuestion,
+      approvedUnverifiedQuestion,
+    ]
+    setContentRepositoryForTests({
+      getQuestionById: async (questionId: string) =>
+        hiddenQuestions.find((question) => question.id === questionId),
+      listQuestions: async () => hiddenQuestions,
+      listQuestionsByTopic: async () => hiddenQuestions,
+    } as unknown as ContentRepository)
+
+    const [pageQuestions, topicPageQuestions, listResponse] = await Promise.all(
+      [
+        getApprovedQuestions(),
+        listQuestionsByTopic("binomial-models"),
+        listQuestionsRoute(request("http://test/api/questions")),
+      ],
+    )
+    const listBody = await listResponse.text()
+
+    expect(pageQuestions).toEqual([])
+    expect(topicPageQuestions).toEqual([])
+    expect(listResponse.status).toBe(200)
+    expect(listBody).not.toMatch(/NEEDS REVIEW CONTENT|UNVERIFIED CONTENT/)
+
+    for (const hiddenQuestion of hiddenQuestions) {
+      expect(await getApprovedQuestionById(hiddenQuestion.id)).toBeUndefined()
+
+      const detailResponse = await getQuestion(
+        request("http://test/api/questions/x"),
+        {
+          params: Promise.resolve({ id: hiddenQuestion.id }),
+        },
+      )
+      const detailBody = await detailResponse.text()
+
+      expect(detailResponse.status).toBe(404)
+      expect(detailBody).not.toContain(hiddenQuestion.prompt)
+    }
   })
 
   it("never lists or retrieves next-syllabus review drafts", async () => {

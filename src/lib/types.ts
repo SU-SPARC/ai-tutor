@@ -471,6 +471,15 @@ export type ProfessorReviewAnalytics = {
   totalBacklog: number
 }
 
+export type ProfessorTopicReviewProgress = {
+  approved: number
+  needsReview: number
+  rejected: number
+  remaining: number
+  topicId: string
+  totalDrafts: number
+}
+
 export type GeneratedQuestionReviewOutcomes = Record<ReviewStatus, number>
 
 export type ProfessorPracticeAnalytics = {

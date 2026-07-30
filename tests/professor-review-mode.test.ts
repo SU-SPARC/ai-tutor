@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  advanceProfessorTopicReviewProgress,
+  buildProfessorTopicReviewProgress,
   professorReviewProgress,
+  professorReviewQueuePath,
   sortProfessorReviewCandidates,
 } from "@/lib/tutor/professor-review-mode"
 import type { ReviewCandidate } from "@/lib/types"
@@ -61,6 +64,69 @@ describe("professor-friendly review mode", () => {
       reviewedCount: 3,
       totalCount: 5,
     })
+  })
+
+  it("builds and advances selected-topic lifecycle counts", () => {
+    const progress = buildProfessorTopicReviewProgress("topic-one", [
+      candidate({
+        id: "needs-review",
+        reviewStatus: "needs_review",
+        sourceType: "generated_original",
+      }),
+      candidate({
+        id: "needs-edit",
+        reviewStatus: "needs_edit",
+        sourceType: "generated_original",
+      }),
+      candidate({
+        id: "needs-regeneration",
+        reviewStatus: "needs_regeneration",
+        sourceType: "pattern_derived_original",
+      }),
+      candidate({
+        id: "approved",
+        reviewStatus: "approved",
+        sourceType: "generated_original",
+      }),
+      candidate({
+        id: "rejected",
+        reviewStatus: "rejected",
+        sourceType: "pattern_derived_original",
+      }),
+    ])
+
+    expect(progress).toEqual({
+      approved: 1,
+      needsReview: 1,
+      rejected: 1,
+      remaining: 3,
+      topicId: "topic-one",
+      totalDrafts: 5,
+    })
+    expect(advanceProfessorTopicReviewProgress(progress, "approved")).toEqual({
+      approved: 2,
+      needsReview: 0,
+      rejected: 1,
+      remaining: 2,
+      topicId: "topic-one",
+      totalDrafts: 5,
+    })
+    expect(advanceProfessorTopicReviewProgress(progress, "needs_edit")).toEqual(
+      {
+        approved: 1,
+        needsReview: 0,
+        rejected: 1,
+        remaining: 3,
+        topicId: "topic-one",
+        totalDrafts: 5,
+      },
+    )
+  })
+
+  it("builds a needs-review queue request for exactly one topic", () => {
+    expect(professorReviewQueuePath("conditional probability")).toBe(
+      "/api/professor/review?status=needs_review&topicId=conditional+probability",
+    )
   })
 })
 

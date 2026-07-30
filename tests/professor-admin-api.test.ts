@@ -3,16 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json"
 import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json"
+import topicData from "../data/demo/topics.json"
 import {
   GET as getAnalytics,
 } from "@/app/api/professor/analytics/route"
 import {
   GET as getReviewQueue,
   PATCH as patchReviewQueue,
+  POST as postReviewQueue,
 } from "@/app/api/professor/review/route"
 import { POST as uploadGeneratedReview } from "@/app/api/professor/upload/route"
 import { resetReviewQueueForTests } from "@/lib/data/data-store"
-import type { ProfessorAnalyticsDashboard, ReviewCandidate } from "@/lib/types"
+import type {
+  ProfessorAnalyticsDashboard,
+  ProfessorTopicReviewProgress,
+  ReviewCandidate,
+} from "@/lib/types"
 
 const TOKEN = "review-secret"
 const followingSyllabusCandidates =
@@ -54,6 +60,120 @@ describe("professor admin APIs", () => {
     ).toBe(true)
     expect(JSON.stringify(payload)).not.toMatch(
       /sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|source page/i,
+    )
+  })
+
+  it("returns topics in syllabus fixture order and filters the queue to one needs-review topic", async () => {
+    const topicId = "introduction-probability-venn-diagrams"
+    const response = await getReviewQueue(
+      new Request(
+        `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
+        {
+          headers: { "x-professor-token": TOKEN },
+        },
+      ),
+    )
+    const payload = (await response.json()) as {
+      candidates: ReviewCandidate[]
+      topicProgress: ProfessorTopicReviewProgress
+      topics: Array<{ id: string; title: string }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(payload.topics).toEqual(
+      topicData.map(({ id, title }) => ({ id, title })),
+    )
+    expect(payload.candidates).toHaveLength(20)
+    expect(
+      payload.candidates.every(
+        (candidate) =>
+          candidate.topicId === topicId &&
+          candidate.review.status === "needs_review" &&
+          candidate.source.trustLevel === "generated_unverified" &&
+          ["generated_original", "pattern_derived_original"].includes(
+            candidate.source.sourceType,
+          ),
+      ),
+    ).toBe(true)
+    expect(payload.topicProgress).toEqual({
+      approved: 0,
+      needsReview: 20,
+      rejected: 0,
+      remaining: 20,
+      topicId,
+      totalDrafts: 20,
+    })
+  })
+
+  it("updates selected-topic counts while keeping resolved drafts out of the queue", async () => {
+    const topicId = "introduction-probability-venn-diagrams"
+    const initial = await selectedTopicQueue(topicId)
+    const [approvedCandidate, rejectedCandidate] = initial.candidates
+
+    const approved = await patchReviewQueue(
+      authedRequest({
+        action: "approve",
+        candidateId: approvedCandidate.id,
+        reviewPriority: "priority",
+      }),
+    )
+    const rejected = await patchReviewQueue(
+      authedRequest({
+        action: "reject",
+        candidateId: rejectedCandidate.id,
+      }),
+    )
+    const updated = await selectedTopicQueue(topicId)
+
+    expect(approved.status).toBe(200)
+    expect(rejected.status).toBe(200)
+    expect(updated.candidates).toHaveLength(18)
+    expect(
+      updated.candidates.every(
+        (candidate) =>
+          candidate.topicId === topicId &&
+          candidate.review.status === "needs_review",
+      ),
+    ).toBe(true)
+    expect(updated.topicProgress).toEqual({
+      approved: 1,
+      needsReview: 18,
+      rejected: 1,
+      remaining: 18,
+      topicId,
+      totalDrafts: 20,
+    })
+  })
+
+  it("protects both approval and rejection mutations with the admin secret", async () => {
+    const [candidate] = await firstCandidates(1)
+    const unauthorizedApproval = await patchReviewQueue(
+      mutationRequest(
+        {
+          action: "approve",
+          candidateId: candidate.id,
+          reviewPriority: "priority",
+        },
+        undefined,
+        "PATCH",
+      ),
+    )
+    const unauthorizedRejection = await postReviewQueue(
+      mutationRequest(
+        {
+          action: "reject",
+          candidateId: candidate.id,
+        },
+        "wrong-secret",
+        "POST",
+      ),
+    )
+    const unchanged = await selectedTopicQueue(candidate.topicId)
+
+    expect(unauthorizedApproval.status).toBe(401)
+    expect(unauthorizedRejection.status).toBe(401)
+    expect(unchanged.candidates.some((item) => item.id === candidate.id)).toBe(
+      true,
     )
   })
 
@@ -391,6 +511,24 @@ async function firstCandidates(count: number) {
   return payload.candidates.slice(0, count)
 }
 
+async function selectedTopicQueue(topicId: string) {
+  const response = await getReviewQueue(
+    new Request(
+      `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
+      {
+        headers: { "x-professor-token": TOKEN },
+      },
+    ),
+  )
+  const payload = (await response.json()) as {
+    candidates: ReviewCandidate[]
+    topicProgress: ProfessorTopicReviewProgress
+  }
+
+  expect(response.status).toBe(200)
+  return payload
+}
+
 function authedRequest(body?: unknown) {
   return new Request("http://test/api/professor/review", {
     body: body ? JSON.stringify(body) : undefined,
@@ -399,6 +537,21 @@ function authedRequest(body?: unknown) {
       "x-professor-token": TOKEN,
     },
     method: body ? "PATCH" : "GET",
+  })
+}
+
+function mutationRequest(
+  body: unknown,
+  token: string | undefined,
+  method: "PATCH" | "POST",
+) {
+  return new Request("http://test/api/professor/review", {
+    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "x-professor-token": token } : {}),
+    },
+    method,
   })
 }
 

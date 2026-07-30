@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import {
+  getProfessorTopicReviewProgress,
   getReviewQueue,
   listTopics,
   updateReviewCandidates,
@@ -39,15 +40,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
-  const [candidates, topics] = await Promise.all([
+  const [candidates, topics, topicProgress] = await Promise.all([
     getReviewQueue(parsed.filters),
     listTopics(),
+    parsed.filters.topicId
+      ? getProfessorTopicReviewProgress(parsed.filters.topicId)
+      : Promise.resolve(undefined),
   ])
 
   return NextResponse.json({
     candidates,
     count: candidates.length,
     filters: parsed.filters,
+    topicProgress,
     topics: safeTopics(topics),
   })
 }

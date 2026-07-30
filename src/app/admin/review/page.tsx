@@ -11,8 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { listTopics } from "@/lib/data/data-store"
+import { safeTopics } from "@/lib/tutor/professor-admin"
 
-export default function AdminReviewPage() {
+export default async function AdminReviewPage() {
+  const topics = safeTopics(await listTopics())
+
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
@@ -49,7 +53,7 @@ export default function AdminReviewPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfessorFriendlyReviewPanel />
+            <ProfessorFriendlyReviewPanel topics={topics} />
           </CardContent>
         </Card>
       </section>
