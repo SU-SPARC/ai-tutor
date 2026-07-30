@@ -17,7 +17,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/topics", label: "Topics" },
   { href: "/practice", label: "Practice" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/about", label: "About" },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -32,7 +31,7 @@ export function SiteHeader({ demoMode }: { demoMode: boolean }) {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
+      <div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <GraduationCap className="h-5 w-5 text-primary" />
           <span className="tracking-tight">Suffolk Prob &amp; Stats Tutor</span>
