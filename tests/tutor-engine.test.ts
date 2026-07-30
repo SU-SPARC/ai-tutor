@@ -485,8 +485,9 @@ describe("tutor engine", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it("surfaces the LLM's own message when the API key is missing, without blocking", async () => {
+  it("surfaces the LLM's own message when AI is disabled, without blocking", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
+    vi.stubEnv("AI_ENABLED", "false")
     vi.stubEnv("OPENROUTER_API_KEY", "")
     vi.stubGlobal("fetch", fetchImpl)
 
@@ -499,7 +500,7 @@ describe("tutor engine", () => {
 
     expect(response.source).toBe("llm")
     expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.message).toContain("LLM fallback is not configured")
+    expect(response.message).toContain("LLM fallback is disabled")
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 

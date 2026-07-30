@@ -11,7 +11,8 @@ describe("server-side LLM tutor service", () => {
     vi.unstubAllEnvs()
   })
 
-  it("fails gracefully without OPENROUTER_API_KEY and does not call fetch", async () => {
+  it("fails gracefully when AI is disabled and does not call fetch", async () => {
+    vi.stubEnv("AI_ENABLED", "false")
     vi.stubEnv("OPENROUTER_API_KEY", "")
     const fetchImpl = vi.fn<typeof fetch>()
 
@@ -22,10 +23,10 @@ describe("server-side LLM tutor service", () => {
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       contextUsed: false,
-      error: "missing_api_key",
+      error: "ai_disabled",
       fallbackUsed: false,
     })
-    expect(result.tutorMessage).toContain("LLM fallback is not configured")
+    expect(result.tutorMessage).toContain("LLM fallback is disabled")
     expect(result.estimatedTokens?.estimatedTotalTokens).toBeGreaterThan(0)
   })
 

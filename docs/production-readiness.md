@@ -74,9 +74,11 @@ Audit baseline: `e310048`
   provides continuity, not authentication or access control.
 - Professor/admin operations currently use one shared `ADMIN_SECRET`.
 - Local demo mode uses committed fixtures and in-memory state.
-- No repository evidence currently establishes isolated Development,
-  Preview/Staging, and Production environments, an institution-owned production
-  database, CI/CD gates, monitoring, backups, or rollback procedures.
+- Typed configuration now distinguishes Development, Test, Preview, Staging,
+  and Production and fails strict environments when required server
+  configuration is missing. External resource isolation, an institution-owned
+  production database, CI/CD gates, monitoring, backups, and rollback
+  procedures remain unverified.
 
 See [Tutoring App Foundation](foundation.md),
 [Database Schema And Migrations](database.md), and
@@ -123,7 +125,7 @@ team should replace each role before a pilot is scheduled.
 | PR-01 | Critical | Maintain this readiness record and link evidence from later production prompts. | In progress | Project engineering | This document is reviewed and updated for every production-transition change. |
 | PR-02 | Critical | Complete the data-flow, privacy, retention, and deletion inventory. | Planned | Privacy owner + engineering | Approved inventory covers identifiers, answers, tutor messages, AI inputs/outputs, logs, caches, analytics, and third parties. |
 | PR-03 | Critical | Record production architecture and environment decisions. | Decision required | Project owner + university IT | Approved architecture decision record names environment, database, auth, AI, logging, backup, deployment, and rollback choices. |
-| PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data. | Planned | Platform engineering | Typed validation fails production startup when required configuration is absent; tests prove isolation. |
+| PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data. | In progress | Platform engineering | [Typed environment validation](environment-configuration.md) and automated tests cover configuration; deployed resource isolation remains to be proven. |
 | PR-05 | Critical | Remove production demo and in-memory fallbacks. | Planned | Application engineering | Production-mode tests prove database failures return controlled errors and never read or mutate demo state. |
 | PR-06 | Critical | Establish production database ownership, billing, credentials, backup, deletion, and incident responsibilities. | Decision required | University IT + project owner | Written ownership handoff and separate staging/production database evidence. |
 | PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators. | Decision required | University IT + security + engineering | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure. |
@@ -307,7 +309,7 @@ must link to its evidence in the task table or accompanying documentation.
 
 ### Runtime Environments
 
-- [ ] Prompt 88 — Runtime environments separated and validated.
+- [x] Prompt 88 — Runtime configuration separated and validated; external resource isolation remains tracked by PR-04.
 - [ ] Prompt 89 — Unsafe production demo fallbacks removed.
 
 ### Database And Data Ownership

@@ -26,7 +26,7 @@ const RETRYABLE_GUARDRAIL_VIOLATIONS: TutorResponseGuardrailViolation[] = [
 export const LLM_TUTOR_OUTPUT_TOKEN_LIMIT = 180
 
 export function getLlmTutorOutputTokenLimit() {
-  return getServerEnv().MAX_LLM_OUTPUT_TOKENS
+  return getServerEnv().MAX_LLM_OUTPUT_TOKENS ?? 0
 }
 
 export type LlmTutorTask =
@@ -110,14 +110,14 @@ export async function generateLlmTutorResponse(
   const env = getServerEnv()
   const estimatedTokens = estimateLlmTutorTokens(input)
 
-  if (!env.OPENROUTER_API_KEY) {
+  if (!env.AI_ENABLED) {
     return {
       contextUsed: false,
-      error: "missing_api_key",
+      error: "ai_disabled",
       estimatedTokens,
       fallbackUsed: false,
       tutorMessage:
-        "LLM fallback is not configured. Approved rules and retrieval can still be used without it.",
+        "LLM fallback is disabled. Approved rules and retrieval can still be used without it.",
     }
   }
 
