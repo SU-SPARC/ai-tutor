@@ -416,7 +416,7 @@ export function PracticeWorkspace({
 
   return (
     <main className="min-h-svh bg-background lg:h-[calc(100svh-3.5rem)] lg:min-h-0 lg:overflow-hidden">
-      <section className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-8 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden lg:py-6">
+      <section className="mx-auto grid w-full max-w-[90rem] gap-6 px-6 py-8 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden lg:py-6">
         <aside className="flex flex-col gap-4 lg:h-[calc(100svh-6.5rem)] lg:min-h-0">
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="ghost" size="sm" className="px-0">
