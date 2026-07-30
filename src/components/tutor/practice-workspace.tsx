@@ -31,7 +31,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -453,7 +452,6 @@ export function PracticeWorkspace({
           <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <CardHeader>
               <CardTitle className="text-base">Topics</CardTitle>
-              <CardDescription>Pick a topic, then a problem.</CardDescription>
             </CardHeader>
             <CardContent className="p-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
               <div className="relative mb-2">
