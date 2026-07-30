@@ -86,6 +86,11 @@ export function PracticeWorkspace({
       : topics[0]?.id) ??
     ""
   const [selectedTopicId, setSelectedTopicId] = useState(resolvedTopicId)
+  // Which topics are expanded in the sidebar (VS Code-style tree — each topic
+  // expands/collapses independently, decoupled from what's loaded in the chat).
+  const [expandedTopicIds, setExpandedTopicIds] = useState<Set<string>>(
+    () => new Set(resolvedTopicId ? [resolvedTopicId] : []),
+  )
   const topicQuestions = useMemo(
     () => questions.filter((question) => question.topicId === selectedTopicId),
     [questions, selectedTopicId],
@@ -111,7 +116,7 @@ export function PracticeWorkspace({
   const [session, setSession] = useState<TutorSessionRecord | null>(null)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [revealedHints, setRevealedHints] = useState<string[]>([])
+  const [hintCount, setHintCount] = useState(0)
   const [hintViewIndex, setHintViewIndex] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -120,7 +125,7 @@ export function PracticeWorkspace({
   const canSend =
     Boolean(session) && !isTutorBusy && answer.trim().length > 0
   const hintsExhausted = Boolean(
-    selectedQuestion && revealedHints.length >= selectedQuestion.hints.length,
+    selectedQuestion && hintCount >= selectedQuestion.hints.length,
   )
 
   useEffect(() => {
@@ -136,7 +141,7 @@ export function PracticeWorkspace({
       setSession(null)
       setSessionError(null)
       setMessages([])
-      setRevealedHints([])
+      setHintCount(0)
       setHintViewIndex(0)
 
       if (!selectedQuestionIdForSession) {
@@ -174,7 +179,7 @@ export function PracticeWorkspace({
 
   function resetChat() {
     setMessages([])
-    setRevealedHints([])
+    setHintCount(0)
     setHintViewIndex(0)
   }
 
@@ -185,23 +190,25 @@ export function PracticeWorkspace({
     ])
   }
 
-  function selectQuestion(questionId: string) {
+  function toggleTopic(topicId: string) {
+    setExpandedTopicIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(topicId)) {
+        next.delete(topicId)
+      } else {
+        next.add(topicId)
+      }
+      return next
+    })
+  }
+
+  function selectQuestion(questionId: string, topicId: string) {
+    setSelectedTopicId(topicId)
+    setExpandedTopicIds((previous) => new Set(previous).add(topicId))
     setSelectedQuestionId(questionId)
     setAnswer("")
     setLatestResponse(null)
     resetChat()
-  }
-
-  function chooseTopic(topicId: string) {
-    // Clicking the already-open topic keeps the current problem (no reset).
-    if (topicId === selectedTopicId) {
-      return
-    }
-    const nextQuestion = questions.find(
-      (question) => question.topicId === topicId,
-    )
-    setSelectedTopicId(topicId)
-    selectQuestion(nextQuestion?.id ?? "")
   }
 
   async function sendAnswer() {
@@ -244,37 +251,43 @@ export function PracticeWorkspace({
     }
   }
 
-  async function getHint() {
-    if (!selectedQuestion || !session || activeMode) {
+  function getHint() {
+    if (!selectedQuestion || !session || hintsExhausted) {
       return
     }
 
-    setActiveMode("hint")
+    // Reveal exactly one more hint from the local list. Driving the display
+    // off a local counter (rather than the engine's cumulative response)
+    // guarantees one hint per click, even after wrong answers advance the
+    // engine's own hint index.
+    const next = hintCount + 1
+    setHintCount(next)
+    setHintViewIndex(next - 1)
     setSessionError(null)
 
-    try {
-      const nextSession = await postTutorSessionEvent(session.id, "hint")
-      setSession(nextSession)
-
-      const tutorResponse = await requestTutorResponse({
-        answer,
-        mode: "hint",
-        questionId: selectedQuestion.id,
-        sessionId: nextSession.id,
-        topicId: selectedQuestion.topicId,
+    // Sync the server session counter and engine hint state in the background
+    // (for analytics + LLM-fallback eligibility); the hint is already shown.
+    const sessionId = session.id
+    const questionId = selectedQuestion.id
+    const topicId = selectedQuestion.topicId
+    const submittedAnswer = answer
+    void postTutorSessionEvent(sessionId, "hint")
+      .then((updatedSession) => {
+        setSession(updatedSession)
+        return requestTutorResponse({
+          answer: submittedAnswer,
+          mode: "hint",
+          questionId,
+          sessionId,
+          topicId,
+        })
       })
-
-      setLatestResponse(tutorResponse)
-
-      if (tutorResponse.hints.length > 0) {
-        setRevealedHints(tutorResponse.hints)
-        setHintViewIndex(tutorResponse.hints.length - 1)
-      }
-    } catch (error) {
-      setSessionError(errorMessageFor(error))
-    } finally {
-      setActiveMode(null)
-    }
+      .then((response) => {
+        setLatestResponse(response)
+      })
+      .catch(() => {
+        // Background sync only — the revealed hint is unaffected.
+      })
   }
 
   async function showAnswer() {
@@ -402,9 +415,9 @@ export function PracticeWorkspace({
   }
 
   return (
-    <main className="min-h-svh bg-background">
-      <section className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-4">
+    <main className="min-h-svh bg-background lg:h-[calc(100svh-3.5rem)] lg:min-h-0 lg:overflow-hidden">
+      <section className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-8 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden lg:py-6">
+        <aside className="flex flex-col gap-4 lg:h-[calc(100svh-6.5rem)] lg:min-h-0">
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="ghost" size="sm" className="px-0">
               <Link href="/">
@@ -420,15 +433,15 @@ export function PracticeWorkspace({
             </Button>
           </div>
 
-          <Card>
+          <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <CardHeader>
               <CardTitle className="text-base">Topics</CardTitle>
               <CardDescription>Pick a topic, then a problem.</CardDescription>
             </CardHeader>
-            <CardContent className="p-2">
-              <div className="flex max-h-[45vh] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-[calc(100svh-16rem)]">
+            <CardContent className="p-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
+              <div className="flex max-h-[45vh] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
                 {topics.map((topic) => {
-                  const isOpen = topic.id === selectedTopicId
+                  const isOpen = expandedTopicIds.has(topic.id)
                   const problems = isOpen
                     ? questions.filter(
                         (question) => question.topicId === topic.id,
@@ -440,9 +453,8 @@ export function PracticeWorkspace({
                         type="button"
                         variant={isOpen ? "secondary" : "ghost"}
                         className="h-auto w-full justify-start gap-2 whitespace-normal py-2.5 text-left"
-                        disabled={isTutorBusy}
                         aria-expanded={isOpen}
-                        onClick={() => chooseTopic(topic.id)}
+                        onClick={() => toggleTopic(topic.id)}
                       >
                         {isOpen ? (
                           <ChevronDown
@@ -472,7 +484,7 @@ export function PracticeWorkspace({
                                 }
                                 className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                                 disabled={isTutorBusy}
-                                onClick={() => selectQuestion(problem.id)}
+                                onClick={() => selectQuestion(problem.id, topic.id)}
                               >
                                 {problem.title}
                               </Button>
@@ -492,7 +504,7 @@ export function PracticeWorkspace({
           </Card>
         </aside>
 
-        <div className="flex min-w-0 flex-col h-[75svh] lg:h-[calc(100svh-7rem)]">
+        <div className="flex min-w-0 flex-col h-[75svh] lg:h-[calc(100svh-6.5rem)]">
           {selectedQuestion ? (
             <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
               <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
@@ -541,7 +553,7 @@ export function PracticeWorkspace({
                 <div ref={messagesEndRef} />
               </div>
 
-              {revealedHints.length > 0 ? (
+              {hintCount > 0 ? (
                 <div className="border-t px-5 py-3">
                   <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
                     <Lightbulb
@@ -551,7 +563,7 @@ export function PracticeWorkspace({
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <span className="text-xs font-medium text-muted-foreground">
-                          Hint {hintViewIndex + 1} of {revealedHints.length}
+                          Hint {hintViewIndex + 1} of {hintCount}
                         </span>
                         <div className="flex items-center gap-1">
                           <Button
@@ -573,10 +585,10 @@ export function PracticeWorkspace({
                             size="icon"
                             className="h-6 w-6"
                             aria-label="Next hint"
-                            disabled={hintViewIndex >= revealedHints.length - 1}
+                            disabled={hintViewIndex >= hintCount - 1}
                             onClick={() =>
                               setHintViewIndex((index) =>
-                                Math.min(revealedHints.length - 1, index + 1),
+                                Math.min(hintCount - 1, index + 1),
                               )
                             }
                           >
@@ -585,7 +597,9 @@ export function PracticeWorkspace({
                         </div>
                       </div>
                       <div className="leading-6">
-                        <MathText>{revealedHints[hintViewIndex]}</MathText>
+                        <MathText>
+                          {selectedQuestion.hints[hintViewIndex] ?? ""}
+                        </MathText>
                       </div>
                     </div>
                   </div>
@@ -628,20 +642,10 @@ export function PracticeWorkspace({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={
-                      isTutorBusy ||
-                      !session ||
-                      revealedHints.length >= selectedQuestion.hints.length
-                    }
-                    onClick={() => {
-                      void getHint()
-                    }}
+                    disabled={isTutorBusy || !session || hintsExhausted}
+                    onClick={getHint}
                   >
-                    {activeMode === "hint" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Lightbulb className="h-4 w-4" />
-                    )}
+                    <Lightbulb className="h-4 w-4" />
                     Hint
                   </Button>
                   {hintsExhausted ? (
