@@ -19,8 +19,10 @@ import {
   Lightbulb,
   Loader2,
   RotateCcw,
+  Search,
   Send,
   Sparkles,
+  X,
 } from "lucide-react"
 
 import { MathText } from "@/components/math/math-renderer"
@@ -33,6 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
   anonymousTutorSessionStorageKey,
@@ -118,6 +121,7 @@ export function PracticeWorkspace({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hintCount, setHintCount] = useState(0)
   const [hintViewIndex, setHintViewIndex] = useState(0)
+  const [search, setSearch] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const selectedQuestionIdForSession = selectedQuestion?.id
@@ -127,6 +131,19 @@ export function PracticeWorkspace({
   const hintsExhausted = Boolean(
     selectedQuestion && hintCount >= selectedQuestion.hints.length,
   )
+  const searchQuery = search.trim().toLowerCase()
+  const isSearching = searchQuery.length > 0
+  const visibleTopics = isSearching
+    ? topics.filter(
+        (topic) =>
+          topic.title.toLowerCase().includes(searchQuery) ||
+          questions.some(
+            (question) =>
+              question.topicId === topic.id &&
+              question.title.toLowerCase().includes(searchQuery),
+          ),
+      )
+    : topics
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
@@ -439,66 +456,106 @@ export function PracticeWorkspace({
               <CardDescription>Pick a topic, then a problem.</CardDescription>
             </CardHeader>
             <CardContent className="p-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
+              <div className="relative mb-2">
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search topics or problems…"
+                  aria-label="Search topics or problems"
+                  className="h-9 px-8"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
               <div className="flex max-h-[45vh] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
-                {topics.map((topic) => {
-                  const isOpen = expandedTopicIds.has(topic.id)
-                  const problems = isOpen
-                    ? questions.filter(
-                        (question) => question.topicId === topic.id,
-                      )
-                    : []
-                  return (
-                    <div key={topic.id}>
-                      <Button
-                        type="button"
-                        variant={isOpen ? "secondary" : "ghost"}
-                        className="h-auto w-full justify-start gap-2 whitespace-normal py-2.5 text-left"
-                        aria-expanded={isOpen}
-                        onClick={() => toggleTopic(topic.id)}
-                      >
-                        {isOpen ? (
-                          <ChevronDown
-                            className="h-4 w-4 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <ChevronRight
-                            className="h-4 w-4 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span className="min-w-0 flex-1">{topic.title}</span>
-                      </Button>
-                      {isOpen ? (
-                        <div className="mt-1 ml-4 flex flex-col gap-1 border-l pl-2">
-                          {problems.length > 0 ? (
-                            problems.map((problem) => (
-                              <Button
-                                key={problem.id}
-                                type="button"
-                                size="sm"
-                                variant={
-                                  problem.id === selectedQuestionId
-                                    ? "default"
-                                    : "ghost"
-                                }
-                                className="h-auto w-full justify-start whitespace-normal py-2 text-left"
-                                disabled={isTutorBusy}
-                                onClick={() => selectQuestion(problem.id, topic.id)}
-                              >
-                                {problem.title}
-                              </Button>
-                            ))
+                {visibleTopics.length === 0 ? (
+                  <p className="px-2 py-3 text-sm text-muted-foreground">
+                    No matches for “{search.trim()}”.
+                  </p>
+                ) : (
+                  visibleTopics.map((topic) => {
+                    const topicMatches = topic.title
+                      .toLowerCase()
+                      .includes(searchQuery)
+                    const topicProblems = questions.filter(
+                      (question) => question.topicId === topic.id,
+                    )
+                    const problems =
+                      isSearching && !topicMatches
+                        ? topicProblems.filter((question) =>
+                            question.title.toLowerCase().includes(searchQuery),
+                          )
+                        : topicProblems
+                    const isOpen = isSearching
+                      ? true
+                      : expandedTopicIds.has(topic.id)
+                    return (
+                      <div key={topic.id}>
+                        <Button
+                          type="button"
+                          variant={isOpen ? "secondary" : "ghost"}
+                          className="h-auto w-full justify-start gap-2 whitespace-normal py-2.5 text-left"
+                          aria-expanded={isOpen}
+                          onClick={() => toggleTopic(topic.id)}
+                        >
+                          {isOpen ? (
+                            <ChevronDown
+                              className="h-4 w-4 shrink-0 text-muted-foreground"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <p className="px-2 py-1 text-xs text-muted-foreground">
-                              No problems yet.
-                            </p>
+                            <ChevronRight
+                              className="h-4 w-4 shrink-0 text-muted-foreground"
+                              aria-hidden="true"
+                            />
                           )}
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
+                          <span className="min-w-0 flex-1">{topic.title}</span>
+                        </Button>
+                        {isOpen ? (
+                          <div className="mt-1 ml-4 flex flex-col gap-1 border-l pl-2">
+                            {problems.length > 0 ? (
+                              problems.map((problem) => (
+                                <Button
+                                  key={problem.id}
+                                  type="button"
+                                  size="sm"
+                                  variant={
+                                    problem.id === selectedQuestionId
+                                      ? "default"
+                                      : "ghost"
+                                  }
+                                  className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                                  disabled={isTutorBusy}
+                                  onClick={() =>
+                                    selectQuestion(problem.id, topic.id)
+                                  }
+                                >
+                                  {problem.title}
+                                </Button>
+                              ))
+                            ) : (
+                              <p className="px-2 py-1 text-xs text-muted-foreground">
+                                No problems yet.
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
