@@ -17,7 +17,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/topics", label: "Topics" },
   { href: "/practice", label: "Practice" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/about", label: "About" },
 ]
 
 function isActive(pathname: string, href: string) {

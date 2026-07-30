@@ -82,7 +82,13 @@ export default async function TopicsPage() {
                       variant={count === 0 ? "outline" : "default"}
                       className="w-full"
                     >
-                      <Link href={`/topics/${topic.id}`}>
+                      <Link
+                        href={
+                          count === 0
+                            ? `/topics/${topic.id}`
+                            : `/practice?topicId=${topic.id}`
+                        }
+                      >
                         {count === 0 ? "View topic" : "Start"}
                         <ArrowRight className="h-4 w-4" />
                       </Link>

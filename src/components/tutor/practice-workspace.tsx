@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   ChartNoAxesColumn,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -48,6 +49,7 @@ import { cn } from "@/lib/utils"
 
 type PracticeWorkspaceProps = {
   initialQuestionId?: string
+  initialTopicId?: string
   questions: PracticeQuestion[]
   topics: CourseTopic[]
 }
@@ -68,21 +70,29 @@ type TutorSessionPayload = {
 
 export function PracticeWorkspace({
   initialQuestionId,
+  initialTopicId,
   questions,
   topics,
 }: PracticeWorkspaceProps) {
   const initialQuestion = questions.find(
     (question) => question.id === initialQuestionId,
   )
-  const initialTopicId = initialQuestion?.topicId ?? topics[0]?.id ?? ""
-  const [selectedTopicId, setSelectedTopicId] = useState(initialTopicId)
+  // A specific question wins; otherwise enter topic-first (from ?topicId);
+  // otherwise fall back to the first topic.
+  const resolvedTopicId =
+    initialQuestion?.topicId ??
+    (initialTopicId && topics.some((topic) => topic.id === initialTopicId)
+      ? initialTopicId
+      : topics[0]?.id) ??
+    ""
+  const [selectedTopicId, setSelectedTopicId] = useState(resolvedTopicId)
   const topicQuestions = useMemo(
     () => questions.filter((question) => question.topicId === selectedTopicId),
     [questions, selectedTopicId],
   )
   const [selectedQuestionId, setSelectedQuestionId] = useState(
     initialQuestion?.id ??
-      questions.find((question) => question.topicId === initialTopicId)?.id ??
+      questions.find((question) => question.topicId === resolvedTopicId)?.id ??
       questions[0]?.id ??
       "",
   )
@@ -175,15 +185,23 @@ export function PracticeWorkspace({
     ])
   }
 
+  function selectQuestion(questionId: string) {
+    setSelectedQuestionId(questionId)
+    setAnswer("")
+    setLatestResponse(null)
+    resetChat()
+  }
+
   function chooseTopic(topicId: string) {
+    // Clicking the already-open topic keeps the current problem (no reset).
+    if (topicId === selectedTopicId) {
+      return
+    }
     const nextQuestion = questions.find(
       (question) => question.topicId === topicId,
     )
     setSelectedTopicId(topicId)
-    setSelectedQuestionId(nextQuestion?.id ?? "")
-    setAnswer("")
-    setLatestResponse(null)
-    resetChat()
+    selectQuestion(nextQuestion?.id ?? "")
   }
 
   async function sendAnswer() {
@@ -405,46 +423,71 @@ export function PracticeWorkspace({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Topics</CardTitle>
-              <CardDescription>Pick a topic to practice.</CardDescription>
+              <CardDescription>Pick a topic, then a problem.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {topics.map((topic) => (
-                <Button
-                  key={topic.id}
-                  type="button"
-                  variant={topic.id === selectedTopicId ? "default" : "secondary"}
-                  className="h-auto justify-start whitespace-normal py-3 text-left"
-                  onClick={() => chooseTopic(topic.id)}
-                >
-                  {topic.title}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Questions</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {topicQuestions.map((question) => (
-                <Button
-                  key={question.id}
-                  type="button"
-                  variant={
-                    question.id === selectedQuestionId ? "outline" : "ghost"
-                  }
-                  className="h-auto justify-start whitespace-normal py-3 text-left"
-                  onClick={() => {
-                    setSelectedQuestionId(question.id)
-                    setAnswer("")
-                    setLatestResponse(null)
-                    resetChat()
-                  }}
-                >
-                  {question.title}
-                </Button>
-              ))}
+            <CardContent className="p-2">
+              <div className="flex max-h-[45vh] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-[calc(100svh-16rem)]">
+                {topics.map((topic) => {
+                  const isOpen = topic.id === selectedTopicId
+                  const problems = isOpen
+                    ? questions.filter(
+                        (question) => question.topicId === topic.id,
+                      )
+                    : []
+                  return (
+                    <div key={topic.id}>
+                      <Button
+                        type="button"
+                        variant={isOpen ? "secondary" : "ghost"}
+                        className="h-auto w-full justify-start gap-2 whitespace-normal py-2.5 text-left"
+                        disabled={isTutorBusy}
+                        aria-expanded={isOpen}
+                        onClick={() => chooseTopic(topic.id)}
+                      >
+                        {isOpen ? (
+                          <ChevronDown
+                            className="h-4 w-4 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ChevronRight
+                            className="h-4 w-4 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span className="min-w-0 flex-1">{topic.title}</span>
+                      </Button>
+                      {isOpen ? (
+                        <div className="mt-1 ml-4 flex flex-col gap-1 border-l pl-2">
+                          {problems.length > 0 ? (
+                            problems.map((problem) => (
+                              <Button
+                                key={problem.id}
+                                type="button"
+                                size="sm"
+                                variant={
+                                  problem.id === selectedQuestionId
+                                    ? "default"
+                                    : "ghost"
+                                }
+                                className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                                disabled={isTutorBusy}
+                                onClick={() => selectQuestion(problem.id)}
+                              >
+                                {problem.title}
+                              </Button>
+                            ))
+                          ) : (
+                            <p className="px-2 py-1 text-xs text-muted-foreground">
+                              No problems yet.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
         </aside>
