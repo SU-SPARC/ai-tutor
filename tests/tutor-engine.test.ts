@@ -532,7 +532,7 @@ describe("tutor engine", () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it("labels general probability help beyond approved course/demo content", async () => {
+  it("labels general probability help beyond approved course content", async () => {
     mockLlmResponse(
       "A confidence interval describes plausible values for an unknown population parameter.",
     )
@@ -550,7 +550,7 @@ describe("tutor engine", () => {
     expect(response.usage.contextUsed).toBe(false)
     expect(response.usage.fallbackUsed).toBe(true)
     expect(response.message).toContain(
-      "general AI help beyond approved course/demo content",
+      "general AI help beyond approved course content",
     )
     expect(response.progress?.llmUsed).toBe(true)
   })
@@ -963,8 +963,9 @@ describe("content provenance and review metadata", () => {
 
       expect(getDataRepositoryMetadata()).toMatchObject({
         databaseConfigured: false,
-        demoFallbackEnabled: true,
+        demoFallbackEnabled: false,
         mode: "demo",
+        operatingMode: "test-demo",
         source: "demo-json",
       })
 
@@ -975,6 +976,7 @@ describe("content provenance and review metadata", () => {
         databaseConfigured: true,
         demoFallbackEnabled: true,
         mode: "database",
+        operatingMode: "test-database",
         source: "postgres",
       })
     } finally {
@@ -1387,7 +1389,7 @@ describe("content provenance and review metadata", () => {
     )
   })
 
-  it("uses the demo content repository unless database mode is explicitly enabled", () => {
+  it("uses demo content only when demo mode is explicit", () => {
     try {
       vi.stubEnv("APP_DEMO_MODE", "true")
       vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
@@ -1400,7 +1402,13 @@ describe("content provenance and review metadata", () => {
 
       vi.stubEnv("DATABASE_URL", "")
 
-      expect(getContentRepositoryMode()).toBe("demo")
+      expect(getContentRepositoryMode()).toBe("database")
+      expect(getDataRepositoryMetadata()).toMatchObject({
+        databaseConfigured: false,
+        demoFallbackEnabled: true,
+        mode: "database",
+        operatingMode: "test-database",
+      })
     } finally {
       vi.unstubAllEnvs()
     }

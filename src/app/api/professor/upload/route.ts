@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { importReviewCandidates } from "@/lib/data/data-store"
 import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
 import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-admin"
@@ -42,16 +43,23 @@ export async function POST(request: Request) {
     )
   }
 
-  const result = await importReviewCandidates(validation.candidates, "professor")
+  try {
+    const result = await importReviewCandidates(
+      validation.candidates,
+      "professor",
+    )
 
-  return NextResponse.json({
-    candidates: result.candidates,
-    count: result.candidates.length,
-    imported: result.imported,
-    message: result.message,
-    mode: result.mode,
-    nonDurable: result.nonDurable,
-  })
+    return NextResponse.json({
+      candidates: result.candidates,
+      count: result.candidates.length,
+      imported: result.imported,
+      message: result.message,
+      mode: result.mode,
+      nonDurable: result.nonDurable,
+    })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 }
 
 function unwrapPayload(body: unknown) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { recordTutorSessionAttempt } from "@/lib/data/tutor-session-repository"
 
 type AttemptBody = {
@@ -24,10 +25,17 @@ export async function POST(request: Request, context: SessionRouteContext) {
     )
   }
 
-  const session = await recordTutorSessionAttempt({
-    answerPreview: optionalString(body.answerPreview) ?? optionalString(body.answer),
-    sessionId,
-  })
+  let session
+
+  try {
+    session = await recordTutorSessionAttempt({
+      answerPreview:
+        optionalString(body.answerPreview) ?? optionalString(body.answer),
+      sessionId,
+    })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 
   if (!session) {
     return NextResponse.json(

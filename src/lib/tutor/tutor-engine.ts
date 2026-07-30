@@ -88,7 +88,7 @@ const LOW_CONFIDENCE_THRESHOLD = 0.2
 const MAX_LLM_GROUNDING_ITEMS = 2
 const MAX_LLM_GROUNDING_CHARS_TOTAL = 800
 const GENERAL_AI_HELP_NOTE =
-  "I'm using general AI help beyond approved course/demo content."
+  "I'm using general AI help beyond approved course content."
 
 export async function createTutorResponse(
   request: TutorRequest,
@@ -671,7 +671,7 @@ async function buildLlmResponse({
     },
     provenanceNote:
       groundingContext.length > 0
-        ? "Use only the retrieved approved/demo context below. Do not claim professor approval."
+        ? "Use only the retrieved approved course or generated context below. Do not claim professor approval."
         : GENERAL_AI_HELP_NOTE,
     currentQuestion: question
       ? {
@@ -699,7 +699,7 @@ async function buildLlmResponse({
     groundingContext.length === 0 &&
     !generated.tutorMessage
       .toLowerCase()
-      .includes("general ai help beyond approved course/demo content")
+      .includes("general ai help beyond approved course content")
       ? `${GENERAL_AI_HELP_NOTE} ${generated.tutorMessage}`
       : generated.tutorMessage
 

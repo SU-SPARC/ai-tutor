@@ -27,7 +27,11 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function SiteHeader({ demoMode }: { demoMode: boolean }) {
+export function SiteHeader({
+  environmentLabel,
+}: {
+  environmentLabel?: "Development" | "Local demo" | "Preview" | "Preview demo"
+}) {
   const pathname = usePathname() ?? "/"
 
   return (
@@ -63,9 +67,12 @@ export function SiteHeader({ demoMode }: { demoMode: boolean }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          {demoMode ? (
-            <Badge variant="secondary" title="Running on seeded public sample content without a database or LLM provider">
-              Demo mode
+          {environmentLabel ? (
+            <Badge
+              variant="secondary"
+              title={`Non-production environment: ${environmentLabel}`}
+            >
+              {environmentLabel}
             </Badge>
           ) : null}
           <Link

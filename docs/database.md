@@ -1,8 +1,13 @@
 # Database Schema And Migrations
 
 Database migrations live in `db/migrations/` and are intended for Postgres.
-Local development remains safe without a database: when `DATABASE_URL` is
-missing or `APP_DEMO_MODE=true`, the app uses committed public demo fixtures.
+Local development remains safe without a database: `APP_DEMO_MODE=true` uses
+committed public demo fixtures. Development/Test database modes retain a
+documented demo fallback when database access fails. Preview database mode,
+Staging, and Production fail closed and never substitute demo data.
+
+See [Operating Modes And Demo Isolation](operating-modes.md) for the complete
+mode and failure matrix.
 
 ## Initial Schema
 
@@ -42,8 +47,9 @@ The student progress dashboard aggregates these sessions and attempts into
 question, correctness, hint, step, topic, and recent-session totals. Its API
 returns approved question/topic metadata and counts only; it does not return
 the anonymous ID, session IDs, or attempt answer previews. If Postgres is
-unavailable, the dashboard uses the same explicitly non-durable in-memory
-session repository as demo tutoring.
+unavailable, only Development/Test database mode may use the explicitly
+non-durable in-memory fallback. Deployed database modes return a controlled
+service-unavailable response.
 
 ## Content Safety
 

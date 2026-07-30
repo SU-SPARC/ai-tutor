@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import {
   getTutorSession,
   recordTutorSessionAttemptOutcome,
@@ -62,7 +63,13 @@ export async function POST(request: Request) {
     )
   }
 
-  const session = await getTutorSession(body.sessionId)
+  let session
+
+  try {
+    session = await getTutorSession(body.sessionId)
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
   if (!session) {
     return NextResponse.json(
       { error: "Tutor session was not found." },
@@ -78,24 +85,28 @@ export async function POST(request: Request) {
   }
 
   const answer = typeof body.answer === "string" ? body.answer : ""
-  const response = await createTutorResponse({
-    answer,
-    allowLlmFallback: body.allowLlmFallback ?? false,
-    mode: body.mode,
-    questionId: body.questionId,
-    sessionId: body.sessionId,
-    topicId: body.topicId,
-  })
+  try {
+    const response = await createTutorResponse({
+      answer,
+      allowLlmFallback: body.allowLlmFallback ?? false,
+      mode: body.mode,
+      questionId: body.questionId,
+      sessionId: body.sessionId,
+      topicId: body.topicId,
+    })
 
-  if (body.mode === "check") {
-    await recordTutorSessionAttemptOutcome({
-      answerPreview: answer,
-      estimatedTokens: response.usage.estimatedTokens,
-      sessionId: session.id,
-      source: response.source,
-      verdict: response.verdict,
-    }).catch(() => undefined)
+    if (body.mode === "check") {
+      await recordTutorSessionAttemptOutcome({
+        answerPreview: answer,
+        estimatedTokens: response.usage.estimatedTokens,
+        sessionId: session.id,
+        source: response.source,
+        verdict: response.verdict,
+      })
+    }
+
+    return NextResponse.json(response)
+  } catch {
+    return dataServiceUnavailableResponse()
   }
-
-  return NextResponse.json(response)
 }

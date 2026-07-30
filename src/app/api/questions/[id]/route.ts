@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { normalizeDetail } from "@/lib/api/question-serialization"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { getApprovedQuestionById } from "@/lib/data/data-store"
 import { isStudentFacingQuestion } from "@/lib/data/demo-repository"
 
@@ -31,9 +32,6 @@ export async function GET(
 
     return NextResponse.json({ question: normalizeDetail(question) })
   } catch {
-    return NextResponse.json(
-      { error: "Unable to load this question right now." },
-      { status: 503 },
-    )
+    return dataServiceUnavailableResponse()
   }
 }

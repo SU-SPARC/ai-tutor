@@ -4,8 +4,7 @@ import "katex/dist/katex.min.css"
 import "./globals.css"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
-import { getDataRepositoryMetadata } from "@/lib/data/data-store"
-import { getServerEnv } from "@/lib/env/server"
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 
 export const metadata: Metadata = {
   title: "Suffolk AI Probability Tutor",
@@ -18,15 +17,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const env = getServerEnv()
-  const demoMode =
-    getDataRepositoryMetadata().mode === "demo" || !env.AI_ENABLED
+  const operatingMode = getOperatingModePolicy()
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <SiteHeader demoMode={demoMode} />
+          <SiteHeader environmentLabel={operatingMode.indicatorLabel} />
           {children}
         </ThemeProvider>
       </body>

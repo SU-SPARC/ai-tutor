@@ -66,6 +66,9 @@ The authentication and error-tracking variables reserve required production
 boundaries. Their presence does not mean authentication or error tracking has
 been integrated or institutionally approved.
 
+Repository and user-interface behavior for each environment is documented in
+[Operating Modes And Demo Isolation](operating-modes.md).
+
 ## Secret isolation
 
 `src/lib/env/server.ts` imports `server-only`, so Next.js rejects imports from

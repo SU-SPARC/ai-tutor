@@ -1316,7 +1316,7 @@ function createUnavailableQueryExecutor(databaseUrl: string): QueryExecutor {
   return async () => {
     const host = new URL(databaseUrl).host
     throw new Error(
-      `Database repository selected for ${host}, but no Postgres driver is configured. Add a server-only query executor or keep APP_DEMO_MODE=true for demo fallback.`,
+      `Database repository selected for ${host}, but no Postgres driver is configured.`,
     )
   }
 }

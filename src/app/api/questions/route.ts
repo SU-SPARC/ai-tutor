@@ -6,6 +6,7 @@ import {
   matchesSearch,
   normalizeSummary,
 } from "@/lib/api/question-serialization"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import {
   getApprovedQuestions,
   listQuestionsByTopic,
@@ -55,9 +56,6 @@ export async function GET(request: Request) {
       questions,
     })
   } catch {
-    return NextResponse.json(
-      { error: "Unable to load questions right now." },
-      { status: 503 },
-    )
+    return dataServiceUnavailableResponse()
   }
 }

@@ -20,4 +20,6 @@ Server configuration distinguishes Development, automated Test, Preview,
 Staging, and Production. Start with `.env.example` and see
 [`docs/environment-configuration.md`](docs/environment-configuration.md) for
 the complete variable inventory, strict deployment requirements, and secret
-handling rules.
+handling rules. See
+[`docs/operating-modes.md`](docs/operating-modes.md) for demo isolation and
+database-failure behavior.

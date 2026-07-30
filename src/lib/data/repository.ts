@@ -12,6 +12,7 @@ import type {
   Topic,
   TutorQuestion,
 } from "@/lib/types"
+import type { OperatingMode } from "@/lib/runtime/operating-mode"
 
 export type ReviewAction =
   | "approve"
@@ -103,6 +104,7 @@ export type DataRepositoryMetadata = {
   databaseConfigured: boolean
   demoFallbackEnabled: boolean
   mode: "database" | "demo"
+  operatingMode: OperatingMode
   reason: string
   source: "demo-json" | "postgres"
 }

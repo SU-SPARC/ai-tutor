@@ -4,6 +4,7 @@ import {
   ANONYMOUS_STUDENT_HEADER,
   isAnonymousStudentId,
 } from "@/lib/auth/anonymous-student"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { getStudentProgress } from "@/lib/data/student-progress"
 
 export async function GET(request: Request) {
@@ -16,6 +17,10 @@ export async function GET(request: Request) {
     )
   }
 
-  const progress = await getStudentProgress(anonymousStudentId)
-  return NextResponse.json({ progress })
+  try {
+    const progress = await getStudentProgress(anonymousStudentId)
+    return NextResponse.json({ progress })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 }

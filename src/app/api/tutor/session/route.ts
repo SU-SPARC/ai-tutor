@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { createTutorSession } from "@/lib/data/tutor-session-repository"
 import { isAnonymousStudentId } from "@/lib/auth/anonymous-student"
 
@@ -37,12 +38,16 @@ export async function POST(request: Request) {
     )
   }
 
-  const session = await createTutorSession({
-    anonymousStudentId,
-    questionId,
-  })
+  try {
+    const session = await createTutorSession({
+      anonymousStudentId,
+      questionId,
+    })
 
-  return NextResponse.json({ session }, { status: 201 })
+    return NextResponse.json({ session }, { status: 201 })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 }
 
 function requiredString(value: unknown) {

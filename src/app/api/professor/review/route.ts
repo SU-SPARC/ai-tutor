@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import {
   getProfessorTopicReviewProgress,
   getReviewQueue,
@@ -40,21 +41,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
-  const [candidates, topics, topicProgress] = await Promise.all([
-    getReviewQueue(parsed.filters),
-    listTopics(),
-    parsed.filters.topicId
-      ? getProfessorTopicReviewProgress(parsed.filters.topicId)
-      : Promise.resolve(undefined),
-  ])
+  try {
+    const [candidates, topics, topicProgress] = await Promise.all([
+      getReviewQueue(parsed.filters),
+      listTopics(),
+      parsed.filters.topicId
+        ? getProfessorTopicReviewProgress(parsed.filters.topicId)
+        : Promise.resolve(undefined),
+    ])
 
-  return NextResponse.json({
-    candidates,
-    count: candidates.length,
-    filters: parsed.filters,
-    topicProgress,
-    topics: safeTopics(topics),
-  })
+    return NextResponse.json({
+      candidates,
+      count: candidates.length,
+      filters: parsed.filters,
+      topicProgress,
+      topics: safeTopics(topics),
+    })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 }
 
 export async function PATCH(request: Request) {
@@ -70,42 +75,49 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: parsed.status })
   }
 
-  if (parsed.update.action === "approve") {
-    const queue = await getReviewQueue()
-    const queuedById = new Map(queue.map((candidate) => [candidate.id, candidate]))
-    const nonPriority = parsed.update.candidateIds.filter((candidateId) => {
-      const candidate = queuedById.get(candidateId)
-      return (
-        !candidate ||
-        (parsed.update.reviewPriority ?? candidate.review.reviewPriority ?? "normal") !==
-          "priority"
+  try {
+    if (parsed.update.action === "approve") {
+      const queue = await getReviewQueue()
+      const queuedById = new Map(
+        queue.map((candidate) => [candidate.id, candidate]),
       )
-    })
+      const nonPriority = parsed.update.candidateIds.filter((candidateId) => {
+        const candidate = queuedById.get(candidateId)
+        return (
+          !candidate ||
+          (parsed.update.reviewPriority ??
+            candidate.review.reviewPriority ??
+            "normal") !== "priority"
+        )
+      })
 
-    if (nonPriority.length > 0) {
+      if (nonPriority.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Only priority review candidates can be approved. Mark selected items as priority first.",
+          },
+          { status: 400 },
+        )
+      }
+    }
+
+    const candidates = await updateReviewCandidates(parsed.update)
+
+    if (candidates.length === 0) {
       return NextResponse.json(
-        {
-          error:
-            "Only priority review candidates can be approved. Mark selected items as priority first.",
-        },
-        { status: 400 },
+        { error: "Review candidate was not found or is no longer editable." },
+        { status: 404 },
       )
     }
+
+    return NextResponse.json({
+      candidates,
+      candidate: candidates[0],
+    })
+  } catch {
+    return dataServiceUnavailableResponse()
   }
-
-  const candidates = await updateReviewCandidates(parsed.update)
-
-  if (candidates.length === 0) {
-    return NextResponse.json(
-      { error: "Review candidate was not found or is no longer editable." },
-      { status: 404 },
-    )
-  }
-
-  return NextResponse.json({
-    candidates,
-    candidate: candidates[0],
-  })
 }
 
 export async function POST(request: Request) {

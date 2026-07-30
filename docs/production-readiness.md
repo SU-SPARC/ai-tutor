@@ -73,7 +73,8 @@ Audit baseline: `e310048`
 - Students currently use a browser-generated anonymous identifier. This
   provides continuity, not authentication or access control.
 - Professor/admin operations currently use one shared `ADMIN_SECRET`.
-- Local demo mode uses committed fixtures and in-memory state.
+- Local demo mode uses committed fixtures and in-memory state. Deployed
+  database modes now fail closed instead of substituting either source.
 - Typed configuration now distinguishes Development, Test, Preview, Staging,
   and Production and fails strict environments when required server
   configuration is missing. External resource isolation, an institution-owned
@@ -105,6 +106,8 @@ by themselves establish production readiness:
 - [x] Server-side LLM fallback has response guardrails, caching, and token/call
   controls.
 - [x] Aggregate professor analytics and AI usage dashboards exist.
+- [x] Explicit operating modes prevent Preview database mode, Staging, and
+  Production from falling back to demo content or in-memory sessions.
 - [x] Lint, TypeScript, unit/API tests, and the production build pass at the
   audit baseline.
 
@@ -126,7 +129,7 @@ team should replace each role before a pilot is scheduled.
 | PR-02 | Critical | Complete the data-flow, privacy, retention, and deletion inventory. | Planned | Privacy owner + engineering | Approved inventory covers identifiers, answers, tutor messages, AI inputs/outputs, logs, caches, analytics, and third parties. |
 | PR-03 | Critical | Record production architecture and environment decisions. | Decision required | Project owner + university IT | Approved architecture decision record names environment, database, auth, AI, logging, backup, deployment, and rollback choices. |
 | PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data. | In progress | Platform engineering | [Typed environment validation](environment-configuration.md) and automated tests cover configuration; deployed resource isolation remains to be proven. |
-| PR-05 | Critical | Remove production demo and in-memory fallbacks. | Planned | Application engineering | Production-mode tests prove database failures return controlled errors and never read or mutate demo state. |
+| PR-05 | Critical | Remove production demo and in-memory fallbacks. | Complete | Application engineering | [Operating-mode policy](operating-modes.md) and production-mode tests prove database failures return controlled errors and never read or mutate demo state. |
 | PR-06 | Critical | Establish production database ownership, billing, credentials, backup, deletion, and incident responsibilities. | Decision required | University IT + project owner | Written ownership handoff and separate staging/production database evidence. |
 | PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators. | Decision required | University IT + security + engineering | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure. |
 | PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation. | Planned | Application engineering | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records. |
@@ -206,8 +209,6 @@ link it from the corresponding task above.
 - Anonymous identifiers and session IDs are not authenticated ownership proof.
 - Professor/admin pages and the admin question read API are not centrally
   role-protected.
-- Database failure can silently expose demo content or accept non-durable
-  in-memory writes.
 - Accepted answers and solution steps are delivered to the browser before
   progression requires them.
 - Attempt answer previews are retained without an approved retention/deletion
@@ -241,7 +242,7 @@ Production acceptance requires evidence for every item below.
   configuration, credentials, data, and external resources.
 - [ ] Production fails startup when database, auth, application URL, usage
   secret, logging, or other required configuration is missing.
-- [ ] Production cannot silently use demo fixtures or in-memory persistence.
+- [x] Production cannot silently use demo fixtures or in-memory persistence.
 - [ ] CI runs lint, typecheck, tests, migration tests, accessibility checks, and
   a production build.
 - [ ] Deployment includes health checks, migration status, staged promotion,
@@ -310,7 +311,7 @@ must link to its evidence in the task table or accompanying documentation.
 ### Runtime Environments
 
 - [x] Prompt 88 — Runtime configuration separated and validated; external resource isolation remains tracked by PR-04.
-- [ ] Prompt 89 — Unsafe production demo fallbacks removed.
+- [x] Prompt 89 — Unsafe production demo fallbacks removed.
 
 ### Database And Data Ownership
 

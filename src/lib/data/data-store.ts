@@ -8,6 +8,7 @@ import {
   resetDemoReviewQueueForTests,
 } from "@/lib/data/demo-repository"
 import { queryPostgres } from "@/lib/data/postgres"
+import { DataServiceUnavailableError } from "@/lib/data/service-error"
 import type {
   AdminQuestionDetailUpdate,
   AdminQuestionFilters,
@@ -21,16 +22,17 @@ import type {
 } from "@/lib/data/repository"
 import type { AdminQuestionDashboard, ReviewCandidate } from "@/lib/types"
 import { getServerEnv } from "@/lib/env/server"
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode"
 
 let contentRepositoryOverride: ContentRepository | undefined
 
 export async function listTopics() {
-  return readWithDemoFallback((repository) => repository.listTopics())
+  return readWithConfiguredRepository((repository) => repository.listTopics())
 }
 
 export async function listQuestions() {
-  const questions = await readWithDemoFallback((repository) =>
+  const questions = await readWithConfiguredRepository((repository) =>
     repository.listQuestions(),
   )
   return questions.filter(isStudentFacingQuestion)
@@ -40,6 +42,7 @@ export async function getAdminQuestionDashboard(
   filters?: AdminQuestionFilters,
 ): Promise<AdminQuestionDashboard> {
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
   const topics = await listTopics()
 
   if (contentRepositoryOverride) {
@@ -54,19 +57,12 @@ export async function getAdminQuestionDashboard(
     }
   }
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
-    const questions = await demoContentRepository.getAdminQuestions(filters)
-    return {
-      mode: "demo",
-      questions,
-      readOnly: true,
-      readOnlyReason:
-        env.APP_DEMO_MODE || !env.DATABASE_URL
-          ? "Database-backed admin review is unavailable, so demo data is read-only."
-          : undefined,
-      sections: buildAdminQuestionSections(questions),
-      topics: safeTopicOptions(topics),
-    }
+  if (policy.repositorySource === "demo") {
+    return demoAdminQuestionDashboard(filters, topics)
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content")
   }
 
   try {
@@ -82,17 +78,12 @@ export async function getAdminQuestionDashboard(
       sections: buildAdminQuestionSections(questions),
       topics: safeTopicOptions(topics),
     }
-  } catch {
-    const questions = await demoContentRepository.getAdminQuestions(filters)
-    return {
-      mode: "demo",
-      questions,
-      readOnly: true,
-      readOnlyReason:
-        "Database-backed admin review is unavailable, so demo data is read-only.",
-      sections: buildAdminQuestionSections(questions),
-      topics: safeTopicOptions(topics),
+  } catch (cause) {
+    if (policy.allowDemoFallback) {
+      return demoAdminQuestionDashboard(filters, topics, true)
     }
+
+    throw new DataServiceUnavailableError("content", { cause })
   }
 }
 
@@ -153,25 +144,27 @@ export async function regenerateAdminQuestionStrict(
 }
 
 export async function getQuestionById(questionId: string) {
-  const question = await readWithDemoFallback((repository) =>
+  const question = await readWithConfiguredRepository((repository) =>
     repository.getQuestionById(questionId),
   )
   return question && isStudentFacingQuestion(question) ? question : undefined
 }
 
 export async function listQuestionsByTopic(topicId: string) {
-  const questions = await readWithDemoFallback((repository) =>
+  const questions = await readWithConfiguredRepository((repository) =>
     repository.listQuestionsByTopic(topicId),
   )
   return questions.filter(isStudentFacingQuestion)
 }
 
 export async function getQuestionCounts() {
-  return readWithDemoFallback((repository) => repository.getQuestionCounts())
+  return readWithConfiguredRepository((repository) =>
+    repository.getQuestionCounts(),
+  )
 }
 
 export async function getProfessorPracticeAnalytics() {
-  return readWithDemoFallback((repository) =>
+  return readWithConfiguredRepository((repository) =>
     repository.getProfessorPracticeAnalytics(),
   )
 }
@@ -189,15 +182,19 @@ export async function getApprovedQuestionById(questionId: string) {
 }
 
 export async function getRetrievalChunks() {
-  return readWithDemoFallback((repository) => repository.getRetrievalChunks())
+  return readWithConfiguredRepository((repository) =>
+    repository.getRetrievalChunks(),
+  )
 }
 
 export async function getReviewQueue(filters?: ReviewQueueFilters) {
-  return readWithDemoFallback((repository) => repository.getReviewQueue(filters))
+  return readWithConfiguredRepository((repository) =>
+    repository.getReviewQueue(filters),
+  )
 }
 
 export async function getProfessorTopicReviewProgress(topicId: string) {
-  const candidates = await readWithDemoFallback((repository) =>
+  const candidates = await readWithConfiguredRepository((repository) =>
     repository.getAdminQuestions({
       generatedOnly: true,
       topicId,
@@ -211,13 +208,13 @@ export async function importReviewCandidates(
   candidates: ReviewCandidate[],
   reviewedBy?: string,
 ) {
-  return writeWithDemoFallback((repository) =>
+  return writeWithConfiguredRepository((repository) =>
     repository.importReviewCandidates(candidates, reviewedBy),
   )
 }
 
 export async function updateReviewCandidates(input: ReviewCandidateUpdate) {
-  return writeWithDemoFallback((repository) =>
+  return writeWithConfiguredRepository((repository) =>
     repository.updateReviewCandidates(input),
   )
 }
@@ -227,7 +224,7 @@ export async function updateReviewCandidateStatus(
   action: ReviewAction,
   reviewedBy?: string,
 ) {
-  return writeWithDemoFallback((repository) =>
+  return writeWithConfiguredRepository((repository) =>
     repository.updateReviewCandidateStatus(candidateId, action, reviewedBy),
   )
 }
@@ -238,49 +235,49 @@ export function getContentRepository() {
   }
 
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+  if (policy.repositorySource === "demo") {
     return demoContentRepository
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content")
   }
 
   return createDatabaseContentRepository(env.DATABASE_URL, queryPostgres)
 }
 
 export function getContentRepositoryMode() {
-  const env = getServerEnv()
-  return env.APP_DEMO_MODE || !env.DATABASE_URL ? "demo" : "database"
+  return getOperatingModePolicy().repositorySource
 }
 
 export function getDataRepositoryMetadata(): DataRepositoryMetadata {
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
   const databaseConfigured = Boolean(env.DATABASE_URL)
 
-  if (env.APP_DEMO_MODE) {
+  if (policy.repositorySource === "demo") {
     return {
       databaseConfigured,
-      demoFallbackEnabled: true,
+      demoFallbackEnabled: false,
       mode: "demo",
-      reason: "APP_DEMO_MODE is enabled, so public demo JSON is the active source.",
-      source: "demo-json",
-    }
-  }
-
-  if (!env.DATABASE_URL) {
-    return {
-      databaseConfigured: false,
-      demoFallbackEnabled: true,
-      mode: "demo",
-      reason: "DATABASE_URL is not configured, so public demo JSON is the active source.",
+      operatingMode: policy.mode,
+      reason: `${policy.mode} intentionally uses committed public demo fixtures.`,
       source: "demo-json",
     }
   }
 
   return {
-    databaseConfigured: true,
-    demoFallbackEnabled: true,
+    databaseConfigured,
+    demoFallbackEnabled: policy.allowDemoFallback,
     mode: "database",
-    reason:
-      "DATABASE_URL is configured; public demo JSON remains the fallback if database reads are unavailable.",
+    operatingMode: policy.mode,
+    reason: databaseConfigured
+      ? policy.allowDemoFallback
+        ? "The configured database is active; documented local demo fallback is enabled."
+        : "The configured database is required; demo fallback is disabled."
+      : "The selected operating mode requires a database, but DATABASE_URL is unavailable.",
     source: "postgres",
   }
 }
@@ -325,7 +322,7 @@ function safeTopicOptions(topics: AdminQuestionDashboard["topics"]) {
   }))
 }
 
-async function readWithDemoFallback<T>(
+async function readWithConfiguredRepository<T>(
   read: (repository: ContentRepository) => Promise<T>,
 ) {
   if (contentRepositoryOverride) {
@@ -333,19 +330,30 @@ async function readWithDemoFallback<T>(
   }
 
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+  if (policy.repositorySource === "demo") {
     return read(demoContentRepository)
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content")
   }
 
   try {
-    return await read(createDatabaseContentRepository(env.DATABASE_URL, queryPostgres))
-  } catch {
-    return read(demoContentRepository)
+    return await read(
+      createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
+    )
+  } catch (cause) {
+    if (policy.allowDemoFallback) {
+      return read(demoContentRepository)
+    }
+
+    throw new DataServiceUnavailableError("content", { cause })
   }
 }
 
-async function writeWithDemoFallback<T>(
+async function writeWithConfiguredRepository<T>(
   write: (repository: ContentRepository) => Promise<T>,
 ) {
   if (contentRepositoryOverride) {
@@ -353,15 +361,45 @@ async function writeWithDemoFallback<T>(
   }
 
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+  if (policy.repositorySource === "demo") {
     return write(demoContentRepository)
   }
 
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content")
+  }
+
   try {
-    return await write(createDatabaseContentRepository(env.DATABASE_URL, queryPostgres))
-  } catch {
-    return write(demoContentRepository)
+    return await write(
+      createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
+    )
+  } catch (cause) {
+    if (policy.allowDemoFallback) {
+      return write(demoContentRepository)
+    }
+
+    throw new DataServiceUnavailableError("content", { cause })
+  }
+}
+
+async function demoAdminQuestionDashboard(
+  filters: AdminQuestionFilters | undefined,
+  topics: AdminQuestionDashboard["topics"],
+  fallback = false,
+): Promise<AdminQuestionDashboard> {
+  const questions = await demoContentRepository.getAdminQuestions(filters)
+
+  return {
+    mode: "demo",
+    questions,
+    readOnly: true,
+    readOnlyReason: fallback
+      ? "The local database is unavailable, so the documented read-only demo fallback is active."
+      : "This operating mode uses read-only demo content.",
+    sections: buildAdminQuestionSections(questions),
+    topics: safeTopicOptions(topics),
   }
 }
 

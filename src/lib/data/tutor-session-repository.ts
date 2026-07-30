@@ -3,7 +3,9 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 
 import { queryPostgres } from "@/lib/data/postgres"
+import { DataServiceUnavailableError } from "@/lib/data/service-error"
 import { getServerEnv } from "@/lib/env/server"
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 import type {
   TutorSessionAttempt,
   TutorSessionRecord,
@@ -70,25 +72,32 @@ export type TutorSessionRepository = {
 }
 
 const memoryTutorSessionRepository = createMemoryTutorSessionRepository()
+let tutorSessionRepositoryOverride: TutorSessionRepository | undefined
 
 export async function createTutorSession(input: CreateTutorSessionInput) {
-  return writeWithDemoFallback((repository) => repository.createSession(input))
+  return writeWithConfiguredRepository((repository) =>
+    repository.createSession(input),
+  )
 }
 
 export async function getTutorSession(sessionId: string) {
-  return readWithDemoFallback((repository) => repository.getSession(sessionId))
+  return readWithConfiguredRepository((repository) =>
+    repository.getSession(sessionId),
+  )
 }
 
 export async function recordTutorSessionAttempt(
   input: RecordTutorSessionAttemptInput,
 ) {
-  return writeWithDemoFallback((repository) => repository.recordAttempt(input))
+  return writeWithConfiguredRepository((repository) =>
+    repository.recordAttempt(input),
+  )
 }
 
 export async function recordTutorSessionAttemptOutcome(
   input: RecordTutorSessionAttemptOutcomeInput,
 ) {
-  return writeWithDemoFallback((repository) =>
+  return writeWithConfiguredRepository((repository) =>
     repository.recordAttemptOutcome(input),
   )
 }
@@ -100,8 +109,33 @@ export async function listTutorSessionsForStudent(
   sessions: TutorSessionRecord[]
 }> {
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+  if (tutorSessionRepositoryOverride) {
+    try {
+      return {
+        mode: policy.repositorySource,
+        sessions:
+          await tutorSessionRepositoryOverride.listSessionsForStudent(
+            anonymousStudentId,
+          ),
+      }
+    } catch (cause) {
+      if (!policy.allowDemoFallback) {
+        throw new DataServiceUnavailableError("tutor-session", { cause })
+      }
+
+      return {
+        mode: "demo",
+        sessions:
+          await memoryTutorSessionRepository.listSessionsForStudent(
+            anonymousStudentId,
+          ),
+      }
+    }
+  }
+
+  if (policy.repositorySource === "demo") {
     return {
       mode: "demo",
       sessions:
@@ -109,6 +143,10 @@ export async function listTutorSessionsForStudent(
           anonymousStudentId,
         ),
     }
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("tutor-session")
   }
 
   try {
@@ -120,7 +158,11 @@ export async function listTutorSessionsForStudent(
       mode: "database",
       sessions: await repository.listSessionsForStudent(anonymousStudentId),
     }
-  } catch {
+  } catch (cause) {
+    if (!policy.allowDemoFallback) {
+      throw new DataServiceUnavailableError("tutor-session", { cause })
+    }
+
     return {
       mode: "demo",
       sessions:
@@ -132,11 +174,15 @@ export async function listTutorSessionsForStudent(
 }
 
 export async function revealTutorSessionHint(sessionId: string) {
-  return writeWithDemoFallback((repository) => repository.revealHint(sessionId))
+  return writeWithConfiguredRepository((repository) =>
+    repository.revealHint(sessionId),
+  )
 }
 
 export async function revealTutorSessionStep(sessionId: string) {
-  return writeWithDemoFallback((repository) => repository.revealStep(sessionId))
+  return writeWithConfiguredRepository((repository) =>
+    repository.revealStep(sessionId),
+  )
 }
 
 export function createMemoryTutorSessionRepository(): TutorSessionRepository {
@@ -406,30 +452,58 @@ export function createDatabaseTutorSessionRepository(
 export function resetTutorSessionsForTests() {
   const freshRepository = createMemoryTutorSessionRepository()
   Object.assign(memoryTutorSessionRepository, freshRepository)
+  tutorSessionRepositoryOverride = undefined
 }
 
-async function readWithDemoFallback<T>(
+export function setTutorSessionRepositoryForTests(
+  repository: TutorSessionRepository | undefined,
+) {
+  tutorSessionRepositoryOverride = repository
+}
+
+async function readWithConfiguredRepository<T>(
   read: (repository: TutorSessionRepository) => Promise<T>,
 ) {
   const env = getServerEnv()
+  const policy = getOperatingModePolicy()
 
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+  if (tutorSessionRepositoryOverride) {
+    try {
+      return await read(tutorSessionRepositoryOverride)
+    } catch (cause) {
+      if (!policy.allowDemoFallback) {
+        throw new DataServiceUnavailableError("tutor-session", { cause })
+      }
+
+      return read(memoryTutorSessionRepository)
+    }
+  }
+
+  if (policy.repositorySource === "demo") {
     return read(memoryTutorSessionRepository)
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("tutor-session")
   }
 
   try {
     return await read(
       createDatabaseTutorSessionRepository(env.DATABASE_URL, queryPostgres),
     )
-  } catch {
+  } catch (cause) {
+    if (!policy.allowDemoFallback) {
+      throw new DataServiceUnavailableError("tutor-session", { cause })
+    }
+
     return read(memoryTutorSessionRepository)
   }
 }
 
-async function writeWithDemoFallback<T>(
+async function writeWithConfiguredRepository<T>(
   write: (repository: TutorSessionRepository) => Promise<T>,
 ) {
-  return readWithDemoFallback(write)
+  return readWithConfiguredRepository(write)
 }
 
 async function readDatabaseSession(
@@ -528,7 +602,7 @@ function createUnavailableQueryExecutor(databaseUrl: string): QueryExecutor {
   return async () => {
     const host = new URL(databaseUrl).host
     throw new Error(
-      `Database tutor session repository selected for ${host}, but no Postgres driver is configured. Add a server-only query executor or keep APP_DEMO_MODE=true for demo fallback.`,
+      `Database tutor session repository selected for ${host}, but no Postgres driver is configured.`,
     )
   }
 }

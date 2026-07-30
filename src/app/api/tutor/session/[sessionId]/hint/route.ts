@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import { revealTutorSessionHint } from "@/lib/data/tutor-session-repository"
 
 type SessionRouteContext = {
@@ -8,7 +9,13 @@ type SessionRouteContext = {
 
 export async function POST(_request: Request, context: SessionRouteContext) {
   const sessionId = await getSessionId(context)
-  const session = await revealTutorSessionHint(sessionId)
+  let session
+
+  try {
+    session = await revealTutorSessionHint(sessionId)
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 
   if (!session) {
     return NextResponse.json(

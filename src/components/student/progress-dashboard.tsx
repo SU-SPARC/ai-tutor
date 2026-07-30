@@ -120,7 +120,7 @@ export function ProgressDashboard() {
                 <Badge variant="secondary">
                   {progress.mode === "database"
                     ? "Database"
-                    : "Demo, non-durable"}
+                    : "Temporary, not saved"}
                 </Badge>
               ) : null}
             </div>

@@ -643,7 +643,7 @@ export function PracticeWorkspace({
           ) : (
             <Card>
               <CardContent className="py-8 text-sm text-muted-foreground">
-                No approved demo questions are available for this topic yet.
+                No approved questions are available for this topic yet.
               </CardContent>
             </Card>
           )}

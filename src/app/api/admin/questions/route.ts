@@ -4,6 +4,7 @@ import {
   getAdminQuestionDashboard,
   updateAdminQuestionsStrict,
 } from "@/lib/data/data-store"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
 import type {
   AdminQuestionFilters,
   AdminQuestionUpdate,
@@ -27,9 +28,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
-  const dashboard = await getAdminQuestionDashboard(parsed.filters)
-
-  return NextResponse.json({ dashboard })
+  try {
+    const dashboard = await getAdminQuestionDashboard(parsed.filters)
+    return NextResponse.json({ dashboard })
+  } catch {
+    return dataServiceUnavailableResponse()
+  }
 }
 
 export async function PATCH(request: Request) {

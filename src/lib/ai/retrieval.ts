@@ -3,6 +3,7 @@ import "server-only"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 import type {
   Difficulty,
   RetrievalChunk,
@@ -221,6 +222,12 @@ export function localResultToRetrievalChunk(
 }
 
 function defaultSources(repoRoot: string): LocalRetrievalSourceConfig[] {
+  const policy = getOperatingModePolicy()
+
+  if (policy.repositorySource === "database" && !policy.allowDemoFallback) {
+    return []
+  }
+
   return [
     {
       label: "demo_question_chunks",
