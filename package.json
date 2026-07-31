@@ -13,6 +13,7 @@
     "db:migrate:status": "node scripts/database-migrate.mjs status",
     "db:migrate:check": "node scripts/database-migrate.mjs check",
     "db:import:approved": "node scripts/import-approved-content.mjs",
+    "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",
     "extract:pdf": "node scripts/extract-private-pdfs.mjs",
     "extract:tex": "node scripts/extract-private-tex.mjs",

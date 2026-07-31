@@ -4,6 +4,11 @@ This document describes the application-side controls for PostgreSQL access. It
 does not provision a database, change provider settings, or prove production
 readiness.
 
+See [Database Backup And Recovery Process](database-recovery.md) for the
+proposed backup policy, exact restore/validation checklists, and disposable
+restore-test command. Provider backups remain unverified until University IT
+attaches provider evidence and a successful restore report.
+
 ## Connection model
 
 - Vercel routes that use PostgreSQL run in the Node.js runtime.
