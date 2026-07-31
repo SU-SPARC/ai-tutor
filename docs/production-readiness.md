@@ -134,7 +134,7 @@ team should replace each role before a pilot is scheduled.
 | PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators. | Decision required | University IT + security + engineering | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure. |
 | PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation. | Planned | Application engineering | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records. |
 | PR-09 | Critical | Protect all professor/admin pages and reads; replace the shared secret and record the authenticated reviewer. | Planned | Application engineering | Anonymous/student access is denied; review history records the real reviewer; no secret is entered or stored in browser UI. |
-| PR-10 | High | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions. | Planned | Database engineering | Empty and upgraded disposable databases pass the same versioned migration history. |
+| PR-10 | High | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions. | Complete | Database engineering | The [database operations runbook](database-operations.md), checksum-ledger runner, deployment check, destructive/Production gates, and executable empty/upgrade tests provide the required evidence. |
 | PR-11 | High | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete | Database engineering + privacy owner | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
 | PR-12 | High | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe. | Planned | Database engineering | Failure and simultaneous-review tests prove atomicity and conflict handling. |
 | PR-13 | High | Add an idempotent, dry-run production importer for approved content only. | Planned | Content engineering + professor | Import report proves stable IDs/order and excludes private sources, drafts, test identities, and demo sessions. |
@@ -262,8 +262,7 @@ Production acceptance requires evidence for every item below.
 ### Database And Recovery
 
 - [x] One versioned migration history applies cleanly to empty and upgraded
-  disposable databases in the executable schema migration tests; the
-  migration ledger/runner remains tracked by PR-10.
+  disposable databases through the [checksum-ledger workflow](database-operations.md).
 - [x] [Schema constraints, indexes, foreign keys, deletion rules, timestamps,
   roles, review history, audit events, and publication states](database.md#production-schema-hardening)
   are verified.
@@ -321,7 +320,8 @@ must link to its evidence in the task table or accompanying documentation.
 - [ ] Prompt 91 — Production database migration plan approved.
 - [x] Prompt 92 — [Production schema hardened](database.md#production-schema-hardening)
   through migration 007 and executable fresh/upgrade tests.
-- [ ] Prompt 93 — Safe migration workflow operational.
+- [x] Prompt 93 — [Safe migration workflow operational](database-operations.md)
+  with status, pending-deployment, safety-gate, and empty-database CI tests.
 - [ ] Prompt 94 — Approved-content production importer verified.
 - [ ] Prompt 95 — Database runtime reliability verified.
 - [ ] Prompt 96 — Backup and restore process exercised.
@@ -362,3 +362,4 @@ verification evidence.
 - [Professor/Admin Workflow Migration](../db/migrations/005_professor_admin_workflow.sql)
 - [Syllabus Topic Order Migration](../db/migrations/006_syllabus_topic_order.sql)
 - [Production Schema Hardening Migration](../db/migrations/007_production_schema_hardening.sql)
+- [Database Migration Operations](database-operations.md)

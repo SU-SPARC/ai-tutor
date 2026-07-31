@@ -9,6 +9,10 @@ Staging, and Production fail closed and never substitute demo data.
 See [Operating Modes And Demo Isolation](operating-modes.md) for the complete
 mode and failure matrix.
 
+See [Database Migration Operations](database-operations.md) for the checked-in
+migration commands, checksum/status workflow, safety gates, CI evidence, and
+forward-fix procedure.
+
 ## Initial Schema
 
 `001_initial_schema.sql` creates these public-safe tutoring tables:

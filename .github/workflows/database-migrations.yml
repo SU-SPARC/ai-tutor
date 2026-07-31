@@ -1,0 +1,51 @@
+name: Database migrations
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/database-migrations.yml"
+      - "db/migrations/**"
+      - "scripts/database-migrate.mjs"
+      - "scripts/lib/database-migrations.mjs"
+      - "tests/database-migration-workflow.test.ts"
+      - "tests/production-schema-migration.test.ts"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/database-migrations.yml"
+      - "db/migrations/**"
+      - "scripts/database-migrate.mjs"
+      - "scripts/lib/database-migrations.mjs"
+      - "tests/database-migration-workflow.test.ts"
+      - "tests/production-schema-migration.test.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  empty-database:
+    name: Apply migrations to empty PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Test migration history and schema
+        run: npm run test:migrations
