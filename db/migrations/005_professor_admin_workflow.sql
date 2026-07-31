@@ -34,7 +34,9 @@ begin
   end if;
 end $$;
 
-create or replace view app_review_queue_questions as
+drop view if exists app_review_queue_questions;
+
+create view app_review_queue_questions as
 select
   q.*,
   coalesce(q.pattern_id, q.source_type) as pattern_source,

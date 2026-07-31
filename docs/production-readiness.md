@@ -135,7 +135,7 @@ team should replace each role before a pilot is scheduled.
 | PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation. | Planned | Application engineering | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records. |
 | PR-09 | Critical | Protect all professor/admin pages and reads; replace the shared secret and record the authenticated reviewer. | Planned | Application engineering | Anonymous/student access is denied; review history records the real reviewer; no secret is entered or stored in browser UI. |
 | PR-10 | High | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions. | Planned | Database engineering | Empty and upgraded disposable databases pass the same versioned migration history. |
-| PR-11 | High | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Planned | Database engineering + privacy owner | Reviewed migration and schema tests prove integrity without destructive data loss. |
+| PR-11 | High | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete | Database engineering + privacy owner | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
 | PR-12 | High | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe. | Planned | Database engineering | Failure and simultaneous-review tests prove atomicity and conflict handling. |
 | PR-13 | High | Add an idempotent, dry-run production importer for approved content only. | Planned | Content engineering + professor | Import report proves stable IDs/order and excludes private sources, drafts, test identities, and demo sessions. |
 | PR-14 | High | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks. | Planned | Platform + database engineering | Load/failure tests and health checks prove bounded, non-leaking behavior. |
@@ -261,10 +261,12 @@ Production acceptance requires evidence for every item below.
 
 ### Database And Recovery
 
-- [ ] One versioned migration history applies cleanly to empty and upgraded
-  disposable databases.
-- [ ] Schema constraints, indexes, foreign keys, deletion rules, timestamps,
-  roles, review history, audit events, and publication states are verified.
+- [x] One versioned migration history applies cleanly to empty and upgraded
+  disposable databases in the executable schema migration tests; the
+  migration ledger/runner remains tracked by PR-10.
+- [x] [Schema constraints, indexes, foreign keys, deletion rules, timestamps,
+  roles, review history, audit events, and publication states](database.md#production-schema-hardening)
+  are verified.
 - [ ] Approved-content import is idempotent, transactional, dry-runnable, and
   excludes private/draft/demo/test records.
 - [ ] Database pooling, timeouts, safe retries, concurrency, and controlled
@@ -317,7 +319,8 @@ must link to its evidence in the task table or accompanying documentation.
 
 - [ ] Prompt 90 — Production database ownership plan approved.
 - [ ] Prompt 91 — Production database migration plan approved.
-- [ ] Prompt 92 — Production schema hardened.
+- [x] Prompt 92 — [Production schema hardened](database.md#production-schema-hardening)
+  through migration 007 and executable fresh/upgrade tests.
 - [ ] Prompt 93 — Safe migration workflow operational.
 - [ ] Prompt 94 — Approved-content production importer verified.
 - [ ] Prompt 95 — Database runtime reliability verified.
@@ -358,3 +361,4 @@ verification evidence.
 - [LLM Usage Controls Migration](../db/migrations/004_llm_usage_controls.sql)
 - [Professor/Admin Workflow Migration](../db/migrations/005_professor_admin_workflow.sql)
 - [Syllabus Topic Order Migration](../db/migrations/006_syllabus_topic_order.sql)
+- [Production Schema Hardening Migration](../db/migrations/007_production_schema_hardening.sql)

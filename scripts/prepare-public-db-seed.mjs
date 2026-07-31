@@ -142,7 +142,7 @@ function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
 
 function seedQuestionSql(question) {
   const lines = [
-    `insert into questions (id, topic_id, pattern_id, title, prompt, difficulty, accepted_answers_json, numeric_value, tolerance, answer_explanation, source_type, trust_level, visibility, review_status, originality_note) values (${sqlString(
+    `insert into questions (id, topic_id, pattern_id, title, prompt, difficulty, accepted_answers_json, numeric_value, tolerance, answer_explanation, source_type, trust_level, visibility, review_status, originality_note, reviewed_by, reviewed_by_user_id, reviewed_at) values (${sqlString(
     question.id,
   )}, ${sqlString(question.topicId)}, ${sqlString(question.patternId)}, ${sqlString(
     question.title,
@@ -154,7 +154,7 @@ function seedQuestionSql(question) {
     question.trustLevel,
   )}, ${sqlString(question.visibility)}, ${sqlString(
     question.reviewStatus,
-  )}, ${sqlString(question.originalityNote)}) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, updated_at = now();`,
+  )}, ${sqlString(question.originalityNote)}, 'development seed', 'system:schema-migration', now()) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, reviewed_by = excluded.reviewed_by, reviewed_by_user_id = excluded.reviewed_by_user_id, reviewed_at = excluded.reviewed_at, updated_at = now();`,
   ]
 
   question.hints.forEach((hint, index) => {

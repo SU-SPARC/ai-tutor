@@ -38,6 +38,50 @@ student/admin views. Student retrieval reads only approved public trusted chunks
 or approved private reference summaries; raw private book text must remain
 outside public APIs.
 
+## Production Schema Hardening
+
+`007_production_schema_hardening.sql` is a forward-only migration that adds the
+production integrity layer without deleting existing rows:
+
+| Area                         | Production invariant                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Institutional identity       | `users`, `roles`, and `user_roles` separate identity-provider subjects from application roles; active professor/admin membership is required for a review decision  |
+| Topics                       | IDs/titles are nonblank and `sort_order` is globally unique, nonnegative, and indexed with stable title/ID tie-breakers                                             |
+| Questions                    | Content fields and answer JSON are validated; approved public rows require an immutable reviewer user ID, timestamp, approved trust level, and no archive timestamp |
+| Versions and approvals       | Every question/content-child mutation snapshots the full question into append-only `question_versions`; review transitions append to `question_approval_history`    |
+| Hints, steps, misconceptions | One-based child ordering is unique per question; bodies/IDs are nonblank; misconception terms are arrays and metadata is an object                                  |
+| Sessions and attempts        | Each session has exactly one authenticated or anonymous identity; attempts require a matching question, topic, and immutable question version                       |
+| Progress                     | `student_progress` has one row per student/question with matching topic/version foreign keys and nonnegative counters                                               |
+| AI state                     | Usage/token counters are nonnegative and internally consistent; reservations require a session; cache question/topic pairs must match                               |
+| Operations                   | Append-only `audit_events` retain an actor snapshot; `feedback_reports` support triage, assignment, resolution, and anonymization-safe reporter hashes              |
+
+The migration backfills existing review decisions to
+`system:schema-migration`, a non-human system actor. It does not convert legacy
+reviewer labels into professor accounts. New non-pending review decisions must
+use an active `professor` or `admin` user ID; the legacy `reviewed_by` label is
+retained only for compatibility and display.
+
+Question-version `content_hash` values are deterministic internal MD5
+fingerprints used to suppress duplicate snapshots. They are not signatures and
+do not replace the signed manifest's SHA-256 file/content hashes.
+
+Deletion behavior is explicit:
+
+- retiring content is a state change; immutable question versions and approval
+  history prevent physical question deletion;
+- topics referenced by questions cannot be deleted;
+- deleting a student cascades their sessions, attempts, role membership, and
+  progress, while feedback remains with its opaque reporter hash;
+- content children and derived cache/retrieval rows cascade only when their
+  owning content can legally be removed; and
+- reviewer identities referenced by immutable academic history cannot be
+  physically deleted and must instead be disabled or soft-deleted.
+
+`tests/production-schema-migration.test.ts` executes migrations `001`–`007`
+against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
+with legacy content/activity, the development seed, publication and role
+constraints, append-only history, snapshot completeness, and deletion rules.
+
 Tutor sessions store an opaque `anonymous_user_id`; no name or email is
 required. Attempts belong to that identity through their `session_id` foreign
 key. See `docs/anonymous-students.md` for browser persistence and the future
@@ -74,3 +118,5 @@ npm run db:seed -- --include-approved-generated
 
 The seed script refuses private-looking fields, generated-unverified drafts,
 copied-source signals, and private review candidates before producing SQL.
+Approved development fixtures are attributed to the non-human migration actor;
+this seed is not the professor-signed Production importer.
