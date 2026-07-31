@@ -9,6 +9,10 @@ proposed backup policy, exact restore/validation checklists, and disposable
 restore-test command. Provider backups remain unverified until University IT
 attaches provider evidence and a successful restore report.
 
+See [Production Data Integrity Checks](database-integrity.md) for the read-only
+audit, bounded human/JSON reports, and the separately authorized repair workflow.
+No integrity repair runs from application startup or deployment.
+
 ## Connection model
 
 - Vercel routes that use PostgreSQL run in the Node.js runtime.
