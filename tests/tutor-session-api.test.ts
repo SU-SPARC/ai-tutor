@@ -12,6 +12,7 @@ import {
 import type { TutorSessionRecord } from "@/lib/types"
 
 type SessionPayload = {
+  code?: string
   error?: string
   session?: TutorSessionRecord
 }
@@ -115,7 +116,7 @@ describe("tutor session API", () => {
     expect(missingResponse.status).toBe(404)
   })
 
-  it("falls back to in-memory sessions when configured database access is unavailable", async () => {
+  it("fails closed without leaking connection details when a database write cannot connect", async () => {
     vi.stubEnv("APP_DEMO_MODE", "false")
     vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
 
@@ -127,10 +128,14 @@ describe("tutor session API", () => {
     )
     const payload = (await response.json()) as SessionPayload
 
-    expect(response.status).toBe(201)
-    expect(payload.session?.questionId).toBe("dice-sum-eight")
-    expect(payload.session?.anonymousStudentId).toBe("anon-fallback")
-    expect(payload.session?.revealedHints).toBe(0)
+    expect(response.status).toBe(503)
+    expect(payload).toEqual({
+      code: "DATA_SERVICE_UNAVAILABLE",
+      error: "Tutor data is temporarily unavailable. Please try again shortly.",
+    })
+    expect(JSON.stringify(payload)).not.toMatch(
+      /user|pass|example\.test|insert into|DATABASE_URL/i,
+    )
   })
 
   it("supports database-backed tutor session operations through the repository", async () => {
@@ -223,7 +228,7 @@ function createFakeTutorSessionRows() {
   return {
     async query(
       sql: string,
-      params: Array<Date | null | number | string> = [],
+      params: Array<boolean | Date | null | number | string | string[]> = [],
     ) {
       const normalizedSql = sql.replace(/\s+/g, " ").trim()
 
@@ -265,7 +270,7 @@ function createFakeTutorSessionRows() {
 
         session.last_seen_at = "2026-07-06T00:00:02.000Z"
 
-        return []
+        return [session]
       }
 
       if (normalizedSql.startsWith("update attempts")) {
@@ -308,6 +313,17 @@ function createFakeTutorSessionRows() {
         )
       ) {
         return attempts
+      }
+
+      if (
+        normalizedSql.startsWith(
+          "select session_id, id, answer_preview, source, verdict, created_at from attempts",
+        )
+      ) {
+        return attempts.map((attempt) => ({
+          ...attempt,
+          session_id: session?.id,
+        }))
       }
 
       throw new Error(`Unexpected SQL: ${normalizedSql}`)

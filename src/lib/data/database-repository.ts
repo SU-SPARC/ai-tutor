@@ -1,6 +1,12 @@
 import "server-only"
 
 import {
+  readDatabaseRows,
+  runDatabaseTransaction,
+  type DatabaseQueryExecutor,
+  type DatabaseQueryValue,
+} from "@/lib/data/database-executor"
+import {
   reviewStatusForAction,
   type AdminQuestionDetailAction,
   type AdminQuestionDetailUpdate,
@@ -31,12 +37,6 @@ import type {
 } from "@/lib/types"
 import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration"
 import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin"
-
-type QueryValue = boolean | Date | null | number | string | string[]
-type QueryExecutor = (
-  sql: string,
-  params?: QueryValue[],
-) => Promise<Record<string, unknown>[]>
 
 type QuestionRow = {
   accepted_answers_json: unknown
@@ -93,12 +93,12 @@ const ADMIN_SAFE_TEXT_PREDICATE = `concat_ws(' ', q.prompt, q.answer_explanation
 
 export function createDatabaseContentRepository(
   databaseUrl: string,
-  query: QueryExecutor = createUnavailableQueryExecutor(databaseUrl),
+  query: DatabaseQueryExecutor = createUnavailableQueryExecutor(databaseUrl),
 ): ContentRepository {
   return {
     async getAdminQuestions(filters) {
       const { params, sql } = adminQuestionQuery(filters)
-      const rows = await query(sql, params)
+      const rows = await readDatabaseRows(query, sql, params)
       return rows.map((row) => mapAdminQuestionRow(row as QuestionRow))
     },
 
@@ -107,7 +107,8 @@ export function createDatabaseContentRepository(
     },
 
     async getQuestionById(questionId) {
-      const rows = await query(
+      const rows = await readDatabaseRows(
+        query,
         `
           select q.*
           from app_public_questions q
@@ -126,14 +127,17 @@ export function createDatabaseContentRepository(
     },
 
     async getQuestionCounts() {
-      const rows = await query(`
+      const rows = await readDatabaseRows(
+        query,
+        `
         select q.topic_id, count(*)::int as question_count
         from app_public_questions q
         join topics t on t.id = q.topic_id
         where t.is_active = true
         group by q.topic_id, t.sort_order, t.title, t.id
         order by t.sort_order, t.title, t.id
-      `)
+      `,
+      )
 
       return rows.reduce<QuestionCounts>(
         (counts, row) => {
@@ -152,13 +156,11 @@ export function createDatabaseContentRepository(
     },
 
     async getProfessorPracticeAnalytics() {
-      const [
-        questionRows,
-        summaryRows,
-        misconceptionRows,
-        generatedRows,
-      ] = await Promise.all([
-        query(`
+      const [questionRows, summaryRows, misconceptionRows, generatedRows] =
+        await Promise.all([
+          readDatabaseRows(
+            query,
+            `
           select
             q.id as question_id,
             q.title as question_title,
@@ -191,15 +193,21 @@ export function createDatabaseContentRepository(
             group by question_id
           ) sessions on sessions.question_id = q.id
           order by t.title, q.title, q.id
-        `),
-        query(`
+        `,
+          ),
+          readDatabaseRows(
+            query,
+            `
           select
             (select count(*)::int from tutor_sessions) as total_tutor_sessions,
             (select count(*)::int from attempts) as total_attempts,
             (select coalesce(sum(revealed_hints), 0)::int from tutor_sessions) as total_hints_used,
             (select coalesce(sum(revealed_steps), 0)::int from tutor_sessions) as total_steps_revealed
-        `),
-        query(`
+        `,
+          ),
+          readDatabaseRows(
+            query,
+            `
           with missed as (
             select
               question_id,
@@ -223,15 +231,19 @@ export function createDatabaseContentRepository(
           where missed.missed_attempts > 0
           order by missed.missed_attempts desc, t.title, q.title, m.id
           limit 20
-        `),
-        query(`
+        `,
+          ),
+          readDatabaseRows(
+            query,
+            `
           select review_status, count(*)::int as question_count
           from questions
           where visibility = 'public'
             and source_type in ('generated_original', 'pattern_derived_original')
           group by review_status
-        `),
-      ])
+        `,
+          ),
+        ])
       const questions = questionRows.map((row) => ({
         attempts: Number(row.attempts ?? 0),
         correctAttempts: Number(row.correct_attempts ?? 0),
@@ -249,17 +261,15 @@ export function createDatabaseContentRepository(
       >()
 
       for (const question of questions) {
-        const current =
-          byTopic.get(question.topicId) ??
-          {
-            attempts: 0,
-            correctAttempts: 0,
-            hintsUsed: 0,
-            llmAttempts: 0,
-            stepsRevealed: 0,
-            topicId: question.topicId,
-            topicTitle: question.topicTitle,
-          }
+        const current = byTopic.get(question.topicId) ?? {
+          attempts: 0,
+          correctAttempts: 0,
+          hintsUsed: 0,
+          llmAttempts: 0,
+          stepsRevealed: 0,
+          topicId: question.topicId,
+          topicTitle: question.topicTitle,
+        }
 
         current.attempts += question.attempts
         current.correctAttempts += question.correctAttempts
@@ -269,20 +279,17 @@ export function createDatabaseContentRepository(
         byTopic.set(question.topicId, current)
       }
       const generatedQuestionOutcomes =
-        generatedRows.reduce<GeneratedQuestionReviewOutcomes>(
-          (counts, row) => {
-            const status = String(row.review_status)
+        generatedRows.reduce<GeneratedQuestionReviewOutcomes>((counts, row) => {
+          const status = String(row.review_status)
 
-            if (status in counts) {
-              counts[status as keyof GeneratedQuestionReviewOutcomes] = Number(
-                row.question_count ?? 0,
-              )
-            }
+          if (status in counts) {
+            counts[status as keyof GeneratedQuestionReviewOutcomes] = Number(
+              row.question_count ?? 0,
+            )
+          }
 
-            return counts
-          },
-          emptyGeneratedQuestionReviewOutcomes(),
-        )
+          return counts
+        }, emptyGeneratedQuestionReviewOutcomes())
       const summary = summaryRows[0]
 
       return {
@@ -309,18 +316,22 @@ export function createDatabaseContentRepository(
     },
 
     async listQuestions() {
-      const rows = await query(`
+      const rows = await readDatabaseRows(
+        query,
+        `
         select q.*
         from app_public_questions q
         join topics t on t.id = q.topic_id
         where t.is_active = true
         order by t.sort_order, t.title, t.id, q.title, q.id
-      `)
+      `,
+      )
       return rows.map((row) => mapQuestionRow(row as QuestionRow))
     },
 
     async listQuestionsByTopic(topicId) {
-      const rows = await query(
+      const rows = await readDatabaseRows(
+        query,
         `
           select q.*
           from app_public_questions q
@@ -335,43 +346,45 @@ export function createDatabaseContentRepository(
     },
 
     async getRetrievalChunks() {
-      const rows = await query(`
+      const rows = await readDatabaseRows(
+        query,
+        `
         select *
         from app_student_retrieval_chunks
         order by priority_rank, topic_id, title, id
-      `)
+      `,
+      )
       return rows.map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow))
     },
 
     async getReviewQueue(filters) {
       const { params, sql } = reviewQueueQuery(filters)
-      const rows = await query(sql, params)
+      const rows = await readDatabaseRows(query, sql, params)
       return rows.map((row) => mapReviewCandidateRow(row as QuestionRow))
     },
 
     async importReviewCandidates(candidates) {
-      const imported: ReviewCandidate[] = []
+      return runDatabaseTransaction(query, async (transactionQuery) => {
+        const imported: ReviewCandidate[] = []
 
-      for (const candidate of candidates) {
-        const topicRows = await query(
-          `
+        for (const candidate of candidates) {
+          const topicRows = await transactionQuery(
+            `
             select id
             from topics
             where id = $1
               and is_active = true
             limit 1
           `,
-          [candidate.topicId],
-        )
-
-        if (!topicRows[0]) {
-          throw new Error(
-            `Unknown or inactive syllabus topic: ${candidate.topicId}`,
+            [candidate.topicId],
           )
-        }
 
-        const rows = await query(
-          `
+          if (!topicRows[0]) {
+            throw new Error("Review candidate references an unavailable topic.")
+          }
+
+          const rows = await transactionQuery(
+            `
             insert into questions (
               id,
               topic_id,
@@ -432,39 +445,40 @@ export function createDatabaseContentRepository(
               and questions.review_status in ('needs_review', 'needs_edit', 'needs_regeneration')
             returning *
           `,
-          [
-            candidate.id,
-            candidate.topicId,
-            candidate.source.patternIds?.[0] ?? candidate.patternSource,
-            candidate.title,
-            candidate.prompt,
-            candidate.difficulty,
-            JSON.stringify(candidate.answer.acceptedAnswers),
-            candidate.answer.numericValue ?? null,
-            candidate.answer.tolerance ?? null,
-            candidate.answer.explanation,
-            candidate.source.sourceType,
-            candidate.source.originalityNote ?? null,
-            candidate.review.reviewPriority ?? "normal",
-            candidate.review.notes ?? null,
-          ],
-        )
+            [
+              candidate.id,
+              candidate.topicId,
+              candidate.source.patternIds?.[0] ?? candidate.patternSource,
+              candidate.title,
+              candidate.prompt,
+              candidate.difficulty,
+              JSON.stringify(candidate.answer.acceptedAnswers),
+              candidate.answer.numericValue ?? null,
+              candidate.answer.tolerance ?? null,
+              candidate.answer.explanation,
+              candidate.source.sourceType,
+              candidate.source.originalityNote ?? null,
+              candidate.review.reviewPriority ?? "normal",
+              candidate.review.notes ?? null,
+            ],
+          )
 
-        if (!rows[0]) {
-          continue
+          if (!rows[0]) {
+            continue
+          }
+
+          await replaceQuestionChildren(transactionQuery, candidate)
+          imported.push(candidate)
         }
 
-        await replaceQuestionChildren(query, candidate)
-        imported.push(candidate)
-      }
-
-      return {
-        candidates: imported,
-        imported: true,
-        message: `Imported ${imported.length} generated review candidate(s).`,
-        mode: "database",
-        nonDurable: false,
-      } satisfies ReviewCandidateImport
+        return {
+          candidates: imported,
+          imported: true,
+          message: `Imported ${imported.length} generated review candidate(s).`,
+          mode: "database",
+          nonDurable: false,
+        } satisfies ReviewCandidateImport
+      })
     },
 
     async getTopics() {
@@ -472,7 +486,9 @@ export function createDatabaseContentRepository(
     },
 
     async listTopics() {
-      const rows = await query(`
+      const rows = await readDatabaseRows(
+        query,
+        `
         select
           id,
           title,
@@ -484,7 +500,8 @@ export function createDatabaseContentRepository(
         from topics
         where is_active = true
         order by sort_order, title, id
-      `)
+      `,
+      )
       return rows.map((row) => ({
         active: Boolean(row.is_active),
         description: String(row.description ?? ""),
@@ -504,52 +521,69 @@ export function createDatabaseContentRepository(
       const status = input.action
         ? reviewStatusForAction(input.action)
         : undefined
-      await query(
-        `
-          update questions
-          set review_status = coalesce($2, review_status),
-              trust_level = case
-                when $2 = 'approved' then 'professor_approved'
-                else trust_level
-              end,
-              topic_id = coalesce($3, topic_id),
-              difficulty = coalesce($4, difficulty),
-              review_priority = coalesce($5, review_priority),
-              review_notes = coalesce($6, review_notes),
-              reviewed_by = case
-                when $8 then $7
-                else reviewed_by
-              end,
-              reviewed_at = case
-                when $2 is not null then now()
-                else reviewed_at
-              end,
-              updated_at = now()
-          where id = any($1)
-            and visibility = 'public'
-            and source_type in ('generated_original', 'pattern_derived_original')
-            and trust_level = 'generated_unverified'
-            and review_status in ('needs_review', 'needs_edit', 'needs_regeneration')
-        `,
-        [
-          input.candidateIds,
-          status ?? null,
-          input.topicId ?? null,
-          input.difficulty ?? null,
-          input.reviewPriority ?? null,
-          input.notes ?? null,
-          input.reviewedBy ?? "professor",
-          Boolean(
-            status ||
-              input.notes !== undefined ||
-              input.reviewPriority ||
-              input.topicId ||
-              input.difficulty,
-          ),
-        ],
-      )
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const updatedRows = await transactionQuery(
+            `
+              update questions
+              set review_status = coalesce($2, review_status),
+                  trust_level = case
+                    when $2 = 'approved' then 'professor_approved'
+                    else trust_level
+                  end,
+                  topic_id = coalesce($3, topic_id),
+                  difficulty = coalesce($4, difficulty),
+                  review_priority = coalesce($5, review_priority),
+                  review_notes = coalesce($6, review_notes),
+                  reviewed_by = case
+                    when $8 then $7
+                    else reviewed_by
+                  end,
+                  reviewed_by_user_id = case
+                    when $8 then $7
+                    else reviewed_by_user_id
+                  end,
+                  reviewed_at = case
+                    when $2 is not null then now()
+                    else reviewed_at
+                  end,
+                  updated_at = now()
+              where id = any($1)
+                and visibility = 'public'
+                and source_type in ('generated_original', 'pattern_derived_original')
+                and trust_level = 'generated_unverified'
+                and review_status in ('needs_review', 'needs_edit', 'needs_regeneration')
+                and (
+                  $2::text is null
+                  or $2 <> 'approved'
+                  or coalesce($5, review_priority) = 'priority'
+                )
+              returning id
+            `,
+            [
+              input.candidateIds,
+              status ?? null,
+              input.topicId ?? null,
+              input.difficulty ?? null,
+              input.reviewPriority ?? null,
+              input.notes ?? null,
+              input.reviewedBy ?? "professor",
+              Boolean(
+                status ||
+                input.notes !== undefined ||
+                input.reviewPriority ||
+                input.topicId ||
+                input.difficulty,
+              ),
+            ],
+          )
+          const updatedIds = updatedRows.map((row) => String(row.id))
 
-      return selectReviewCandidateRowsByIds(query, input.candidateIds)
+          return selectReviewCandidateRowsByIds(transactionQuery, updatedIds)
+        },
+        { retryOnConflict: true },
+      )
     },
 
     async updateAdminQuestions(input: AdminQuestionUpdate) {
@@ -559,112 +593,131 @@ export function createDatabaseContentRepository(
 
       const status = adminReviewStatusForAction(input.action)
       const onlyGenerated = input.action === "request_regeneration"
-      await query(
-        `
-          update questions
-          set review_status = $2,
-              trust_level = case
-                when source_type in ('generated_original', 'pattern_derived_original')
-                  and $2 = 'approved'
-                  then 'professor_approved'
-                when source_type in ('generated_original', 'pattern_derived_original')
-                  and $2 in ('needs_review', 'rejected', 'needs_regeneration')
-                  then 'generated_unverified'
-                else trust_level
-              end,
-              reviewed_by = $3,
-              reviewed_at = now(),
-              updated_at = now()
-          where id = any($1)
-            and visibility = 'public'
-            and source_type <> 'private_reference_pattern'
-            and ($4 = false or source_type in ('generated_original', 'pattern_derived_original'))
-        `,
-        [
-          input.questionIds,
-          status,
-          input.reviewedBy ?? "admin",
-          onlyGenerated,
-        ],
-      )
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const updatedRows = await transactionQuery(
+            `
+              update questions
+              set review_status = $2,
+                  trust_level = case
+                    when source_type in ('generated_original', 'pattern_derived_original')
+                      and $2 = 'approved'
+                      then 'professor_approved'
+                    when source_type in ('generated_original', 'pattern_derived_original')
+                      and $2 in ('needs_review', 'rejected', 'needs_regeneration')
+                      then 'generated_unverified'
+                    else trust_level
+                  end,
+                  reviewed_by = $3,
+                  reviewed_by_user_id = $3,
+                  reviewed_at = now(),
+                  updated_at = now()
+              where id = any($1)
+                and visibility = 'public'
+                and source_type <> 'private_reference_pattern'
+                and ($4 = false or source_type in ('generated_original', 'pattern_derived_original'))
+              returning id
+            `,
+            [
+              input.questionIds,
+              status,
+              input.reviewedBy ?? "admin",
+              onlyGenerated,
+            ],
+          )
 
-      return selectAdminQuestionRowsByIds(query, input.questionIds)
+          return selectAdminQuestionRowsByIds(
+            transactionQuery,
+            updatedRows.map((row) => String(row.id)),
+          )
+        },
+        { retryOnConflict: true },
+      )
     },
 
     async updateAdminQuestionDetail(
       questionId: string,
       input: AdminQuestionDetailUpdate,
     ) {
-      const current = await selectEditableAdminQuestionRowById(query, questionId)
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const current = await selectEditableAdminQuestionRowById(
+            transactionQuery,
+            questionId,
+            true,
+          )
 
-      if (!current) {
-        return undefined
-      }
+          if (!current) {
+            return undefined
+          }
 
-      const generatedQuestion = isGeneratedAdminQuestion(current)
+          const generatedQuestion = isGeneratedAdminQuestion(current)
 
-      if (input.action && !generatedQuestion) {
-        return undefined
-      }
+          if (input.action && !generatedQuestion) {
+            return undefined
+          }
 
-      const actionStatus = input.action
-        ? reviewStatusForAdminDetailAction(input.action)
-        : undefined
-      const nextReviewStatus = actionStatus ?? input.reviewStatus
-      let nextTrustLevel = input.trustLevel
+          const actionStatus = input.action
+            ? reviewStatusForAdminDetailAction(input.action)
+            : undefined
+          const nextReviewStatus = actionStatus ?? input.reviewStatus
+          let nextTrustLevel = input.trustLevel
 
-      if (generatedQuestion) {
-        if (nextReviewStatus === "approved") {
-          nextTrustLevel = "professor_approved"
-        } else if (nextReviewStatus) {
-          nextTrustLevel = "generated_unverified"
-        }
-      }
+          if (generatedQuestion) {
+            if (nextReviewStatus === "approved") {
+              nextTrustLevel = "professor_approved"
+            } else if (nextReviewStatus) {
+              nextTrustLevel = "generated_unverified"
+            }
+          }
 
-      const assignments = ["updated_at = now()"]
-      const params: QueryValue[] = [questionId]
-      const addAssignment = (column: string, value: QueryValue) => {
-        params.push(value)
-        assignments.push(`${column} = $${params.length}`)
-      }
+          const assignments = ["updated_at = now()"]
+          const params: DatabaseQueryValue[] = [questionId]
+          const addAssignment = (column: string, value: DatabaseQueryValue) => {
+            params.push(value)
+            assignments.push(`${column} = $${params.length}`)
+          }
 
-      if (nextReviewStatus) {
-        addAssignment("review_status", nextReviewStatus)
-      }
+          if (nextReviewStatus) {
+            addAssignment("review_status", nextReviewStatus)
+          }
 
-      if (nextTrustLevel) {
-        addAssignment("trust_level", nextTrustLevel)
-      }
+          if (nextTrustLevel) {
+            addAssignment("trust_level", nextTrustLevel)
+          }
 
-      if (input.topicId !== undefined) {
-        addAssignment("topic_id", input.topicId)
-      }
+          if (input.topicId !== undefined) {
+            addAssignment("topic_id", input.topicId)
+          }
 
-      if (input.difficulty !== undefined) {
-        addAssignment("difficulty", input.difficulty)
-      }
+          if (input.difficulty !== undefined) {
+            addAssignment("difficulty", input.difficulty)
+          }
 
-      if (input.reviewerNotes !== undefined) {
-        addAssignment("review_notes", input.reviewerNotes.trim() || null)
-      }
+          if (input.reviewerNotes !== undefined) {
+            addAssignment("review_notes", input.reviewerNotes.trim() || null)
+          }
 
-      if (
-        input.action ||
-        input.reviewStatus ||
-        input.trustLevel ||
-        input.reviewerNotes !== undefined ||
-        input.topicId !== undefined ||
-        input.difficulty !== undefined
-      ) {
-        addAssignment("reviewed_by", input.reviewedBy ?? "admin")
-      }
+          if (
+            input.action ||
+            input.reviewStatus ||
+            input.trustLevel ||
+            input.reviewerNotes !== undefined ||
+            input.topicId !== undefined ||
+            input.difficulty !== undefined
+          ) {
+            addAssignment("reviewed_by", input.reviewedBy ?? "admin")
+            addAssignment("reviewed_by_user_id", input.reviewedBy ?? "admin")
+          }
 
-      if (input.action || input.reviewStatus || input.trustLevel) {
-        assignments.push("reviewed_at = now()")
-      }
+          if (input.action || input.reviewStatus || input.trustLevel) {
+            assignments.push("reviewed_at = now()")
+          }
 
-      await query(
-        `
+          await transactionQuery(
+            `
           update questions q
           set ${assignments.join(", ")}
           where q.id = $1
@@ -672,50 +725,66 @@ export function createDatabaseContentRepository(
             and q.source_type <> 'private_reference_pattern'
             and ${ADMIN_SAFE_TEXT_PREDICATE}
         `,
-        params,
+            params,
+          )
+
+          if (input.hints) {
+            await replaceAdminQuestionHints(
+              transactionQuery,
+              questionId,
+              input.hints,
+            )
+          }
+
+          if (input.misconceptions) {
+            await replaceAdminQuestionMisconceptions(
+              transactionQuery,
+              questionId,
+              input.misconceptions,
+            )
+          }
+
+          const updated = await selectAdminQuestionRowsByIds(transactionQuery, [
+            questionId,
+          ])
+          return updated[0]
+        },
+        { retryOnConflict: true },
       )
-
-      if (input.hints) {
-        await replaceAdminQuestionHints(query, questionId, input.hints)
-      }
-
-      if (input.misconceptions) {
-        await replaceAdminQuestionMisconceptions(
-          query,
-          questionId,
-          input.misconceptions,
-        )
-      }
-
-      const updated = await selectAdminQuestionRowsByIds(query, [questionId])
-      return updated[0]
     },
 
     async regenerateAdminQuestion(input: AdminQuestionRegenerationInput) {
-      const original = await selectEditableAdminQuestionRowById(
+      return runDatabaseTransaction(
         query,
-        input.questionId,
-      )
+        async (transactionQuery) => {
+          const original = await selectEditableAdminQuestionRowById(
+            transactionQuery,
+            input.questionId,
+            true,
+          )
 
-      if (!original || !isGeneratedAdminQuestion(original)) {
-        return undefined
-      }
+          if (!original || !isGeneratedAdminQuestion(original)) {
+            return undefined
+          }
 
-      const baseId = `${slugify(original.id)}-regen`
-      const sequence = await nextRegenerationSequence(query, baseId)
-      const keepPattern = input.keepPattern ?? true
-      let regenerated: AdminQuestion | undefined
+          const baseId = `${slugify(original.id)}-regen`
+          const sequence = await nextRegenerationSequence(
+            transactionQuery,
+            baseId,
+          )
+          const keepPattern = input.keepPattern ?? true
+          let regenerated: AdminQuestion | undefined
 
-      for (let offset = 0; offset < 5; offset += 1) {
-        const candidate = generateDeterministicRegeneratedQuestion({
-          id: `${baseId}-${sequence + offset}`,
-          keepPattern,
-          original,
-          sequence: sequence + offset,
-        })
+          for (let offset = 0; offset < 5; offset += 1) {
+            const candidate = generateDeterministicRegeneratedQuestion({
+              id: `${baseId}-${sequence + offset}`,
+              keepPattern,
+              original,
+              sequence: sequence + offset,
+            })
 
-        const rows = await query(
-          `
+            const rows = await transactionQuery(
+              `
             insert into questions (
               id,
               topic_id,
@@ -735,6 +804,7 @@ export function createDatabaseContentRepository(
               review_priority,
               review_notes,
               reviewed_by,
+              reviewed_by_user_id,
               reviewed_at
             )
             values (
@@ -756,77 +826,86 @@ export function createDatabaseContentRepository(
               $13,
               $14,
               $15,
+              $15,
               now()
             )
             on conflict (id) do nothing
             returning id
           `,
-          [
-            candidate.id,
-            candidate.topicId,
-            candidate.source.patternIds?.[0] ?? null,
-            candidate.title,
-            candidate.prompt,
-            candidate.difficulty,
-            JSON.stringify(candidate.answer.acceptedAnswers),
-            candidate.answer.numericValue ?? null,
-            candidate.answer.tolerance ?? null,
-            candidate.answer.explanation,
-            candidate.source.sourceType,
-            candidate.source.originalityNote ?? null,
-            candidate.review.reviewPriority ?? "normal",
-            candidate.review.notes ?? null,
-            input.reviewedBy ?? "admin",
-          ],
-        )
+              [
+                candidate.id,
+                candidate.topicId,
+                candidate.source.patternIds?.[0] ?? null,
+                candidate.title,
+                candidate.prompt,
+                candidate.difficulty,
+                JSON.stringify(candidate.answer.acceptedAnswers),
+                candidate.answer.numericValue ?? null,
+                candidate.answer.tolerance ?? null,
+                candidate.answer.explanation,
+                candidate.source.sourceType,
+                candidate.source.originalityNote ?? null,
+                candidate.review.reviewPriority ?? "normal",
+                candidate.review.notes ?? null,
+                input.reviewedBy ?? "admin",
+              ],
+            )
 
-        if (!rows[0]) {
-          continue
-        }
+            if (!rows[0]) {
+              continue
+            }
 
-        await replaceQuestionChildren(query, candidate)
-        regenerated = (await selectAdminQuestionRowsByIds(query, [candidate.id]))[0]
-        break
-      }
+            await replaceQuestionChildren(transactionQuery, candidate)
+            regenerated = (
+              await selectAdminQuestionRowsByIds(transactionQuery, [
+                candidate.id,
+              ])
+            )[0]
+            break
+          }
 
-      if (!regenerated) {
-        return undefined
-      }
+          if (!regenerated) {
+            return undefined
+          }
 
-      await query(
-        `
+          await transactionQuery(
+            `
           update questions
           set review_status = 'needs_regeneration',
               trust_level = 'generated_unverified',
               review_notes = $2,
               reviewed_by = $3,
+              reviewed_by_user_id = $3,
               reviewed_at = now(),
               updated_at = now()
           where id = $1
             and visibility = 'public'
             and source_type in ('generated_original', 'pattern_derived_original')
         `,
-        [
-          original.id,
-          `Regenerated into ${regenerated.id}; old version preserved for audit.`,
-          input.reviewedBy ?? "admin",
-        ],
+            [
+              original.id,
+              `Regenerated into ${regenerated.id}; old version preserved for audit.`,
+              input.reviewedBy ?? "admin",
+            ],
+          )
+
+          const updatedOriginal = (
+            await selectAdminQuestionRowsByIds(transactionQuery, [original.id])
+          )[0]
+
+          if (!updatedOriginal) {
+            return undefined
+          }
+
+          return {
+            mode: "deterministic",
+            original: updatedOriginal,
+            preservedOriginal: true,
+            regenerated,
+          } satisfies AdminQuestionRegenerationResult
+        },
+        { retryOnConflict: true },
       )
-
-      const updatedOriginal = (
-        await selectAdminQuestionRowsByIds(query, [original.id])
-      )[0]
-
-      if (!updatedOriginal) {
-        return undefined
-      }
-
-      return {
-        mode: "deterministic",
-        original: updatedOriginal,
-        preservedOriginal: true,
-        regenerated,
-      } satisfies AdminQuestionRegenerationResult
     },
 
     async updateReviewCandidateStatus(candidateId, action, reviewedBy) {
@@ -923,7 +1002,7 @@ function adminQuestionQuery(filters: AdminQuestionFilters = {}) {
     "q.source_type <> 'private_reference_pattern'",
     ADMIN_SAFE_TEXT_PREDICATE,
   ]
-  const params: QueryValue[] = []
+  const params: DatabaseQueryValue[] = []
 
   if (filters.status) {
     params.push(filters.status)
@@ -954,7 +1033,7 @@ function adminQuestionQuery(filters: AdminQuestionFilters = {}) {
 
 function reviewQueueQuery(filters: ReviewQueueFilters = {}) {
   const clauses = ["1 = 1"]
-  const params: QueryValue[] = []
+  const params: DatabaseQueryValue[] = []
 
   if (filters.status) {
     params.push(filters.status)
@@ -988,14 +1067,15 @@ function reviewQueueQuery(filters: ReviewQueueFilters = {}) {
 }
 
 async function selectReviewCandidateRowsByIds(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   candidateIds: string[],
 ) {
   if (candidateIds.length === 0) {
     return []
   }
 
-  const rows = await query(
+  const rows = await readDatabaseRows(
+    query,
     `
       select
         q.*,
@@ -1042,14 +1122,15 @@ async function selectReviewCandidateRowsByIds(
 }
 
 async function selectAdminQuestionRowsByIds(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   questionIds: string[],
 ) {
   if (questionIds.length === 0) {
     return []
   }
 
-  const rows = await query(
+  const rows = await readDatabaseRows(
+    query,
     adminQuestionSelectSql(
       `where q.id = any($1)
         and q.visibility = 'public'
@@ -1063,15 +1144,18 @@ async function selectAdminQuestionRowsByIds(
 }
 
 async function selectEditableAdminQuestionRowById(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   questionId: string,
+  forUpdate = false,
 ) {
-  const rows = await query(
+  const rows = await readDatabaseRows(
+    query,
     adminQuestionSelectSql(
       `where q.id = $1
         and q.visibility = 'public'
         and q.source_type <> 'private_reference_pattern'
         and ${ADMIN_SAFE_TEXT_PREDICATE}`,
+      { forUpdate },
     ),
     [questionId],
   )
@@ -1079,7 +1163,10 @@ async function selectEditableAdminQuestionRowById(
   return rows[0] ? mapAdminQuestionRow(rows[0] as QuestionRow) : undefined
 }
 
-function adminQuestionSelectSql(whereClause: string) {
+function adminQuestionSelectSql(
+  whereClause: string,
+  options: { forUpdate?: boolean } = {},
+) {
   return `
     select
       q.*,
@@ -1120,6 +1207,7 @@ function adminQuestionSelectSql(whereClause: string) {
     left join topics t on t.id = q.topic_id
     ${whereClause}
     order by q.review_status, q.source_type, q.topic_id, q.title, q.id
+    ${options.forUpdate ? "for update of q" : ""}
   `
 }
 
@@ -1152,8 +1240,12 @@ function isGeneratedAdminQuestion(question: AdminQuestion) {
   )
 }
 
-async function nextRegenerationSequence(query: QueryExecutor, baseId: string) {
-  const rows = await query(
+async function nextRegenerationSequence(
+  query: DatabaseQueryExecutor,
+  baseId: string,
+) {
+  const rows = await readDatabaseRows(
+    query,
     `
       select count(*)::int as regeneration_count
       from questions
@@ -1176,7 +1268,7 @@ function slugify(value: string) {
 }
 
 async function replaceAdminQuestionHints(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   questionId: string,
   hints: string[],
 ) {
@@ -1194,7 +1286,7 @@ async function replaceAdminQuestionHints(
 }
 
 async function replaceAdminQuestionMisconceptions(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   questionId: string,
   misconceptions: AdminQuestionDetailUpdate["misconceptions"],
 ) {
@@ -1222,11 +1314,13 @@ async function replaceAdminQuestionMisconceptions(
 }
 
 async function replaceQuestionChildren(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   candidate: ReviewCandidate,
 ) {
   await query("delete from hints where question_id = $1", [candidate.id])
-  await query("delete from solution_steps where question_id = $1", [candidate.id])
+  await query("delete from solution_steps where question_id = $1", [
+    candidate.id,
+  ])
   await query("delete from misconceptions where question_id = $1", [
     candidate.id,
   ])
@@ -1312,12 +1406,12 @@ function toIsoString(value: Date | string | null) {
   return value instanceof Date ? value.toISOString() : value
 }
 
-function createUnavailableQueryExecutor(databaseUrl: string): QueryExecutor {
+function createUnavailableQueryExecutor(
+  databaseUrl: string,
+): DatabaseQueryExecutor {
+  void databaseUrl
   return async () => {
-    const host = new URL(databaseUrl).host
-    throw new Error(
-      `Database repository selected for ${host}, but no Postgres driver is configured.`,
-    )
+    throw new Error("Database repository has no configured query executor.")
   }
 }
 

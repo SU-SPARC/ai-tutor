@@ -2,6 +2,11 @@ import "server-only"
 
 import { randomUUID } from "node:crypto"
 
+import {
+  readDatabaseRows,
+  runDatabaseTransaction,
+  type DatabaseQueryExecutor,
+} from "@/lib/data/database-executor"
 import { queryPostgres } from "@/lib/data/postgres"
 import { DataServiceUnavailableError } from "@/lib/data/service-error"
 import { getServerEnv } from "@/lib/env/server"
@@ -12,12 +17,6 @@ import type {
   TutorSource,
   TutorVerdict,
 } from "@/lib/types"
-
-type QueryValue = Date | null | number | string
-type QueryExecutor = (
-  sql: string,
-  params?: QueryValue[],
-) => Promise<Record<string, unknown>[]>
 
 type TutorSessionRow = {
   anonymous_user_id: string | null
@@ -33,6 +32,7 @@ type TutorAttemptRow = {
   answer_preview: string | null
   created_at: Date | string
   id: number | string
+  session_id?: string
   source: TutorSource | null
   verdict: TutorVerdict | null
 }
@@ -291,7 +291,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
 
 export function createDatabaseTutorSessionRepository(
   databaseUrl: string,
-  query: QueryExecutor = createUnavailableQueryExecutor(databaseUrl),
+  query: DatabaseQueryExecutor = createUnavailableQueryExecutor(databaseUrl),
 ): TutorSessionRepository {
   return {
     async createSession(input) {
@@ -318,7 +318,8 @@ export function createDatabaseTutorSessionRepository(
     },
 
     async listSessionsForStudent(anonymousStudentId) {
-      const rows = await query(
+      const rows = (await readDatabaseRows(
+        query,
         `
           select *
           from tutor_sessions
@@ -326,24 +327,50 @@ export function createDatabaseTutorSessionRepository(
           order by last_seen_at desc, created_at desc
         `,
         [anonymousStudentId],
-      )
+      )) as TutorSessionRow[]
 
-      return Promise.all(
-        (rows as TutorSessionRow[]).map((row) =>
-          readDatabaseSessionAttempts(query, row),
-        ),
+      if (rows.length === 0) {
+        return []
+      }
+
+      const attemptRows = (await readDatabaseRows(
+        query,
+        `
+          select session_id, id, answer_preview, source, verdict, created_at
+          from attempts
+          where session_id = any($1)
+          order by session_id, created_at, id
+        `,
+        [rows.map((row) => row.id)],
+      )) as TutorAttemptRow[]
+      const attemptsBySession = new Map<string, TutorAttemptRow[]>()
+
+      for (const attempt of attemptRows) {
+        const sessionAttempts = attemptsBySession.get(attempt.session_id!) ?? []
+        sessionAttempts.push(attempt)
+        attemptsBySession.set(attempt.session_id!, sessionAttempts)
+      }
+
+      return rows.map((row) =>
+        mapTutorSession(row, attemptsBySession.get(row.id) ?? []),
       )
     },
 
     async recordAttempt(input) {
-      const session = await this.getSession(input.sessionId)
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const session = await lockDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+          )
 
-      if (!session) {
-        return undefined
-      }
+          if (!session) {
+            return undefined
+          }
 
-      await query(
-        `
+          await transactionQuery(
+            `
           insert into attempts (
             session_id,
             question_id,
@@ -354,26 +381,35 @@ export function createDatabaseTutorSessionRepository(
           )
           values ($1, $2, 'check', $3, 'rule', 0)
         `,
-        [
-          input.sessionId,
-          session.questionId,
-          previewString(input.answerPreview) ?? null,
-        ],
-      )
-      await touchDatabaseSession(query, input.sessionId)
+            [
+              input.sessionId,
+              session.questionId,
+              previewString(input.answerPreview) ?? null,
+            ],
+          )
+          await touchDatabaseSession(transactionQuery, input.sessionId)
 
-      return this.getSession(input.sessionId)
+          return readDatabaseSession(transactionQuery, input.sessionId)
+        },
+        { retryOnConflict: true },
+      )
     },
 
     async recordAttemptOutcome(input) {
-      const session = await this.getSession(input.sessionId)
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const session = await lockDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+          )
 
-      if (!session) {
-        return undefined
-      }
+          if (!session) {
+            return undefined
+          }
 
-      const updated = await query(
-        `
+          const updated = await transactionQuery(
+            `
           update attempts
           set verdict = $2,
               source = $3,
@@ -389,12 +425,17 @@ export function createDatabaseTutorSessionRepository(
           )
           returning id
         `,
-        [input.sessionId, input.verdict, input.source, input.estimatedTokens],
-      )
+            [
+              input.sessionId,
+              input.verdict,
+              input.source,
+              input.estimatedTokens,
+            ],
+          )
 
-      if (updated.length === 0) {
-        await query(
-          `
+          if (updated.length === 0) {
+            await transactionQuery(
+              `
             insert into attempts (
               session_id,
               question_id,
@@ -406,45 +447,70 @@ export function createDatabaseTutorSessionRepository(
             )
             values ($1, $2, 'check', $3, $4, $5, $6)
           `,
-          [
-            input.sessionId,
-            session.questionId,
-            previewString(input.answerPreview) ?? null,
-            input.source,
-            input.verdict,
-            input.estimatedTokens,
-          ],
-        )
-      }
+              [
+                input.sessionId,
+                session.questionId,
+                previewString(input.answerPreview) ?? null,
+                input.source,
+                input.verdict,
+                input.estimatedTokens,
+              ],
+            )
+          }
 
-      await touchDatabaseSession(query, input.sessionId)
-      return this.getSession(input.sessionId)
+          await touchDatabaseSession(transactionQuery, input.sessionId)
+          return readDatabaseSession(transactionQuery, input.sessionId)
+        },
+        { retryOnConflict: true },
+      )
     },
 
     async revealHint(sessionId) {
-      await query(
-        `
-          update tutor_sessions
-          set revealed_hints = revealed_hints + 1,
-              last_seen_at = now()
-          where id = $1
-        `,
-        [sessionId],
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `
+              update tutor_sessions
+              set revealed_hints = revealed_hints + 1,
+                  last_seen_at = now()
+              where id = $1
+              returning *
+            `,
+            [sessionId],
+          )
+          const row = rows[0] as TutorSessionRow | undefined
+
+          return row
+            ? readDatabaseSessionAttempts(transactionQuery, row)
+            : undefined
+        },
+        { retryOnConflict: true },
       )
-      return this.getSession(sessionId)
     },
 
     async revealStep(sessionId) {
-      await query(
-        `
-          update tutor_sessions
-          set revealed_steps = revealed_steps + 1,
-              last_seen_at = now()
-          where id = $1
-        `,
-        [sessionId],
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `
+              update tutor_sessions
+              set revealed_steps = revealed_steps + 1,
+                  last_seen_at = now()
+              where id = $1
+              returning *
+            `,
+            [sessionId],
+          )
+          const row = rows[0] as TutorSessionRow | undefined
+
+          return row
+            ? readDatabaseSessionAttempts(transactionQuery, row)
+            : undefined
+        },
+        { retryOnConflict: true },
       )
-      return this.getSession(sessionId)
     },
   }
 }
@@ -503,14 +569,43 @@ async function readWithConfiguredRepository<T>(
 async function writeWithConfiguredRepository<T>(
   write: (repository: TutorSessionRepository) => Promise<T>,
 ) {
-  return readWithConfiguredRepository(write)
+  const env = getServerEnv()
+  const policy = getOperatingModePolicy()
+
+  if (tutorSessionRepositoryOverride) {
+    try {
+      return await write(tutorSessionRepositoryOverride)
+    } catch (cause) {
+      throw new DataServiceUnavailableError("tutor-session", { cause })
+    }
+  }
+
+  if (policy.repositorySource === "demo") {
+    return write(memoryTutorSessionRepository)
+  }
+
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("tutor-session")
+  }
+
+  try {
+    return await write(
+      createDatabaseTutorSessionRepository(env.DATABASE_URL, queryPostgres),
+    )
+  } catch (cause) {
+    // A failed database write must never be replayed against process memory.
+    // The server cannot prove whether a connection failure happened before or
+    // after commit, so callers receive a stable unavailable response instead.
+    throw new DataServiceUnavailableError("tutor-session", { cause })
+  }
 }
 
 async function readDatabaseSession(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   sessionId: string,
 ): Promise<TutorSessionRecord | undefined> {
-  const sessionRows = await query(
+  const sessionRows = await readDatabaseRows(
+    query,
     `
       select *
       from tutor_sessions
@@ -529,10 +624,11 @@ async function readDatabaseSession(
 }
 
 async function readDatabaseSessionAttempts(
-  query: QueryExecutor,
+  query: DatabaseQueryExecutor,
   sessionRow: TutorSessionRow,
 ) {
-  const attemptRows = await query(
+  const attemptRows = await readDatabaseRows(
+    query,
     `
       select id, answer_preview, source, verdict, created_at
       from attempts
@@ -583,7 +679,29 @@ function previewString(value: string | undefined) {
   return trimmed ? trimmed.slice(0, 80) : undefined
 }
 
-async function touchDatabaseSession(query: QueryExecutor, sessionId: string) {
+async function lockDatabaseSession(
+  query: DatabaseQueryExecutor,
+  sessionId: string,
+) {
+  const rows = await readDatabaseRows(
+    query,
+    `
+      select *
+      from tutor_sessions
+      where id = $1
+      for update
+    `,
+    [sessionId],
+  )
+  const row = rows[0] as TutorSessionRow | undefined
+
+  return row ? mapTutorSession(row, []) : undefined
+}
+
+async function touchDatabaseSession(
+  query: DatabaseQueryExecutor,
+  sessionId: string,
+) {
   await query(
     `
       update tutor_sessions
@@ -598,11 +716,13 @@ function toIsoString(value: Date | string) {
   return value instanceof Date ? value.toISOString() : value
 }
 
-function createUnavailableQueryExecutor(databaseUrl: string): QueryExecutor {
+function createUnavailableQueryExecutor(
+  databaseUrl: string,
+): DatabaseQueryExecutor {
+  void databaseUrl
   return async () => {
-    const host = new URL(databaseUrl).host
     throw new Error(
-      `Database tutor session repository selected for ${host}, but no Postgres driver is configured.`,
+      "Tutor session repository has no configured query executor.",
     )
   }
 }

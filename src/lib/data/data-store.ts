@@ -92,16 +92,9 @@ export async function updateAdminQuestionsStrict(input: AdminQuestionUpdate) {
     return contentRepositoryOverride.updateAdminQuestions(input)
   }
 
-  const env = getServerEnv()
-
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
-    throw new Error("Admin question mutations require a configured database.")
-  }
-
-  return createDatabaseContentRepository(
-    env.DATABASE_URL,
-    queryPostgres,
-  ).updateAdminQuestions(input)
+  return writeStrictDatabase((repository) =>
+    repository.updateAdminQuestions(input),
+  )
 }
 
 export async function updateAdminQuestionDetailStrict(
@@ -109,19 +102,15 @@ export async function updateAdminQuestionDetailStrict(
   input: AdminQuestionDetailUpdate,
 ) {
   if (contentRepositoryOverride) {
-    return contentRepositoryOverride.updateAdminQuestionDetail(questionId, input)
+    return contentRepositoryOverride.updateAdminQuestionDetail(
+      questionId,
+      input,
+    )
   }
 
-  const env = getServerEnv()
-
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
-    throw new Error("Admin question mutations require a configured database.")
-  }
-
-  return createDatabaseContentRepository(
-    env.DATABASE_URL,
-    queryPostgres,
-  ).updateAdminQuestionDetail(questionId, input)
+  return writeStrictDatabase((repository) =>
+    repository.updateAdminQuestionDetail(questionId, input),
+  )
 }
 
 export async function regenerateAdminQuestionStrict(
@@ -131,16 +120,9 @@ export async function regenerateAdminQuestionStrict(
     return contentRepositoryOverride.regenerateAdminQuestion(input)
   }
 
-  const env = getServerEnv()
-
-  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
-    throw new Error("Admin question regeneration requires a configured database.")
-  }
-
-  return createDatabaseContentRepository(
-    env.DATABASE_URL,
-    queryPostgres,
-  ).regenerateAdminQuestion(input)
+  return writeStrictDatabase((repository) =>
+    repository.regenerateAdminQuestion(input),
+  )
 }
 
 export async function getQuestionById(questionId: string) {
@@ -376,10 +358,24 @@ async function writeWithConfiguredRepository<T>(
       createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
     )
   } catch (cause) {
-    if (policy.allowDemoFallback) {
-      return write(demoContentRepository)
-    }
+    throw new DataServiceUnavailableError("content", { cause })
+  }
+}
 
+async function writeStrictDatabase<T>(
+  write: (repository: ContentRepository) => Promise<T>,
+) {
+  const env = getServerEnv()
+
+  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content")
+  }
+
+  try {
+    return await write(
+      createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
+    )
+  } catch (cause) {
     throw new DataServiceUnavailableError("content", { cause })
   }
 }
