@@ -176,6 +176,18 @@ The application deployment must not run migrations automatically at startup.
 Migration and application promotion are separate jobs so failure cannot cause
 multiple server instances to race schema changes.
 
+## Approved Content Is A Separate Job
+
+Schema migration never seeds Production content. After migrations are current,
+use the independently credentialed, professor-attested workflow in
+[Approved Content Production Import](approved-content-import.md). Its dry run
+and transactional apply use `CONTENT_IMPORT_DATABASE_URL`; neither the schema
+migration runner nor the deployed application receives that credential.
+
+The content job must finish and replay as an exact no-op before application
+traffic. It does not import demo fixtures, retrieval chunks, student/session
+records, generated drafts, or logs.
+
 ## Failure, Rollback, And Forward Fix
 
 If a migration statement fails, its transaction rolls back and the runner does

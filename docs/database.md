@@ -13,6 +13,10 @@ See [Database Migration Operations](database-operations.md) for the checked-in
 migration commands, checksum/status workflow, safety gates, CI evidence, and
 forward-fix procedure.
 
+See [Approved Content Production Import](approved-content-import.md) for the
+professor-attested manifest contract, dry-run/apply commands, exact-content
+duplicate rules, transactional behavior, and validation report.
+
 ## Initial Schema
 
 `001_initial_schema.sql` creates these public-safe tutoring tables:
@@ -54,6 +58,7 @@ production integrity layer without deleting existing rows:
 | Questions                    | Content fields and answer JSON are validated; approved public rows require an immutable reviewer user ID, timestamp, approved trust level, and no archive timestamp |
 | Versions and approvals       | Every question/content-child mutation snapshots the full question into append-only `question_versions`; review transitions append to `question_approval_history`    |
 | Hints, steps, misconceptions | One-based child ordering is unique per question; bodies/IDs are nonblank; misconception terms are arrays and metadata is an object                                  |
+| Approved imports             | Public-safe pattern metadata and release evidence are immutable; new pattern references must resolve to an approved metadata row                                 |
 | Sessions and attempts        | Each session has exactly one authenticated or anonymous identity; attempts require a matching question, topic, and immutable question version                       |
 | Progress                     | `student_progress` has one row per student/question with matching topic/version foreign keys and nonnegative counters                                               |
 | AI state                     | Usage/token counters are nonnegative and internally consistent; reservations require a session; cache question/topic pairs must match                               |
@@ -69,6 +74,11 @@ Question-version `content_hash` values are deterministic internal MD5
 fingerprints used to suppress duplicate snapshots. They are not signatures and
 do not replace the signed manifest's SHA-256 file/content hashes.
 
+`008_approved_content_import.sql` adds public-safe `question_patterns` and the
+append-only `approved_content_imports` release ledger. New pattern references
+must resolve to reviewed metadata; the Production importer accepts only the
+minimal pattern fields required by approved generated questions.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
@@ -81,7 +91,7 @@ Deletion behavior is explicit:
 - reviewer identities referenced by immutable academic history cannot be
   physically deleted and must instead be disabled or soft-deleted.
 
-`tests/production-schema-migration.test.ts` executes migrations `001`–`007`
+`tests/production-schema-migration.test.ts` executes migrations `001`–`008`
 against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
 with legacy content/activity, the development seed, publication and role
 constraints, append-only history, snapshot completeness, and deletion rules.
@@ -105,6 +115,10 @@ Do not store raw private PDFs, extracted textbook text, private chunks,
 embeddings, answer keys, source locators, or professor-only materials in these
 tables. Private extraction and review artifacts must stay under ignored
 `data/private/` paths.
+
+The commands below are Development-only fixture preparation. They are not a
+Production import interface. Production uses only the signed-manifest workflow
+documented in [Approved Content Production Import](approved-content-import.md).
 
 Generate reviewable public seed SQL with:
 

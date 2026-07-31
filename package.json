@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/database-migrate.mjs up",
     "db:migrate:status": "node scripts/database-migrate.mjs status",
     "db:migrate:check": "node scripts/database-migrate.mjs check",
+    "db:import:approved": "node scripts/import-approved-content.mjs",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",
     "extract:pdf": "node scripts/extract-private-pdfs.mjs",
     "extract:tex": "node scripts/extract-private-tex.mjs",
@@ -31,7 +32,7 @@
     "validate:patterns": "node scripts/validate-demo-question-patterns.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts"
+    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts"
   },
   "dependencies": {
     "@types/katex": "^0.16.8",

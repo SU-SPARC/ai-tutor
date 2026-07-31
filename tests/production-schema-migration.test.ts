@@ -40,12 +40,14 @@ describe("production schema hardening migration", () => {
     expect(tableNames).toEqual(
       expect.arrayContaining([
         "ai_usage",
+        "approved_content_imports",
         "attempts",
         "audit_events",
         "feedback_reports",
         "hints",
         "misconceptions",
         "question_approval_history",
+        "question_patterns",
         "question_versions",
         "questions",
         "roles",
@@ -80,6 +82,8 @@ describe("production schema hardening migration", () => {
         "hints_order_positive",
         "misconceptions_metadata_object",
         "question_approval_history_version_fkey",
+        "question_patterns_no_private_source_signals",
+        "questions_pattern_id_fkey",
         "questions_publication_state_check",
         "solution_steps_order_positive",
         "student_progress_question_topic_fkey",
@@ -112,6 +116,7 @@ describe("production schema hardening migration", () => {
         "hints_question_idx",
         "misconceptions_question_idx",
         "question_approval_history_question_idx",
+        "question_patterns_topic_idx",
         "question_versions_question_created_idx",
         "questions_professor_queue_idx",
         "questions_professor_catalog_idx",
@@ -280,6 +285,7 @@ describe("production schema hardening migration", () => {
       insert into questions (
         id,
         topic_id,
+        pattern_id,
         title,
         prompt,
         difficulty,
@@ -294,6 +300,7 @@ describe("production schema hardening migration", () => {
       values (
         'legacy-question',
         'probability',
+        'legacy-untracked-pattern',
         'Legacy question',
         'What is one half?',
         'foundational',
@@ -373,6 +380,7 @@ describe("production schema hardening migration", () => {
     `)
 
     await applyMigration(database, "007_production_schema_hardening.sql")
+    await applyMigration(database, "008_approved_content_import.sql")
 
     const preserved = await database.query<{
       attempts: number
@@ -410,14 +418,16 @@ describe("production schema hardening migration", () => {
     })
 
     const question = await database.query<{
+      pattern_id: string
       reviewed_by: string
       reviewed_by_user_id: string
     }>(`
-      select reviewed_by, reviewed_by_user_id
+      select pattern_id, reviewed_by, reviewed_by_user_id
       from questions
       where id = 'legacy-question'
     `)
     expect(question.rows[0]).toEqual({
+      pattern_id: "legacy-untracked-pattern",
       reviewed_by: "professor",
       reviewed_by_user_id: "system:schema-migration",
     })

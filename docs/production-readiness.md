@@ -137,7 +137,7 @@ team should replace each role before a pilot is scheduled.
 | PR-10 | High | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions. | Complete | Database engineering | The [database operations runbook](database-operations.md), checksum-ledger runner, deployment check, destructive/Production gates, and executable empty/upgrade tests provide the required evidence. |
 | PR-11 | High | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete | Database engineering + privacy owner | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
 | PR-12 | High | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe. | Planned | Database engineering | Failure and simultaneous-review tests prove atomicity and conflict handling. |
-| PR-13 | High | Add an idempotent, dry-run production importer for approved content only. | Planned | Content engineering + professor | Import report proves stable IDs/order and excludes private sources, drafts, test identities, and demo sessions. |
+| PR-13 | High | Add an idempotent, dry-run production importer for approved content only. | Complete | Content engineering + professor | The [approved-content importer](approved-content-import.md), immutable import ledger, and executable tests prove stable IDs/order, exact no-op replay, transactional rollback, and exclusion of private, draft, retrieval, test, student, and session data. |
 | PR-14 | High | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks. | Planned | Platform + database engineering | Load/failure tests and health checks prove bounded, non-leaking behavior. |
 | PR-15 | High | Define and test backup, restore, RPO, RTO, and rollback procedures. | Decision required | University IT + database engineering | Provider backup evidence and a successful disposable restore exercise. |
 | PR-16 | High | Add read-only integrity checks and explicitly gated repair tools. | Planned | Database + content engineering | Reports detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data. |
@@ -266,8 +266,8 @@ Production acceptance requires evidence for every item below.
 - [x] [Schema constraints, indexes, foreign keys, deletion rules, timestamps,
   roles, review history, audit events, and publication states](database.md#production-schema-hardening)
   are verified.
-- [ ] Approved-content import is idempotent, transactional, dry-runnable, and
-  excludes private/draft/demo/test records.
+- [x] [Approved-content import](approved-content-import.md) is idempotent,
+  transactional, dry-runnable, and excludes private/draft/demo/test records.
 - [ ] Database pooling, timeouts, safe retries, concurrency, and controlled
   errors are load/failure tested.
 - [ ] Integrity checks pass on production-shaped data.
@@ -322,7 +322,8 @@ must link to its evidence in the task table or accompanying documentation.
   through migration 007 and executable fresh/upgrade tests.
 - [x] Prompt 93 — [Safe migration workflow operational](database-operations.md)
   with status, pending-deployment, safety-gate, and empty-database CI tests.
-- [ ] Prompt 94 — Approved-content production importer verified.
+- [x] Prompt 94 — [Approved-content production importer verified](approved-content-import.md)
+  with manifest, duplicate, dry-run, rollback, no-op, order, and contamination tests.
 - [ ] Prompt 95 — Database runtime reliability verified.
 - [ ] Prompt 96 — Backup and restore process exercised.
 - [ ] Prompt 97 — Data integrity and cleanup tools verified.
@@ -362,4 +363,6 @@ verification evidence.
 - [Professor/Admin Workflow Migration](../db/migrations/005_professor_admin_workflow.sql)
 - [Syllabus Topic Order Migration](../db/migrations/006_syllabus_topic_order.sql)
 - [Production Schema Hardening Migration](../db/migrations/007_production_schema_hardening.sql)
+- [Approved Content Import Migration](../db/migrations/008_approved_content_import.sql)
 - [Database Migration Operations](database-operations.md)
+- [Approved Content Production Import](approved-content-import.md)
