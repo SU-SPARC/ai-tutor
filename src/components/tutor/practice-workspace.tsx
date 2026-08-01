@@ -120,6 +120,7 @@ export function PracticeWorkspace({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hintCount, setHintCount] = useState(0)
   const [hintViewIndex, setHintViewIndex] = useState(0)
+  const [answerShown, setAnswerShown] = useState(false)
   const [search, setSearch] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -159,6 +160,7 @@ export function PracticeWorkspace({
       setMessages([])
       setHintCount(0)
       setHintViewIndex(0)
+      setAnswerShown(false)
 
       if (!selectedQuestionIdForSession) {
         setIsSessionLoading(false)
@@ -197,6 +199,7 @@ export function PracticeWorkspace({
     setMessages([])
     setHintCount(0)
     setHintViewIndex(0)
+    setAnswerShown(false)
   }
 
   function pushMessage(message: Omit<ChatMessage, "id">) {
@@ -306,51 +309,43 @@ export function PracticeWorkspace({
       })
   }
 
-  async function showAnswer() {
-    if (!selectedQuestion || !session || activeMode || !hintsExhausted) {
+  function showAnswer() {
+    if (!selectedQuestion || !session || answerShown) {
       return
     }
 
-    setActiveMode("full_solution")
+    // Reveal the full worked solution from the question's own data, so
+    // "I'm stuck" always shows the answer without requiring the student to
+    // exhaust the hints first.
+    const steps = selectedQuestion.solutionSteps
+    const total = steps.length
+    const finalAnswer = selectedQuestion.answer.acceptedAnswers[0]
+    const explanation = selectedQuestion.answer.explanation
     setSessionError(null)
+    setMessages((items) => [
+      ...items,
+      ...steps.map((step, index) => ({
+        id: createClientId("tutor"),
+        role: "tutor" as const,
+        stepLabel: `Step ${index + 1} of ${total}`,
+        text: step,
+        tone: "neutral" as const,
+      })),
+      {
+        id: createClientId("tutor"),
+        role: "tutor" as const,
+        stepLabel: "Answer",
+        text: finalAnswer ? `Answer: ${finalAnswer}. ${explanation}` : explanation,
+        tone: "neutral" as const,
+      },
+    ])
+    setAnswerShown(true)
 
-    try {
-      const nextSession = await postTutorSessionEvent(session.id, "step")
-      setSession(nextSession)
-
-      const tutorResponse = await requestTutorResponse({
-        answer,
-        mode: "full_solution",
-        questionId: selectedQuestion.id,
-        sessionId: nextSession.id,
-        topicId: selectedQuestion.topicId,
-      })
-
-      setLatestResponse(tutorResponse)
-
-      const total = tutorResponse.steps.length
-      setMessages((items) => [
-        ...items,
-        ...tutorResponse.steps.map((step, index) => ({
-          id: createClientId("tutor"),
-          role: "tutor" as const,
-          stepLabel: `Step ${index + 1} of ${total}`,
-          text: step,
-          tone: "neutral" as const,
-        })),
-        {
-          id: createClientId("tutor"),
-          role: "tutor" as const,
-          stepLabel: "Full solution",
-          text: tutorResponse.message,
-          tone: "neutral" as const,
-        },
-      ])
-    } catch (error) {
-      setSessionError(errorMessageFor(error))
-    } finally {
-      setActiveMode(null)
-    }
+    // Record the reveal for progress tracking in the background.
+    const sessionId = session.id
+    void postTutorSessionEvent(sessionId, "step")
+      .then(setSession)
+      .catch(() => {})
   }
 
   async function requestLimitedAiHelp() {
@@ -703,24 +698,16 @@ export function PracticeWorkspace({
                     <Lightbulb className="h-4 w-4" />
                     Hint
                   </Button>
-                  {hintsExhausted ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isTutorBusy || !session}
-                      onClick={() => {
-                        void showAnswer()
-                      }}
-                    >
-                      {activeMode === "full_solution" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      Show answer
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isTutorBusy || !session || answerShown}
+                    onClick={showAnswer}
+                  >
+                    <Eye className="h-4 w-4" />
+                    I&apos;m stuck
+                  </Button>
                   {latestResponse?.usage.llmFallbackEligible ? (
                     <Button
                       type="button"
