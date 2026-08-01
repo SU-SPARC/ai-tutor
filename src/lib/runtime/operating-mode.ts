@@ -27,11 +27,15 @@ export function operatingModePolicyFor(
   env: Pick<ServerEnv, "APP_DEMO_MODE" | "APP_ENV">,
 ): OperatingModePolicy {
   if (env.APP_ENV === "production") {
-    return databasePolicy("production")
+    return env.APP_DEMO_MODE
+      ? demoRepositoryPolicy("production")
+      : databasePolicy("production")
   }
 
   if (env.APP_ENV === "staging") {
-    return databasePolicy("staging")
+    return env.APP_DEMO_MODE
+      ? demoRepositoryPolicy("staging")
+      : databasePolicy("staging")
   }
 
   if (env.APP_ENV === "preview") {
@@ -79,6 +83,16 @@ function databasePolicy(
 
 function demoPolicy(
   mode: Extract<OperatingMode, "local-demo" | "test-demo">,
+): OperatingModePolicy {
+  return {
+    allowDemoFallback: false,
+    mode,
+    repositorySource: "demo",
+  }
+}
+
+function demoRepositoryPolicy(
+  mode: Extract<OperatingMode, "production" | "staging">,
 ): OperatingModePolicy {
   return {
     allowDemoFallback: false,

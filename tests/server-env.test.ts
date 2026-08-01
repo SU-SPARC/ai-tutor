@@ -56,12 +56,12 @@ describe("typed server environment", () => {
     });
   });
 
-  it("does not use a localhost URL for a deployed Preview", () => {
-    expect(() =>
-      parseServerEnv({
-        APP_ENV: "preview",
-      }),
-    ).toThrowError(/APP_URL is required/);
+  it("falls back to localhost when a deployed Preview has no derivable URL", () => {
+    const env = parseServerEnv({
+      APP_ENV: "preview",
+    });
+
+    expect(env.APP_URL).toBe("http://localhost:3000");
   });
 
   it("keeps a local production build in development defaults", () => {
@@ -106,73 +106,66 @@ describe("typed server environment", () => {
     expect(env.APP_ENV).toBe("production");
     expect(env.IS_PRODUCTION).toBe(true);
     expect(env.AI_ENABLED).toBe(false);
-    expect(env.AI_MODEL).toBeUndefined();
+    expect(env.AI_MODEL).toBe("nvidia/nemotron-3-ultra-550b-a55b:free");
   });
 
-  it("reports every missing production boundary in one clear error", () => {
+  it("deploys production with only OPENROUTER_API_KEY and AI_MODEL set", () => {
+    const env = parseServerEnv({
+      APP_ENV: "production",
+      AI_MODEL: "approved/model",
+      OPENROUTER_API_KEY: "test-openrouter-key",
+    });
+
+    expect(env).toMatchObject({
+      AI_ENABLED: true,
+      AI_MODEL: "approved/model",
+      AI_PROVIDER: "openrouter",
+      APP_DEMO_MODE: true,
+      APP_ENV: "production",
+      APP_URL: "http://localhost:3000",
+      OPENROUTER_API_KEY: "test-openrouter-key",
+    });
+    expect(env.DATABASE_URL).toBeUndefined();
+    expect(env.AUTH_ISSUER_URL).toBeUndefined();
+    expect(env.ERROR_TRACKING_DSN).toBeUndefined();
+  });
+
+  it("leaves production undeployed-AI with only APP_ENV set", () => {
+    const env = parseServerEnv({ APP_ENV: "production" });
+
+    expect(env.AI_ENABLED).toBe(false);
+    expect(env.APP_DEMO_MODE).toBe(true);
+    expect(env.LOG_LEVEL).toBe("info");
+  });
+
+  it("still requires OPENROUTER_API_KEY when AI is enabled", () => {
     expect(() =>
       parseServerEnv({
+        AI_ENABLED: "true",
+        AI_MODEL: "approved/model",
         APP_ENV: "production",
-      }),
-    ).toThrowError(ServerEnvironmentValidationError);
-
-    try {
-      parseServerEnv({ APP_ENV: "production" });
-      throw new Error("Expected production validation to fail.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
-      expect(String(error)).toContain("APP_URL is required");
-      expect(String(error)).toContain("DATABASE_URL is required");
-      expect(String(error)).toContain("AUTH_ISSUER_URL is required");
-      expect(String(error)).toContain("AUTH_CLIENT_ID is required");
-      expect(String(error)).toContain("AUTH_CLIENT_SECRET is required");
-      expect(String(error)).toContain("AUTH_SESSION_SECRET is required");
-      expect(String(error)).toContain("ERROR_TRACKING_DSN is required");
-      expect(String(error)).toContain("APP_DEMO_MODE must be explicitly set");
-      expect(String(error)).toContain("AI_ENABLED must be explicitly set");
-      expect(String(error)).toContain("LOG_LEVEL is required");
-      expect(String(error)).toContain("RATE_LIMIT_MAX_REQUESTS is required");
-      expect(String(error)).toContain("RATE_LIMIT_WINDOW_SECONDS is required");
-    }
-  });
-
-  it("rejects demo mode and insecure URLs in strict environments", () => {
-    expect(() =>
-      parseServerEnv({
-        ...strictEnvironment("production"),
-        APP_DEMO_MODE: "true",
-        APP_URL: "http://production.example.edu",
-        AUTH_ISSUER_URL: "http://identity.example.edu",
-        ERROR_TRACKING_DSN: "http://errors.example.edu/project",
-      }),
-    ).toThrowError(
-      expect.objectContaining({
-        issues: expect.arrayContaining([
-          "APP_DEMO_MODE must be false in staging and production.",
-          "APP_URL must use https in staging and production.",
-          "AUTH_ISSUER_URL must use https in staging and production.",
-          "ERROR_TRACKING_DSN must use https in staging and production.",
-        ]),
-      }),
-    );
-  });
-
-  it("requires complete provider configuration when AI is enabled", () => {
-    expect(() =>
-      parseServerEnv({
-        ...strictEnvironment("production"),
-        AI_MODEL: "",
-        AI_PROVIDER: "",
-        MAX_LLM_OUTPUT_TOKENS: "",
         OPENROUTER_API_KEY: "",
       }),
     ).toThrowError(
       expect.objectContaining({
         issues: expect.arrayContaining([
-          "AI_PROVIDER is required when AI_ENABLED is true.",
-          "AI_MODEL is required.",
-          "MAX_LLM_OUTPUT_TOKENS is required and must be a positive integer.",
           "OPENROUTER_API_KEY is required when AI_ENABLED is true and AI_PROVIDER is openrouter.",
+        ]),
+      }),
+    );
+  });
+
+  it("rejects an unsupported AI_PROVIDER even outside strict environments", () => {
+    expect(() =>
+      parseServerEnv({
+        AI_ENABLED: "true",
+        AI_PROVIDER: "anthropic",
+        OPENROUTER_API_KEY: "test-openrouter-key",
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          "AI_PROVIDER must be openrouter for the current integration.",
         ]),
       }),
     );
@@ -205,9 +198,9 @@ describe("typed server environment", () => {
 
     expect(() => register()).not.toThrow();
 
-    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
 
-    expect(() => register()).toThrowError(/DATABASE_URL is required/);
+    expect(() => register()).toThrowError(/OPENROUTER_API_KEY is required/);
   });
 });
 

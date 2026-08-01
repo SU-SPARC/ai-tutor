@@ -59,7 +59,11 @@ const DEFAULTS = {
   RATE_LIMIT_WINDOW_SECONDS: 60,
 } as const;
 
-const STRICT_ENVIRONMENTS = new Set<AppEnvironment>(["staging", "production"]);
+// Deployment currently only needs OPENROUTER_API_KEY and AI_MODEL. No
+// environment enforces the full production boundary (database, auth, error
+// tracking, ...); re-add "staging"/"production" here once that
+// infrastructure exists.
+const STRICT_ENVIRONMENTS = new Set<AppEnvironment>();
 
 const SERVER_SECRET_NAMES = [
   "ADMIN_SECRET",
@@ -96,12 +100,9 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
   const APP_ENV = resolveAppEnvironment(input, issues);
   const strict = STRICT_ENVIRONMENTS.has(APP_ENV);
   const production = APP_ENV === "production";
-  const local = APP_ENV === "development" || APP_ENV === "test";
   const previewUrl = urlFromVercelHostname(input.VERCEL_URL);
   const rawAppUrl =
-    optionalString(input.APP_URL) ??
-    (APP_ENV === "preview" ? previewUrl : undefined) ??
-    (local ? DEFAULTS.APP_URL : undefined);
+    optionalString(input.APP_URL) ?? previewUrl ?? DEFAULTS.APP_URL;
   const APP_URL = parseHttpUrl("APP_URL", rawAppUrl, issues, {
     requireHttps: strict,
     required: true,
@@ -426,7 +427,9 @@ function parseLogLevel(
   const fallback: LogLevel =
     environment === "test"
       ? "silent"
-      : environment === "preview"
+      : environment === "preview" ||
+          environment === "staging" ||
+          environment === "production"
         ? "info"
         : "debug";
   const parsed =
