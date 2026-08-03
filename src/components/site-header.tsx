@@ -77,12 +77,6 @@ export function SiteHeader({
               {environmentLabel}
             </Badge>
           ) : null}
-          <Link
-            href="/professor"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Professor
-          </Link>
           {accountControl}
         </div>
       </div>

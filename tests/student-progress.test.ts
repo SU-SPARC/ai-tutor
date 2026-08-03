@@ -14,6 +14,7 @@ import {
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
+  TEST_STUDENT,
 } from "./auth-test-helpers";
 
 const studentOwner = TEST_ANONYMOUS_OWNER;
@@ -144,5 +145,44 @@ describe("student progress dashboard", () => {
         },
       },
     });
+  });
+
+  it("returns only the authenticated student's progress", async () => {
+    const authenticatedOwner = {
+      kind: "user" as const,
+      userId: TEST_STUDENT.userId,
+    };
+    const otherAuthenticatedOwner = {
+      kind: "user" as const,
+      userId: "user:another-student",
+    };
+    const ownedSession = await createTutorSession({
+      owner: authenticatedOwner,
+      questionId: "dice-sum-eight",
+    });
+    await recordTutorSessionAttempt({
+      owner: authenticatedOwner,
+      sessionId: ownedSession.id,
+    });
+    const otherSession = await createTutorSession({
+      owner: otherAuthenticatedOwner,
+      questionId: "exam-z-score",
+    });
+    await recordTutorSessionAttempt({
+      owner: otherAuthenticatedOwner,
+      sessionId: otherSession.id,
+    });
+
+    mockStudentOwner(authenticatedOwner);
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.progress.summary.attemptedQuestions).toBe(1);
+    expect(payload.progress.recentSessions).toEqual([
+      expect.objectContaining({ questionId: "dice-sum-eight" }),
+    ]);
+    expect(JSON.stringify(payload)).not.toContain("exam-z-score");
+    expect(JSON.stringify(payload)).not.toContain("user:another-student");
   });
 });

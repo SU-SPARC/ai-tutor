@@ -21,6 +21,15 @@ claims mapping, or SSO settings are invented in this repository.
 - `admin` may perform professor operations. `professor` does not imply admin.
 - Staff pages have coarse proxy redirects and repeat authorization in layouts,
   route handlers, and ownership-aware repository queries.
+- Successful sign-in passes through `/onboarding`, which displays only the
+  stored name and school email. Any same-origin return path is validated and
+  API/auth-flow destinations are rejected before redirecting.
+- Anonymous browser progress is never linked during sign-in. Onboarding offers
+  explicit import and continue-without-importing choices, including the
+  shared-device warning; migration endpoints are authenticated POST actions.
+- Navigation is session-aware: signed-out visitors receive a sign-in link that
+  preserves the current safe page, while signed-in users receive account and
+  sign-out controls. Internal role and provider identifiers are not rendered.
 
 Unauthenticated protected APIs return 401, insufficient roles return 403, and
 non-owned tutor sessions return 404. Identity or role-store failures fail

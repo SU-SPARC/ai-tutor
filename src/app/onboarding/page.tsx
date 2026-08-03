@@ -1,23 +1,31 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CheckCircle2 } from "lucide-react";
 
 import { AnonymousImportPanel } from "@/components/auth/anonymous-import-panel";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { readAnonymousCookieSubject } from "@/lib/auth/anonymous-session";
 import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
-import { signInPath } from "@/lib/auth/return-path";
+import { safeReturnPath, signInPath } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
-  title: "Account | Suffolk Probability Tutor",
+  title: "Your account | Suffolk Probability Tutor",
 };
 
-export default async function AccountPage() {
+type OnboardingPageProps = {
+  searchParams: Promise<{ returnTo?: string }>;
+};
+
+export default async function OnboardingPage({
+  searchParams,
+}: OnboardingPageProps) {
+  const { returnTo: requestedReturnPath } = await searchParams;
+  const returnTo = safeReturnPath(requestedReturnPath);
   const principal = await resolveAuthenticatedPrincipal();
+
   if (!principal) {
-    redirect(signInPath("/account"));
+    redirect(signInPath(returnTo));
   }
 
   const env = getServerEnv();
@@ -26,11 +34,18 @@ export default async function AccountPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-12">
       <Card>
-        <CardHeader>
-          <h1 className="text-3xl font-semibold">Your account</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            These are the only profile details kept from your school account.
-          </p>
+        <CardHeader className="space-y-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-semibold">Your account is ready</h1>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Your student profile was created or matched using your school
+              account. Review the minimal details below, then choose whether to
+              bring in practice saved in this browser.
+            </p>
+          </div>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-4 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-2">
@@ -45,21 +60,16 @@ export default async function AccountPage() {
               <dd className="mt-1 break-all">{principal.email}</dd>
             </div>
           </dl>
-          <p className="mt-4 text-sm leading-6 text-muted-foreground">
-            Password and multi-factor authentication recovery are handled by
-            your school. Contact application support for account-status issues.
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            The tutor does not ask for a password, profile photo, phone number,
+            course enrollment, or directory access.
           </p>
 
           <AnonymousImportPanel
+            continueTo={returnTo}
             hasSignedBrowserIdentity={Boolean(anonymousId)}
             legacyBridgeEnabled={env.LEGACY_ANONYMOUS_MIGRATION_ENABLED}
           />
-
-          <div className="mt-8 border-t pt-6">
-            <Button asChild>
-              <Link href="/dashboard">View your progress</Link>
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </main>
