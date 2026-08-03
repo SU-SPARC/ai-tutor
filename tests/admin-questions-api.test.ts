@@ -1,61 +1,63 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json"
-import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json"
+import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json";
+import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json";
 import {
   GET as getAdminQuestions,
   PATCH as patchAdminQuestions,
-} from "@/app/api/admin/questions/route"
+} from "@/app/api/admin/questions/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
-} from "@/lib/data/data-store"
-import type { ContentRepository } from "@/lib/data/repository"
-import type { AdminQuestion } from "@/lib/types"
+} from "@/lib/data/data-store";
+import type { ContentRepository } from "@/lib/data/repository";
+import type { AdminQuestion } from "@/lib/types";
+import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
 
-const TOKEN = "admin-secret"
+const TOKEN = "admin-secret";
 const followingSyllabusIds = new Set(
   followingSyllabusReviewCandidateData.map((candidate) => candidate.id),
-)
+);
 const nextUncoveredSyllabusIds = new Set(
   nextUncoveredSyllabusReviewCandidateData.map((candidate) => candidate.id),
-)
+);
 
 describe("admin questions API", () => {
   beforeEach(() => {
-    resetReviewQueueForTests()
-    vi.stubEnv("ADMIN_SECRET", TOKEN)
-    vi.stubEnv("APP_DEMO_MODE", "true")
-    vi.stubEnv("DATABASE_URL", "")
-  })
+    resetReviewQueueForTests();
+    mockPrincipal(TEST_ADMIN);
+    vi.stubEnv("APP_DEMO_MODE", "true");
+    vi.stubEnv("DATABASE_URL", "");
+  });
 
   afterEach(() => {
-    setContentRepositoryForTests(undefined)
-    vi.unstubAllEnvs()
-  })
+    setContentRepositoryForTests(undefined);
+    resetAuthMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("returns read-only demo state with required sections and details", async () => {
     const response = await getAdminQuestions(
       new Request("http://test/api/admin/questions"),
-    )
+    );
     const payload = (await response.json()) as {
       dashboard: {
-        questions: AdminQuestion[]
-        readOnly: boolean
-        sections: Record<string, string[]>
-      }
-    }
-    const serialized = JSON.stringify(payload)
+        questions: AdminQuestion[];
+        readOnly: boolean;
+        sections: Record<string, string[]>;
+      };
+    };
+    const serialized = JSON.stringify(payload);
 
-    expect(response.status).toBe(200)
-    expect(payload.dashboard.readOnly).toBe(true)
+    expect(response.status).toBe(200);
+    expect(payload.dashboard.readOnly).toBe(true);
     expect(payload.dashboard.sections).toMatchObject({
       approved_student_facing: expect.any(Array),
       generated_original: expect.any(Array),
       pattern_derived_original_candidates: expect.any(Array),
       professor_provided: expect.any(Array),
-    })
-    expect(payload.dashboard.questions.length).toBeGreaterThan(0)
+    });
+    expect(payload.dashboard.questions.length).toBeGreaterThan(0);
     expect(
       payload.dashboard.questions.some(
         (question) =>
@@ -64,24 +66,24 @@ describe("admin questions API", () => {
           question.hints.length > 0 &&
           question.misconceptions.length > 0,
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(serialized).not.toMatch(
       /privatePhraseHashes|sourceItemIds|sourceNumberSets|sourceStoryFamilies|raw extracted|source page|answer key|copied from/i,
-    )
-  })
+    );
+  });
 
   it("filters by status, topic, source type, and generated-only", async () => {
     const response = await getAdminQuestions(
       new Request(
         "http://test/api/admin/questions?status=needs_review&topicId=conditional-probability&sourceType=pattern_derived_original&generatedOnly=true",
       ),
-    )
+    );
     const payload = (await response.json()) as {
-      dashboard: { questions: AdminQuestion[] }
-    }
+      dashboard: { questions: AdminQuestion[] };
+    };
 
-    expect(response.status).toBe(200)
-    expect(payload.dashboard.questions.length).toBeGreaterThan(0)
+    expect(response.status).toBe(200);
+    expect(payload.dashboard.questions.length).toBeGreaterThan(0);
     expect(
       payload.dashboard.questions.every(
         (question) =>
@@ -89,105 +91,110 @@ describe("admin questions API", () => {
           question.topicId === "conditional-probability" &&
           question.source.sourceType === "pattern_derived_original",
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("shows all 60 following-syllabus drafts in the admin review section", async () => {
     const response = await getAdminQuestions(
       new Request(
         "http://test/api/admin/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
       ),
-    )
+    );
     const payload = (await response.json()) as {
       dashboard: {
-        questions: AdminQuestion[]
-        sections: Record<string, string[]>
-      }
-    }
+        questions: AdminQuestion[];
+        sections: Record<string, string[]>;
+      };
+    };
     const returnedIds = new Set(
       payload.dashboard.questions.map((question) => question.id),
-    )
+    );
     const reviewSectionIds = new Set(
       payload.dashboard.sections.pattern_derived_original_candidates,
-    )
+    );
 
-    expect(response.status).toBe(200)
-    expect(followingSyllabusIds.size).toBe(60)
+    expect(response.status).toBe(200);
+    expect(followingSyllabusIds.size).toBe(60);
     expect(
       [...followingSyllabusIds].every(
         (candidateId) =>
           returnedIds.has(candidateId) && reviewSectionIds.has(candidateId),
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("shows all 60 next-uncovered drafts in the admin review section", async () => {
     const response = await getAdminQuestions(
       new Request(
         "http://test/api/admin/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
       ),
-    )
+    );
     const payload = (await response.json()) as {
       dashboard: {
-        questions: AdminQuestion[]
-        sections: Record<string, string[]>
-      }
-    }
+        questions: AdminQuestion[];
+        sections: Record<string, string[]>;
+      };
+    };
     const returnedIds = new Set(
       payload.dashboard.questions.map((question) => question.id),
-    )
+    );
     const reviewSectionIds = new Set(
       payload.dashboard.sections.pattern_derived_original_candidates,
-    )
+    );
 
-    expect(response.status).toBe(200)
-    expect(nextUncoveredSyllabusIds.size).toBe(60)
+    expect(response.status).toBe(200);
+    expect(nextUncoveredSyllabusIds.size).toBe(60);
     expect(
       [...nextUncoveredSyllabusIds].every(
         (candidateId) =>
           returnedIds.has(candidateId) && reviewSectionIds.has(candidateId),
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
-  it("requires ADMIN_SECRET for mutations and keeps demo mode read-only", async () => {
+  it("requires the admin role for mutations and keeps demo mode read-only", async () => {
+    mockPrincipal(undefined);
     const unauthenticated = await patchAdminQuestions(
       mutationRequest({ action: "reject", questionId: "dice-sum-eight" }, ""),
-    )
+    );
+    mockPrincipal(TEST_ADMIN);
     const readOnly = await patchAdminQuestions(
-      mutationRequest({ action: "reject", questionId: "dice-sum-eight" }, TOKEN),
-    )
+      mutationRequest(
+        { action: "reject", questionId: "dice-sum-eight" },
+        TOKEN,
+      ),
+    );
 
-    expect(unauthenticated.status).toBe(401)
-    expect(readOnly.status).toBe(503)
-  })
+    expect(unauthenticated.status).toBe(401);
+    expect(readOnly.status).toBe(503);
+  });
 
   it("applies database-backed admin mutations through the repository boundary", async () => {
     const question = adminQuestionFixture({
       id: "db-generated-question",
       reviewStatus: "approved",
       trustLevel: "professor_approved",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(question))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(question));
 
     const response = await patchAdminQuestions(
       mutationRequest({
         action: "mark_needs_review",
         questionId: question.id,
       }),
-    )
+    );
     const payload = (await response.json()) as {
-      questions: AdminQuestion[]
-    }
+      questions: AdminQuestion[];
+    };
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     expect(payload.questions[0]).toMatchObject({
       id: question.id,
       review: { status: "needs_review" },
       source: { trustLevel: "generated_unverified" },
-    })
-  })
-})
+    });
+  });
+});
 
 function mutationRequest(body: unknown, token = TOKEN) {
   return new Request("http://test/api/admin/questions", {
@@ -197,39 +204,39 @@ function mutationRequest(body: unknown, token = TOKEN) {
       ...(token ? { "x-professor-token": token } : {}),
     },
     method: "PATCH",
-  })
+  });
 }
 
 function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
-  let current = question
+  let current = question;
 
   return {
     async getAdminQuestions() {
-      return [current]
+      return [current];
     },
     async getApprovedQuestionById() {
-      return current
+      return current;
     },
     async getApprovedQuestions() {
-      return [current]
+      return [current];
     },
     async getQuestionById() {
-      return current
+      return current;
     },
     async getQuestionCounts() {
-      return { byTopic: { [current.topicId]: 1 }, total: 1 }
+      return { byTopic: { [current.topicId]: 1 }, total: 1 };
     },
     async getProfessorPracticeAnalytics() {
-      return emptyPracticeAnalytics()
+      return emptyPracticeAnalytics();
     },
     async getRetrievalChunks() {
-      return []
+      return [];
     },
     async getReviewQueue() {
-      return []
+      return [];
     },
     async getTopics() {
-      return this.listTopics()
+      return this.listTopics();
     },
     async importReviewCandidates() {
       return {
@@ -238,13 +245,13 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
         message: "Imported test candidates.",
         mode: "demo",
         nonDurable: true,
-      }
+      };
     },
     async listQuestions() {
-      return [current]
+      return [current];
     },
     async listQuestionsByTopic() {
-      return [current]
+      return [current];
     },
     async listTopics() {
       return [
@@ -257,7 +264,7 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
           title: current.topicTitle ?? current.topicId,
           weekNumber: 1,
         },
-      ]
+      ];
     },
     async updateAdminQuestions(input) {
       current = {
@@ -276,22 +283,22 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
               ? "generated_unverified"
               : current.source.trustLevel,
         },
-      }
-      return [current]
+      };
+      return [current];
     },
     async updateAdminQuestionDetail() {
-      return current
+      return current;
     },
     async regenerateAdminQuestion() {
-      return undefined
+      return undefined;
     },
     async updateReviewCandidates() {
-      return []
+      return [];
     },
     async updateReviewCandidateStatus() {
-      return undefined
+      return undefined;
     },
-  }
+  };
 }
 
 function emptyPracticeAnalytics() {
@@ -313,7 +320,7 @@ function emptyPracticeAnalytics() {
       totalTutorSessions: 0,
     },
     topics: [],
-  }
+  };
 }
 
 function adminQuestionFixture({
@@ -321,9 +328,9 @@ function adminQuestionFixture({
   reviewStatus,
   trustLevel,
 }: {
-  id: string
-  reviewStatus: AdminQuestion["review"]["status"]
-  trustLevel: AdminQuestion["source"]["trustLevel"]
+  id: string;
+  reviewStatus: AdminQuestion["review"]["status"];
+  trustLevel: AdminQuestion["source"]["trustLevel"];
 }): AdminQuestion {
   return {
     answer: {
@@ -355,5 +362,5 @@ function adminQuestionFixture({
     title: "Generated proportion review",
     topicId: "basic-probability",
     topicTitle: "Basic probability",
-  }
+  };
 }

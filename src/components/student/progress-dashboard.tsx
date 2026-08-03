@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,11 +12,11 @@ import {
   ListChecks,
   Loader2,
   RotateCcw,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -24,17 +24,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import {
-  ANONYMOUS_STUDENT_HEADER,
-  getOrCreateAnonymousStudentId,
-} from "@/lib/auth/anonymous-student"
-import type { StudentProgressDashboard } from "@/lib/types"
+} from "@/components/ui/table";
+import type { StudentProgressDashboard } from "@/lib/types";
 
 type ProgressPayload = {
-  error?: string
-  progress?: StudentProgressDashboard
-}
+  error?: string;
+  progress?: StudentProgressDashboard;
+};
 
 const metricDefinitions = [
   {
@@ -46,39 +42,39 @@ const metricDefinitions = [
   { icon: Lightbulb, key: "hintsUsed", label: "Hints used" },
   { icon: ListChecks, key: "stepsRevealed", label: "Steps revealed" },
   { icon: GraduationCap, key: "topicsPracticed", label: "Topics practiced" },
-] as const
+] as const;
 
 export function ProgressDashboard() {
   const [progress, setProgress] = useState<StudentProgressDashboard | null>(
     null,
-  )
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function loadProgress() {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
-      setProgress(await fetchStudentProgress())
+      setProgress(await fetchStudentProgress());
     } catch (loadError) {
       setError(
         loadError instanceof Error
           ? loadError.message
           : "Student progress could not be loaded.",
-      )
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    let isStale = false
+    let isStale = false;
 
     void fetchStudentProgress()
       .then((nextProgress) => {
         if (!isStale) {
-          setProgress(nextProgress)
+          setProgress(nextProgress);
         }
       })
       .catch((loadError: unknown) => {
@@ -87,19 +83,19 @@ export function ProgressDashboard() {
             loadError instanceof Error
               ? loadError.message
               : "Student progress could not be loaded.",
-          )
+          );
         }
       })
       .finally(() => {
         if (!isStale) {
-          setIsLoading(false)
+          setIsLoading(false);
         }
-      })
+      });
 
     return () => {
-      isStale = true
-    }
-  }, [])
+      isStale = true;
+    };
+  }, []);
 
   return (
     <main className="min-h-svh bg-background">
@@ -276,33 +272,30 @@ export function ProgressDashboard() {
         ) : null}
       </section>
     </main>
-  )
+  );
 }
 
 async function fetchStudentProgress() {
-  const anonymousStudentId = getOrCreateAnonymousStudentId()
-  const response = await fetch("/api/student/progress", {
-    headers: { [ANONYMOUS_STUDENT_HEADER]: anonymousStudentId },
-  })
-  const payload = (await response.json().catch(() => ({}))) as ProgressPayload
+  const response = await fetch("/api/student/progress");
+  const payload = (await response.json().catch(() => ({}))) as ProgressPayload;
 
   if (!response.ok || !payload.progress) {
-    throw new Error(payload.error ?? "Student progress could not be loaded.")
+    throw new Error(payload.error ?? "Student progress could not be loaded.");
   }
 
-  return payload.progress
+  return payload.progress;
 }
 
 function formatSessionDate(value: string) {
-  const date = new Date(value)
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Unknown"
+    return "Unknown";
   }
 
   return new Intl.DateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(date)
+  }).format(date);
 }

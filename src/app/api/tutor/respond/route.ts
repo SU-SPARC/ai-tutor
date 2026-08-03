@@ -1,29 +1,31 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import {
   getTutorSession,
   recordTutorSessionAttemptOutcome,
-} from "@/lib/data/tutor-session-repository"
-import { getServerEnv } from "@/lib/env/server"
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
-import { createTutorResponse } from "@/lib/tutor/tutor-engine"
-import type { TutorRequest } from "@/lib/types"
+} from "@/lib/data/tutor-session-repository";
+import { getServerEnv } from "@/lib/env/server";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { createTutorResponse } from "@/lib/tutor/tutor-engine";
+import type { TutorRequest } from "@/lib/types";
+import { resolveStudentOwner } from "@/lib/auth/anonymous-session";
+import type { StudentOwner } from "@/lib/auth/principal";
 
 export async function POST(request: Request) {
-  const declaredLength = Number(request.headers.get("content-length") ?? 0)
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > 8_192) {
     return NextResponse.json(
       { error: "Tutor requests must be smaller than 8192 bytes." },
       { status: 413 },
-    )
+    );
   }
 
-  const env = getServerEnv()
+  const env = getServerEnv();
   const rateLimit = checkRateLimit(getClientIp(request), {
     max: env.RATE_LIMIT_MAX_REQUESTS,
     windowMs: env.RATE_LIMIT_WINDOW_SECONDS * 1_000,
-  })
+  });
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
@@ -32,18 +34,18 @@ export async function POST(request: Request) {
         headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
         status: 429,
       },
-    )
+    );
   }
 
-  let body: Partial<TutorRequest>
+  let body: Partial<TutorRequest>;
 
   try {
-    body = (await request.json()) as Partial<TutorRequest>
+    body = (await request.json()) as Partial<TutorRequest>;
   } catch {
     return NextResponse.json(
       { error: "Request body must be valid JSON." },
       { status: 400 },
-    )
+    );
   }
 
   if (
@@ -53,39 +55,47 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "mode must be one of: check, hint, solution, full_solution." },
       { status: 400 },
-    )
+    );
   }
 
   if (!body.sessionId || typeof body.sessionId !== "string") {
     return NextResponse.json(
       { error: "sessionId is required for tutor responses." },
       { status: 400 },
-    )
+    );
   }
 
-  let session
+  let session;
+  let owner: StudentOwner | undefined;
 
   try {
-    session = await getTutorSession(body.sessionId)
+    owner = await resolveStudentOwner();
+    session = owner ? await getTutorSession(body.sessionId, owner) : undefined;
   } catch {
-    return dataServiceUnavailableResponse()
+    return dataServiceUnavailableResponse();
   }
   if (!session) {
     return NextResponse.json(
       { error: "Tutor session was not found." },
       { status: 404 },
-    )
+    );
   }
 
   if (body.questionId && body.questionId !== session.questionId) {
     return NextResponse.json(
       { error: "The tutor response question must match the active session." },
       { status: 400 },
-    )
+    );
   }
 
-  const answer = typeof body.answer === "string" ? body.answer : ""
+  const answer = typeof body.answer === "string" ? body.answer : "";
   try {
+    if (!owner) {
+      return NextResponse.json(
+        { error: "Tutor session was not found." },
+        { status: 404 },
+      );
+    }
     const response = await createTutorResponse({
       answer,
       allowLlmFallback: body.allowLlmFallback ?? false,
@@ -93,20 +103,21 @@ export async function POST(request: Request) {
       questionId: body.questionId,
       sessionId: body.sessionId,
       topicId: body.topicId,
-    })
+    });
 
     if (body.mode === "check") {
       await recordTutorSessionAttemptOutcome({
         answerPreview: answer,
         estimatedTokens: response.usage.estimatedTokens,
+        owner,
         sessionId: session.id,
         source: response.source,
         verdict: response.verdict,
-      })
+      });
     }
 
-    return NextResponse.json(response)
+    return NextResponse.json(response);
   } catch {
-    return dataServiceUnavailableResponse()
+    return dataServiceUnavailableResponse();
   }
 }

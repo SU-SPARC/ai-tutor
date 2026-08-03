@@ -1,114 +1,106 @@
-"use client"
+"use client";
 
-import { useMemo, useState, type ReactNode } from "react"
-import {
-  Check,
-  KeyRound,
-  Loader2,
-  RotateCcw,
-  Save,
-  X,
-} from "lucide-react"
+import { useMemo, useState, type ReactNode } from "react";
+import { Check, Loader2, RotateCcw, Save, X } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   advanceProfessorTopicReviewProgress,
   professorReviewQueuePath,
   sortProfessorReviewCandidates,
-} from "@/lib/tutor/professor-review-mode"
+} from "@/lib/tutor/professor-review-mode";
 import type {
   ProfessorTopicReviewProgress,
   ReviewCandidate,
-} from "@/lib/types"
+} from "@/lib/types";
 
-type ReviewAction = "approve" | "needs_edit" | "reject" | "request_regeneration"
+type ReviewAction =
+  | "approve"
+  | "needs_edit"
+  | "reject"
+  | "request_regeneration";
 
 export type ProfessorReviewTopicOption = {
-  id: string
-  title: string
-}
+  id: string;
+  title: string;
+};
 
 export function ProfessorFriendlyReviewPanel({
   topics,
 }: {
-  topics: ProfessorReviewTopicOption[]
+  topics: ProfessorReviewTopicOption[];
 }) {
-  const [activeAction, setActiveAction] = useState<ReviewAction | null>(null)
-  const [candidates, setCandidates] = useState<ReviewCandidate[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [loadedTopicId, setLoadedTopicId] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [note, setNote] = useState("")
-  const [reviewedCount, setReviewedCount] = useState(0)
-  const [selectedTopicId, setSelectedTopicId] = useState("")
-  const [token, setToken] = useState("")
+  const [activeAction, setActiveAction] = useState<ReviewAction | null>(null);
+  const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadedTopicId, setLoadedTopicId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [reviewedCount, setReviewedCount] = useState(0);
+  const [selectedTopicId, setSelectedTopicId] = useState("");
   const [topicProgress, setTopicProgress] =
-    useState<ProfessorTopicReviewProgress | null>(null)
+    useState<ProfessorTopicReviewProgress | null>(null);
 
-  const current = candidates[0]
+  const current = candidates[0];
   const loadedTopic = useMemo(
     () => topics.find((topic) => topic.id === loadedTopicId),
     [loadedTopicId, topics],
-  )
+  );
 
   async function loadQueue() {
     if (!selectedTopicId) {
-      return
+      return;
     }
 
-    setIsLoading(true)
-    setMessage(null)
+    setIsLoading(true);
+    setMessage(null);
 
     try {
-      const result = await fetch(professorReviewQueuePath(selectedTopicId), {
-        headers: token ? { "x-professor-token": token } : undefined,
-      })
+      const result = await fetch(professorReviewQueuePath(selectedTopicId));
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[]
-        error?: string
-        topicProgress?: ProfessorTopicReviewProgress
-      }
+        candidates?: ReviewCandidate[];
+        error?: string;
+        topicProgress?: ProfessorTopicReviewProgress;
+      };
 
       if (!result.ok || !payload.candidates || !payload.topicProgress) {
-        setMessage(payload.error ?? "Review queue could not load.")
-        return
+        setMessage(payload.error ?? "Review queue could not load.");
+        return;
       }
 
-      const sorted = sortProfessorReviewCandidates(payload.candidates)
-      setCandidates(sorted)
-      setLoadedTopicId(selectedTopicId)
-      setReviewedCount(0)
-      setNote("")
-      setTopicProgress(payload.topicProgress)
+      const sorted = sortProfessorReviewCandidates(payload.candidates);
+      setCandidates(sorted);
+      setLoadedTopicId(selectedTopicId);
+      setReviewedCount(0);
+      setNote("");
+      setTopicProgress(payload.topicProgress);
       setMessage(
         sorted.length > 0
           ? `Loaded ${sorted.length} generated review item(s) for this topic.`
           : "No generated questions need review for this topic right now.",
-      )
+      );
     } catch {
-      setMessage("Review queue could not load.")
+      setMessage("Review queue could not load.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   async function reviewCurrent(action: ReviewAction) {
     if (!current) {
-      return
+      return;
     }
 
-    setActiveAction(action)
-    setMessage(null)
+    setActiveAction(action);
+    setMessage(null);
 
     try {
       const result = await fetch("/api/professor/review", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "x-professor-token": token } : {}),
         },
         body: JSON.stringify({
           action,
@@ -117,23 +109,23 @@ export function ProfessorFriendlyReviewPanel({
           reviewPriority:
             action === "approve"
               ? "priority"
-              : current.review.reviewPriority ?? "normal",
+              : (current.review.reviewPriority ?? "normal"),
         }),
-      })
+      });
       const payload = (await result.json()) as {
-        candidate?: ReviewCandidate
-        error?: string
-      }
+        candidate?: ReviewCandidate;
+        error?: string;
+      };
 
       if (!result.ok || !payload.candidate) {
-        setMessage(payload.error ?? "Review action failed.")
-        return
+        setMessage(payload.error ?? "Review action failed.");
+        return;
       }
 
-      const reviewedCandidate = payload.candidate
-      setCandidates((items) => items.slice(1))
-      setReviewedCount((count) => count + 1)
-      setNote("")
+      const reviewedCandidate = payload.candidate;
+      setCandidates((items) => items.slice(1));
+      setReviewedCount((count) => count + 1);
+      setNote("");
       setTopicProgress((progress) =>
         progress
           ? advanceProfessorTopicReviewProgress(
@@ -141,30 +133,30 @@ export function ProfessorFriendlyReviewPanel({
               reviewedCandidate.review.status,
             )
           : progress,
-      )
+      );
       setMessage(
         `Marked ${reviewedCandidate.title} as ${reviewedCandidate.review.status}.`,
-      )
+      );
     } catch {
-      setMessage("Review action failed.")
+      setMessage("Review action failed.");
     } finally {
-      setActiveAction(null)
+      setActiveAction(null);
     }
   }
 
   function selectTopic(topicId: string) {
-    setSelectedTopicId(topicId)
-    setLoadedTopicId(null)
-    setCandidates([])
-    setMessage(null)
-    setNote("")
-    setReviewedCount(0)
-    setTopicProgress(null)
+    setSelectedTopicId(topicId);
+    setLoadedTopicId(null);
+    setCandidates([]);
+    setMessage(null);
+    setNote("");
+    setReviewedCount(0);
+    setTopicProgress(null);
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Syllabus topic
           <select
@@ -181,16 +173,6 @@ export function ProfessorFriendlyReviewPanel({
             ))}
           </select>
         </label>
-        <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="pl-9"
-            type="password"
-            placeholder="Admin secret"
-          />
-        </div>
         <Button
           type="button"
           disabled={!selectedTopicId || isLoading}
@@ -331,7 +313,7 @@ export function ProfessorFriendlyReviewPanel({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function ProgressCount({ label, value }: { label: string; value: number }) {
@@ -340,11 +322,11 @@ function ProgressCount({ label, value }: { label: string; value: number }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
     </div>
-  )
+  );
 }
 
 function ReviewBlock({ title, values }: { title: string; values: string[] }) {
-  const safeValues = values.filter(Boolean)
+  const safeValues = values.filter(Boolean);
 
   return (
     <section>
@@ -361,7 +343,7 @@ function ReviewBlock({ title, values }: { title: string; values: string[] }) {
         )}
       </div>
     </section>
-  )
+  );
 }
 
 function ActionButton({
@@ -372,12 +354,12 @@ function ActionButton({
   onClick,
   variant = "default",
 }: {
-  action: ReviewAction
-  activeAction: ReviewAction | null
-  icon: ReactNode
-  label: string
-  onClick: (action: ReviewAction) => void
-  variant?: "default" | "destructive" | "outline"
+  action: ReviewAction;
+  activeAction: ReviewAction | null;
+  icon: ReactNode;
+  label: string;
+  onClick: (action: ReviewAction) => void;
+  variant?: "default" | "destructive" | "outline";
 }) {
   return (
     <Button
@@ -393,5 +375,5 @@ function ActionButton({
       )}
       {label}
     </Button>
-  )
+  );
 }

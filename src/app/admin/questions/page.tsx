@@ -1,20 +1,22 @@
-import Link from "next/link"
-import { ArrowLeft, ShieldCheck } from "lucide-react"
+import Link from "next/link";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-import { AdminQuestionReviewPanel } from "@/components/admin/admin-question-review-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { AdminQuestionReviewPanel } from "@/components/admin/admin-question-review-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { getAdminQuestionDashboard } from "@/lib/data/data-store"
+} from "@/components/ui/card";
+import { getAdminQuestionDashboard } from "@/lib/data/data-store";
+import { requirePageRole } from "@/lib/auth/page-authorization";
 
 export default async function AdminQuestionsPage() {
-  const initialDashboard = await getAdminQuestionDashboard()
+  await requirePageRole("admin");
+  const initialDashboard = await getAdminQuestionDashboard();
 
   return (
     <main className="min-h-svh bg-background">
@@ -35,7 +37,7 @@ export default async function AdminQuestionsPage() {
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review public-safe question records by source, status, topic, and
-              difficulty. Mutations require the server-side ADMIN_SECRET.
+              difficulty. Access and mutations require the administrator role.
             </p>
           </div>
           <Badge variant="outline" className="h-10 gap-2 px-4">
@@ -58,5 +60,5 @@ export default async function AdminQuestionsPage() {
         </Card>
       </section>
     </main>
-  )
+  );
 }

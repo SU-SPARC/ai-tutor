@@ -1,53 +1,53 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
-import { importReviewCandidates } from "@/lib/data/data-store"
-import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
-import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-admin"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { importReviewCandidates } from "@/lib/data/data-store";
+import { authorizeApiRole } from "@/lib/auth/principal";
+import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-admin";
 
-const MAX_UPLOAD_BYTES = 256_000
+const MAX_UPLOAD_BYTES = 256_000;
 
 export async function POST(request: Request) {
-  const auth = authorizeProfessorReview(request.headers)
+  const authorization = await authorizeApiRole("professor");
 
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.reason }, { status: auth.status })
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
-  const declaredLength = Number(request.headers.get("content-length") ?? 0)
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
       { error: "Generated review uploads must be smaller than 256KB." },
       { status: 413 },
-    )
+    );
   }
 
-  let body: unknown
+  let body: unknown;
 
   try {
-    body = await request.json()
+    body = await request.json();
   } catch {
     return NextResponse.json(
       { error: "Upload body must be valid JSON." },
       { status: 400 },
-    )
+    );
   }
 
-  const payload = unwrapPayload(body)
-  const validation = validateGeneratedReviewUpload(payload)
+  const payload = unwrapPayload(body);
+  const validation = validateGeneratedReviewUpload(payload);
 
   if (validation.errors.length > 0) {
     return NextResponse.json(
       { errors: validation.errors, imported: false },
       { status: 400 },
-    )
+    );
   }
 
   try {
     const result = await importReviewCandidates(
       validation.candidates,
-      "professor",
-    )
+      authorization.principal.displayName,
+    );
 
     return NextResponse.json({
       candidates: result.candidates,
@@ -56,9 +56,9 @@ export async function POST(request: Request) {
       message: result.message,
       mode: result.mode,
       nonDurable: result.nonDurable,
-    })
+    });
   } catch {
-    return dataServiceUnavailableResponse()
+    return dataServiceUnavailableResponse();
   }
 }
 
@@ -69,8 +69,8 @@ function unwrapPayload(body: unknown) {
     !Array.isArray(body) &&
     "payload" in body
   ) {
-    return (body as { payload: unknown }).payload
+    return (body as { payload: unknown }).payload;
   }
 
-  return body
+  return body;
 }

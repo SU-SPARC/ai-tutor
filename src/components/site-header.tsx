@@ -1,37 +1,40 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { GraduationCap } from "lucide-react"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { GraduationCap } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 type NavItem = {
-  href: string
-  label: string
-}
+  href: string;
+  label: string;
+};
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/topics", label: "Topics" },
   { href: "/practice", label: "Practice" },
   { href: "/dashboard", label: "Dashboard" },
-]
+];
 
 function isActive(pathname: string, href: string) {
   if (href === "/") {
-    return pathname === "/"
+    return pathname === "/";
   }
-  return pathname === href || pathname.startsWith(`${href}/`)
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function SiteHeader({
+  accountControl,
   environmentLabel,
 }: {
-  environmentLabel?: "Development" | "Local demo" | "Preview" | "Preview demo"
+  accountControl?: ReactNode;
+  environmentLabel?: "Development" | "Local demo" | "Preview" | "Preview demo";
 }) {
-  const pathname = usePathname() ?? "/"
+  const pathname = usePathname() ?? "/";
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -46,7 +49,7 @@ export function SiteHeader({
           className="order-last flex w-full items-center gap-1 text-sm sm:order-none sm:w-auto"
         >
           {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item.href)
+            const active = isActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -61,7 +64,7 @@ export function SiteHeader({
               >
                 {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -80,8 +83,9 @@ export function SiteHeader({
           >
             Professor
           </Link>
+          {accountControl}
         </div>
       </div>
     </header>
-  )
+  );
 }

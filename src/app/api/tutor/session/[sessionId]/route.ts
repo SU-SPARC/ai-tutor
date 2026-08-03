@@ -1,33 +1,35 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
-import { getTutorSession } from "@/lib/data/tutor-session-repository"
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { getTutorSession } from "@/lib/data/tutor-session-repository";
+import { resolveStudentOwner } from "@/lib/auth/anonymous-session";
 
 type SessionRouteContext = {
-  params: Promise<{ sessionId: string }> | { sessionId: string }
-}
+  params: Promise<{ sessionId: string }> | { sessionId: string };
+};
 
 export async function GET(_request: Request, context: SessionRouteContext) {
-  const sessionId = await getSessionId(context)
-  let session
+  const sessionId = await getSessionId(context);
+  let session;
 
   try {
-    session = await getTutorSession(sessionId)
+    const owner = await resolveStudentOwner();
+    session = owner ? await getTutorSession(sessionId, owner) : undefined;
   } catch {
-    return dataServiceUnavailableResponse()
+    return dataServiceUnavailableResponse();
   }
 
   if (!session) {
     return NextResponse.json(
       { error: "Tutor session was not found." },
       { status: 404 },
-    )
+    );
   }
 
-  return NextResponse.json({ session })
+  return NextResponse.json({ session });
 }
 
 async function getSessionId(context: SessionRouteContext) {
-  const params = await context.params
-  return params.sessionId
+  const params = await context.params;
+  return params.sessionId;
 }

@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET } from "@/app/api/student/progress/route"
-import { ANONYMOUS_STUDENT_HEADER } from "@/lib/auth/anonymous-student"
-import { getStudentProgress } from "@/lib/data/student-progress"
+import { GET } from "@/app/api/student/progress/route";
+import { getStudentProgress } from "@/lib/data/student-progress";
 import {
   createTutorSession,
   recordTutorSessionAttempt,
@@ -10,62 +9,80 @@ import {
   resetTutorSessionsForTests,
   revealTutorSessionHint,
   revealTutorSessionStep,
-} from "@/lib/data/tutor-session-repository"
+} from "@/lib/data/tutor-session-repository";
+import {
+  mockStudentOwner,
+  resetAuthMocks,
+  TEST_ANONYMOUS_OWNER,
+} from "./auth-test-helpers";
 
-const studentId = "anonymous-student-progress-123"
+const studentOwner = TEST_ANONYMOUS_OWNER;
+const otherOwner = {
+  kind: "anonymous" as const,
+  anonymousId: "anon:test-browser-b",
+};
 
 describe("student progress dashboard", () => {
   beforeEach(() => {
-    resetTutorSessionsForTests()
-    vi.stubEnv("APP_DEMO_MODE", "true")
-  })
+    resetTutorSessionsForTests();
+    mockStudentOwner(studentOwner);
+    vi.stubEnv("APP_DEMO_MODE", "true");
+  });
 
   afterEach(() => {
-    vi.unstubAllEnvs()
-  })
+    vi.unstubAllEnvs();
+    resetAuthMocks();
+  });
 
   it("aggregates attempts, outcomes, help, topics, and recent sessions", async () => {
     const firstSession = await createTutorSession({
-      anonymousStudentId: studentId,
+      owner: studentOwner,
       questionId: "dice-sum-eight",
-    })
+    });
     await recordTutorSessionAttempt({
       answerPreview: "2/5 private working",
+      owner: studentOwner,
       sessionId: firstSession.id,
-    })
+    });
     await recordTutorSessionAttemptOutcome({
       answerPreview: "2/5 private working",
       estimatedTokens: 0,
+      owner: studentOwner,
       sessionId: firstSession.id,
       source: "rule",
       verdict: "correct",
-    })
-    await revealTutorSessionHint(firstSession.id)
+    });
+    await revealTutorSessionHint(firstSession.id, studentOwner);
 
     const secondSession = await createTutorSession({
-      anonymousStudentId: studentId,
+      owner: studentOwner,
       questionId: "five-question-quiz",
-    })
+    });
     await recordTutorSessionAttempt({
       answerPreview: "0.2 private working",
+      owner: studentOwner,
       sessionId: secondSession.id,
-    })
+    });
     await recordTutorSessionAttemptOutcome({
       answerPreview: "0.2 private working",
       estimatedTokens: 0,
+      owner: studentOwner,
       sessionId: secondSession.id,
       source: "rule",
       verdict: "incorrect",
-    })
-    await revealTutorSessionStep(secondSession.id)
+    });
+    await revealTutorSessionStep(secondSession.id, studentOwner);
 
     const otherStudentSession = await createTutorSession({
-      anonymousStudentId: "anonymous-student-other-123",
+      owner: otherOwner,
       questionId: "exam-z-score",
-    })
-    await recordTutorSessionAttempt({ sessionId: otherStudentSession.id })
+    });
+    await recordTutorSessionAttempt({
+      owner: otherOwner,
+      sessionId: otherStudentSession.id,
+    });
 
-    const progress = await getStudentProgress(studentId)
+    const progress = await getStudentProgress(studentOwner);
 
     expect(progress).toMatchObject({
       mode: "demo",
@@ -76,12 +93,12 @@ describe("student progress dashboard", () => {
         stepsRevealed: 1,
         topicsPracticed: 2,
       },
-    })
+    });
     expect(progress.topics.map((topic) => topic.id)).toEqual([
       "conditional-probability",
       "binomial-models",
-    ])
-    expect(progress.recentSessions).toHaveLength(2)
+    ]);
+    expect(progress.recentSessions).toHaveLength(2);
     expect(progress.recentSessions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -95,40 +112,37 @@ describe("student progress dashboard", () => {
           questionId: "five-question-quiz",
         }),
       ]),
-    )
-  })
+    );
+  });
 
   it("requires an anonymous browser session and returns aggregate-only data", async () => {
     const session = await createTutorSession({
-      anonymousStudentId: studentId,
+      owner: studentOwner,
       questionId: "dice-sum-eight",
-    })
+    });
     await recordTutorSessionAttempt({
       answerPreview: "private student answer",
+      owner: studentOwner,
       sessionId: session.id,
-    })
+    });
 
-    const missingIdentity = await GET(
-      new Request("http://localhost/api/student/progress"),
-    )
-    const response = await GET(
-      new Request("http://localhost/api/student/progress", {
-        headers: { [ANONYMOUS_STUDENT_HEADER]: studentId },
-      }),
-    )
-    const responseText = await response.text()
+    mockStudentOwner(undefined);
+    const missingIdentity = await GET();
+    mockStudentOwner(studentOwner);
+    const response = await GET();
+    const responseText = await response.text();
 
-    expect(missingIdentity.status).toBe(400)
-    expect(response.status).toBe(200)
-    expect(responseText).not.toContain("private student answer")
-    expect(responseText).not.toContain(studentId)
-    expect(responseText).not.toContain(session.id)
+    expect(missingIdentity.status).toBe(401);
+    expect(response.status).toBe(200);
+    expect(responseText).not.toContain("private student answer");
+    expect(responseText).not.toContain("anon:test-browser-a");
+    expect(responseText).not.toContain(session.id);
     expect(JSON.parse(responseText)).toMatchObject({
       progress: {
         summary: {
           attemptedQuestions: 1,
         },
       },
-    })
-  })
-})
+    });
+  });
+});

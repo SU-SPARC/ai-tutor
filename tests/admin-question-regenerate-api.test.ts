@@ -1,72 +1,76 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { POST as regenerateAdminQuestion } from "@/app/api/admin/questions/[id]/regenerate/route"
+import { POST as regenerateAdminQuestion } from "@/app/api/admin/questions/[id]/regenerate/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
-} from "@/lib/data/data-store"
+} from "@/lib/data/data-store";
 import type {
   AdminQuestionRegenerationInput,
   ContentRepository,
-} from "@/lib/data/repository"
-import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration"
-import type { AdminQuestion } from "@/lib/types"
+} from "@/lib/data/repository";
+import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration";
+import type { AdminQuestion } from "@/lib/types";
+import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
 
-const TOKEN = "admin-secret"
+const TOKEN = "admin-secret";
 
 describe("admin question regeneration API", () => {
   beforeEach(() => {
-    resetReviewQueueForTests()
-    vi.stubEnv("ADMIN_SECRET", TOKEN)
-    vi.stubEnv("APP_DEMO_MODE", "true")
-    vi.stubEnv("DATABASE_URL", "")
-  })
+    resetReviewQueueForTests();
+    mockPrincipal(TEST_ADMIN);
+    vi.stubEnv("APP_DEMO_MODE", "true");
+    vi.stubEnv("DATABASE_URL", "");
+  });
 
   afterEach(() => {
-    setContentRepositoryForTests(undefined)
-    vi.unstubAllEnvs()
-  })
+    setContentRepositoryForTests(undefined);
+    resetAuthMocks();
+    vi.unstubAllEnvs();
+  });
 
-  it("requires ADMIN_SECRET and keeps demo mode read-only", async () => {
+  it("requires the admin role and keeps demo mode read-only", async () => {
+    mockPrincipal(undefined);
     const unauthenticated = await postRegenerate("generated-regeneration", "", {
       keepPattern: true,
-    })
+    });
+    mockPrincipal(TEST_ADMIN);
     const readOnly = await postRegenerate("generated-regeneration", TOKEN, {
       keepPattern: true,
-    })
+    });
 
-    expect(unauthenticated.status).toBe(401)
-    expect(readOnly.status).toBe(503)
-  })
+    expect(unauthenticated.status).toBe(401);
+    expect(readOnly.status).toBe(503);
+  });
 
   it("creates a deterministic needs-review replacement and preserves the old version", async () => {
     const original = adminQuestionFixture({
       id: "generated-regeneration",
       reviewStatus: "approved",
       trustLevel: "professor_approved",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(original))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(original));
 
     const response = await postRegenerate(original.id, TOKEN, {
       keepPattern: true,
-    })
+    });
     const payload = (await response.json()) as {
-      mode: "deterministic"
-      original: AdminQuestion
-      preservedOriginal: boolean
-      regenerated: AdminQuestion
-    }
-    const serialized = JSON.stringify(payload)
+      mode: "deterministic";
+      original: AdminQuestion;
+      preservedOriginal: boolean;
+      regenerated: AdminQuestion;
+    };
+    const serialized = JSON.stringify(payload);
 
-    expect(response.status).toBe(200)
-    expect(payload.mode).toBe("deterministic")
-    expect(payload.preservedOriginal).toBe(true)
+    expect(response.status).toBe(200);
+    expect(payload.mode).toBe("deterministic");
+    expect(payload.preservedOriginal).toBe(true);
     expect(payload.original).toMatchObject({
       id: original.id,
       review: { status: "needs_regeneration" },
       source: { trustLevel: "generated_unverified" },
       topicId: original.topicId,
-    })
+    });
     expect(payload.regenerated).toMatchObject({
       review: { status: "needs_review" },
       source: {
@@ -75,79 +79,79 @@ describe("admin question regeneration API", () => {
         visibility: "public",
       },
       topicId: original.topicId,
-    })
-    expect(payload.regenerated.id).not.toBe(original.id)
-    expect(payload.regenerated.prompt).not.toBe(original.prompt)
+    });
+    expect(payload.regenerated.id).not.toBe(original.id);
+    expect(payload.regenerated.prompt).not.toBe(original.prompt);
     expect(serialized).not.toMatch(
       /source page|answer key|copied from|raw extracted|private chunk|textbook page/i,
-    )
-  })
+    );
+  });
 
   it("can regenerate without keeping the old abstract pattern id", async () => {
     const original = adminQuestionFixture({
       id: "generated-without-pattern",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(original))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(original));
 
     const response = await postRegenerate(original.id, TOKEN, {
       keepPattern: false,
-    })
+    });
     const payload = (await response.json()) as {
-      regenerated: AdminQuestion
-    }
+      regenerated: AdminQuestion;
+    };
 
-    expect(response.status).toBe(200)
-    expect(payload.regenerated.source.patternIds).toBeUndefined()
-    expect(payload.regenerated.topicId).toBe(original.topicId)
-  })
+    expect(response.status).toBe(200);
+    expect(payload.regenerated.source.patternIds).toBeUndefined();
+    expect(payload.regenerated.topicId).toBe(original.topicId);
+  });
 
   it("rejects unsupported request body fields and modes", async () => {
     const original = adminQuestionFixture({
       id: "generated-invalid-regeneration",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    const regenerateSpy = vi.fn()
+    });
+    const regenerateSpy = vi.fn();
     setContentRepositoryForTests(
       contentRepositoryFixture(original, regenerateSpy),
-    )
+    );
 
     const unsupportedField = await postRegenerate(original.id, TOKEN, {
       sourcePage: 12,
-    })
+    });
     const unsupportedMode = await postRegenerate(original.id, TOKEN, {
       mode: "llm",
-    })
+    });
 
-    expect(unsupportedField.status).toBe(400)
-    expect(unsupportedMode.status).toBe(400)
-    expect(regenerateSpy).not.toHaveBeenCalled()
-  })
+    expect(unsupportedField.status).toBe(400);
+    expect(unsupportedMode.status).toBe(400);
+    expect(regenerateSpy).not.toHaveBeenCalled();
+  });
 
   it("generates original deterministic content from topic and pattern signals", () => {
     const original = adminQuestionFixture({
       id: "generated-helper",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
+    });
     const regenerated = generateDeterministicRegeneratedQuestion({
       id: "generated-helper-regen-1",
       keepPattern: true,
       original,
       sequence: 1,
-    })
+    });
 
-    expect(regenerated.topicId).toBe(original.topicId)
-    expect(regenerated.source.trustLevel).toBe("generated_unverified")
-    expect(regenerated.review.status).toBe("needs_review")
-    expect(regenerated.prompt).not.toBe(original.prompt)
+    expect(regenerated.topicId).toBe(original.topicId);
+    expect(regenerated.source.trustLevel).toBe("generated_unverified");
+    expect(regenerated.review.status).toBe("needs_review");
+    expect(regenerated.prompt).not.toBe(original.prompt);
     expect(JSON.stringify(regenerated)).not.toMatch(
       /source page|answer key|copied from|raw extracted|private chunk|textbook page/i,
-    )
-  })
-})
+    );
+  });
+});
 
 function postRegenerate(id: string, token: string, body?: unknown) {
   return regenerateAdminQuestion(
@@ -160,42 +164,45 @@ function postRegenerate(id: string, token: string, body?: unknown) {
       method: "POST",
     }),
     { params: Promise.resolve({ id }) },
-  )
+  );
 }
 
 function contentRepositoryFixture(
   original: AdminQuestion,
   onRegenerate?: (input: AdminQuestionRegenerationInput) => void,
 ): ContentRepository {
-  const questions = new Map<string, AdminQuestion>([[original.id, original]])
+  const questions = new Map<string, AdminQuestion>([[original.id, original]]);
 
   return {
     async getAdminQuestions() {
-      return [...questions.values()]
+      return [...questions.values()];
     },
     async getApprovedQuestionById(questionId) {
-      return questions.get(questionId)
+      return questions.get(questionId);
     },
     async getApprovedQuestions() {
-      return [...questions.values()]
+      return [...questions.values()];
     },
     async getQuestionById(questionId) {
-      return questions.get(questionId)
+      return questions.get(questionId);
     },
     async getQuestionCounts() {
-      return { byTopic: { [original.topicId]: questions.size }, total: questions.size }
+      return {
+        byTopic: { [original.topicId]: questions.size },
+        total: questions.size,
+      };
     },
     async getProfessorPracticeAnalytics() {
-      return emptyPracticeAnalytics()
+      return emptyPracticeAnalytics();
     },
     async getRetrievalChunks() {
-      return []
+      return [];
     },
     async getReviewQueue() {
-      return []
+      return [];
     },
     async getTopics() {
-      return this.listTopics()
+      return this.listTopics();
     },
     async importReviewCandidates() {
       return {
@@ -204,13 +211,15 @@ function contentRepositoryFixture(
         message: "Imported test candidates.",
         mode: "demo",
         nonDurable: true,
-      }
+      };
     },
     async listQuestions() {
-      return [...questions.values()]
+      return [...questions.values()];
     },
     async listQuestionsByTopic(topicId) {
-      return [...questions.values()].filter((question) => question.topicId === topicId)
+      return [...questions.values()].filter(
+        (question) => question.topicId === topicId,
+      );
     },
     async listTopics() {
       return [
@@ -223,12 +232,12 @@ function contentRepositoryFixture(
           title: original.topicTitle ?? original.topicId,
           weekNumber: 1,
         },
-      ]
+      ];
     },
     async regenerateAdminQuestion(input) {
-      onRegenerate?.(input)
+      onRegenerate?.(input);
 
-      const current = questions.get(input.questionId)
+      const current = questions.get(input.questionId);
 
       if (
         !current ||
@@ -236,7 +245,7 @@ function contentRepositoryFixture(
           current.source.sourceType,
         )
       ) {
-        return undefined
+        return undefined;
       }
 
       const regenerated = adminQuestionFromCandidate(
@@ -247,7 +256,7 @@ function contentRepositoryFixture(
           sequence: 1,
         }),
         current.topicTitle,
-      )
+      );
       const updatedOriginal: AdminQuestion = {
         ...current,
         review: {
@@ -260,31 +269,31 @@ function contentRepositoryFixture(
           ...current.source,
           trustLevel: "generated_unverified",
         },
-      }
+      };
 
-      questions.set(current.id, updatedOriginal)
-      questions.set(regenerated.id, regenerated)
+      questions.set(current.id, updatedOriginal);
+      questions.set(regenerated.id, regenerated);
 
       return {
         mode: "deterministic",
         original: updatedOriginal,
         preservedOriginal: true,
         regenerated,
-      }
+      };
     },
     async updateAdminQuestionDetail() {
-      return undefined
+      return undefined;
     },
     async updateAdminQuestions() {
-      return []
+      return [];
     },
     async updateReviewCandidates() {
-      return []
+      return [];
     },
     async updateReviewCandidateStatus() {
-      return undefined
+      return undefined;
     },
-  }
+  };
 }
 
 function emptyPracticeAnalytics() {
@@ -306,7 +315,7 @@ function emptyPracticeAnalytics() {
       totalTutorSessions: 0,
     },
     topics: [],
-  }
+  };
 }
 
 function adminQuestionFromCandidate(
@@ -317,7 +326,7 @@ function adminQuestionFromCandidate(
     ...candidate,
     patternSource: candidate.patternSource,
     topicTitle,
-  }
+  };
 }
 
 function adminQuestionFixture({
@@ -325,9 +334,9 @@ function adminQuestionFixture({
   reviewStatus,
   trustLevel,
 }: {
-  id: string
-  reviewStatus: AdminQuestion["review"]["status"]
-  trustLevel: AdminQuestion["source"]["trustLevel"]
+  id: string;
+  reviewStatus: AdminQuestion["review"]["status"];
+  trustLevel: AdminQuestion["source"]["trustLevel"];
 }): AdminQuestion {
   return {
     answer: {
@@ -360,5 +369,5 @@ function adminQuestionFixture({
     title: "Generated proportion review",
     topicId: "conditional-probability",
     topicTitle: "Conditional probability",
-  }
+  };
 }

@@ -5,6 +5,7 @@ This project is a web-based AI tutoring system for probability and statistics st
 The system uses course materials, LaTeX questions, solutions, and examples as the primary knowledge base. A general LLM fallback may be used only when the professor-provided material is insufficient.
 
 The final product will be a student-facing web application where users can:
+
 - choose probability/statistics topics
 - practice problems
 - submit answers
@@ -22,4 +23,6 @@ Staging, and Production. Start with `.env.example` and see
 the complete variable inventory, strict deployment requirements, and secret
 handling rules. See
 [`docs/operating-modes.md`](docs/operating-modes.md) for demo isolation and
-database-failure behavior.
+database-failure behavior. Provider registration, callback URLs, roles, local
+test identities, recovery, and privacy decisions are documented in
+[`docs/authentication-authorization.md`](docs/authentication-authorization.md).

@@ -1,19 +1,21 @@
-import Link from "next/link"
-import { ArrowLeft, UploadCloud } from "lucide-react"
+import Link from "next/link";
+import { ArrowLeft, UploadCloud } from "lucide-react";
 
-import { AdminUploadPanel } from "@/components/admin/admin-upload-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { AdminUploadPanel } from "@/components/admin/admin-upload-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { ADMIN_CONTENT_UPLOAD_MAX_BYTES } from "@/lib/tutor/admin-content-upload"
+} from "@/components/ui/card";
+import { ADMIN_CONTENT_UPLOAD_MAX_BYTES } from "@/lib/tutor/admin-content-upload";
+import { requirePageRole } from "@/lib/auth/page-authorization";
 
-export default function AdminUploadPage() {
+export default async function AdminUploadPage() {
+  await requirePageRole("admin");
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
@@ -46,7 +48,8 @@ export default function AdminUploadPage() {
           <CardHeader>
             <CardTitle>Private reference upload</CardTitle>
             <CardDescription>
-              Maximum file size: {Math.floor(ADMIN_CONTENT_UPLOAD_MAX_BYTES / 1024)}
+              Maximum file size:{" "}
+              {Math.floor(ADMIN_CONTENT_UPLOAD_MAX_BYTES / 1024)}
               KB. PDFs are extracted to ignored private storage only.
             </CardDescription>
           </CardHeader>
@@ -56,5 +59,5 @@ export default function AdminUploadPage() {
         </Card>
       </section>
     </main>
-  )
+  );
 }

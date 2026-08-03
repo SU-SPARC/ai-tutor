@@ -1,17 +1,10 @@
-"use client"
+"use client";
 
-import { useMemo, useState, type ReactNode } from "react"
-import {
-  BarChart3,
-  Database,
-  KeyRound,
-  Loader2,
-  RefreshCw,
-} from "lucide-react"
+import { useMemo, useState, type ReactNode } from "react";
+import { BarChart3, Database, Loader2, RefreshCw } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,63 +12,50 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 import type {
   InstructorAnalyticsDashboard,
   ProfessorAnalyticsDashboard,
-} from "@/lib/types"
+} from "@/lib/types";
 
 type AnalyticsPayload = {
-  analytics?: ProfessorAnalyticsDashboard
-  error?: string
-}
+  analytics?: ProfessorAnalyticsDashboard;
+  error?: string;
+};
 
 export function InstructorAnalyticsPanel() {
   const [analytics, setAnalytics] =
-    useState<InstructorAnalyticsDashboard | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [token, setToken] = useState("")
+    useState<InstructorAnalyticsDashboard | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   async function loadAnalytics() {
-    setIsLoading(true)
-    setMessage(null)
+    setIsLoading(true);
+    setMessage(null);
 
     try {
-      const response = await fetch("/api/professor/analytics", {
-        headers: token ? { "x-professor-token": token } : undefined,
-      })
-      const payload = (await response.json()) as AnalyticsPayload
+      const response = await fetch("/api/professor/analytics");
+      const payload = (await response.json()) as AnalyticsPayload;
 
       if (!response.ok || !payload.analytics) {
-        setAnalytics(null)
-        setMessage(payload.error ?? "Analytics could not load.")
-        return
+        setAnalytics(null);
+        setMessage(payload.error ?? "Analytics could not load.");
+        return;
       }
 
-      setAnalytics(payload.analytics.instructor)
-      setMessage("Analytics loaded.")
+      setAnalytics(payload.analytics.instructor);
+      setMessage("Analytics loaded.");
     } catch {
-      setAnalytics(null)
-      setMessage("Analytics could not load.")
+      setAnalytics(null);
+      setMessage("Analytics could not load.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-        <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="pl-9"
-            type="password"
-            placeholder="Admin secret"
-          />
-        </div>
+      <div className="flex justify-end">
         <Button type="button" disabled={isLoading} onClick={loadAnalytics}>
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -92,15 +72,19 @@ export function InstructorAnalyticsPanel() {
         </div>
       ) : null}
 
-      {analytics ? <AnalyticsDashboard analytics={analytics} /> : <EmptyState />}
+      {analytics ? (
+        <AnalyticsDashboard analytics={analytics} />
+      ) : (
+        <EmptyState />
+      )}
     </div>
-  )
+  );
 }
 
 function AnalyticsDashboard({
   analytics,
 }: {
-  analytics: InstructorAnalyticsDashboard
+  analytics: InstructorAnalyticsDashboard;
 }) {
   const reviewRows = [
     ["Approved", analytics.generatedQuestions.approved],
@@ -108,12 +92,14 @@ function AnalyticsDashboard({
     ["Needs review", analytics.generatedQuestions.needsReview],
     ["Needs edit", analytics.generatedQuestions.needsEdit],
     ["Needs regeneration", analytics.generatedQuestions.needsRegeneration],
-  ] as const
+  ] as const;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={analytics.mode === "database" ? "success" : "secondary"}>
+        <Badge
+          variant={analytics.mode === "database" ? "success" : "secondary"}
+        >
           {analytics.mode}
         </Badge>
         {analytics.notes.map((note) => (
@@ -124,13 +110,19 @@ function AnalyticsDashboard({
       </div>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricTile label="Tutor sessions" value={analytics.totals.totalTutorSessions} />
+        <MetricTile
+          label="Tutor sessions"
+          value={analytics.totals.totalTutorSessions}
+        />
         <MetricTile label="Attempts" value={analytics.totals.totalAttempts} />
         <MetricTile
           label="Average hints used"
           value={formatDecimal(analytics.totals.averageHintsUsed)}
         />
-        <MetricTile label="LLM calls used" value={analytics.totals.llmCallsUsed} />
+        <MetricTile
+          label="LLM calls used"
+          value={analytics.totals.llmCallsUsed}
+        />
         <MetricTile
           label="Generated approved"
           value={analytics.totals.generatedQuestionsApproved}
@@ -236,25 +228,25 @@ function AnalyticsDashboard({
         </Table>
       </Panel>
     </div>
-  )
+  );
 }
 
 function TopicBars({
   topics,
 }: {
-  topics: InstructorAnalyticsDashboard["mostPracticedTopics"]
+  topics: InstructorAnalyticsDashboard["mostPracticedTopics"];
 }) {
   const maxAttempts = useMemo(
     () => Math.max(1, ...topics.map((topic) => topic.attempts)),
     [topics],
-  )
+  );
 
   if (topics.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
         No topic practice data yet.
       </div>
-    )
+    );
   }
 
   return (
@@ -278,25 +270,25 @@ function TopicBars({
         </div>
       ))}
     </div>
-  )
+  );
 }
 
-function MetricTile({ label, value }: { label: string; value: number | string }) {
+function MetricTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
   return (
     <div className="rounded-md border border-border px-4 py-3">
       <div className="text-sm text-muted-foreground">{label}</div>
       <div className="mt-2 text-2xl font-semibold tracking-normal">{value}</div>
     </div>
-  )
+  );
 }
 
-function Panel({
-  children,
-  title,
-}: {
-  children: ReactNode
-  title: string
-}) {
+function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="rounded-md border border-border p-4">
       <div className="mb-4 flex items-center gap-2 text-sm font-medium">
@@ -305,36 +297,41 @@ function Panel({
       </div>
       {children}
     </section>
-  )
+  );
 }
 
 function EmptyState() {
   return (
     <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
       <Database className="h-5 w-5" />
-      <span>Enter the admin secret to load aggregate instructor analytics.</span>
+      <span>
+        Enter the admin secret to load aggregate instructor analytics.
+      </span>
     </div>
-  )
+  );
 }
 
 function EmptyTableRow({ columns, label }: { columns: number; label: string }) {
   return (
     <TableRow>
-      <TableCell colSpan={columns} className="py-6 text-center text-muted-foreground">
+      <TableCell
+        colSpan={columns}
+        className="py-6 text-center text-muted-foreground"
+      >
         {label}
       </TableCell>
     </TableRow>
-  )
+  );
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value)
+  return new Intl.NumberFormat("en-US").format(value);
 }
 
 function formatDecimal(value: number) {
-  return value.toFixed(1)
+  return value.toFixed(1);
 }
 
 function formatPercent(value: number) {
-  return `${Math.round(value * 100)}%`
+  return `${Math.round(value * 100)}%`;
 }

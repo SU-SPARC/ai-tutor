@@ -1,11 +1,11 @@
-import "server-only"
+import "server-only";
 
 import {
   readDatabaseRows,
   runDatabaseTransaction,
   type DatabaseQueryExecutor,
   type DatabaseQueryValue,
-} from "@/lib/data/database-executor"
+} from "@/lib/data/database-executor";
 import {
   reviewStatusForAction,
   type AdminQuestionDetailAction,
@@ -19,7 +19,7 @@ import {
   type ReviewCandidateImport,
   type ReviewCandidateUpdate,
   type ReviewQueueFilters,
-} from "@/lib/data/repository"
+} from "@/lib/data/repository";
 import type {
   AdminQuestion,
   Difficulty,
@@ -34,62 +34,62 @@ import type {
   ReviewPriority,
   SourceMetadata,
   TutorQuestion,
-} from "@/lib/types"
-import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration"
-import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin"
+} from "@/lib/types";
+import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration";
+import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin";
 
 type QuestionRow = {
-  accepted_answers_json: unknown
-  answer_explanation: string
-  difficulty: Difficulty
-  hints_json: unknown
-  id: string
-  misconceptions_json: unknown
-  numeric_value: number | null
-  originality_note: string | null
-  pattern_id: string | null
-  pattern_source?: string | null
-  prompt: string
-  reviewed_at: Date | string | null
-  reviewed_by: string | null
-  review_notes?: string | null
-  review_priority?: ReviewPriority | null
-  review_status: ReviewMetadata["status"]
-  solution_steps_json: unknown
-  source_type: SourceMetadata["sourceType"]
-  title: string
-  topic_title?: string | null
-  tolerance: number | null
-  topic_id: string
-  trust_level: SourceMetadata["trustLevel"]
-  visibility: SourceMetadata["visibility"]
-}
+  accepted_answers_json: unknown;
+  answer_explanation: string;
+  difficulty: Difficulty;
+  hints_json: unknown;
+  id: string;
+  misconceptions_json: unknown;
+  numeric_value: number | null;
+  originality_note: string | null;
+  pattern_id: string | null;
+  pattern_source?: string | null;
+  prompt: string;
+  reviewed_at: Date | string | null;
+  reviewed_by: string | null;
+  review_notes?: string | null;
+  review_priority?: ReviewPriority | null;
+  review_status: ReviewMetadata["status"];
+  solution_steps_json: unknown;
+  source_type: SourceMetadata["sourceType"];
+  title: string;
+  topic_title?: string | null;
+  tolerance: number | null;
+  topic_id: string;
+  trust_level: SourceMetadata["trustLevel"];
+  visibility: SourceMetadata["visibility"];
+};
 
 type RetrievalChunkRow = {
-  body: string
-  chunk_type: RetrievalChunkType
-  concept_tags_json: unknown
-  content_hash: string | null
-  difficulty: Difficulty | null
-  embedding_model: string | null
-  formula_refs_json: unknown
-  id: string
-  keywords_json: unknown
-  llm_safe_summary: string | null
-  priority_tier: RetrievalPriorityTier
-  question_id: string | null
-  review_status: ReviewMetadata["status"]
-  source_type: SourceMetadata["sourceType"]
-  title: string
-  topic_id: string
-  trust_level: SourceMetadata["trustLevel"]
-  visibility: SourceMetadata["visibility"]
-}
+  body: string;
+  chunk_type: RetrievalChunkType;
+  concept_tags_json: unknown;
+  content_hash: string | null;
+  difficulty: Difficulty | null;
+  embedding_model: string | null;
+  formula_refs_json: unknown;
+  id: string;
+  keywords_json: unknown;
+  llm_safe_summary: string | null;
+  priority_tier: RetrievalPriorityTier;
+  question_id: string | null;
+  review_status: ReviewMetadata["status"];
+  source_type: SourceMetadata["sourceType"];
+  title: string;
+  topic_id: string;
+  trust_level: SourceMetadata["trustLevel"];
+  visibility: SourceMetadata["visibility"];
+};
 
 const APPROVED_PUBLIC_WHERE =
-  "visibility = 'public' and review_status = 'approved' and trust_level in ('public_original', 'professor_approved', 'course_approved')"
+  "visibility = 'public' and review_status = 'approved' and trust_level in ('public_original', 'professor_approved', 'course_approved')";
 const ADMIN_SAFE_TEXT_PREDICATE = `concat_ws(' ', q.prompt, q.answer_explanation, q.originality_note, q.review_notes) !~*
-      '(source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only)'`
+      '(source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only)'`;
 
 export function createDatabaseContentRepository(
   databaseUrl: string,
@@ -97,13 +97,13 @@ export function createDatabaseContentRepository(
 ): ContentRepository {
   return {
     async getAdminQuestions(filters) {
-      const { params, sql } = adminQuestionQuery(filters)
-      const rows = await readDatabaseRows(query, sql, params)
-      return rows.map((row) => mapAdminQuestionRow(row as QuestionRow))
+      const { params, sql } = adminQuestionQuery(filters);
+      const rows = await readDatabaseRows(query, sql, params);
+      return rows.map((row) => mapAdminQuestionRow(row as QuestionRow));
     },
 
     async getApprovedQuestionById(questionId) {
-      return this.getQuestionById(questionId)
+      return this.getQuestionById(questionId);
     },
 
     async getQuestionById(questionId) {
@@ -118,12 +118,12 @@ export function createDatabaseContentRepository(
           limit 1
         `,
         [questionId],
-      )
-      return rows[0] ? mapQuestionRow(rows[0] as QuestionRow) : undefined
+      );
+      return rows[0] ? mapQuestionRow(rows[0] as QuestionRow) : undefined;
     },
 
     async getApprovedQuestions() {
-      return this.listQuestions()
+      return this.listQuestions();
     },
 
     async getQuestionCounts() {
@@ -137,22 +137,22 @@ export function createDatabaseContentRepository(
         group by q.topic_id, t.sort_order, t.title, t.id
         order by t.sort_order, t.title, t.id
       `,
-      )
+      );
 
       return rows.reduce<QuestionCounts>(
         (counts, row) => {
-          const topicId = String(row.topic_id)
-          const count = Number(row.question_count ?? 0)
+          const topicId = String(row.topic_id);
+          const count = Number(row.question_count ?? 0);
 
-          counts.byTopic[topicId] = count
-          counts.total += count
-          return counts
+          counts.byTopic[topicId] = count;
+          counts.total += count;
+          return counts;
         },
         {
           byTopic: {},
           total: 0,
         },
-      )
+      );
     },
 
     async getProfessorPracticeAnalytics() {
@@ -243,7 +243,7 @@ export function createDatabaseContentRepository(
           group by review_status
         `,
           ),
-        ])
+        ]);
       const questions = questionRows.map((row) => ({
         attempts: Number(row.attempts ?? 0),
         correctAttempts: Number(row.correct_attempts ?? 0),
@@ -254,11 +254,11 @@ export function createDatabaseContentRepository(
         stepsRevealed: Number(row.steps_revealed ?? 0),
         topicId: String(row.topic_id),
         topicTitle: String(row.topic_title),
-      }))
+      }));
       const byTopic = new Map<
         string,
         ProfessorPracticeAnalytics["topics"][number]
-      >()
+      >();
 
       for (const question of questions) {
         const current = byTopic.get(question.topicId) ?? {
@@ -269,28 +269,28 @@ export function createDatabaseContentRepository(
           stepsRevealed: 0,
           topicId: question.topicId,
           topicTitle: question.topicTitle,
-        }
+        };
 
-        current.attempts += question.attempts
-        current.correctAttempts += question.correctAttempts
-        current.hintsUsed += question.hintsUsed
-        current.llmAttempts += question.llmAttempts
-        current.stepsRevealed += question.stepsRevealed
-        byTopic.set(question.topicId, current)
+        current.attempts += question.attempts;
+        current.correctAttempts += question.correctAttempts;
+        current.hintsUsed += question.hintsUsed;
+        current.llmAttempts += question.llmAttempts;
+        current.stepsRevealed += question.stepsRevealed;
+        byTopic.set(question.topicId, current);
       }
       const generatedQuestionOutcomes =
         generatedRows.reduce<GeneratedQuestionReviewOutcomes>((counts, row) => {
-          const status = String(row.review_status)
+          const status = String(row.review_status);
 
           if (status in counts) {
             counts[status as keyof GeneratedQuestionReviewOutcomes] = Number(
               row.question_count ?? 0,
-            )
+            );
           }
 
-          return counts
-        }, emptyGeneratedQuestionReviewOutcomes())
-      const summary = summaryRows[0]
+          return counts;
+        }, emptyGeneratedQuestionReviewOutcomes());
+      const summary = summaryRows[0];
 
       return {
         commonMisconceptions: misconceptionRows.map((row) => ({
@@ -312,7 +312,7 @@ export function createDatabaseContentRepository(
           totalTutorSessions: Number(summary?.total_tutor_sessions ?? 0),
         },
         topics: [...byTopic.values()],
-      }
+      };
     },
 
     async listQuestions() {
@@ -325,8 +325,8 @@ export function createDatabaseContentRepository(
         where t.is_active = true
         order by t.sort_order, t.title, t.id, q.title, q.id
       `,
-      )
-      return rows.map((row) => mapQuestionRow(row as QuestionRow))
+      );
+      return rows.map((row) => mapQuestionRow(row as QuestionRow));
     },
 
     async listQuestionsByTopic(topicId) {
@@ -341,8 +341,8 @@ export function createDatabaseContentRepository(
           order by q.title, q.id
         `,
         [topicId],
-      )
-      return rows.map((row) => mapQuestionRow(row as QuestionRow))
+      );
+      return rows.map((row) => mapQuestionRow(row as QuestionRow));
     },
 
     async getRetrievalChunks() {
@@ -353,19 +353,19 @@ export function createDatabaseContentRepository(
         from app_student_retrieval_chunks
         order by priority_rank, topic_id, title, id
       `,
-      )
-      return rows.map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow))
+      );
+      return rows.map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow));
     },
 
     async getReviewQueue(filters) {
-      const { params, sql } = reviewQueueQuery(filters)
-      const rows = await readDatabaseRows(query, sql, params)
-      return rows.map((row) => mapReviewCandidateRow(row as QuestionRow))
+      const { params, sql } = reviewQueueQuery(filters);
+      const rows = await readDatabaseRows(query, sql, params);
+      return rows.map((row) => mapReviewCandidateRow(row as QuestionRow));
     },
 
     async importReviewCandidates(candidates) {
       return runDatabaseTransaction(query, async (transactionQuery) => {
-        const imported: ReviewCandidate[] = []
+        const imported: ReviewCandidate[] = [];
 
         for (const candidate of candidates) {
           const topicRows = await transactionQuery(
@@ -377,10 +377,12 @@ export function createDatabaseContentRepository(
             limit 1
           `,
             [candidate.topicId],
-          )
+          );
 
           if (!topicRows[0]) {
-            throw new Error("Review candidate references an unavailable topic.")
+            throw new Error(
+              "Review candidate references an unavailable topic.",
+            );
           }
 
           const rows = await transactionQuery(
@@ -461,14 +463,14 @@ export function createDatabaseContentRepository(
               candidate.review.reviewPriority ?? "normal",
               candidate.review.notes ?? null,
             ],
-          )
+          );
 
           if (!rows[0]) {
-            continue
+            continue;
           }
 
-          await replaceQuestionChildren(transactionQuery, candidate)
-          imported.push(candidate)
+          await replaceQuestionChildren(transactionQuery, candidate);
+          imported.push(candidate);
         }
 
         return {
@@ -477,12 +479,12 @@ export function createDatabaseContentRepository(
           message: `Imported ${imported.length} generated review candidate(s).`,
           mode: "database",
           nonDurable: false,
-        } satisfies ReviewCandidateImport
-      })
+        } satisfies ReviewCandidateImport;
+      });
     },
 
     async getTopics() {
-      return this.listTopics()
+      return this.listTopics();
     },
 
     async listTopics() {
@@ -501,7 +503,7 @@ export function createDatabaseContentRepository(
         where is_active = true
         order by sort_order, title, id
       `,
-      )
+      );
       return rows.map((row) => ({
         active: Boolean(row.is_active),
         description: String(row.description ?? ""),
@@ -510,17 +512,17 @@ export function createDatabaseContentRepository(
         order: Number(row.sort_order),
         title: String(row.title),
         weekNumber: Number(row.week_number),
-      }))
+      }));
     },
 
     async updateReviewCandidates(input: ReviewCandidateUpdate) {
       if (input.candidateIds.length === 0) {
-        return []
+        return [];
       }
 
       const status = input.action
         ? reviewStatusForAction(input.action)
-        : undefined
+        : undefined;
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -537,11 +539,11 @@ export function createDatabaseContentRepository(
                   review_priority = coalesce($5, review_priority),
                   review_notes = coalesce($6, review_notes),
                   reviewed_by = case
-                    when $8 then $7
+                    when $9 then $7
                     else reviewed_by
                   end,
                   reviewed_by_user_id = case
-                    when $8 then $7
+                    when $9 then $8
                     else reviewed_by_user_id
                   end,
                   reviewed_at = case
@@ -568,7 +570,8 @@ export function createDatabaseContentRepository(
               input.difficulty ?? null,
               input.reviewPriority ?? null,
               input.notes ?? null,
-              input.reviewedBy ?? "professor",
+              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
+              input.reviewedByUserId ?? "system:schema-migration",
               Boolean(
                 status ||
                 input.notes !== undefined ||
@@ -577,22 +580,22 @@ export function createDatabaseContentRepository(
                 input.difficulty,
               ),
             ],
-          )
-          const updatedIds = updatedRows.map((row) => String(row.id))
+          );
+          const updatedIds = updatedRows.map((row) => String(row.id));
 
-          return selectReviewCandidateRowsByIds(transactionQuery, updatedIds)
+          return selectReviewCandidateRowsByIds(transactionQuery, updatedIds);
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
     async updateAdminQuestions(input: AdminQuestionUpdate) {
       if (input.questionIds.length === 0) {
-        return []
+        return [];
       }
 
-      const status = adminReviewStatusForAction(input.action)
-      const onlyGenerated = input.action === "request_regeneration"
+      const status = adminReviewStatusForAction(input.action);
+      const onlyGenerated = input.action === "request_regeneration";
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -610,30 +613,31 @@ export function createDatabaseContentRepository(
                     else trust_level
                   end,
                   reviewed_by = $3,
-                  reviewed_by_user_id = $3,
+                  reviewed_by_user_id = $4,
                   reviewed_at = now(),
                   updated_at = now()
               where id = any($1)
                 and visibility = 'public'
                 and source_type <> 'private_reference_pattern'
-                and ($4 = false or source_type in ('generated_original', 'pattern_derived_original'))
+                and ($5 = false or source_type in ('generated_original', 'pattern_derived_original'))
               returning id
             `,
             [
               input.questionIds,
               status,
-              input.reviewedBy ?? "admin",
+              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
+              input.reviewedByUserId ?? "system:schema-migration",
               onlyGenerated,
             ],
-          )
+          );
 
           return selectAdminQuestionRowsByIds(
             transactionQuery,
             updatedRows.map((row) => String(row.id)),
-          )
+          );
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
     async updateAdminQuestionDetail(
@@ -647,57 +651,57 @@ export function createDatabaseContentRepository(
             transactionQuery,
             questionId,
             true,
-          )
+          );
 
           if (!current) {
-            return undefined
+            return undefined;
           }
 
-          const generatedQuestion = isGeneratedAdminQuestion(current)
+          const generatedQuestion = isGeneratedAdminQuestion(current);
 
           if (input.action && !generatedQuestion) {
-            return undefined
+            return undefined;
           }
 
           const actionStatus = input.action
             ? reviewStatusForAdminDetailAction(input.action)
-            : undefined
-          const nextReviewStatus = actionStatus ?? input.reviewStatus
-          let nextTrustLevel = input.trustLevel
+            : undefined;
+          const nextReviewStatus = actionStatus ?? input.reviewStatus;
+          let nextTrustLevel = input.trustLevel;
 
           if (generatedQuestion) {
             if (nextReviewStatus === "approved") {
-              nextTrustLevel = "professor_approved"
+              nextTrustLevel = "professor_approved";
             } else if (nextReviewStatus) {
-              nextTrustLevel = "generated_unverified"
+              nextTrustLevel = "generated_unverified";
             }
           }
 
-          const assignments = ["updated_at = now()"]
-          const params: DatabaseQueryValue[] = [questionId]
+          const assignments = ["updated_at = now()"];
+          const params: DatabaseQueryValue[] = [questionId];
           const addAssignment = (column: string, value: DatabaseQueryValue) => {
-            params.push(value)
-            assignments.push(`${column} = $${params.length}`)
-          }
+            params.push(value);
+            assignments.push(`${column} = $${params.length}`);
+          };
 
           if (nextReviewStatus) {
-            addAssignment("review_status", nextReviewStatus)
+            addAssignment("review_status", nextReviewStatus);
           }
 
           if (nextTrustLevel) {
-            addAssignment("trust_level", nextTrustLevel)
+            addAssignment("trust_level", nextTrustLevel);
           }
 
           if (input.topicId !== undefined) {
-            addAssignment("topic_id", input.topicId)
+            addAssignment("topic_id", input.topicId);
           }
 
           if (input.difficulty !== undefined) {
-            addAssignment("difficulty", input.difficulty)
+            addAssignment("difficulty", input.difficulty);
           }
 
           if (input.reviewerNotes !== undefined) {
-            addAssignment("review_notes", input.reviewerNotes.trim() || null)
+            addAssignment("review_notes", input.reviewerNotes.trim() || null);
           }
 
           if (
@@ -708,12 +712,18 @@ export function createDatabaseContentRepository(
             input.topicId !== undefined ||
             input.difficulty !== undefined
           ) {
-            addAssignment("reviewed_by", input.reviewedBy ?? "admin")
-            addAssignment("reviewed_by_user_id", input.reviewedBy ?? "admin")
+            addAssignment(
+              "reviewed_by",
+              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
+            );
+            addAssignment(
+              "reviewed_by_user_id",
+              input.reviewedByUserId ?? "system:schema-migration",
+            );
           }
 
           if (input.action || input.reviewStatus || input.trustLevel) {
-            assignments.push("reviewed_at = now()")
+            assignments.push("reviewed_at = now()");
           }
 
           await transactionQuery(
@@ -726,14 +736,14 @@ export function createDatabaseContentRepository(
             and ${ADMIN_SAFE_TEXT_PREDICATE}
         `,
             params,
-          )
+          );
 
           if (input.hints) {
             await replaceAdminQuestionHints(
               transactionQuery,
               questionId,
               input.hints,
-            )
+            );
           }
 
           if (input.misconceptions) {
@@ -741,16 +751,16 @@ export function createDatabaseContentRepository(
               transactionQuery,
               questionId,
               input.misconceptions,
-            )
+            );
           }
 
           const updated = await selectAdminQuestionRowsByIds(transactionQuery, [
             questionId,
-          ])
-          return updated[0]
+          ]);
+          return updated[0];
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
     async regenerateAdminQuestion(input: AdminQuestionRegenerationInput) {
@@ -761,19 +771,19 @@ export function createDatabaseContentRepository(
             transactionQuery,
             input.questionId,
             true,
-          )
+          );
 
           if (!original || !isGeneratedAdminQuestion(original)) {
-            return undefined
+            return undefined;
           }
 
-          const baseId = `${slugify(original.id)}-regen`
+          const baseId = `${slugify(original.id)}-regen`;
           const sequence = await nextRegenerationSequence(
             transactionQuery,
             baseId,
-          )
-          const keepPattern = input.keepPattern ?? true
-          let regenerated: AdminQuestion | undefined
+          );
+          const keepPattern = input.keepPattern ?? true;
+          let regenerated: AdminQuestion | undefined;
 
           for (let offset = 0; offset < 5; offset += 1) {
             const candidate = generateDeterministicRegeneratedQuestion({
@@ -781,7 +791,7 @@ export function createDatabaseContentRepository(
               keepPattern,
               original,
               sequence: sequence + offset,
-            })
+            });
 
             const rows = await transactionQuery(
               `
@@ -826,7 +836,7 @@ export function createDatabaseContentRepository(
               $13,
               $14,
               $15,
-              $15,
+              $16,
               now()
             )
             on conflict (id) do nothing
@@ -847,25 +857,26 @@ export function createDatabaseContentRepository(
                 candidate.source.originalityNote ?? null,
                 candidate.review.reviewPriority ?? "normal",
                 candidate.review.notes ?? null,
-                input.reviewedBy ?? "admin",
+                input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
+                input.reviewedByUserId ?? "system:schema-migration",
               ],
-            )
+            );
 
             if (!rows[0]) {
-              continue
+              continue;
             }
 
-            await replaceQuestionChildren(transactionQuery, candidate)
+            await replaceQuestionChildren(transactionQuery, candidate);
             regenerated = (
               await selectAdminQuestionRowsByIds(transactionQuery, [
                 candidate.id,
               ])
-            )[0]
-            break
+            )[0];
+            break;
           }
 
           if (!regenerated) {
-            return undefined
+            return undefined;
           }
 
           await transactionQuery(
@@ -875,7 +886,7 @@ export function createDatabaseContentRepository(
               trust_level = 'generated_unverified',
               review_notes = $2,
               reviewed_by = $3,
-              reviewed_by_user_id = $3,
+              reviewed_by_user_id = $4,
               reviewed_at = now(),
               updated_at = now()
           where id = $1
@@ -885,16 +896,17 @@ export function createDatabaseContentRepository(
             [
               original.id,
               `Regenerated into ${regenerated.id}; old version preserved for audit.`,
-              input.reviewedBy ?? "admin",
+              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
+              input.reviewedByUserId ?? "system:schema-migration",
             ],
-          )
+          );
 
           const updatedOriginal = (
             await selectAdminQuestionRowsByIds(transactionQuery, [original.id])
-          )[0]
+          )[0];
 
           if (!updatedOriginal) {
-            return undefined
+            return undefined;
           }
 
           return {
@@ -902,10 +914,10 @@ export function createDatabaseContentRepository(
             original: updatedOriginal,
             preservedOriginal: true,
             regenerated,
-          } satisfies AdminQuestionRegenerationResult
+          } satisfies AdminQuestionRegenerationResult;
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
     async updateReviewCandidateStatus(candidateId, action, reviewedBy) {
@@ -913,10 +925,10 @@ export function createDatabaseContentRepository(
         action,
         candidateIds: [candidateId],
         reviewedBy,
-      })
-      return updated[0]
+      });
+      return updated[0];
     },
-  }
+  };
 }
 
 export function mapQuestionRow(row: QuestionRow): TutorQuestion {
@@ -949,7 +961,7 @@ export function mapQuestionRow(row: QuestionRow): TutorQuestion {
       reviewPriority: row.review_priority ?? "normal",
       status: row.review_status,
     },
-  }
+  };
 }
 
 export function mapRetrievalChunkRow(row: RetrievalChunkRow): RetrievalChunk {
@@ -976,7 +988,7 @@ export function mapRetrievalChunkRow(row: RetrievalChunkRow): RetrievalChunk {
     review: {
       status: row.review_status,
     },
-  }
+  };
 }
 
 function mapAdminQuestionRow(row: QuestionRow): AdminQuestion {
@@ -984,16 +996,16 @@ function mapAdminQuestionRow(row: QuestionRow): AdminQuestion {
     ...mapQuestionRow(row),
     patternSource: row.pattern_source ?? row.pattern_id ?? row.source_type,
     topicTitle: row.topic_title ?? undefined,
-  }
+  };
 }
 
 function mapReviewCandidateRow(row: QuestionRow): ReviewCandidate {
-  const question = mapQuestionRow(row)
+  const question = mapQuestionRow(row);
 
   return {
     ...question,
     patternSource: row.pattern_source ?? row.pattern_id ?? row.source_type,
-  }
+  };
 }
 
 function adminQuestionQuery(filters: AdminQuestionFilters = {}) {
@@ -1001,58 +1013,58 @@ function adminQuestionQuery(filters: AdminQuestionFilters = {}) {
     "q.visibility = 'public'",
     "q.source_type <> 'private_reference_pattern'",
     ADMIN_SAFE_TEXT_PREDICATE,
-  ]
-  const params: DatabaseQueryValue[] = []
+  ];
+  const params: DatabaseQueryValue[] = [];
 
   if (filters.status) {
-    params.push(filters.status)
-    clauses.push(`q.review_status = $${params.length}`)
+    params.push(filters.status);
+    clauses.push(`q.review_status = $${params.length}`);
   }
 
   if (filters.topicId) {
-    params.push(filters.topicId)
-    clauses.push(`q.topic_id = $${params.length}`)
+    params.push(filters.topicId);
+    clauses.push(`q.topic_id = $${params.length}`);
   }
 
   if (filters.sourceType) {
-    params.push(filters.sourceType)
-    clauses.push(`q.source_type = $${params.length}`)
+    params.push(filters.sourceType);
+    clauses.push(`q.source_type = $${params.length}`);
   }
 
   if (filters.generatedOnly) {
     clauses.push(
       "q.source_type in ('generated_original', 'pattern_derived_original')",
-    )
+    );
   }
 
   return {
     params,
     sql: adminQuestionSelectSql(`where ${clauses.join(" and ")}`),
-  }
+  };
 }
 
 function reviewQueueQuery(filters: ReviewQueueFilters = {}) {
-  const clauses = ["1 = 1"]
-  const params: DatabaseQueryValue[] = []
+  const clauses = ["1 = 1"];
+  const params: DatabaseQueryValue[] = [];
 
   if (filters.status) {
-    params.push(filters.status)
-    clauses.push(`review_status = $${params.length}`)
+    params.push(filters.status);
+    clauses.push(`review_status = $${params.length}`);
   }
 
   if (filters.reviewPriority) {
-    params.push(filters.reviewPriority)
-    clauses.push(`coalesce(review_priority, 'normal') = $${params.length}`)
+    params.push(filters.reviewPriority);
+    clauses.push(`coalesce(review_priority, 'normal') = $${params.length}`);
   }
 
   if (filters.difficulty) {
-    params.push(filters.difficulty)
-    clauses.push(`difficulty = $${params.length}`)
+    params.push(filters.difficulty);
+    clauses.push(`difficulty = $${params.length}`);
   }
 
   if (filters.topicId) {
-    params.push(filters.topicId)
-    clauses.push(`topic_id = $${params.length}`)
+    params.push(filters.topicId);
+    clauses.push(`topic_id = $${params.length}`);
   }
 
   return {
@@ -1063,7 +1075,7 @@ function reviewQueueQuery(filters: ReviewQueueFilters = {}) {
       where ${clauses.join(" and ")}
       order by coalesce(review_priority, 'normal') desc, created_at, id
     `,
-  }
+  };
 }
 
 async function selectReviewCandidateRowsByIds(
@@ -1071,7 +1083,7 @@ async function selectReviewCandidateRowsByIds(
   candidateIds: string[],
 ) {
   if (candidateIds.length === 0) {
-    return []
+    return [];
   }
 
   const rows = await readDatabaseRows(
@@ -1116,9 +1128,9 @@ async function selectReviewCandidateRowsByIds(
       order by array_position($1, q.id)
     `,
     [candidateIds],
-  )
+  );
 
-  return rows.map((row) => mapReviewCandidateRow(row as QuestionRow))
+  return rows.map((row) => mapReviewCandidateRow(row as QuestionRow));
 }
 
 async function selectAdminQuestionRowsByIds(
@@ -1126,7 +1138,7 @@ async function selectAdminQuestionRowsByIds(
   questionIds: string[],
 ) {
   if (questionIds.length === 0) {
-    return []
+    return [];
   }
 
   const rows = await readDatabaseRows(
@@ -1138,9 +1150,9 @@ async function selectAdminQuestionRowsByIds(
         and ${ADMIN_SAFE_TEXT_PREDICATE}`,
     ),
     [questionIds],
-  )
+  );
 
-  return rows.map((row) => mapAdminQuestionRow(row as QuestionRow))
+  return rows.map((row) => mapAdminQuestionRow(row as QuestionRow));
 }
 
 async function selectEditableAdminQuestionRowById(
@@ -1158,9 +1170,9 @@ async function selectEditableAdminQuestionRowById(
       { forUpdate },
     ),
     [questionId],
-  )
+  );
 
-  return rows[0] ? mapAdminQuestionRow(rows[0] as QuestionRow) : undefined
+  return rows[0] ? mapAdminQuestionRow(rows[0] as QuestionRow) : undefined;
 }
 
 function adminQuestionSelectSql(
@@ -1208,36 +1220,36 @@ function adminQuestionSelectSql(
     ${whereClause}
     order by q.review_status, q.source_type, q.topic_id, q.title, q.id
     ${options.forUpdate ? "for update of q" : ""}
-  `
+  `;
 }
 
 function adminReviewStatusForAction(action: AdminQuestionUpdate["action"]) {
   if (action === "mark_needs_review") {
-    return "needs_review"
+    return "needs_review";
   }
 
-  return reviewStatusForAction(action)
+  return reviewStatusForAction(action);
 }
 
 function reviewStatusForAdminDetailAction(
   action: AdminQuestionDetailAction,
 ): ReviewMetadata["status"] {
   if (action === "approve_generated") {
-    return "approved"
+    return "approved";
   }
 
   if (action === "request_regeneration") {
-    return "needs_regeneration"
+    return "needs_regeneration";
   }
 
-  return "rejected"
+  return "rejected";
 }
 
 function isGeneratedAdminQuestion(question: AdminQuestion) {
   return (
     question.source.sourceType === "generated_original" ||
     question.source.sourceType === "pattern_derived_original"
-  )
+  );
 }
 
 async function nextRegenerationSequence(
@@ -1252,9 +1264,9 @@ async function nextRegenerationSequence(
       where id like $1
     `,
     [`${baseId}-%`],
-  )
+  );
 
-  return Number(rows[0]?.regeneration_count ?? 0) + 1
+  return Number(rows[0]?.regeneration_count ?? 0) + 1;
 }
 
 function slugify(value: string) {
@@ -1264,7 +1276,7 @@ function slugify(value: string) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 80) || "generated-question"
-  )
+  );
 }
 
 async function replaceAdminQuestionHints(
@@ -1272,7 +1284,7 @@ async function replaceAdminQuestionHints(
   questionId: string,
   hints: string[],
 ) {
-  await query("delete from hints where question_id = $1", [questionId])
+  await query("delete from hints where question_id = $1", [questionId]);
 
   for (const [index, hint] of hints.entries()) {
     await query(
@@ -1281,7 +1293,7 @@ async function replaceAdminQuestionHints(
         values ($1, $2, $3)
       `,
       [questionId, index + 1, hint],
-    )
+    );
   }
 }
 
@@ -1290,7 +1302,9 @@ async function replaceAdminQuestionMisconceptions(
   questionId: string,
   misconceptions: AdminQuestionDetailUpdate["misconceptions"],
 ) {
-  await query("delete from misconceptions where question_id = $1", [questionId])
+  await query("delete from misconceptions where question_id = $1", [
+    questionId,
+  ]);
 
   for (const misconception of misconceptions ?? []) {
     await query(
@@ -1309,7 +1323,7 @@ async function replaceAdminQuestionMisconceptions(
         misconception.feedback,
         JSON.stringify(misconception.matchTerms),
       ],
-    )
+    );
   }
 }
 
@@ -1317,13 +1331,13 @@ async function replaceQuestionChildren(
   query: DatabaseQueryExecutor,
   candidate: ReviewCandidate,
 ) {
-  await query("delete from hints where question_id = $1", [candidate.id])
+  await query("delete from hints where question_id = $1", [candidate.id]);
   await query("delete from solution_steps where question_id = $1", [
     candidate.id,
-  ])
+  ]);
   await query("delete from misconceptions where question_id = $1", [
     candidate.id,
-  ])
+  ]);
 
   for (const [index, hint] of candidate.hints.entries()) {
     await query(
@@ -1332,7 +1346,7 @@ async function replaceQuestionChildren(
         values ($1, $2, $3)
       `,
       [candidate.id, index + 1, hint],
-    )
+    );
   }
 
   for (const [index, step] of candidate.solutionSteps.entries()) {
@@ -1342,7 +1356,7 @@ async function replaceQuestionChildren(
         values ($1, $2, $3)
       `,
       [candidate.id, index + 1, step],
-    )
+    );
   }
 
   for (const misconception of candidate.misconceptions) {
@@ -1362,21 +1376,21 @@ async function replaceQuestionChildren(
         misconception.feedback,
         JSON.stringify(misconception.matchTerms),
       ],
-    )
+    );
   }
 }
 
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
-    return []
+    return [];
   }
 
-  return value.filter((item): item is string => typeof item === "string")
+  return value.filter((item): item is string => typeof item === "string");
 }
 
 function misconceptionArray(value: unknown): Misconception[] {
   if (!Array.isArray(value)) {
-    return []
+    return [];
   }
 
   return value
@@ -1395,26 +1409,26 @@ function misconceptionArray(value: unknown): Misconception[] {
             (term): term is string => typeof term === "string",
           )
         : [],
-    }))
+    }));
 }
 
 function toIsoString(value: Date | string | null) {
   if (!value) {
-    return undefined
+    return undefined;
   }
 
-  return value instanceof Date ? value.toISOString() : value
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 function createUnavailableQueryExecutor(
   databaseUrl: string,
 ): DatabaseQueryExecutor {
-  void databaseUrl
+  void databaseUrl;
   return async () => {
-    throw new Error("Database repository has no configured query executor.")
-  }
+    throw new Error("Database repository has no configured query executor.");
+  };
 }
 
 export function approvedPublicWhereClauseForTests() {
-  return APPROVED_PUBLIC_WHERE
+  return APPROVED_PUBLIC_WHERE;
 }

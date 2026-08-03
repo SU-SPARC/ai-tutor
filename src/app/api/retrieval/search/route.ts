@@ -1,63 +1,70 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 import {
   searchLocalRetrieval,
   type LocalKeywordRetrievalResult,
   type LocalRetrievalAudience,
-} from "@/lib/ai/retrieval"
-import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
+} from "@/lib/ai/retrieval";
+import { authorizeApiRole } from "@/lib/auth/principal";
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RetrievalSearchBody = {
-  limit?: unknown
-  mode?: unknown
-  query?: unknown
-  questionId?: unknown
-  topic?: unknown
-}
+  limit?: unknown;
+  mode?: unknown;
+  query?: unknown;
+  questionId?: unknown;
+  topic?: unknown;
+};
 
 type RetrievalSearchInput = {
-  limit: number
-  mode: LocalRetrievalAudience
-  query: string
-  questionId?: string
-  topic?: string
-}
+  limit: number;
+  mode: LocalRetrievalAudience;
+  query: string;
+  questionId?: string;
+  topic?: string;
+};
 
-const DEFAULT_LIMIT = 5
-const MAX_LIMIT = 10
-const MAX_QUERY_CHARACTERS = 1000
-const MAX_FILTER_CHARACTERS = 160
-const MAX_CHUNK_CHARACTERS = 520
-const MAX_CONTEXT_CHARACTERS = 2400
+const DEFAULT_LIMIT = 5;
+const MAX_LIMIT = 10;
+const MAX_QUERY_CHARACTERS = 1000;
+const MAX_FILTER_CHARACTERS = 160;
+const MAX_CHUNK_CHARACTERS = 520;
+const MAX_CONTEXT_CHARACTERS = 2400;
 
 export async function POST(request: Request) {
-  const auth = authorizeProfessorReview(request.headers)
+  const authorization = await authorizeApiRole("professor");
 
-  if (!auth.authorized) {
-    return NextResponse.json(
-      { error: auth.reason },
-      { status: auth.status },
-    )
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
-  let body: RetrievalSearchBody
+  let body: RetrievalSearchBody;
 
   try {
-    body = (await request.json()) as RetrievalSearchBody
+    body = (await request.json()) as RetrievalSearchBody;
   } catch {
     return NextResponse.json(
       { error: "Request body must be valid JSON." },
       { status: 400 },
-    )
+    );
   }
 
-  const parsed = parseRetrievalSearchInput(body)
+  const parsed = parseRetrievalSearchInput(body);
 
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 })
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+
+  if (
+    parsed.input.mode === "admin_dev" &&
+    !authorization.principal.roles.includes("admin")
+  ) {
+    return NextResponse.json(
+      { error: "Administrator role is required for admin_dev retrieval." },
+      { status: 403 },
+    );
   }
 
   try {
@@ -75,66 +82,66 @@ export async function POST(request: Request) {
       ),
       maxResults: parsed.input.limit,
       topic: parsed.input.topic,
-    })
+    });
 
     return NextResponse.json({
       chunks: results.map((result) => toApiChunk(result)),
       count: results.length,
       mode: parsed.input.mode,
       retrievalMode: "keyword" as const,
-    })
+    });
   } catch {
     return NextResponse.json(
       { error: "Retrieval search failed." },
       { status: 500 },
-    )
+    );
   }
 }
 
 function parseRetrievalSearchInput(body: RetrievalSearchBody):
   | {
-      input: RetrievalSearchInput
-      ok: true
+      input: RetrievalSearchInput;
+      ok: true;
     }
   | {
-      error: string
-      ok: false
+      error: string;
+      ok: false;
     } {
-  const query = optionalBoundedString(body.query, MAX_QUERY_CHARACTERS)
+  const query = optionalBoundedString(body.query, MAX_QUERY_CHARACTERS);
 
   if (query.error) {
-    return { error: `query ${query.error}`, ok: false }
+    return { error: `query ${query.error}`, ok: false };
   }
 
   if (!query.value) {
-    return { error: "query is required.", ok: false }
+    return { error: "query is required.", ok: false };
   }
 
-  const topic = optionalBoundedString(body.topic, MAX_FILTER_CHARACTERS)
+  const topic = optionalBoundedString(body.topic, MAX_FILTER_CHARACTERS);
 
   if (topic.error) {
-    return { error: `topic ${topic.error}`, ok: false }
+    return { error: `topic ${topic.error}`, ok: false };
   }
 
   const questionId = optionalBoundedString(
     body.questionId,
     MAX_FILTER_CHARACTERS,
-  )
+  );
 
   if (questionId.error) {
-    return { error: `questionId ${questionId.error}`, ok: false }
+    return { error: `questionId ${questionId.error}`, ok: false };
   }
 
-  const limit = parseLimit(body.limit)
+  const limit = parseLimit(body.limit);
 
   if (!limit.ok) {
-    return { error: limit.error, ok: false }
+    return { error: limit.error, ok: false };
   }
 
-  const mode = parseMode(body.mode)
+  const mode = parseMode(body.mode);
 
   if (!mode.ok) {
-    return { error: mode.error, ok: false }
+    return { error: mode.error, ok: false };
   }
 
   return {
@@ -146,81 +153,81 @@ function parseRetrievalSearchInput(body: RetrievalSearchBody):
       topic: topic.value,
     },
     ok: true,
-  }
+  };
 }
 
 function optionalBoundedString(value: unknown, maxCharacters: number) {
   if (value === undefined || value === null) {
-    return { value: undefined }
+    return { value: undefined };
   }
 
   if (typeof value !== "string") {
-    return { error: "must be a string." }
+    return { error: "must be a string." };
   }
 
-  const trimmed = value.trim()
+  const trimmed = value.trim();
 
   if (trimmed.length > maxCharacters) {
     return {
       error: `must be ${maxCharacters} characters or fewer.`,
-    }
+    };
   }
 
-  return { value: trimmed || undefined }
+  return { value: trimmed || undefined };
 }
 
 function parseLimit(value: unknown):
   | {
-      ok: true
-      value: number
+      ok: true;
+      value: number;
     }
   | {
-      error: string
-      ok: false
+      error: string;
+      ok: false;
     } {
   if (value === undefined || value === null) {
-    return { ok: true, value: DEFAULT_LIMIT }
+    return { ok: true, value: DEFAULT_LIMIT };
   }
 
   if (typeof value !== "number" || !Number.isInteger(value)) {
-    return { error: "limit must be an integer.", ok: false }
+    return { error: "limit must be an integer.", ok: false };
   }
 
   if (value < 1 || value > MAX_LIMIT) {
     return {
       error: `limit must be between 1 and ${MAX_LIMIT}.`,
       ok: false,
-    }
+    };
   }
 
-  return { ok: true, value }
+  return { ok: true, value };
 }
 
 function parseMode(value: unknown):
   | {
-      ok: true
-      value: LocalRetrievalAudience
+      ok: true;
+      value: LocalRetrievalAudience;
     }
   | {
-      error: string
-      ok: false
+      error: string;
+      ok: false;
     } {
   if (value === undefined || value === null || value === "") {
-    return { ok: true, value: "student" }
+    return { ok: true, value: "student" };
   }
 
-  if (value === "student" || value === "server" || value === "admin_dev") {
-    return { ok: true, value }
+  if (value === "student" || value === "admin_dev") {
+    return { ok: true, value };
   }
 
   if (value === "admin") {
-    return { ok: true, value: "admin_dev" }
+    return { ok: true, value: "admin_dev" };
   }
 
   return {
-    error: "mode must be one of: student, server, admin_dev.",
+    error: "mode must be one of: student, admin_dev.",
     ok: false,
-  }
+  };
 }
 
 function toApiChunk(result: LocalKeywordRetrievalResult) {
@@ -233,7 +240,7 @@ function toApiChunk(result: LocalKeywordRetrievalResult) {
     sourceLabel: result.sourceLabel,
     text: apiSafeText(result),
     ...(result.debug ? { debug: result.debug } : {}),
-  }
+  };
 }
 
 function apiSafeText(result: LocalKeywordRetrievalResult) {
@@ -242,8 +249,8 @@ function apiSafeText(result: LocalKeywordRetrievalResult) {
     result.metadata.sourceType === "private_reference_pattern" ||
     result.metadata.trustLevel === "private_reference"
   ) {
-    return "Private reference match retained server-side. Use safe summaries or synthesized guidance for student-facing responses."
+    return "Private reference match retained server-side. Use safe summaries or synthesized guidance for student-facing responses.";
   }
 
-  return result.text
+  return result.text;
 }

@@ -1,52 +1,56 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PATCH as patchAdminQuestion } from "@/app/api/admin/questions/[id]/route"
+import { PATCH as patchAdminQuestion } from "@/app/api/admin/questions/[id]/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
-} from "@/lib/data/data-store"
+} from "@/lib/data/data-store";
 import type {
   AdminQuestionDetailUpdate,
   ContentRepository,
-} from "@/lib/data/repository"
-import type { AdminQuestion } from "@/lib/types"
+} from "@/lib/data/repository";
+import type { AdminQuestion } from "@/lib/types";
+import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
 
-const TOKEN = "admin-secret"
+const TOKEN = "admin-secret";
 
 describe("admin question detail API", () => {
   beforeEach(() => {
-    resetReviewQueueForTests()
-    vi.stubEnv("ADMIN_SECRET", TOKEN)
-    vi.stubEnv("APP_DEMO_MODE", "true")
-    vi.stubEnv("DATABASE_URL", "")
-  })
+    resetReviewQueueForTests();
+    mockPrincipal(TEST_ADMIN);
+    vi.stubEnv("APP_DEMO_MODE", "true");
+    vi.stubEnv("DATABASE_URL", "");
+  });
 
   afterEach(() => {
-    setContentRepositoryForTests(undefined)
-    vi.unstubAllEnvs()
-  })
+    setContentRepositoryForTests(undefined);
+    resetAuthMocks();
+    vi.unstubAllEnvs();
+  });
 
-  it("requires ADMIN_SECRET and keeps demo mode read-only", async () => {
+  it("requires the admin role and keeps demo mode read-only", async () => {
+    mockPrincipal(undefined);
     const unauthenticated = await patchQuestion(
       "generated-detail",
       { action: "approve_generated" },
       "",
-    )
+    );
+    mockPrincipal(TEST_ADMIN);
     const readOnly = await patchQuestion("generated-detail", {
       action: "approve_generated",
-    })
+    });
 
-    expect(unauthenticated.status).toBe(401)
-    expect(readOnly.status).toBe(503)
-  })
+    expect(unauthenticated.status).toBe(401);
+    expect(readOnly.status).toBe(503);
+  });
 
   it("approves a generated question and updates safe review metadata", async () => {
     const question = adminQuestionFixture({
       id: "generated-detail",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(question))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(question));
 
     const response = await patchQuestion(question.id, {
       action: "approve_generated",
@@ -61,10 +65,10 @@ describe("admin question detail API", () => {
       ],
       reviewerNotes: "Approved after checking the arithmetic.",
       topic: "normal-standardization",
-    })
-    const payload = (await response.json()) as { question: AdminQuestion }
+    });
+    const payload = (await response.json()) as { question: AdminQuestion };
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     expect(payload.question).toMatchObject({
       difficulty: "challenge",
       hints: ["Compare successes with the total count."],
@@ -78,62 +82,62 @@ describe("admin question detail API", () => {
       ],
       review: {
         notes: "Approved after checking the arithmetic.",
-        reviewedBy: "admin",
+        reviewedBy: "Test Administrator",
         status: "approved",
       },
       source: { trustLevel: "professor_approved" },
       topicId: "normal-standardization",
-    })
-  })
+    });
+  });
 
   it("supports rejecting generated questions and requesting regeneration", async () => {
     const question = adminQuestionFixture({
       id: "generated-actions",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(question))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(question));
 
     const rejected = await patchQuestion(question.id, {
       action: "reject_generated",
-    })
+    });
     const rejectedPayload = (await rejected.json()) as {
-      question: AdminQuestion
-    }
+      question: AdminQuestion;
+    };
     const regeneration = await patchQuestion(question.id, {
       action: "request_regeneration",
-    })
+    });
     const regenerationPayload = (await regeneration.json()) as {
-      question: AdminQuestion
-    }
+      question: AdminQuestion;
+    };
 
-    expect(rejected.status).toBe(200)
+    expect(rejected.status).toBe(200);
     expect(rejectedPayload.question).toMatchObject({
       review: { status: "rejected" },
       source: { trustLevel: "generated_unverified" },
-    })
-    expect(regeneration.status).toBe(200)
+    });
+    expect(regeneration.status).toBe(200);
     expect(regenerationPayload.question).toMatchObject({
       review: { status: "needs_regeneration" },
       source: { trustLevel: "generated_unverified" },
-    })
-  })
+    });
+  });
 
   it("validates body shape and rejects unsafe fields before writing", async () => {
     const question = adminQuestionFixture({
       id: "generated-safety",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    const updateSpy = vi.fn()
-    setContentRepositoryForTests(contentRepositoryFixture(question, updateSpy))
+    });
+    const updateSpy = vi.fn();
+    setContentRepositoryForTests(contentRepositoryFixture(question, updateSpy));
 
     const unsafeField = await patchQuestion(question.id, {
       prompt: "Do not write this raw prompt.",
-    })
+    });
     const copiedSource = await patchQuestion(question.id, {
       reviewerNotes: "Copied from textbook page 122.",
-    })
+    });
     const nestedPrivateLocator = await patchQuestion(question.id, {
       misconceptions: [
         {
@@ -142,49 +146,49 @@ describe("admin question detail API", () => {
           sourcePage: 122,
         },
       ],
-    })
+    });
     const privateTrust = await patchQuestion(question.id, {
       trustLevel: "private_reference",
-    })
+    });
 
-    expect(unsafeField.status).toBe(400)
-    expect(copiedSource.status).toBe(400)
-    expect(nestedPrivateLocator.status).toBe(400)
-    expect(privateTrust.status).toBe(400)
-    expect(updateSpy).not.toHaveBeenCalled()
-    expect(await copiedSource.text()).not.toContain("textbook page 122")
-  })
+    expect(unsafeField.status).toBe(400);
+    expect(copiedSource.status).toBe(400);
+    expect(nestedPrivateLocator.status).toBe(400);
+    expect(privateTrust.status).toBe(400);
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(await copiedSource.text()).not.toContain("textbook page 122");
+  });
 
   it("rejects invalid edit values", async () => {
     const question = adminQuestionFixture({
       id: "generated-invalid-values",
       reviewStatus: "needs_review",
       trustLevel: "generated_unverified",
-    })
-    setContentRepositoryForTests(contentRepositoryFixture(question))
+    });
+    setContentRepositoryForTests(contentRepositoryFixture(question));
 
     const invalidDifficulty = await patchQuestion(question.id, {
       difficulty: "very-hard",
-    })
+    });
     const invalidStatus = await patchQuestion(question.id, {
       reviewStatus: "published",
-    })
+    });
     const invalidHints = await patchQuestion(question.id, {
       hints: ["Use proportions.", ""],
-    })
+    });
     const duplicateMisconceptions = await patchQuestion(question.id, {
       misconceptions: [
         { feedback: "First.", id: "duplicate", matchTerms: [] },
         { feedback: "Second.", id: "duplicate", matchTerms: [] },
       ],
-    })
+    });
 
-    expect(invalidDifficulty.status).toBe(400)
-    expect(invalidStatus.status).toBe(400)
-    expect(invalidHints.status).toBe(400)
-    expect(duplicateMisconceptions.status).toBe(400)
-  })
-})
+    expect(invalidDifficulty.status).toBe(400);
+    expect(invalidStatus.status).toBe(400);
+    expect(invalidHints.status).toBe(400);
+    expect(duplicateMisconceptions.status).toBe(400);
+  });
+});
 
 function patchQuestion(id: string, body: unknown, token = TOKEN) {
   return patchAdminQuestion(
@@ -197,42 +201,42 @@ function patchQuestion(id: string, body: unknown, token = TOKEN) {
       method: "PATCH",
     }),
     { params: Promise.resolve({ id }) },
-  )
+  );
 }
 
 function contentRepositoryFixture(
   question: AdminQuestion,
   onUpdate?: (input: AdminQuestionDetailUpdate) => void,
 ): ContentRepository {
-  let current = question
+  let current = question;
 
   return {
     async getAdminQuestions() {
-      return [current]
+      return [current];
     },
     async getApprovedQuestionById() {
-      return current
+      return current;
     },
     async getApprovedQuestions() {
-      return [current]
+      return [current];
     },
     async getQuestionById() {
-      return current
+      return current;
     },
     async getQuestionCounts() {
-      return { byTopic: { [current.topicId]: 1 }, total: 1 }
+      return { byTopic: { [current.topicId]: 1 }, total: 1 };
     },
     async getProfessorPracticeAnalytics() {
-      return emptyPracticeAnalytics()
+      return emptyPracticeAnalytics();
     },
     async getRetrievalChunks() {
-      return []
+      return [];
     },
     async getReviewQueue() {
-      return []
+      return [];
     },
     async getTopics() {
-      return this.listTopics()
+      return this.listTopics();
     },
     async importReviewCandidates() {
       return {
@@ -241,13 +245,13 @@ function contentRepositoryFixture(
         message: "Imported test candidates.",
         mode: "demo",
         nonDurable: true,
-      }
+      };
     },
     async listQuestions() {
-      return [current]
+      return [current];
     },
     async listQuestionsByTopic() {
-      return [current]
+      return [current];
     },
     async listTopics() {
       return [
@@ -260,27 +264,28 @@ function contentRepositoryFixture(
           title: current.topicTitle ?? current.topicId,
           weekNumber: 1,
         },
-      ]
+      ];
     },
     async updateAdminQuestionDetail(questionId, input) {
-      onUpdate?.(input)
+      onUpdate?.(input);
 
       if (questionId !== current.id) {
-        return undefined
+        return undefined;
       }
 
-      const actionStatus = reviewStatusForDetailAction(input.action)
-      const nextStatus = actionStatus ?? input.reviewStatus ?? current.review.status
+      const actionStatus = reviewStatusForDetailAction(input.action);
+      const nextStatus =
+        actionStatus ?? input.reviewStatus ?? current.review.status;
       const generated =
         current.source.sourceType === "generated_original" ||
-        current.source.sourceType === "pattern_derived_original"
+        current.source.sourceType === "pattern_derived_original";
       const trustLevel = generated
         ? nextStatus === "approved"
           ? "professor_approved"
           : nextStatus === current.review.status
             ? (input.trustLevel ?? current.source.trustLevel)
             : "generated_unverified"
-        : (input.trustLevel ?? current.source.trustLevel)
+        : (input.trustLevel ?? current.source.trustLevel);
 
       current = {
         ...current,
@@ -301,23 +306,23 @@ function contentRepositoryFixture(
           trustLevel,
         },
         topicId: input.topicId ?? current.topicId,
-      }
+      };
 
-      return current
+      return current;
     },
     async updateAdminQuestions() {
-      return []
+      return [];
     },
     async regenerateAdminQuestion() {
-      return undefined
+      return undefined;
     },
     async updateReviewCandidates() {
-      return []
+      return [];
     },
     async updateReviewCandidateStatus() {
-      return undefined
+      return undefined;
     },
-  }
+  };
 }
 
 function emptyPracticeAnalytics() {
@@ -339,25 +344,25 @@ function emptyPracticeAnalytics() {
       totalTutorSessions: 0,
     },
     topics: [],
-  }
+  };
 }
 
 function reviewStatusForDetailAction(
   action: AdminQuestionDetailUpdate["action"],
 ): AdminQuestion["review"]["status"] | undefined {
   if (action === "approve_generated") {
-    return "approved"
+    return "approved";
   }
 
   if (action === "reject_generated") {
-    return "rejected"
+    return "rejected";
   }
 
   if (action === "request_regeneration") {
-    return "needs_regeneration"
+    return "needs_regeneration";
   }
 
-  return undefined
+  return undefined;
 }
 
 function adminQuestionFixture({
@@ -365,9 +370,9 @@ function adminQuestionFixture({
   reviewStatus,
   trustLevel,
 }: {
-  id: string
-  reviewStatus: AdminQuestion["review"]["status"]
-  trustLevel: AdminQuestion["source"]["trustLevel"]
+  id: string;
+  reviewStatus: AdminQuestion["review"]["status"];
+  trustLevel: AdminQuestion["source"]["trustLevel"];
 }): AdminQuestion {
   return {
     answer: {
@@ -399,5 +404,5 @@ function adminQuestionFixture({
     title: "Generated proportion review",
     topicId: "basic-probability",
     topicTitle: "Basic probability",
-  }
+  };
 }

@@ -1,53 +1,61 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalKeywordRetrievalResult } from "@/lib/ai/retrieval"
+import type { LocalKeywordRetrievalResult } from "@/lib/ai/retrieval";
 
-const searchLocalRetrievalMock = vi.hoisted(() => vi.fn())
+const searchLocalRetrievalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/ai/retrieval", () => ({
   searchLocalRetrieval: searchLocalRetrievalMock,
-}))
+}));
 
-import { POST as postRetrievalSearch } from "@/app/api/retrieval/search/route"
+import { POST as postRetrievalSearch } from "@/app/api/retrieval/search/route";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_ADMIN,
+  TEST_PROFESSOR,
+} from "./auth-test-helpers";
 
 describe("retrieval search API", () => {
-  afterEach(() => {
-    searchLocalRetrievalMock.mockReset()
-    vi.unstubAllEnvs()
-  })
+  beforeEach(() => {
+    mockPrincipal(TEST_PROFESSOR);
+  });
 
-  it("requires the professor review token", async () => {
-    vi.stubEnv("ADMIN_SECRET", "review-secret")
+  afterEach(() => {
+    searchLocalRetrievalMock.mockReset();
+    vi.unstubAllEnvs();
+    resetAuthMocks();
+  });
+
+  it("requires the professor role", async () => {
+    mockPrincipal(undefined);
 
     const response = await postRetrievalSearch(
       jsonRequest({ query: "binomial exact count" }),
-    )
+    );
 
-    expect(response.status).toBe(401)
-    expect(searchLocalRetrievalMock).not.toHaveBeenCalled()
-  })
+    expect(response.status).toBe(401);
+    expect(searchLocalRetrievalMock).not.toHaveBeenCalled();
+  });
 
   it("validates the search body before retrieving chunks", async () => {
-    vi.stubEnv("ADMIN_SECRET", "review-secret")
-
     const response = await postRetrievalSearch(
       jsonRequest({ limit: 99, query: "binomial" }, "review-secret"),
-    )
-    const payload = (await response.json()) as { error?: string }
+    );
+    const payload = (await response.json()) as { error?: string };
 
-    expect(response.status).toBe(400)
-    expect(payload.error).toBe("limit must be between 1 and 10.")
-    expect(searchLocalRetrievalMock).not.toHaveBeenCalled()
-  })
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("limit must be between 1 and 10.");
+    expect(searchLocalRetrievalMock).not.toHaveBeenCalled();
+  });
 
   it("returns ranked chunks, scores, source metadata, and retrieval mode", async () => {
-    vi.stubEnv("ADMIN_SECRET", "review-secret")
     searchLocalRetrievalMock.mockResolvedValue([
       retrievalResult({
         score: 91,
         text: "A binomial exact count question asks for exactly k successes.",
       }),
-    ])
+    ]);
 
     const response = await postRetrievalSearch(
       jsonRequest(
@@ -60,15 +68,15 @@ describe("retrieval search API", () => {
         },
         "review-secret",
       ),
-    )
+    );
     const payload = (await response.json()) as {
-      chunks: Array<Record<string, unknown>>
-      count: number
-      mode: string
-      retrievalMode: string
-    }
+      chunks: Array<Record<string, unknown>>;
+      count: number;
+      mode: string;
+      retrievalMode: string;
+    };
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     expect(searchLocalRetrievalMock).toHaveBeenCalledWith(
       "binomial exact count",
       expect.objectContaining({
@@ -81,7 +89,7 @@ describe("retrieval search API", () => {
         maxResults: 2,
         topic: "Binomial models",
       }),
-    )
+    );
     expect(payload).toMatchObject({
       count: 1,
       mode: "student",
@@ -95,18 +103,18 @@ describe("retrieval search API", () => {
           sourceLabel: "demo_question_chunks",
         },
       ],
-    })
+    });
     expect(payload.chunks[0].metadata).toMatchObject({
       chunkId: "public-binomial",
       questionId: "demo-binomial",
       sourceType: "original_demo",
       trustLevel: "public_original",
       visibility: "public",
-    })
-  })
+    });
+  });
 
   it("redacts private reference text from API responses", async () => {
-    vi.stubEnv("ADMIN_SECRET", "review-secret")
+    mockPrincipal(TEST_ADMIN);
     searchLocalRetrievalMock.mockResolvedValue([
       retrievalResult({
         metadata: {
@@ -125,7 +133,7 @@ describe("retrieval search API", () => {
         sourceLabel: "private_reference_chunks",
         text: "Raw private textbook page text that should never leave.",
       }),
-    ])
+    ]);
 
     const response = await postRetrievalSearch(
       jsonRequest(
@@ -135,34 +143,32 @@ describe("retrieval search API", () => {
         },
         "review-secret",
       ),
-    )
+    );
     const payload = (await response.json()) as {
-      chunks: Array<{ metadata: Record<string, unknown>; text: string }>
-      mode: string
-      retrievalMode: string
-    }
+      chunks: Array<{ metadata: Record<string, unknown>; text: string }>;
+      mode: string;
+      retrievalMode: string;
+    };
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     expect(searchLocalRetrievalMock).toHaveBeenCalledWith(
       "bayes flagged cases",
       expect.objectContaining({
         audience: "admin_dev",
       }),
-    )
-    expect(payload.mode).toBe("admin_dev")
-    expect(payload.retrievalMode).toBe("keyword")
+    );
+    expect(payload.mode).toBe("admin_dev");
+    expect(payload.retrievalMode).toBe("keyword");
     expect(payload.chunks[0].metadata).toMatchObject({
       sourceType: "private_reference_pattern",
       trustLevel: "private_reference",
       visibility: "private",
-    })
-    expect(payload.chunks[0].text).not.toContain("textbook page")
-    expect(payload.chunks[0].text).toContain("Private reference match")
-  })
+    });
+    expect(payload.chunks[0].text).not.toContain("textbook page");
+    expect(payload.chunks[0].text).toContain("Private reference match");
+  });
 
   it("reports malformed JSON without searching", async () => {
-    vi.stubEnv("ADMIN_SECRET", "review-secret")
-
     const response = await postRetrievalSearch(
       new Request("http://localhost/api/retrieval/search", {
         body: "{not-json",
@@ -172,12 +178,12 @@ describe("retrieval search API", () => {
         },
         method: "POST",
       }),
-    )
+    );
 
-    expect(response.status).toBe(400)
-    expect(searchLocalRetrievalMock).not.toHaveBeenCalled()
-  })
-})
+    expect(response.status).toBe(400);
+    expect(searchLocalRetrievalMock).not.toHaveBeenCalled();
+  });
+});
 
 function jsonRequest(body: unknown, token?: string) {
   return new Request("http://localhost/api/retrieval/search", {
@@ -187,7 +193,7 @@ function jsonRequest(body: unknown, token?: string) {
       ...(token ? { "x-professor-token": token } : {}),
     },
     method: "POST",
-  })
+  });
 }
 
 function retrievalResult(
@@ -213,5 +219,5 @@ function retrievalResult(
     sourceLabel: "demo_question_chunks",
     text: "A public demo retrieval chunk.",
     ...overrides,
-  }
+  };
 }

@@ -42,6 +42,7 @@ describe("typed server environment", () => {
 
   it("infers Vercel Preview and derives its application URL", () => {
     const env = parseServerEnv({
+      ANONYMOUS_PILOT_ENABLED: "false",
       VERCEL_ENV: "preview",
       VERCEL_URL: "preview-example.vercel.app",
     });
@@ -149,9 +150,9 @@ describe("typed server environment", () => {
       expect.objectContaining({
         issues: expect.arrayContaining([
           "APP_DEMO_MODE must be false in staging and production.",
-          "APP_URL must use https in staging and production.",
-          "AUTH_ISSUER_URL must use https in staging and production.",
-          "ERROR_TRACKING_DSN must use https in staging and production.",
+          "APP_URL must use https in deployed environments.",
+          "AUTH_ISSUER_URL must use https in deployed environments.",
+          "ERROR_TRACKING_DSN must use https in deployed environments.",
         ]),
       }),
     );
@@ -215,6 +216,7 @@ function strictEnvironment(
   environment: "production" | "staging",
 ): ProcessEnvironment {
   return {
+    ANONYMOUS_PILOT_ENABLED: "false",
     AI_ENABLED: "true",
     AI_MODEL: "approved/model",
     AI_PROVIDER: "openrouter",

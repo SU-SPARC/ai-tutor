@@ -1,11 +1,11 @@
-import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import path from "node:path"
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import { afterEach, describe, expect, it, beforeEach, vi } from "vitest"
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 
-import { POST as postProfessorReview } from "@/app/api/professor/review/route"
+import { POST as postProfessorReview } from "@/app/api/professor/review/route";
 import {
   getApprovedQuestionById,
   getApprovedQuestions,
@@ -22,10 +22,10 @@ import {
   listTopics,
   resetReviewQueueForTests,
   setContentRepositoryForTests,
-} from "@/lib/data/data-store"
-import type { ContentRepository } from "@/lib/data/repository"
-import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
-import { getServerEnv } from "@/lib/env/server"
+} from "@/lib/data/data-store";
+import type { ContentRepository } from "@/lib/data/repository";
+import { authorizeApiRole } from "@/lib/auth/principal";
+import { getServerEnv } from "@/lib/env/server";
 import {
   checkStudentAttempt,
   createTutorResponse,
@@ -36,12 +36,12 @@ import {
   isLlmFallbackEligible,
   shouldEscalateToLLM,
   shouldEscalateToRetrieval,
-} from "@/lib/tutor/tutor-engine"
+} from "@/lib/tutor/tutor-engine";
 import {
   getTutorSessionState,
   getTutorAttemptSnapshotsForTests,
   resetTutorStateForTests,
-} from "@/lib/tutor/tutor-state"
+} from "@/lib/tutor/tutor-state";
 import {
   REVIEW_STATUSES,
   SOURCE_TYPES,
@@ -53,31 +53,37 @@ import {
   type RetrievalChunk,
   type TutorMode,
   type TutorQuestion,
-} from "@/lib/types"
-import demoQuestionPatterns from "../data/demo/question-patterns.json"
-import followingSyllabusReviewCandidates from "../data/demo/following-syllabus-review-candidates.json"
-import generatedExamples from "../data/demo/generated-examples.json"
-import generatedReviewCandidates from "../data/demo/generated-review-candidates.json"
-import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json"
-import nextUncoveredSyllabusReviewCandidates from "../data/demo/next-uncovered-syllabus-review-candidates.json"
-import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json"
-import ruleEngineExamples from "../data/eval/rule-engine-examples.json"
+} from "@/lib/types";
+import demoQuestionPatterns from "../data/demo/question-patterns.json";
+import followingSyllabusReviewCandidates from "../data/demo/following-syllabus-review-candidates.json";
+import generatedExamples from "../data/demo/generated-examples.json";
+import generatedReviewCandidates from "../data/demo/generated-review-candidates.json";
+import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json";
+import nextUncoveredSyllabusReviewCandidates from "../data/demo/next-uncovered-syllabus-review-candidates.json";
+import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json";
+import ruleEngineExamples from "../data/eval/rule-engine-examples.json";
 import {
   approvedPublicWhereClauseForTests,
   mapQuestionRow,
-} from "@/lib/data/database-repository"
+} from "@/lib/data/database-repository";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_PROFESSOR,
+  TEST_STUDENT,
+} from "./auth-test-helpers";
 
 describe("tutor engine", () => {
   beforeEach(() => {
-    resetTutorStateForTests()
-  })
+    resetTutorStateForTests();
+  });
 
   afterEach(() => {
-    setContentRepositoryForTests(undefined)
-    vi.restoreAllMocks()
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
-  })
+    setContentRepositoryForTests(undefined);
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
 
   it("uses approved rule-based answers before retrieval or LLM fallback", async () => {
     const response = await createTutorResponse({
@@ -86,17 +92,17 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "rule-test",
-    })
+    });
 
-    expect(response.source).toBe("rule")
-    expect(response.verdict).toBe("correct")
-    expect(response.steps).toHaveLength(3)
-    expect(response.responseLabel).toBe("approved_course_content")
-    expect(response.usage.contextUsed).toBe(false)
-    expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.progress?.state).toBe("solved")
-    expect(response.progress?.solved).toBe(true)
-  })
+    expect(response.source).toBe("rule");
+    expect(response.verdict).toBe("correct");
+    expect(response.steps).toHaveLength(3);
+    expect(response.responseLabel).toBe("approved_course_content");
+    expect(response.usage.contextUsed).toBe(false);
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.progress?.state).toBe("solved");
+    expect(response.progress?.solved).toBe(true);
+  });
 
   it("returns deterministic misconception feedback for common wrong patterns", async () => {
     const response = await createTutorResponse({
@@ -104,15 +110,15 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "misconception-test",
-    })
+    });
 
-    expect(response.source).toBe("rule")
-    expect(response.verdict).toBe("incorrect")
-    expect(response.misconceptions[0]).toContain("all 36 dice outcomes")
-    expect(response.hints).toHaveLength(1)
-    expect(response.steps).toHaveLength(0)
-    expect(response.progress?.state).toBe("misconception_detected")
-  })
+    expect(response.source).toBe("rule");
+    expect(response.verdict).toBe("incorrect");
+    expect(response.misconceptions[0]).toContain("all 36 dice outcomes");
+    expect(response.hints).toHaveLength(1);
+    expect(response.steps).toHaveLength(0);
+    expect(response.progress?.state).toBe("misconception_detected");
+  });
 
   it("uses the shared misconception library when no question-specific match exists", async () => {
     const response = await createTutorResponse({
@@ -120,13 +126,13 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "exam-z-score",
       sessionId: "library-misconception-test",
-    })
+    });
 
-    expect(response.source).toBe("rule")
-    expect(response.verdict).toBe("incorrect")
-    expect(response.misconceptions[0]).toContain("normal approximation")
-    expect(response.progress?.state).toBe("misconception_detected")
-  })
+    expect(response.source).toBe("rule");
+    expect(response.verdict).toBe("incorrect");
+    expect(response.misconceptions[0]).toContain("normal approximation");
+    expect(response.progress?.state).toBe("misconception_detected");
+  });
 
   it("does not repeat identical misconception feedback for the same answer", async () => {
     const first = await createTutorResponse({
@@ -134,19 +140,19 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "repeat-misconception-test",
-    })
+    });
     const second = await createTutorResponse({
       answer: "2/36",
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "repeat-misconception-test",
-    })
+    });
 
-    expect(first.misconceptions).toHaveLength(1)
-    expect(second.misconceptions).toHaveLength(0)
-    expect(second.hints).toHaveLength(2)
-    expect(second.progress?.wrongAttemptCount).toBe(2)
-  })
+    expect(first.misconceptions).toHaveLength(1);
+    expect(second.misconceptions).toHaveLength(0);
+    expect(second.hints).toHaveLength(2);
+    expect(second.progress?.wrongAttemptCount).toBe(2);
+  });
 
   it("asks for an answer before revealing new check-mode guidance", async () => {
     const response = await createTutorResponse({
@@ -154,14 +160,14 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "empty-answer-test",
-    })
+    });
 
-    expect(response.source).toBe("rule")
-    expect(response.verdict).toBe("guidance")
-    expect(response.hints).toHaveLength(0)
-    expect(response.steps).toHaveLength(0)
-    expect(response.progress?.state).toBe("working")
-  })
+    expect(response.source).toBe("rule");
+    expect(response.verdict).toBe("guidance");
+    expect(response.hints).toHaveLength(0);
+    expect(response.steps).toHaveLength(0);
+    expect(response.progress?.state).toBe("working");
+  });
 
   it("reveals approved hints one at a time", async () => {
     const first = await createTutorResponse({
@@ -169,22 +175,22 @@ describe("tutor engine", () => {
       mode: "hint",
       questionId: "dice-sum-eight",
       sessionId: "hint-reveal-test",
-    })
+    });
     const second = await createTutorResponse({
       answer: "",
       mode: "hint",
       questionId: "dice-sum-eight",
       sessionId: "hint-reveal-test",
-    })
+    });
 
-    expect(first.source).toBe("rule")
-    expect(first.hints).toHaveLength(1)
-    expect(first.steps).toHaveLength(0)
-    expect(first.progress?.hintsRevealed).toBe(1)
-    expect(second.hints).toHaveLength(2)
-    expect(second.progress?.hintsRevealed).toBe(2)
-    expect(second.progress?.state).toBe("hinting")
-  })
+    expect(first.source).toBe("rule");
+    expect(first.hints).toHaveLength(1);
+    expect(first.steps).toHaveLength(0);
+    expect(first.progress?.hintsRevealed).toBe(1);
+    expect(second.hints).toHaveLength(2);
+    expect(second.progress?.hintsRevealed).toBe(2);
+    expect(second.progress?.state).toBe("hinting");
+  });
 
   it("reveals approved solution steps one at a time", async () => {
     const first = await createTutorResponse({
@@ -192,75 +198,78 @@ describe("tutor engine", () => {
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId: "step-reveal-test",
-    })
+    });
     const second = await createTutorResponse({
       answer: "",
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId: "step-reveal-test",
-    })
+    });
 
-    expect(first.source).toBe("rule")
-    expect(first.steps).toHaveLength(1)
-    expect(first.hints).toHaveLength(0)
-    expect(first.progress?.stepsRevealed).toBe(1)
-    expect(first.progress?.state).toBe("step_reveal")
-    expect(second.steps).toHaveLength(2)
-    expect(second.progress?.stepsRevealed).toBe(2)
-  })
+    expect(first.source).toBe("rule");
+    expect(first.steps).toHaveLength(1);
+    expect(first.hints).toHaveLength(0);
+    expect(first.progress?.stepsRevealed).toBe(1);
+    expect(first.progress?.state).toBe("step_reveal");
+    expect(second.steps).toHaveLength(2);
+    expect(second.progress?.stepsRevealed).toBe(2);
+  });
 
   it("returns the approved explanation after all solution steps are visible", async () => {
-    const sessionId = "all-steps-visible-test"
+    const sessionId = "all-steps-visible-test";
 
     await createTutorResponse({
       answer: "",
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
     await createTutorResponse({
       answer: "",
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
     await createTutorResponse({
       answer: "",
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
     const response = await createTutorResponse({
       answer: "",
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
 
-    expect(response.steps).toHaveLength(3)
-    expect(response.message).toContain("five equally likely ordered outcomes")
-    expect(response.progress?.stepsRevealed).toBe(3)
-  })
+    expect(response.steps).toHaveLength(3);
+    expect(response.message).toContain("five equally likely ordered outcomes");
+    expect(response.progress?.stepsRevealed).toBe(3);
+  });
 
   it("becomes LLM-fallback eligible once hints alone are exhausted, without any steps revealed", async () => {
-    const question = await getQuestionById("dice-sum-eight")
+    const question = await getQuestionById("dice-sum-eight");
 
-    expect(question).toBeDefined()
+    expect(question).toBeDefined();
 
     if (!question) {
-      return
+      return;
     }
 
-    const state = getTutorSessionState("hints-only-eligibility-test", question.id)
+    const state = getTutorSessionState(
+      "hints-only-eligibility-test",
+      question.id,
+    );
 
-    expect(isLlmFallbackEligible(question, state)).toBe(false)
+    expect(isLlmFallbackEligible(question, state)).toBe(false);
 
     const exhaustedHintsState = {
       ...state,
       hintsRevealed: question.hints.length,
-    }
+    };
 
-    expect(isLlmFallbackEligible(question, exhaustedHintsState)).toBe(true)
+    expect(isLlmFallbackEligible(question, exhaustedHintsState)).toBe(true);
     expect(
       shouldEscalateToRetrieval({
         answer: "still stuck",
@@ -268,8 +277,8 @@ describe("tutor engine", () => {
         question,
         state: exhaustedHintsState,
       }),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("reveals the full solution in one call via mode: full_solution, without marking the question solved", async () => {
     const response = await createTutorResponse({
@@ -277,45 +286,45 @@ describe("tutor engine", () => {
       mode: "full_solution",
       questionId: "dice-sum-eight",
       sessionId: "full-solution-reveal-test",
-    })
+    });
 
-    expect(response.steps).toHaveLength(3)
-    expect(response.message).toContain("five equally likely ordered outcomes")
-    expect(response.progress?.solved).toBe(false)
-  })
+    expect(response.steps).toHaveLength(3);
+    expect(response.message).toContain("five equally likely ordered outcomes");
+    expect(response.progress?.solved).toBe(false);
+  });
 
   it("exposes reusable rule-engine helpers for attempts, hints, steps, and escalation", async () => {
-    const question = await getQuestionById("dice-sum-eight")
+    const question = await getQuestionById("dice-sum-eight");
 
-    expect(question).toBeDefined()
+    expect(question).toBeDefined();
 
     if (!question) {
-      return
+      return;
     }
 
-    const state = getTutorSessionState("helper-test", question.id)
-    const correctAttempt = checkStudentAttempt(question, "40%")
-    const misconception = detectMisconception(question, "2/36")
-    const firstHint = getNextHint(question, state)
-    const firstStep = getNextStep(question, state)
+    const state = getTutorSessionState("helper-test", question.id);
+    const correctAttempt = checkStudentAttempt(question, "40%");
+    const misconception = detectMisconception(question, "2/36");
+    const firstHint = getNextHint(question, state);
+    const firstStep = getNextStep(question, state);
     const blockedFullSolution = getNextStep(question, state, {
       fullSolutionRequested: true,
-    })
+    });
     const fullSolution = getNextStep(question, state, {
       allowFullSolution: true,
       fullSolutionRequested: true,
-    })
+    });
 
-    expect(correctAttempt.answerCheck.isCorrect).toBe(true)
-    expect(misconception?.id).toBe("uses-full-sample-space")
-    expect(firstHint.hints).toHaveLength(1)
-    expect(firstHint.state.state).toBe("hinting")
-    expect(firstStep.steps).toHaveLength(1)
-    expect(firstStep.state.state).toBe("step_reveal")
-    expect(blockedFullSolution.steps).toHaveLength(1)
-    expect(blockedFullSolution.message).toContain("not available yet")
-    expect(fullSolution.steps).toHaveLength(question.solutionSteps.length)
-    expect(fullSolution.message).toBe(question.answer.explanation)
+    expect(correctAttempt.answerCheck.isCorrect).toBe(true);
+    expect(misconception?.id).toBe("uses-full-sample-space");
+    expect(firstHint.hints).toHaveLength(1);
+    expect(firstHint.state.state).toBe("hinting");
+    expect(firstStep.steps).toHaveLength(1);
+    expect(firstStep.state.state).toBe("step_reveal");
+    expect(blockedFullSolution.steps).toHaveLength(1);
+    expect(blockedFullSolution.message).toContain("not available yet");
+    expect(fullSolution.steps).toHaveLength(question.solutionSteps.length);
+    expect(fullSolution.message).toBe(question.answer.explanation);
     expect(
       shouldEscalateToRetrieval({
         answer: "still stuck",
@@ -327,7 +336,7 @@ describe("tutor engine", () => {
           stepsRevealed: question.solutionSteps.length,
         },
       }),
-    ).toBe(true)
+    ).toBe(true);
     expect(
       shouldEscalateToLLM({
         allowLlmFallback: true,
@@ -336,16 +345,16 @@ describe("tutor engine", () => {
         retrievalMatches: 0,
         state,
       }),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("decides full-solution responses only when explicitly allowed", async () => {
-    const question = await getQuestionById("dice-sum-eight")
+    const question = await getQuestionById("dice-sum-eight");
 
-    expect(question).toBeDefined()
+    expect(question).toBeDefined();
 
     if (!question) {
-      return
+      return;
     }
 
     const blocked = await decideTutorResponse({
@@ -354,7 +363,7 @@ describe("tutor engine", () => {
       question,
       sessionId: "full-solution-blocked",
       state: getTutorSessionState("full-solution-blocked", question.id),
-    })
+    });
     const allowed = await decideTutorResponse({
       allowFullSolution: true,
       answer: "",
@@ -362,32 +371,32 @@ describe("tutor engine", () => {
       question,
       sessionId: "full-solution-allowed",
       state: getTutorSessionState("full-solution-allowed", question.id),
-    })
+    });
 
-    expect(blocked.response.steps).toHaveLength(1)
-    expect(blocked.response.message).toContain("not available yet")
-    expect(allowed.response.steps).toHaveLength(question.solutionSteps.length)
-    expect(allowed.response.message).toBe(question.answer.explanation)
-  })
+    expect(blocked.response.steps).toHaveLength(1);
+    expect(blocked.response.message).toContain("not available yet");
+    expect(allowed.response.steps).toHaveLength(question.solutionSteps.length);
+    expect(allowed.response.message).toBe(question.answer.explanation);
+  });
 
   it("matches public rule-engine eval examples", async () => {
-    expect(ruleEngineExamples.visibility).toBe("public")
+    expect(ruleEngineExamples.visibility).toBe("public");
 
     for (const example of ruleEngineExamples.examples) {
-      expect(["check", "hint", "solution"]).toContain(example.mode)
+      expect(["check", "hint", "solution"]).toContain(example.mode);
 
       const response = await createTutorResponse({
         answer: example.studentAnswer,
         mode: example.mode as TutorMode,
         questionId: example.questionId,
         sessionId: example.id,
-      })
+      });
 
-      expect(response.source).toBe(example.expectedSource)
-      expect(response.verdict).toBe(example.expectedVerdict)
-      expect(response.progress?.state).toBe(example.expectedState)
+      expect(response.source).toBe(example.expectedSource);
+      expect(response.verdict).toBe(example.expectedVerdict);
+      expect(response.progress?.state).toBe(example.expectedState);
     }
-  })
+  });
 
   it("uses approved retrieval chunks when no question rule matches", async () => {
     const response = await createTutorResponse({
@@ -395,17 +404,17 @@ describe("tutor engine", () => {
       mode: "hint",
       sessionId: "retrieval-test",
       topicId: "normal-standardization",
-    })
+    });
 
-    expect(response.source).toBe("retrieval")
-    expect(response.retrievedContext[0]?.id).toBe("z-score-formula")
-    expect(response.responseLabel).toBe("approved_course_content")
-    expect(response.usage.contextUsed).toBe(true)
-    expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.progress?.state).toBe("retrieval_guidance")
-    expect(response.progress?.retrievalUsed).toBe(true)
-    expect(response.progress?.llmUsed).toBe(false)
-  })
+    expect(response.source).toBe("retrieval");
+    expect(response.retrievedContext[0]?.id).toBe("z-score-formula");
+    expect(response.responseLabel).toBe("approved_course_content");
+    expect(response.usage.contextUsed).toBe(true);
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.progress?.state).toBe("retrieval_guidance");
+    expect(response.progress?.retrievalUsed).toBe(true);
+    expect(response.progress?.llmUsed).toBe(false);
+  });
 
   it("labels generated approved and private-reference retrieval responses", async () => {
     setContentRepositoryForTests(
@@ -432,30 +441,30 @@ describe("tutor engine", () => {
           visibility: "private",
         }),
       ]),
-    )
+    );
 
     const generated = await createTutorResponse({
       answer: "generated approved exact count independent trials",
       mode: "hint",
       sessionId: "generated-approved-label-test",
       topicId: "generated-label-topic",
-    })
+    });
     const privateGrounded = await createTutorResponse({
       answer: "private reference bayes base rate evidence",
       mode: "hint",
       sessionId: "private-reference-label-test",
       topicId: "private-label-topic",
-    })
+    });
 
-    expect(generated.source).toBe("retrieval")
-    expect(generated.responseLabel).toBe("generated_approved_content")
-    expect(privateGrounded.source).toBe("retrieval")
+    expect(generated.source).toBe("retrieval");
+    expect(generated.responseLabel).toBe("generated_approved_content");
+    expect(privateGrounded.source).toBe("retrieval");
     expect(privateGrounded.responseLabel).toBe(
       "private_reference_grounded_explanation",
-    )
-    expect(privateGrounded.hints[0]).toContain("Use Bayes' rule")
-    expect(privateGrounded.hints[0]).not.toContain("Raw private")
-  })
+    );
+    expect(privateGrounded.hints[0]).toContain("Use Bayes' rule");
+    expect(privateGrounded.hints[0]).not.toContain("Raw private");
+  });
 
   it("blocks LLM fallback unless explicit fallback is requested", async () => {
     const response = await createTutorResponse({
@@ -463,51 +472,51 @@ describe("tutor engine", () => {
       allowLlmFallback: false,
       mode: "hint",
       sessionId: "llm-explicit-block-test",
-    })
+    });
 
-    expect(response.source).toBe("blocked")
-    expect(response.message).toContain("LLM fallback was not requested")
-    expect(response.progress?.state).toBe("blocked")
-  })
+    expect(response.source).toBe("blocked");
+    expect(response.message).toContain("LLM fallback was not requested");
+    expect(response.progress?.state).toBe("blocked");
+  });
 
   it("calls the LLM fallback even for requests that don't look like probability/statistics", async () => {
-    const fetchImpl = mockLlmResponse("Here's some general guidance.")
+    const fetchImpl = mockLlmResponse("Here's some general guidance.");
 
     const response = await createTutorResponse({
       answer: "orion quilting advice",
       allowLlmFallback: true,
       mode: "hint",
       sessionId: "llm-off-domain-test",
-    })
+    });
 
-    expect(response.source).toBe("llm")
-    expect(response.progress?.llmUsed).toBe(true)
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
-  })
+    expect(response.source).toBe("llm");
+    expect(response.progress?.llmUsed).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 
   it("surfaces the LLM's own message when AI is disabled, without blocking", async () => {
-    const fetchImpl = vi.fn<typeof fetch>()
-    vi.stubEnv("AI_ENABLED", "false")
-    vi.stubEnv("OPENROUTER_API_KEY", "")
-    vi.stubGlobal("fetch", fetchImpl)
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubEnv("AI_ENABLED", "false");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    vi.stubGlobal("fetch", fetchImpl);
 
     const response = await createTutorResponse({
       answer: "What is a confidence interval?",
       allowLlmFallback: true,
       mode: "hint",
       sessionId: "llm-missing-key-test",
-    })
+    });
 
-    expect(response.source).toBe("llm")
-    expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.message).toContain("LLM fallback is disabled")
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
+    expect(response.source).toBe("llm");
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.message).toContain("LLM fallback is disabled");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 
   it("avoids LLM when retrieval has enough context for a templated response", async () => {
-    const fetchImpl = vi.fn<typeof fetch>()
-    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
-    vi.stubGlobal("fetch", fetchImpl)
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchImpl);
 
     const response = await createTutorResponse({
       answer: "How do I standardize a normal score with a mean?",
@@ -515,101 +524,103 @@ describe("tutor engine", () => {
       mode: "hint",
       sessionId: "llm-retrieval-context-test",
       topicId: "normal-standardization",
-    })
+    });
 
-    expect(response.source).toBe("retrieval")
-    expect(response.verdict).toBe("guidance")
-    expect(response.hints[0]).toContain("z = (x - mean)")
+    expect(response.source).toBe("retrieval");
+    expect(response.verdict).toBe("guidance");
+    expect(response.hints[0]).toContain("z = (x - mean)");
     expect(
       response.retrievedContext.some((chunk) => chunk.id === "z-score-formula"),
-    ).toBe(true)
-    expect(response.responseLabel).toBe("approved_course_content")
-    expect(response.usage.contextUsed).toBe(true)
-    expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.progress?.state).toBe("retrieval_guidance")
-    expect(response.progress?.llmUsed).toBe(false)
-    expect(response.progress?.retrievalUsed).toBe(true)
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
+    ).toBe(true);
+    expect(response.responseLabel).toBe("approved_course_content");
+    expect(response.usage.contextUsed).toBe(true);
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.progress?.state).toBe("retrieval_guidance");
+    expect(response.progress?.llmUsed).toBe(false);
+    expect(response.progress?.retrievalUsed).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 
   it("labels general probability help beyond approved course content", async () => {
     mockLlmResponse(
       "A confidence interval describes plausible values for an unknown population parameter.",
-    )
+    );
 
     const response = await createTutorResponse({
       answer: "What is a confidence interval?",
       allowLlmFallback: true,
       mode: "hint",
       sessionId: "llm-general-help-test",
-    })
+    });
 
-    expect(response.source).toBe("llm")
-    expect(response.retrievedContext).toHaveLength(0)
-    expect(response.responseLabel).toBe("general_ai_help")
-    expect(response.usage.contextUsed).toBe(false)
-    expect(response.usage.fallbackUsed).toBe(true)
+    expect(response.source).toBe("llm");
+    expect(response.retrievedContext).toHaveLength(0);
+    expect(response.responseLabel).toBe("general_ai_help");
+    expect(response.usage.contextUsed).toBe(false);
+    expect(response.usage.fallbackUsed).toBe(true);
     expect(response.message).toContain(
       "general AI help beyond approved course content",
-    )
-    expect(response.progress?.llmUsed).toBe(true)
-  })
+    );
+    expect(response.progress?.llmUsed).toBe(true);
+  });
 
   it("skips a self-referential retrieval echo and goes straight to real LLM help", async () => {
     const fetchImpl = mockLlmResponse(
       "Try listing the outcomes that satisfy the conditional probability first.",
-    )
+    );
 
-    await exhaustApprovedHelp("no-self-echo-test")
+    await exhaustApprovedHelp("no-self-echo-test");
     const response = await createTutorResponse({
       answer: "I still don't understand this at all.",
       allowLlmFallback: true,
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "no-self-echo-test",
-    })
+    });
 
-    expect(response.source).toBe("llm")
-    expect(response.message).not.toContain("I found an approved course pattern")
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
-  })
+    expect(response.source).toBe("llm");
+    expect(response.message).not.toContain(
+      "I found an approved course pattern",
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 
   it("uses LLM fallback for low-confidence answer coaching without grading correct", async () => {
     const fetchImpl = mockLlmResponse(
       "Focus on identifying the conditioned sample space first, then compare your expression with that smaller denominator.",
-    )
+    );
 
-    await exhaustApprovedHelp("llm-low-confidence-test")
+    await exhaustApprovedHelp("llm-low-confidence-test");
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "llm-low-confidence-test",
-    })
+    });
     const second = await createTutorResponse({
       answer: "  I AM NOT SURE HOW TO EXPRESS THIS SETUP.  ",
       allowLlmFallback: true,
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "llm-low-confidence-test",
-    })
-    const payload = llmRequestPayload(fetchImpl)
-    const userPrompt = payload.messages[1]?.content ?? ""
+    });
+    const payload = llmRequestPayload(fetchImpl);
+    const userPrompt = payload.messages[1]?.content ?? "";
 
-    expect(response.source).toBe("llm")
-    expect(response.verdict).toBe("guidance")
-    expect(response.responseLabel).toBe("approved_course_content")
-    expect(response.usage.contextUsed).toBe(true)
-    expect(response.usage.fallbackUsed).toBe(true)
-    expect(response.progress?.state).toBe("llm_guidance")
-    expect(response.progress?.solved).toBe(false)
-    expect(response.steps).toHaveLength(0)
-    expect(userPrompt).toContain("low_confidence_answer_help")
-    expect(userPrompt).toContain('"confidence": 0.1')
-    expect(userPrompt).not.toContain("2/5")
-    expect(second.source).toBe("llm")
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(response.source).toBe("llm");
+    expect(response.verdict).toBe("guidance");
+    expect(response.responseLabel).toBe("approved_course_content");
+    expect(response.usage.contextUsed).toBe(true);
+    expect(response.usage.fallbackUsed).toBe(true);
+    expect(response.progress?.state).toBe("llm_guidance");
+    expect(response.progress?.solved).toBe(false);
+    expect(response.steps).toHaveLength(0);
+    expect(userPrompt).toContain("low_confidence_answer_help");
+    expect(userPrompt).toContain('"confidence": 0.1');
+    expect(userPrompt).not.toContain("2/5");
+    expect(second.source).toBe("llm");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(
       getTutorAttemptSnapshotsForTests().findLast(
         (attempt) => attempt.source === "llm",
@@ -619,31 +630,31 @@ describe("tutor engine", () => {
       fallbackUsed: true,
       responseLabel: "approved_course_content",
       source: "llm",
-    })
-  })
+    });
+  });
 
   it("surfaces the LLM's own message when the provider request fails", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(new Response("bad request", { status: 400 }))
-    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
-    vi.stubGlobal("fetch", fetchImpl)
+      .mockResolvedValue(new Response("bad request", { status: 400 }));
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchImpl);
 
-    await exhaustApprovedHelp("llm-failure-retrieval-test")
+    await exhaustApprovedHelp("llm-failure-retrieval-test");
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "llm-failure-retrieval-test",
-    })
+    });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(response.source).toBe("llm")
-    expect(response.usage.fallbackUsed).toBe(false)
-    expect(response.message).toContain("rejected the fallback request")
-    expect(response.progress?.llmUsed).toBe(true)
-  })
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(response.source).toBe("llm");
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.message).toContain("rejected the fallback request");
+    expect(response.progress?.llmUsed).toBe(true);
+  });
 
   it("records lightweight tutor attempt snapshots", async () => {
     const response = await createTutorResponse({
@@ -651,11 +662,11 @@ describe("tutor engine", () => {
       mode: "check",
       questionId: "dice-sum-eight",
       sessionId: "attempt-snapshot-test",
-    })
-    const attempts = getTutorAttemptSnapshotsForTests()
+    });
+    const attempts = getTutorAttemptSnapshotsForTests();
 
-    expect(response.verdict).toBe("incorrect")
-    expect(attempts).toHaveLength(1)
+    expect(response.verdict).toBe("incorrect");
+    expect(attempts).toHaveLength(1);
     expect(attempts[0]).toMatchObject({
       answerPreview: "1/5",
       mode: "check",
@@ -666,20 +677,19 @@ describe("tutor engine", () => {
       fallbackUsed: false,
       responseLabel: "approved_course_content",
       verdict: "incorrect",
-    })
-  })
+    });
+  });
+});
 
-})
-
-type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
 
 type LlmRequestPayload = {
-  max_tokens?: number
+  max_tokens?: number;
   messages: Array<{
-    content?: string
-    role?: string
-  }>
-}
+    content?: string;
+    role?: string;
+  }>;
+};
 
 function mockLlmResponse(text: string): FetchMock {
   const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
@@ -695,23 +705,23 @@ function mockLlmResponse(text: string): FetchMock {
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
-  )
+  );
 
-  vi.stubEnv("OPENROUTER_API_KEY", "test-key")
-  vi.stubGlobal("fetch", fetchImpl)
+  vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+  vi.stubGlobal("fetch", fetchImpl);
 
-  return fetchImpl
+  return fetchImpl;
 }
 
 function llmRequestPayload(fetchImpl: FetchMock) {
-  const init = fetchImpl.mock.calls[0]?.[1]
-  const body = typeof init?.body === "string" ? init.body : ""
+  const init = fetchImpl.mock.calls[0]?.[1];
+  const body = typeof init?.body === "string" ? init.body : "";
 
   if (!body) {
-    throw new Error("Expected LLM fallback request body.")
+    throw new Error("Expected LLM fallback request body.");
   }
 
-  return JSON.parse(body) as LlmRequestPayload
+  return JSON.parse(body) as LlmRequestPayload;
 }
 
 async function exhaustApprovedHelp(sessionId: string) {
@@ -721,7 +731,7 @@ async function exhaustApprovedHelp(sessionId: string) {
       mode: "hint",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
   }
 
   for (let index = 0; index < 3; index += 1) {
@@ -730,7 +740,7 @@ async function exhaustApprovedHelp(sessionId: string) {
       mode: "solution",
       questionId: "dice-sum-eight",
       sessionId,
-    })
+    });
   }
 }
 
@@ -739,22 +749,22 @@ function contentRepositoryWithChunks(
 ): ContentRepository {
   return {
     async getAdminQuestions() {
-      return []
+      return [];
     },
     async getApprovedQuestionById() {
-      return undefined
+      return undefined;
     },
     async getApprovedQuestions() {
-      return []
+      return [];
     },
     async getQuestionById() {
-      return undefined
+      return undefined;
     },
     async getQuestionCounts() {
       return {
         byTopic: {},
         total: 0,
-      }
+      };
     },
     async getProfessorPracticeAnalytics() {
       return {
@@ -775,25 +785,25 @@ function contentRepositoryWithChunks(
           totalTutorSessions: 0,
         },
         topics: [],
-      }
+      };
     },
     async getRetrievalChunks() {
-      return retrievalChunks
+      return retrievalChunks;
     },
     async getReviewQueue() {
-      return []
+      return [];
     },
     async getTopics() {
-      return []
+      return [];
     },
     async listQuestions() {
-      return []
+      return [];
     },
     async listQuestionsByTopic() {
-      return []
+      return [];
     },
     async listTopics() {
-      return []
+      return [];
     },
     async importReviewCandidates() {
       return {
@@ -802,37 +812,37 @@ function contentRepositoryWithChunks(
         message: "Imported into test repository.",
         mode: "demo",
         nonDurable: true,
-      }
+      };
     },
     async updateReviewCandidates() {
-      return []
+      return [];
     },
     async updateAdminQuestions() {
-      return []
+      return [];
     },
     async updateAdminQuestionDetail() {
-      return undefined
+      return undefined;
     },
     async regenerateAdminQuestion() {
-      return undefined
+      return undefined;
     },
     async updateReviewCandidateStatus() {
-      return undefined
+      return undefined;
     },
-  }
+  };
 }
 
 function retrievalChunkFixture(
   overrides: Partial<{
-    body: string
-    id: string
-    keywords: string[]
-    llmSafeSummary: string
-    priorityTier: RetrievalChunk["priorityTier"]
-    sourceType: RetrievalChunk["source"]["sourceType"]
-    topicId: string
-    trustLevel: RetrievalChunk["source"]["trustLevel"]
-    visibility: RetrievalChunk["source"]["visibility"]
+    body: string;
+    id: string;
+    keywords: string[];
+    llmSafeSummary: string;
+    priorityTier: RetrievalChunk["priorityTier"];
+    sourceType: RetrievalChunk["source"]["sourceType"];
+    topicId: string;
+    trustLevel: RetrievalChunk["source"]["trustLevel"];
+    visibility: RetrievalChunk["source"]["visibility"];
   }>,
 ): RetrievalChunk {
   return {
@@ -854,13 +864,13 @@ function retrievalChunkFixture(
     },
     title: "Label test retrieval chunk",
     topicId: overrides.topicId ?? "label-topic",
-  }
+  };
 }
 
 describe("content provenance and review metadata", () => {
   beforeEach(() => {
-    resetReviewQueueForTests()
-  })
+    resetReviewQueueForTests();
+  });
 
   it("exposes the required source, review, and trust vocabularies", () => {
     expect(SOURCE_TYPES).toEqual([
@@ -869,37 +879,37 @@ describe("content provenance and review metadata", () => {
       "generated_original",
       "pattern_derived_original",
       "private_reference_pattern",
-    ])
+    ]);
     expect(REVIEW_STATUSES).toEqual([
       "approved",
       "needs_review",
       "rejected",
       "needs_edit",
       "needs_regeneration",
-    ])
-    expect(TRUST_LEVELS).toContain("generated_unverified")
-  })
+    ]);
+    expect(TRUST_LEVELS).toContain("generated_unverified");
+  });
 
   it("returns only approved public trusted questions for student practice", async () => {
-    const questions = await getApprovedQuestions()
-    const chunks = await getRetrievalChunks()
+    const questions = await getApprovedQuestions();
+    const chunks = await getRetrievalChunks();
 
-    expect(questions.length).toBeGreaterThan(0)
-    expect(questions.every(isStudentFacingQuestion)).toBe(true)
-    expect(chunks.length).toBeGreaterThan(0)
-    expect(chunks.every(isStudentFacingRetrievalChunk)).toBe(true)
+    expect(questions.length).toBeGreaterThan(0);
+    expect(questions.every(isStudentFacingQuestion)).toBe(true);
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.every(isStudentFacingRetrievalChunk)).toBe(true);
     expect(
       questions.every(
         (question) => question.source.trustLevel !== "generated_unverified",
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(
       await getApprovedQuestionById("generated-bayes-campus-badges-1"),
-    ).toBeUndefined()
+    ).toBeUndefined();
     for (const candidate of generatedReviewCandidates) {
-      expect(await getApprovedQuestionById(candidate.id)).toBeUndefined()
+      expect(await getApprovedQuestionById(candidate.id)).toBeUndefined();
     }
-  })
+  });
 
   it("exposes a consistent student-facing data repository API", async () => {
     const [topics, questions, conditionalQuestions, counts] = await Promise.all(
@@ -909,18 +919,18 @@ describe("content provenance and review metadata", () => {
         listQuestionsByTopic("conditional-probability"),
         getQuestionCounts(),
       ],
-    )
-    const question = await getQuestionById("dice-sum-eight")
+    );
+    const question = await getQuestionById("dice-sum-eight");
 
-    expect(topics).toHaveLength(11)
-    expect(questions).toHaveLength(8)
-    expect(question?.id).toBe("dice-sum-eight")
+    expect(topics).toHaveLength(11);
+    expect(questions).toHaveLength(8);
+    expect(question?.id).toBe("dice-sum-eight");
     expect(conditionalQuestions.map((item) => item.id)).toEqual([
       "demo-conditional-spinner-coin",
       "dice-sum-eight",
-    ])
-    expect(counts.total).toBe(questions.length)
-    expect(counts.byTopic["conditional-probability"]).toBe(2)
+    ]);
+    expect(counts.total).toBe(questions.length);
+    expect(counts.byTopic["conditional-probability"]).toBe(2);
     expect(
       questions.every(
         (item) =>
@@ -928,38 +938,38 @@ describe("content provenance and review metadata", () => {
           item.source.visibility === "public" &&
           item.source.trustLevel !== "generated_unverified",
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("falls back to demo data when configured database reads are unavailable", async () => {
     try {
-      vi.stubEnv("APP_DEMO_MODE", "false")
-      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+      vi.stubEnv("APP_DEMO_MODE", "false");
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db");
 
       const [questions, counts] = await Promise.all([
         listQuestions(),
         getQuestionCounts(),
-      ])
+      ]);
 
-      expect(getContentRepositoryMode()).toBe("database")
+      expect(getContentRepositoryMode()).toBe("database");
       expect(questions.map((question) => question.id)).toContain(
         "dice-sum-eight",
-      )
-      expect(counts.total).toBe(8)
+      );
+      expect(counts.total).toBe(8);
       expect(
         questions.every(
           (question) => question.source.trustLevel !== "generated_unverified",
         ),
-      ).toBe(true)
+      ).toBe(true);
     } finally {
-      vi.unstubAllEnvs()
+      vi.unstubAllEnvs();
     }
-  })
+  });
 
   it("reports clear repository metadata for demo and database modes", () => {
     try {
-      vi.stubEnv("APP_DEMO_MODE", "true")
-      vi.stubEnv("DATABASE_URL", "")
+      vi.stubEnv("APP_DEMO_MODE", "true");
+      vi.stubEnv("DATABASE_URL", "");
 
       expect(getDataRepositoryMetadata()).toMatchObject({
         databaseConfigured: false,
@@ -967,10 +977,10 @@ describe("content provenance and review metadata", () => {
         mode: "demo",
         operatingMode: "test-demo",
         source: "demo-json",
-      })
+      });
 
-      vi.stubEnv("APP_DEMO_MODE", "false")
-      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+      vi.stubEnv("APP_DEMO_MODE", "false");
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db");
 
       expect(getDataRepositoryMetadata()).toMatchObject({
         databaseConfigured: true,
@@ -978,17 +988,17 @@ describe("content provenance and review metadata", () => {
         mode: "database",
         operatingMode: "test-database",
         source: "postgres",
-      })
+      });
     } finally {
-      vi.unstubAllEnvs()
+      vi.unstubAllEnvs();
     }
-  })
+  });
 
   it("keeps generated questions in needs-review status by default", async () => {
-    const queue = await getReviewQueue()
+    const queue = await getReviewQueue();
     const additionalDrafts = queue.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),
-    )
+    );
 
     expect(queue).toHaveLength(
       generatedReviewCandidates.length +
@@ -996,8 +1006,8 @@ describe("content provenance and review metadata", () => {
         nextSyllabusReviewCandidates.length +
         followingSyllabusReviewCandidates.length +
         nextUncoveredSyllabusReviewCandidates.length,
-    )
-    expect(additionalDrafts).toHaveLength(12)
+    );
+    expect(additionalDrafts).toHaveLength(12);
     expect(
       queue.every(
         (candidate) =>
@@ -1007,8 +1017,8 @@ describe("content provenance and review metadata", () => {
           candidate.hints.length > 0 &&
           candidate.solutionSteps.length > 0,
       ),
-    ).toBe(true)
-  })
+    ).toBe(true);
+  });
 
   it("keeps generated review candidate files public-safe", () => {
     const forbiddenPublicKeys = [
@@ -1018,20 +1028,20 @@ describe("content provenance and review metadata", () => {
       "sourceNumberSets",
       "sourceStoryFamilies",
       "patternIds",
-    ]
+    ];
     const serialized = JSON.stringify([
       ...generatedReviewCandidates,
       ...syllabusReviewCandidates,
       ...nextSyllabusReviewCandidates,
       ...followingSyllabusReviewCandidates,
       ...nextUncoveredSyllabusReviewCandidates,
-    ])
+    ]);
     const additionalDrafts = generatedReviewCandidates.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),
-    )
+    );
 
-    expect(generatedReviewCandidates).toHaveLength(14)
-    expect(additionalDrafts).toHaveLength(12)
+    expect(generatedReviewCandidates).toHaveLength(14);
+    expect(additionalDrafts).toHaveLength(12);
     expect(
       generatedReviewCandidates.every(
         (candidate) =>
@@ -1048,13 +1058,13 @@ describe("content provenance and review metadata", () => {
           candidate.solutionSteps.length > 0 &&
           candidate.misconceptions.length > 0,
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(serialized).not.toMatch(
       /textbook|source page|answer key|worked example|copied from|free throw/i,
-    )
+    );
 
     for (const key of forbiddenPublicKeys) {
-      expect(serialized).not.toContain(key)
+      expect(serialized).not.toContain(key);
     }
 
     expect(additionalDrafts.map((candidate) => candidate.topic)).toEqual(
@@ -1066,8 +1076,8 @@ describe("content provenance and review metadata", () => {
         "Variance",
         "Counting and combinations",
       ]),
-    )
-  })
+    );
+  });
 
   it("keeps generated development examples public-safe", () => {
     const forbiddenPublicKeys = [
@@ -1077,11 +1087,11 @@ describe("content provenance and review metadata", () => {
       "sourceNumberSets",
       "sourceStoryFamilies",
       "patternIds",
-    ]
-    const serialized = JSON.stringify(generatedExamples)
+    ];
+    const serialized = JSON.stringify(generatedExamples);
 
-    expect(generatedExamples.visibility).toBe("public")
-    expect(generatedExamples.examples.length).toBeGreaterThan(0)
+    expect(generatedExamples.visibility).toBe("public");
+    expect(generatedExamples.examples.length).toBeGreaterThan(0);
     expect(
       generatedExamples.examples.every(
         (example) =>
@@ -1091,15 +1101,15 @@ describe("content provenance and review metadata", () => {
           example.source.visibility === "public" &&
           example.source.originalityNote.length > 0,
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(serialized).not.toMatch(
       /textbook|source page|answer key|worked example|copied from|free throw/i,
-    )
+    );
 
     for (const key of forbiddenPublicKeys) {
-      expect(serialized).not.toContain(key)
+      expect(serialized).not.toContain(key);
     }
-  })
+  });
 
   it("validates public-safe demo question seed patterns", () => {
     const requiredTopics = [
@@ -1115,22 +1125,22 @@ describe("content provenance and review metadata", () => {
       "hypergeometric distribution",
       "variance",
       "normal approximation",
-    ]
-    const serialized = JSON.stringify(demoQuestionPatterns)
+    ];
+    const serialized = JSON.stringify(demoQuestionPatterns);
 
     execFileSync("node", ["scripts/validate-demo-question-patterns.mjs"], {
       cwd: process.cwd(),
       stdio: "pipe",
-    })
-    expect(demoQuestionPatterns.visibility).toBe("public")
-    expect(demoQuestionPatterns.patterns).toHaveLength(requiredTopics.length)
+    });
+    expect(demoQuestionPatterns.visibility).toBe("public");
+    expect(demoQuestionPatterns.patterns).toHaveLength(requiredTopics.length);
 
     for (const topic of requiredTopics) {
       expect(
         demoQuestionPatterns.patterns.some(
           (pattern) => pattern.topic === topic,
         ),
-      ).toBe(true)
+      ).toBe(true);
     }
 
     expect(
@@ -1143,43 +1153,43 @@ describe("content provenance and review metadata", () => {
           pattern.generationNotes.length > 0 &&
           pattern.misconceptionHooks.length > 0,
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(serialized).not.toMatch(
       /sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|patternIds|source page|answer key/i,
-    )
-  })
+    );
+  });
 
   it("prepares reviewable public database seed SQL from safe fixtures", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-"))
-    const outputPath = path.join(tempDir, "public-db-seed.sql")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-"));
+    const outputPath = path.join(tempDir, "public-db-seed.sql");
 
     execFileSync("npm", ["run", "db:seed", "--", "--output", outputPath], {
       cwd: process.cwd(),
       stdio: "pipe",
-    })
+    });
 
-    const sql = readFileSync(outputPath, "utf8")
+    const sql = readFileSync(outputPath, "utf8");
 
-    expect(sql).toContain("insert into topics")
-    expect(sql).toContain("insert into questions")
-    expect(sql).toContain("insert into hints")
-    expect(sql).toContain("insert into solution_steps")
-    expect(sql).not.toContain("insert into question_patterns")
-    expect(sql).not.toContain("generated-bayes-campus-badges-1")
-    expect(sql).not.toContain("generated_unverified")
-    expect(sql).not.toContain("needs_review")
+    expect(sql).toContain("insert into topics");
+    expect(sql).toContain("insert into questions");
+    expect(sql).toContain("insert into hints");
+    expect(sql).toContain("insert into solution_steps");
+    expect(sql).not.toContain("insert into question_patterns");
+    expect(sql).not.toContain("generated-bayes-campus-badges-1");
+    expect(sql).not.toContain("generated_unverified");
+    expect(sql).not.toContain("needs_review");
     expect(sql).not.toMatch(
       /source page|answer key|worked example|copied from|verbatim|raw extracted|private chunk|embedding/i,
-    )
-  })
+    );
+  });
 
   it("optionally includes approved generated questions in seed SQL", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-approved-"))
-    const outputPath = path.join(tempDir, "public-db-seed.sql")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "db-seed-approved-"));
+    const outputPath = path.join(tempDir, "public-db-seed.sql");
     const approvedGeneratedPath = path.join(
       tempDir,
       "approved-generated-questions.json",
-    )
+    );
 
     writeFileSync(
       approvedGeneratedPath,
@@ -1223,7 +1233,7 @@ describe("content provenance and review metadata", () => {
         null,
         2,
       )}\n`,
-    )
+    );
 
     execFileSync(
       "npm",
@@ -1238,22 +1248,22 @@ describe("content provenance and review metadata", () => {
         approvedGeneratedPath,
       ],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const sql = readFileSync(outputPath, "utf8")
+    const sql = readFileSync(outputPath, "utf8");
 
-    expect(sql).toContain("approved-generated-seed-fixture")
-    expect(sql).toContain("insert into misconceptions")
-    expect(sql).toContain("professor_approved")
-    expect(sql).not.toContain("generated_unverified")
-    expect(sql).not.toContain("needs_review")
-  })
+    expect(sql).toContain("approved-generated-seed-fixture");
+    expect(sql).toContain("insert into misconceptions");
+    expect(sql).toContain("professor_approved");
+    expect(sql).not.toContain("generated_unverified");
+    expect(sql).not.toContain("needs_review");
+  });
 
   it("defines the requested public-safe database tables", () => {
     const migration = readFileSync(
       path.join(process.cwd(), "db/migrations/001_initial_schema.sql"),
       "utf8",
-    )
+    );
     const requiredTables = [
       "topics",
       "questions",
@@ -1264,21 +1274,21 @@ describe("content provenance and review metadata", () => {
       "attempts",
       "ai_usage",
       "ai_response_cache",
-    ]
+    ];
 
     for (const tableName of requiredTables) {
       expect(migration).toMatch(
         new RegExp(`create table if not exists ${tableName}\\b`),
-      )
+      );
     }
 
-    expect(migration).toContain("review_status")
-    expect(migration).toContain("trust_level")
-    expect(migration).toContain("source_type")
-    expect(migration).toContain("app_public_questions")
-    expect(migration).not.toMatch(/create table if not exists .*embedding/i)
-    expect(migration).not.toMatch(/create table if not exists .*chunk/i)
-  })
+    expect(migration).toContain("review_status");
+    expect(migration).toContain("trust_level");
+    expect(migration).toContain("source_type");
+    expect(migration).toContain("app_public_questions");
+    expect(migration).not.toMatch(/create table if not exists .*embedding/i);
+    expect(migration).not.toMatch(/create table if not exists .*chunk/i);
+  });
 
   it("rejects public database seed payloads with private fields", () => {
     const result = spawnSync(
@@ -1299,11 +1309,11 @@ describe("content provenance and review metadata", () => {
         ].join(" "),
       ],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(0)
-    expect(result.stderr).toContain("locator")
-  })
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("locator");
+  });
 
   it("rejects unapproved generated questions when optional seed input is enabled", () => {
     const result = spawnSync(
@@ -1322,12 +1332,12 @@ describe("content provenance and review metadata", () => {
         ].join(" "),
       ],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(0)
-    expect(result.stderr).toContain("reviewStatus must be approved")
-    expect(result.stderr).toContain("trustLevel must be professor_approved")
-  })
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("reviewStatus must be approved");
+    expect(result.stderr).toContain("trustLevel must be professor_approved");
+  });
 
   it("excludes private reference items from student-facing access", () => {
     const privateReferenceQuestion: TutorQuestion = {
@@ -1351,10 +1361,10 @@ describe("content provenance and review metadata", () => {
       review: {
         status: "approved",
       },
-    }
+    };
 
-    expect(isStudentFacingQuestion(privateReferenceQuestion)).toBe(false)
-  })
+    expect(isStudentFacingQuestion(privateReferenceQuestion)).toBe(false);
+  });
 
   it("keeps generated-unverified database rows out of student-facing access", () => {
     const draftQuestion = mapQuestionRow({
@@ -1378,56 +1388,56 @@ describe("content provenance and review metadata", () => {
       topic_id: "basic-probability",
       trust_level: "generated_unverified",
       visibility: "public",
-    })
+    });
 
-    expect(isStudentFacingQuestion(draftQuestion)).toBe(false)
+    expect(isStudentFacingQuestion(draftQuestion)).toBe(false);
     expect(approvedPublicWhereClauseForTests()).toContain(
       "review_status = 'approved'",
-    )
+    );
     expect(approvedPublicWhereClauseForTests()).toContain(
       "visibility = 'public'",
-    )
-  })
+    );
+  });
 
   it("uses demo content only when demo mode is explicit", () => {
     try {
-      vi.stubEnv("APP_DEMO_MODE", "true")
-      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db")
+      vi.stubEnv("APP_DEMO_MODE", "true");
+      vi.stubEnv("DATABASE_URL", "postgres://user:pass@example.test/db");
 
-      expect(getContentRepositoryMode()).toBe("demo")
+      expect(getContentRepositoryMode()).toBe("demo");
 
-      vi.stubEnv("APP_DEMO_MODE", "false")
+      vi.stubEnv("APP_DEMO_MODE", "false");
 
-      expect(getContentRepositoryMode()).toBe("database")
+      expect(getContentRepositoryMode()).toBe("database");
 
-      vi.stubEnv("DATABASE_URL", "")
+      vi.stubEnv("DATABASE_URL", "");
 
-      expect(getContentRepositoryMode()).toBe("database")
+      expect(getContentRepositoryMode()).toBe("database");
       expect(getDataRepositoryMetadata()).toMatchObject({
         databaseConfigured: false,
         demoFallbackEnabled: true,
         mode: "database",
         operatingMode: "test-database",
-      })
+      });
     } finally {
-      vi.unstubAllEnvs()
+      vi.unstubAllEnvs();
     }
-  })
-})
+  });
+});
 
 describe("problem-pattern generation pipeline", () => {
   it("generates private original question drafts from public seed patterns", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "generated-questions-"))
-    const outputPath = path.join(tempDir, "generated-questions.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "generated-questions-"));
+    const outputPath = path.join(tempDir, "generated-questions.json");
 
     execFileSync(
       "node",
       ["scripts/generate-questions.mjs", "--output", outputPath],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
-    const questions = payload.questions as GeneratedQuestionDraft[]
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"));
+    const questions = payload.questions as GeneratedQuestionDraft[];
     const expectedTopics = [
       "basic probability",
       "counting",
@@ -1441,13 +1451,13 @@ describe("problem-pattern generation pipeline", () => {
       "hypergeometric distribution",
       "variance",
       "normal approximation",
-    ]
+    ];
 
-    expect(payload.visibility).toBe("private")
+    expect(payload.visibility).toBe("private");
     expect(payload.source.type).toBe(
       "deterministic_generation_from_public_seed_patterns",
-    )
-    expect(questions).toHaveLength(expectedTopics.length)
+    );
+    expect(questions).toHaveLength(expectedTopics.length);
     expect(
       questions.every(
         (question) =>
@@ -1461,40 +1471,40 @@ describe("problem-pattern generation pipeline", () => {
           question.hints.length > 0 &&
           question.misconceptions.length > 0,
       ),
-    ).toBe(true)
-    expect(questions.map((question) => question.topic)).toEqual(expectedTopics)
+    ).toBe(true);
+    expect(questions.map((question) => question.topic)).toEqual(expectedTopics);
     expect(JSON.stringify(payload)).not.toMatch(
       /textbook|source page|answer key|worked example|free throw/i,
-    )
-  })
+    );
+  });
 
   it("validates generated question drafts", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "validate-generated-"))
-    const outputPath = path.join(tempDir, "generated-questions.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "validate-generated-"));
+    const outputPath = path.join(tempDir, "generated-questions.json");
 
     execFileSync(
       "node",
       ["scripts/generate-questions.mjs", "--output", outputPath],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
     const result = spawnSync(
       "node",
       ["scripts/validate-generated-questions.mjs", "--input", outputPath],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain("Validated 12 generated question draft")
-  })
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Validated 12 generated question draft");
+  });
 
   it("suggests private abstract patterns from course outline metadata", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "suggest-patterns-"))
-    const inputPath = path.join(tempDir, "course-outline.json")
-    const privateTextDir = path.join(tempDir, "private-text")
-    const outputPath = path.join(tempDir, "suggested-patterns.json")
-    const privatePhrase = "private fixture phrase that must not be copied"
+    const tempDir = mkdtempSync(path.join(tmpdir(), "suggest-patterns-"));
+    const inputPath = path.join(tempDir, "course-outline.json");
+    const privateTextDir = path.join(tempDir, "private-text");
+    const outputPath = path.join(tempDir, "suggested-patterns.json");
+    const privatePhrase = "private fixture phrase that must not be copied";
 
-    mkdirSync(privateTextDir)
+    mkdirSync(privateTextDir);
     writeFileSync(
       inputPath,
       `${JSON.stringify(
@@ -1518,11 +1528,11 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
     writeFileSync(
       path.join(privateTextDir, "signals.txt"),
       `${privatePhrase} variance standard deviation normal`,
-    )
+    );
 
     execFileSync(
       "node",
@@ -1536,25 +1546,25 @@ describe("problem-pattern generation pipeline", () => {
         outputPath,
       ],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"));
     const suggestedPatterns = payload.suggestedPatterns as {
-      abstractTemplate: string
-      allowedGeneratedUse: string
-      humanReviewNotes: string[]
-      reviewStatus: string
-      suggestionStatus: string
-    }[]
-    const serialized = JSON.stringify(payload)
+      abstractTemplate: string;
+      allowedGeneratedUse: string;
+      humanReviewNotes: string[];
+      reviewStatus: string;
+      suggestionStatus: string;
+    }[];
+    const serialized = JSON.stringify(payload);
 
-    expect(payload.visibility).toBe("private")
+    expect(payload.visibility).toBe("private");
     expect(payload.source.type).toBe(
       "course_outline_metadata_pattern_suggestions",
-    )
-    expect(payload.source.privateText.fileCount).toBe(1)
-    expect(payload.source.privateText.usedForTopicSignalsOnly).toBe(true)
-    expect(suggestedPatterns.length).toBeGreaterThan(0)
+    );
+    expect(payload.source.privateText.fileCount).toBe(1);
+    expect(payload.source.privateText.usedForTopicSignalsOnly).toBe(true);
+    expect(suggestedPatterns.length).toBeGreaterThan(0);
     expect(
       suggestedPatterns.every(
         (pattern) =>
@@ -1565,27 +1575,27 @@ describe("problem-pattern generation pipeline", () => {
           !pattern.abstractTemplate.includes("?") &&
           pattern.humanReviewNotes.length > 0,
       ),
-    ).toBe(true)
-    expect(payload.humanReviewNotes.length).toBeGreaterThan(0)
+    ).toBe(true);
+    expect(payload.humanReviewNotes.length).toBeGreaterThan(0);
     expect(payload.source.privateText.matchedTopicIds).toContain(
       "normal-standardization",
-    )
-    expect(serialized).not.toContain(privatePhrase)
+    );
+    expect(serialized).not.toContain(privatePhrase);
     expect(serialized).not.toMatch(
       /"prompt"|"questionText"|"solutionSteps"|source page|answer key|worked example|copied from/i,
-    )
-  })
+    );
+  });
 
   it("prepares a private review queue from generated question drafts", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "review-queue-"))
-    const generatedPath = path.join(tempDir, "generated-questions.json")
-    const queuePath = path.join(tempDir, "review-queue.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "review-queue-"));
+    const generatedPath = path.join(tempDir, "generated-questions.json");
+    const queuePath = path.join(tempDir, "review-queue.json");
 
     execFileSync(
       "node",
       ["scripts/generate-questions.mjs", "--output", generatedPath],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
     execFileSync(
       "node",
       [
@@ -1596,14 +1606,14 @@ describe("problem-pattern generation pipeline", () => {
         queuePath,
       ],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const payload = JSON.parse(readFileSync(queuePath, "utf8"))
-    const reviewQueue = payload.reviewQueue as GeneratedQuestionReviewItem[]
+    const payload = JSON.parse(readFileSync(queuePath, "utf8"));
+    const reviewQueue = payload.reviewQueue as GeneratedQuestionReviewItem[];
 
-    expect(payload.visibility).toBe("private")
-    expect(payload.source.type).toBe("generated_original_questions")
-    expect(reviewQueue).toHaveLength(12)
+    expect(payload.visibility).toBe("private");
+    expect(payload.source.type).toBe("generated_original_questions");
+    expect(reviewQueue).toHaveLength(12);
     expect(
       reviewQueue.every(
         (item) =>
@@ -1616,16 +1626,16 @@ describe("problem-pattern generation pipeline", () => {
           item.originalityNote.length > 0 &&
           item.reviewStatus === "needs_review",
       ),
-    ).toBe(true)
+    ).toBe(true);
     expect(JSON.stringify(payload)).not.toMatch(
       /source page|answer key|worked example|copied from/i,
-    )
-  })
+    );
+  });
 
   it("promotes only approved generated questions to public processed output", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-approved-"))
-    const queuePath = path.join(tempDir, "review-queue.json")
-    const outputPath = path.join(tempDir, "approved-generated-questions.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-approved-"));
+    const queuePath = path.join(tempDir, "review-queue.json");
+    const outputPath = path.join(tempDir, "approved-generated-questions.json");
 
     writeFileSync(
       queuePath,
@@ -1643,7 +1653,7 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
     execFileSync(
       "node",
       [
@@ -1654,33 +1664,33 @@ describe("problem-pattern generation pipeline", () => {
         outputPath,
       ],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const payload = JSON.parse(readFileSync(outputPath, "utf8"))
-    const questions = payload.questions as ApprovedGeneratedQuestion[]
+    const payload = JSON.parse(readFileSync(outputPath, "utf8"));
+    const questions = payload.questions as ApprovedGeneratedQuestion[];
 
-    expect(payload.visibility).toBe("public")
-    expect(questions).toHaveLength(1)
-    expect(questions[0].id).toBe("approved-approved-item")
-    expect(questions[0].reviewStatus).toBe("approved")
-    expect(questions[0].trustLevel).toBe("professor_approved")
-    expect(questions[0].sourceMetadata.sourceType).toBe("generated_original")
+    expect(payload.visibility).toBe("public");
+    expect(questions).toHaveLength(1);
+    expect(questions[0].id).toBe("approved-approved-item");
+    expect(questions[0].reviewStatus).toBe("approved");
+    expect(questions[0].trustLevel).toBe("professor_approved");
+    expect(questions[0].sourceMetadata.sourceType).toBe("generated_original");
     expect(questions[0].sourceMetadata.originalityNote).toBe(
       "Original synthetic fixture.",
-    )
+    );
     expect(JSON.stringify(payload)).not.toMatch(
       /needs-review-item|rejected-item|needs-edit-item|source page|answer key|worked example/i,
-    )
-  })
+    );
+  });
 
   it("refuses to promote approved items with copied-source signals", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-blocked-"))
-    const queuePath = path.join(tempDir, "review-queue.json")
-    const outputPath = path.join(tempDir, "approved-generated-questions.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "promote-blocked-"));
+    const queuePath = path.join(tempDir, "review-queue.json");
+    const outputPath = path.join(tempDir, "approved-generated-questions.json");
     const copiedItem = {
       ...reviewQueueFixture("copied-item", "approved"),
       question: "This question was copied from a textbook source page.",
-    }
+    };
 
     writeFileSync(
       queuePath,
@@ -1693,7 +1703,7 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
 
     const result = spawnSync(
       "node",
@@ -1705,15 +1715,15 @@ describe("problem-pattern generation pipeline", () => {
         outputPath,
       ],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain("cannot be promoted")
-  })
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("cannot be promoted");
+  });
 
   it("rejects generated drafts with missing required review fields", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "invalid-generated-"))
-    const inputPath = path.join(tempDir, "generated-questions.json")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "invalid-generated-"));
+    const inputPath = path.join(tempDir, "generated-questions.json");
 
     writeFileSync(
       inputPath,
@@ -1742,29 +1752,29 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
 
     const result = spawnSync(
       "node",
       ["scripts/validate-generated-questions.mjs", "--input", inputPath],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain("finalAnswer")
-    expect(result.stderr).toContain("reviewStatus must be needs_review")
-    expect(result.stderr).toContain("solutionSteps")
-    expect(result.stderr).toContain("hints")
-    expect(result.stderr).toContain("originalityNote")
-  })
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("finalAnswer");
+    expect(result.stderr).toContain("reviewStatus must be needs_review");
+    expect(result.stderr).toContain("solutionSteps");
+    expect(result.stderr).toContain("hints");
+    expect(result.stderr).toContain("originalityNote");
+  });
 
   it("warns when generated drafts overlap private patterns or source text", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "warning-generated-"))
-    const inputPath = path.join(tempDir, "generated-questions.json")
-    const privatePatternsPath = path.join(tempDir, "question-patterns.json")
-    const privateTextDir = path.join(tempDir, "private-text")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "warning-generated-"));
+    const inputPath = path.join(tempDir, "generated-questions.json");
+    const privatePatternsPath = path.join(tempDir, "question-patterns.json");
+    const privateTextDir = path.join(tempDir, "private-text");
 
-    mkdirSync(privateTextDir)
+    mkdirSync(privateTextDir);
     writeFileSync(
       inputPath,
       `${JSON.stringify(
@@ -1801,7 +1811,7 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
     writeFileSync(
       privatePatternsPath,
       `${JSON.stringify({
@@ -1816,11 +1826,11 @@ describe("problem-pattern generation pipeline", () => {
           },
         ],
       })}\n`,
-    )
+    );
     writeFileSync(
       path.join(privateTextDir, "source.txt"),
       "A private source sentence repeats exactly enough words to trigger the local overlap warning.",
-    )
+    );
 
     const result = spawnSync(
       "node",
@@ -1834,20 +1844,20 @@ describe("problem-pattern generation pipeline", () => {
         privateTextDir,
       ],
       { cwd: process.cwd(), encoding: "utf8" },
-    )
+    );
 
-    expect(result.status).toBe(0)
-    expect(result.stderr).toContain("WARNING")
-    expect(result.stderr).toContain("private pattern")
-    expect(result.stderr).toContain("private source text")
-  })
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("WARNING");
+    expect(result.stderr).toContain("private pattern");
+    expect(result.stderr).toContain("private source text");
+  });
 
   it("generates original review drafts from private abstract patterns", () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), "pattern-generation-"))
-    const inputPath = path.join(tempDir, "question-patterns.json")
-    const outputPath = path.join(tempDir, "generated-review-candidates.json")
-    const auditPath = path.join(tempDir, "generation-audit.json")
-    const privateTextDir = path.join(tempDir, "private-text")
+    const tempDir = mkdtempSync(path.join(tmpdir(), "pattern-generation-"));
+    const inputPath = path.join(tempDir, "question-patterns.json");
+    const outputPath = path.join(tempDir, "generated-review-candidates.json");
+    const auditPath = path.join(tempDir, "generation-audit.json");
+    const privateTextDir = path.join(tempDir, "private-text");
 
     writeFileSync(
       inputPath,
@@ -1890,7 +1900,7 @@ describe("problem-pattern generation pipeline", () => {
         null,
         2,
       )}\n`,
-    )
+    );
 
     execFileSync(
       "node",
@@ -1906,25 +1916,25 @@ describe("problem-pattern generation pipeline", () => {
         privateTextDir,
       ],
       { cwd: process.cwd(), stdio: "pipe" },
-    )
+    );
 
-    const candidates = JSON.parse(readFileSync(outputPath, "utf8"))
-    const audit = JSON.parse(readFileSync(auditPath, "utf8"))
-    const [candidate] = candidates
+    const candidates = JSON.parse(readFileSync(outputPath, "utf8"));
+    const audit = JSON.parse(readFileSync(auditPath, "utf8"));
+    const [candidate] = candidates;
 
-    expect(candidates).toHaveLength(1)
-    expect(candidate.id).toBe("generated-binomial-study-app-1")
-    expect(candidate.prompt).toContain("8 independent review cards")
-    expect(candidate.prompt).not.toMatch(/free throw/i)
-    expect(candidate.review.status).toBe("needs_review")
-    expect(candidate.source.trustLevel).toBe("generated_unverified")
-    expect(candidate.source).not.toHaveProperty("patternIds")
-    expect(candidate.answer.numericValue).toBeGreaterThan(0.02)
-    expect(candidate.answer.numericValue).toBeLessThan(0.95)
-    expect(audit.generated[0].patternId).toBe("private-binomial-fixture")
-    expect(audit.skipped[0].reason).toContain("topic mapping")
-  })
-})
+    expect(candidates).toHaveLength(1);
+    expect(candidate.id).toBe("generated-binomial-study-app-1");
+    expect(candidate.prompt).toContain("8 independent review cards");
+    expect(candidate.prompt).not.toMatch(/free throw/i);
+    expect(candidate.review.status).toBe("needs_review");
+    expect(candidate.source.trustLevel).toBe("generated_unverified");
+    expect(candidate.source).not.toHaveProperty("patternIds");
+    expect(candidate.answer.numericValue).toBeGreaterThan(0.02);
+    expect(candidate.answer.numericValue).toBeLessThan(0.95);
+    expect(audit.generated[0].patternId).toBe("private-binomial-fixture");
+    expect(audit.skipped[0].reason).toContain("topic mapping");
+  });
+});
 
 function reviewQueueFixture(
   id: string,
@@ -1951,106 +1961,95 @@ function reviewQueueFixture(
     reviewStatus,
     topic: "basic probability",
     difficulty: "foundational",
-  }
+  };
 }
 
 describe("professor review authorization", () => {
-  const originalToken = process.env.ADMIN_SECRET
-
   beforeEach(() => {
-    vi.unstubAllEnvs()
-    if (originalToken === undefined) {
-      delete process.env.ADMIN_SECRET
-    } else {
-      process.env.ADMIN_SECRET = originalToken
-    }
-  })
+    mockPrincipal(TEST_PROFESSOR);
+  });
 
-  it("fails closed when no professor token is configured", () => {
-    delete process.env.ADMIN_SECRET
+  afterEach(() => {
+    resetAuthMocks();
+  });
 
-    const result = authorizeProfessorReview(new Headers())
+  it("fails closed without a session and rejects the student role", async () => {
+    mockPrincipal(undefined);
+    const unauthenticated = await authorizeApiRole("professor");
+    mockPrincipal(TEST_STUDENT);
+    const forbidden = await authorizeApiRole("professor");
 
-    expect(result.authorized).toBe(false)
-    expect(result.status).toBe(503)
-  })
-
-  it("accepts the configured professor token", () => {
-    process.env.ADMIN_SECRET = "local-secret"
-    const headers = new Headers({ "x-professor-token": "local-secret" })
-
-    const result = authorizeProfessorReview(headers)
-
-    expect(result.authorized).toBe(true)
-  })
+    expect(unauthenticated.ok).toBe(false);
+    expect(unauthenticated.ok ? 200 : unauthenticated.response.status).toBe(
+      401,
+    );
+    expect(forbidden.ok).toBe(false);
+    expect(forbidden.ok ? 200 : forbidden.response.status).toBe(403);
+  });
 
   it("maps review API approve and reject actions to review metadata", async () => {
-    process.env.ADMIN_SECRET = "local-secret"
-    resetReviewQueueForTests()
+    resetReviewQueueForTests();
 
     const priorityResponse = await postProfessorReview(
       new Request("http://localhost/api/professor/review", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-professor-token": "local-secret",
         },
         body: JSON.stringify({
           candidateId: "generated-bayes-campus-badges-1",
           reviewPriority: "priority",
         }),
       }),
-    )
+    );
     const approveResponse = await postProfessorReview(
       new Request("http://localhost/api/professor/review", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-professor-token": "local-secret",
         },
         body: JSON.stringify({
           action: "approve",
           candidateId: "generated-bayes-campus-badges-1",
         }),
       }),
-    )
-    const approvedPayload = await approveResponse.json()
+    );
+    const approvedPayload = await approveResponse.json();
 
-    expect(priorityResponse.status).toBe(200)
-    expect(approveResponse.status).toBe(200)
-    expect(approvedPayload.candidate.review.status).toBe("approved")
+    expect(priorityResponse.status).toBe(200);
+    expect(approveResponse.status).toBe(200);
+    expect(approvedPayload.candidate.review.status).toBe("approved");
 
     const rejectResponse = await postProfessorReview(
       new Request("http://localhost/api/professor/review", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-professor-token": "local-secret",
         },
         body: JSON.stringify({
           action: "reject",
           candidateId: "generated-binomial-study-app-1",
         }),
       }),
-    )
-    const rejectedPayload = await rejectResponse.json()
+    );
+    const rejectedPayload = await rejectResponse.json();
 
-    expect(rejectResponse.status).toBe(200)
-    expect(rejectedPayload.candidate.review.status).toBe("rejected")
-  })
-})
+    expect(rejectResponse.status).toBe(200);
+    expect(rejectedPayload.candidate.review.status).toBe("rejected");
+  });
+});
 
 describe("server environment helper", () => {
   beforeEach(() => {
-    vi.unstubAllEnvs()
-    delete process.env.APP_DEMO_MODE
-    delete process.env.AI_MODEL
-  })
+    vi.unstubAllEnvs();
+    delete process.env.APP_DEMO_MODE;
+    delete process.env.AI_MODEL;
+  });
 
   it("provides safe defaults when optional local env values are missing", () => {
-    const env = getServerEnv()
+    const env = getServerEnv();
 
-    expect(env.APP_DEMO_MODE).toBe(true)
-    expect(env.AI_MODEL).toBe("nvidia/nemotron-3-ultra-550b-a55b:free")
-  })
-})
+    expect(env.APP_DEMO_MODE).toBe(true);
+    expect(env.AI_MODEL).toBe("nvidia/nemotron-3-ultra-550b-a55b:free");
+  });
+});

@@ -1,25 +1,18 @@
-"use client"
+"use client";
 
-import {
-  Fragment,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
-  KeyRound,
   Loader2,
   RefreshCw,
   RotateCcw,
   Search,
   X,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -27,28 +20,28 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 import type {
   AdminQuestion,
   AdminQuestionDashboard,
   AdminQuestionSection,
   ReviewStatus,
   SourceType,
-} from "@/lib/types"
+} from "@/lib/types";
 
 type QuestionFilters = {
-  generatedOnly: boolean
-  sourceType: "" | SourceType
-  status: "" | ReviewStatus
-  topicId: string
-}
+  generatedOnly: boolean;
+  sourceType: "" | SourceType;
+  status: "" | ReviewStatus;
+  topicId: string;
+};
 
 const DEFAULT_FILTERS: QuestionFilters = {
   generatedOnly: false,
   sourceType: "",
   status: "",
   topicId: "",
-}
+};
 
 const REVIEW_STATUSES = [
   "approved",
@@ -56,91 +49,90 @@ const REVIEW_STATUSES = [
   "needs_edit",
   "needs_regeneration",
   "rejected",
-] satisfies ReviewStatus[]
+] satisfies ReviewStatus[];
 
 const SOURCE_TYPES = [
   "original_demo",
   "professor_provided",
   "generated_original",
   "pattern_derived_original",
-] satisfies SourceType[]
+] satisfies SourceType[];
 
 const SECTION_LABELS = {
   approved_student_facing: "Approved student-facing questions",
   generated_original: "Generated original questions",
   pattern_derived_original_candidates: "Pattern-derived original candidates",
   professor_provided: "Professor-provided",
-} satisfies Record<AdminQuestionSection, string>
+} satisfies Record<AdminQuestionSection, string>;
 
 const SECTION_ORDER = [
   "professor_provided",
   "pattern_derived_original_candidates",
   "generated_original",
   "approved_student_facing",
-] satisfies AdminQuestionSection[]
+] satisfies AdminQuestionSection[];
 
 export function AdminQuestionReviewPanel({
   initialDashboard,
 }: {
-  initialDashboard: AdminQuestionDashboard
+  initialDashboard: AdminQuestionDashboard;
 }) {
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [dashboard, setDashboard] =
-    useState<AdminQuestionDashboard>(initialDashboard)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [filters, setFilters] = useState<QuestionFilters>(DEFAULT_FILTERS)
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [token, setToken] = useState("")
+    useState<AdminQuestionDashboard>(initialDashboard);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<QuestionFilters>(DEFAULT_FILTERS);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const questionsById = useMemo(() => {
-    const map = new Map<string, AdminQuestion>()
+    const map = new Map<string, AdminQuestion>();
     for (const question of dashboard?.questions ?? []) {
-      map.set(question.id, question)
+      map.set(question.id, question);
     }
-    return map
-  }, [dashboard])
+    return map;
+  }, [dashboard]);
 
   async function loadQuestions(nextFilters: QuestionFilters) {
-    setIsLoading(true)
-    setMessage(null)
+    setIsLoading(true);
+    setMessage(null);
 
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams();
       if (nextFilters.status) {
-        params.set("status", nextFilters.status)
+        params.set("status", nextFilters.status);
       }
       if (nextFilters.topicId) {
-        params.set("topicId", nextFilters.topicId)
+        params.set("topicId", nextFilters.topicId);
       }
       if (nextFilters.sourceType) {
-        params.set("sourceType", nextFilters.sourceType)
+        params.set("sourceType", nextFilters.sourceType);
       }
       if (nextFilters.generatedOnly) {
-        params.set("generatedOnly", "true")
+        params.set("generatedOnly", "true");
       }
 
-      const result = await fetch(`/api/admin/questions?${params.toString()}`)
+      const result = await fetch(`/api/admin/questions?${params.toString()}`);
       const payload = (await result.json()) as {
-        dashboard?: AdminQuestionDashboard
-        error?: string
-      }
+        dashboard?: AdminQuestionDashboard;
+        error?: string;
+      };
 
       if (!result.ok || !payload.dashboard) {
-        setMessage(payload.error ?? "Question review data could not load.")
-        return
+        setMessage(payload.error ?? "Question review data could not load.");
+        return;
       }
 
-      setDashboard(payload.dashboard)
+      setDashboard(payload.dashboard);
       setMessage(
         payload.dashboard.readOnly
-          ? payload.dashboard.readOnlyReason ?? "Loaded read-only demo state."
+          ? (payload.dashboard.readOnlyReason ?? "Loaded read-only demo state.")
           : `Loaded ${payload.dashboard.questions.length} question record(s).`,
-      )
+      );
     } catch {
-      setMessage("Question review data could not load.")
+      setMessage("Question review data could not load.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -148,8 +140,8 @@ export function AdminQuestionReviewPanel({
     questionId: string,
     action: "approve" | "mark_needs_review" | "reject" | "request_regeneration",
   ) {
-    setActiveId(questionId)
-    setMessage(null)
+    setActiveId(questionId);
+    setMessage(null);
 
     try {
       if (action === "request_regeneration") {
@@ -159,50 +151,48 @@ export function AdminQuestionReviewPanel({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(token ? { "x-professor-token": token } : {}),
             },
             body: JSON.stringify({ keepPattern: true, mode: "deterministic" }),
           },
-        )
+        );
         const payload = (await result.json()) as {
-          error?: string
-          regenerated?: AdminQuestion
-        }
+          error?: string;
+          regenerated?: AdminQuestion;
+        };
 
         if (!result.ok || !payload.regenerated) {
-          setMessage(payload.error ?? "Question regeneration failed.")
-          return
+          setMessage(payload.error ?? "Question regeneration failed.");
+          return;
         }
 
-        setMessage(`Created ${payload.regenerated.title} for review.`)
-        await loadQuestions(filters)
-        return
+        setMessage(`Created ${payload.regenerated.title} for review.`);
+        await loadQuestions(filters);
+        return;
       }
 
       const result = await fetch("/api/admin/questions", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "x-professor-token": token } : {}),
         },
         body: JSON.stringify({ action, questionId }),
-      })
+      });
       const payload = (await result.json()) as {
-        error?: string
-        questions?: AdminQuestion[]
-      }
+        error?: string;
+        questions?: AdminQuestion[];
+      };
 
       if (!result.ok || !payload.questions) {
-        setMessage(payload.error ?? "Question update failed.")
-        return
+        setMessage(payload.error ?? "Question update failed.");
+        return;
       }
 
-      setMessage(`Updated ${payload.questions[0]?.title ?? "question"}.`)
-      await loadQuestions(filters)
+      setMessage(`Updated ${payload.questions[0]?.title ?? "question"}.`);
+      await loadQuestions(filters);
     } catch {
-      setMessage("Question update failed.")
+      setMessage("Question update failed.");
     } finally {
-      setActiveId(null)
+      setActiveId(null);
     }
   }
 
@@ -210,31 +200,26 @@ export function AdminQuestionReviewPanel({
     key: K,
     value: QuestionFilters[K],
   ) {
-    setFilters((current) => ({ ...current, [key]: value }))
+    setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  const canMutate = Boolean(token.trim()) && Boolean(dashboard && !dashboard.readOnly)
+  const canMutate = Boolean(dashboard && !dashboard.readOnly);
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto_auto]">
-        <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="pl-9"
-            type="password"
-            placeholder="Admin secret for mutations"
-          />
-        </div>
+      <div className="grid gap-3 lg:grid-cols-[auto_auto_auto_auto_auto]">
         <Select
           label="Status"
           value={filters.status}
-          onChange={(value) => setFilter("status", value as QuestionFilters["status"])}
+          onChange={(value) =>
+            setFilter("status", value as QuestionFilters["status"])
+          }
           options={[
             { label: "Any status", value: "" },
-            ...REVIEW_STATUSES.map((status) => ({ label: status, value: status })),
+            ...REVIEW_STATUSES.map((status) => ({
+              label: status,
+              value: status,
+            })),
           ]}
         />
         <Select
@@ -290,7 +275,9 @@ export function AdminQuestionReviewPanel({
 
       <div className="flex flex-wrap items-center gap-2">
         {dashboard ? <Badge variant="secondary">{dashboard.mode}</Badge> : null}
-        {dashboard?.readOnly ? <Badge variant="outline">read-only</Badge> : null}
+        {dashboard?.readOnly ? (
+          <Badge variant="outline">read-only</Badge>
+        ) : null}
         <Button
           type="button"
           size="sm"
@@ -298,7 +285,9 @@ export function AdminQuestionReviewPanel({
           disabled={isLoading}
           onClick={() => loadQuestions(filters)}
         >
-          <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          <RefreshCw
+            className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+          />
           Refresh
         </Button>
       </div>
@@ -326,13 +315,15 @@ export function AdminQuestionReviewPanel({
               }
               questions={dashboard.sections[section]
                 .map((questionId) => questionsById.get(questionId))
-                .filter((question): question is AdminQuestion => Boolean(question))}
+                .filter((question): question is AdminQuestion =>
+                  Boolean(question),
+                )}
             />
           ))}
         </div>
       ) : null}
     </div>
-  )
+  );
 }
 
 function QuestionSection({
@@ -344,16 +335,16 @@ function QuestionSection({
   onToggleExpand,
   questions,
 }: {
-  activeId: string | null
-  canMutate: boolean
-  expandedId: string | null
-  label: string
+  activeId: string | null;
+  canMutate: boolean;
+  expandedId: string | null;
+  label: string;
   onAction: (
     questionId: string,
     action: "approve" | "mark_needs_review" | "reject" | "request_regeneration",
-  ) => void
-  onToggleExpand: (questionId: string) => void
-  questions: AdminQuestion[]
+  ) => void;
+  onToggleExpand: (questionId: string) => void;
+  questions: AdminQuestion[];
 }) {
   return (
     <section className="border border-border">
@@ -398,7 +389,9 @@ function QuestionSection({
                         }
                       />
                       <span>
-                        <span className="block font-medium">{question.title}</span>
+                        <span className="block font-medium">
+                          {question.title}
+                        </span>
                         <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">
                           {question.prompt}
                         </span>
@@ -410,7 +403,9 @@ function QuestionSection({
                   </TableCell>
                   <TableCell>{question.source.sourceType}</TableCell>
                   <TableCell>{question.source.trustLevel}</TableCell>
-                  <TableCell>{question.topicTitle ?? question.topicId}</TableCell>
+                  <TableCell>
+                    {question.topicTitle ?? question.topicId}
+                  </TableCell>
                   <TableCell>{question.difficulty}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
@@ -424,7 +419,9 @@ function QuestionSection({
                       <IconButton
                         disabled={!canMutate || activeId === question.id}
                         label={`Mark ${question.title} needs review`}
-                        onClick={() => onAction(question.id, "mark_needs_review")}
+                        onClick={() =>
+                          onAction(question.id, "mark_needs_review")
+                        }
                       >
                         <RefreshCw className="h-4 w-4" />
                       </IconButton>
@@ -465,7 +462,7 @@ function QuestionSection({
         </TableBody>
       </Table>
     </section>
-  )
+  );
 }
 
 function QuestionDetails({ question }: { question: AdminQuestion }) {
@@ -511,7 +508,7 @@ function QuestionDetails({ question }: { question: AdminQuestion }) {
         />
       </div>
     </div>
-  )
+  );
 }
 
 function Select({
@@ -520,10 +517,10 @@ function Select({
   options,
   value,
 }: {
-  label: string
-  onChange: (value: string) => void
-  options: Array<{ label: string; value: string }>
-  value: string
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -540,7 +537,7 @@ function Select({
         ))}
       </select>
     </label>
-  )
+  );
 }
 
 function IconButton({
@@ -550,11 +547,11 @@ function IconButton({
   onClick,
   variant = "outline",
 }: {
-  children: ReactNode
-  disabled: boolean
-  label: string
-  onClick: () => void
-  variant?: "destructive" | "outline"
+  children: ReactNode;
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+  variant?: "destructive" | "outline";
 }) {
   return (
     <Button
@@ -568,7 +565,7 @@ function IconButton({
     >
       {children}
     </Button>
-  )
+  );
 }
 
 function StatusBadge({ status }: { status: ReviewStatus }) {
@@ -584,11 +581,11 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
     >
       {status}
     </Badge>
-  )
+  );
 }
 
 function DetailBlock({ title, values }: { title: string; values: string[] }) {
-  const safeValues = values.filter(Boolean)
+  const safeValues = values.filter(Boolean);
 
   return (
     <div>
@@ -605,12 +602,12 @@ function DetailBlock({ title, values }: { title: string; values: string[] }) {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function isGeneratedQuestion(question: AdminQuestion) {
   return (
     question.source.sourceType === "generated_original" ||
     question.source.sourceType === "pattern_derived_original"
-  )
+  );
 }

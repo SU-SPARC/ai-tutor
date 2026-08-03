@@ -1,13 +1,12 @@
-"use client"
+"use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react"
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3,
   Check,
   ChevronDown,
   ClipboardList,
   FileJson,
-  KeyRound,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -15,11 +14,10 @@ import {
   Star,
   Upload,
   X,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -27,204 +25,199 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   Difficulty,
   ProfessorAnalyticsDashboard,
   ReviewCandidate,
   ReviewPriority,
   ReviewStatus,
-} from "@/lib/types"
+} from "@/lib/types";
 
-type ProfessorSection = "analytics" | "review" | "upload"
+type ProfessorSection = "analytics" | "review" | "upload";
 
 type ReviewFilters = {
-  difficulty: "" | Difficulty
-  reviewPriority: "" | ReviewPriority
-  status: "" | ReviewStatus
-  topicId: string
-}
+  difficulty: "" | Difficulty;
+  reviewPriority: "" | ReviewPriority;
+  status: "" | ReviewStatus;
+  topicId: string;
+};
 
 type TopicOption = {
-  id: string
-  title: string
-}
+  id: string;
+  title: string;
+};
 
 type CandidateEdit = {
-  difficulty: Difficulty
-  notes: string
-  reviewPriority: ReviewPriority
-  topicId: string
-}
+  difficulty: Difficulty;
+  notes: string;
+  reviewPriority: ReviewPriority;
+  topicId: string;
+};
 
 const DEFAULT_FILTERS: ReviewFilters = {
   difficulty: "",
   reviewPriority: "",
   status: "needs_review",
   topicId: "",
-}
+};
 
 const DIFFICULTIES = [
   "foundational",
   "intermediate",
   "challenge",
-] satisfies Difficulty[]
+] satisfies Difficulty[];
 
 const REVIEW_STATUSES = [
   "needs_review",
   "needs_edit",
   "needs_regeneration",
-] satisfies ReviewStatus[]
+] satisfies ReviewStatus[];
 
 export function ProfessorReviewPanel() {
   const [activeSection, setActiveSection] =
-    useState<ProfessorSection>("review")
-  const [activeId, setActiveId] = useState<string | null>(null)
+    useState<ProfessorSection>("review");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [analytics, setAnalytics] =
-    useState<ProfessorAnalyticsDashboard | null>(null)
-  const [candidates, setCandidates] = useState<ReviewCandidate[]>([])
-  const [edits, setEdits] = useState<Record<string, CandidateEdit>>({})
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS)
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false)
-  const [isReviewLoading, setIsReviewLoading] = useState(false)
-  const [isUploadLoading, setIsUploadLoading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [token, setToken] = useState("")
-  const [topics, setTopics] = useState<TopicOption[]>([])
-  const [uploadText, setUploadText] = useState("")
-  const [uploadPreview, setUploadPreview] = useState<ReviewCandidate[]>([])
+    useState<ProfessorAnalyticsDashboard | null>(null);
+  const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
+  const [edits, setEdits] = useState<Record<string, CandidateEdit>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [isUploadLoading, setIsUploadLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [topics, setTopics] = useState<TopicOption[]>([]);
+  const [uploadText, setUploadText] = useState("");
+  const [uploadPreview, setUploadPreview] = useState<ReviewCandidate[]>([]);
 
   const selectedCandidates = useMemo(
     () => candidates.filter((candidate) => selectedIds.has(candidate.id)),
     [candidates, selectedIds],
-  )
+  );
   const selectedAllPriority =
     selectedCandidates.length > 0 &&
     selectedCandidates.every(
-      (candidate) => (candidate.review.reviewPriority ?? "normal") === "priority",
-    )
+      (candidate) =>
+        (candidate.review.reviewPriority ?? "normal") === "priority",
+    );
 
   async function loadReviewQueue(nextFilters = filters) {
-    setIsReviewLoading(true)
-    setMessage(null)
+    setIsReviewLoading(true);
+    setMessage(null);
 
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams();
       for (const [key, value] of Object.entries(nextFilters)) {
         if (value) {
-          params.set(key, value)
+          params.set(key, value);
         }
       }
 
-      const result = await fetch(`/api/professor/review?${params.toString()}`, {
-        headers: token ? { "x-professor-token": token } : undefined,
-      })
+      const result = await fetch(`/api/professor/review?${params.toString()}`);
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[]
-        error?: string
-        topics?: TopicOption[]
-      }
+        candidates?: ReviewCandidate[];
+        error?: string;
+        topics?: TopicOption[];
+      };
 
       if (!result.ok || !payload.candidates) {
-        setMessage(payload.error ?? "Review queue request failed.")
-        return
+        setMessage(payload.error ?? "Review queue request failed.");
+        return;
       }
 
-      setCandidates(payload.candidates)
-      setTopics(payload.topics ?? [])
-      setSelectedIds(new Set())
-      setEdits({})
-      setMessage(`Loaded ${payload.candidates.length} review candidate(s).`)
+      setCandidates(payload.candidates);
+      setTopics(payload.topics ?? []);
+      setSelectedIds(new Set());
+      setEdits({});
+      setMessage(`Loaded ${payload.candidates.length} review candidate(s).`);
     } catch {
-      setMessage("Review queue request failed.")
+      setMessage("Review queue request failed.");
     } finally {
-      setIsReviewLoading(false)
+      setIsReviewLoading(false);
     }
   }
 
   async function loadAnalytics() {
-    setIsAnalyticsLoading(true)
-    setMessage(null)
+    setIsAnalyticsLoading(true);
+    setMessage(null);
 
     try {
-      const result = await fetch("/api/professor/analytics", {
-        headers: token ? { "x-professor-token": token } : undefined,
-      })
+      const result = await fetch("/api/professor/analytics");
       const payload = (await result.json()) as {
-        analytics?: ProfessorAnalyticsDashboard
-        error?: string
-      }
+        analytics?: ProfessorAnalyticsDashboard;
+        error?: string;
+      };
 
       if (!result.ok || !payload.analytics) {
-        setMessage(payload.error ?? "Analytics request failed.")
-        return
+        setMessage(payload.error ?? "Analytics request failed.");
+        return;
       }
 
-      setAnalytics(payload.analytics)
-      setMessage("Analytics refreshed.")
+      setAnalytics(payload.analytics);
+      setMessage("Analytics refreshed.");
     } catch {
-      setMessage("Analytics request failed.")
+      setMessage("Analytics request failed.");
     } finally {
-      setIsAnalyticsLoading(false)
+      setIsAnalyticsLoading(false);
     }
   }
 
   async function updateCandidates(
     candidateIds: string[],
     update: {
-      action?: "approve" | "needs_edit" | "reject" | "request_regeneration"
-      difficulty?: Difficulty
-      notes?: string
-      reviewPriority?: ReviewPriority
-      topicId?: string
+      action?: "approve" | "needs_edit" | "reject" | "request_regeneration";
+      difficulty?: Difficulty;
+      notes?: string;
+      reviewPriority?: ReviewPriority;
+      topicId?: string;
     },
   ) {
-    setActiveId(candidateIds.join(","))
-    setMessage(null)
+    setActiveId(candidateIds.join(","));
+    setMessage(null);
 
     try {
       const result = await fetch("/api/professor/review", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "x-professor-token": token } : {}),
         },
         body: JSON.stringify({ candidateIds, ...update }),
-      })
+      });
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[]
-        error?: string
-      }
+        candidates?: ReviewCandidate[];
+        error?: string;
+      };
 
       if (!result.ok || !payload.candidates) {
-        setMessage(payload.error ?? "Review update failed.")
-        return
+        setMessage(payload.error ?? "Review update failed.");
+        return;
       }
 
-      setMessage(`Updated ${payload.candidates.length} review candidate(s).`)
-      await loadReviewQueue()
+      setMessage(`Updated ${payload.candidates.length} review candidate(s).`);
+      await loadReviewQueue();
     } catch {
-      setMessage("Review update failed.")
+      setMessage("Review update failed.");
     } finally {
-      setActiveId(null)
+      setActiveId(null);
     }
   }
 
   async function uploadGeneratedReviewJson() {
-    setIsUploadLoading(true)
-    setMessage(null)
-    setUploadPreview([])
+    setIsUploadLoading(true);
+    setMessage(null);
+    setUploadPreview([]);
 
-    let parsed: unknown
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(uploadText)
+      parsed = JSON.parse(uploadText);
     } catch {
-      setMessage("Upload JSON could not be parsed.")
-      setIsUploadLoading(false)
-      return
+      setMessage("Upload JSON could not be parsed.");
+      setIsUploadLoading(false);
+      return;
     }
 
     try {
@@ -232,33 +225,32 @@ export function ProfessorReviewPanel() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "x-professor-token": token } : {}),
         },
         body: JSON.stringify({ payload: parsed }),
-      })
+      });
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[]
-        errors?: string[]
-        message?: string
-        nonDurable?: boolean
-      }
+        candidates?: ReviewCandidate[];
+        errors?: string[];
+        message?: string;
+        nonDurable?: boolean;
+      };
 
       if (!result.ok || !payload.candidates) {
-        setMessage(payload.errors?.join(" ") ?? "Upload failed.")
-        return
+        setMessage(payload.errors?.join(" ") ?? "Upload failed.");
+        return;
       }
 
-      setUploadPreview(payload.candidates)
+      setUploadPreview(payload.candidates);
       setMessage(
         `${payload.message ?? "Upload accepted."}${
           payload.nonDurable ? " Demo import is non-durable." : ""
         }`,
-      )
-      await loadReviewQueue()
+      );
+      await loadReviewQueue();
     } catch {
-      setMessage("Upload failed.")
+      setMessage("Upload failed.");
     } finally {
-      setIsUploadLoading(false)
+      setIsUploadLoading(false);
     }
   }
 
@@ -270,51 +262,47 @@ export function ProfessorReviewPanel() {
         reviewPriority: candidate.review.reviewPriority ?? "normal",
         topicId: candidate.topicId,
       }
-    )
+    );
   }
 
-  function updateEdit(candidate: ReviewCandidate, patch: Partial<CandidateEdit>) {
+  function updateEdit(
+    candidate: ReviewCandidate,
+    patch: Partial<CandidateEdit>,
+  ) {
     setEdits((current) => ({
       ...current,
       [candidate.id]: {
         ...editFor(candidate),
         ...patch,
       },
-    }))
+    }));
   }
 
   function toggleSelected(candidateId: string) {
     setSelectedIds((current) => {
-      const next = new Set(current)
+      const next = new Set(current);
       if (next.has(candidateId)) {
-        next.delete(candidateId)
+        next.delete(candidateId);
       } else {
-        next.add(candidateId)
+        next.add(candidateId);
       }
-      return next
-    })
+      return next;
+    });
   }
 
   function setFilter<K extends keyof ReviewFilters>(
     key: K,
     value: ReviewFilters[K],
   ) {
-    setFilters((current) => ({ ...current, [key]: value }))
+    setFilters((current) => ({ ...current, [key]: value }));
   }
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="pl-9"
-            type="password"
-            placeholder="Admin secret"
-          />
-        </div>
+        <p className="flex-1 text-sm text-muted-foreground">
+          Access is authorized by your signed-in application role.
+        </p>
         <div className="grid grid-cols-3 gap-2 lg:w-auto">
           <SectionButton
             active={activeSection === "review"}
@@ -431,13 +419,13 @@ export function ProfessorReviewPanel() {
             expandedId={expandedId}
             onEdit={updateEdit}
             onSaveEdit={(candidate) => {
-              const edit = editFor(candidate)
+              const edit = editFor(candidate);
               updateCandidates([candidate.id], {
                 difficulty: edit.difficulty,
                 notes: edit.notes,
                 reviewPriority: edit.reviewPriority,
                 topicId: edit.topicId,
-              })
+              });
             }}
             onSelect={toggleSelected}
             onToggleExpand={(candidateId) =>
@@ -489,7 +477,9 @@ export function ProfessorReviewPanel() {
                   {uploadPreview.map((candidate) => (
                     <TableRow key={candidate.id}>
                       <TableCell>{candidate.title}</TableCell>
-                      <TableCell>{candidate.topic ?? candidate.topicId}</TableCell>
+                      <TableCell>
+                        {candidate.topic ?? candidate.topicId}
+                      </TableCell>
                       <TableCell>{candidate.difficulty}</TableCell>
                     </TableRow>
                   ))}
@@ -516,13 +506,15 @@ export function ProfessorReviewPanel() {
               />
               Refresh
             </Button>
-            {analytics ? <Badge variant="secondary">{analytics.mode}</Badge> : null}
+            {analytics ? (
+              <Badge variant="secondary">{analytics.mode}</Badge>
+            ) : null}
           </div>
           {analytics ? <AnalyticsView analytics={analytics} /> : null}
         </section>
       ) : null}
     </div>
-  )
+  );
 }
 
 function ReviewTable({
@@ -538,23 +530,23 @@ function ReviewTable({
   selectedIds,
   topics,
 }: {
-  activeId: string | null
-  candidates: ReviewCandidate[]
-  editFor: (candidate: ReviewCandidate) => CandidateEdit
-  expandedId: string | null
-  onEdit: (candidate: ReviewCandidate, patch: Partial<CandidateEdit>) => void
-  onSaveEdit: (candidate: ReviewCandidate) => void
-  onSelect: (candidateId: string) => void
-  onToggleExpand: (candidateId: string) => void
+  activeId: string | null;
+  candidates: ReviewCandidate[];
+  editFor: (candidate: ReviewCandidate) => CandidateEdit;
+  expandedId: string | null;
+  onEdit: (candidate: ReviewCandidate, patch: Partial<CandidateEdit>) => void;
+  onSaveEdit: (candidate: ReviewCandidate) => void;
+  onSelect: (candidateId: string) => void;
+  onToggleExpand: (candidateId: string) => void;
   onUpdate: (
     candidateIds: string[],
     update: {
-      action?: "approve" | "needs_edit" | "reject" | "request_regeneration"
-      reviewPriority?: ReviewPriority
+      action?: "approve" | "needs_edit" | "reject" | "request_regeneration";
+      reviewPriority?: ReviewPriority;
     },
-  ) => void
-  selectedIds: Set<string>
-  topics: TopicOption[]
+  ) => void;
+  selectedIds: Set<string>;
+  topics: TopicOption[];
 }) {
   return (
     <div className="border border-border">
@@ -571,10 +563,10 @@ function ReviewTable({
         </TableHeader>
         <TableBody>
           {candidates.map((candidate) => {
-            const edit = editFor(candidate)
-            const expanded = expandedId === candidate.id
+            const edit = editFor(candidate);
+            const expanded = expandedId === candidate.id;
             const isPriority =
-              (candidate.review.reviewPriority ?? "normal") === "priority"
+              (candidate.review.reviewPriority ?? "normal") === "priority";
 
             return (
               <Fragment key={candidate.id}>
@@ -601,15 +593,21 @@ function ReviewTable({
                         }
                       />
                       <span>
-                        <span className="block font-medium">{candidate.title}</span>
+                        <span className="block font-medium">
+                          {candidate.title}
+                        </span>
                         <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">
                           {candidate.prompt}
                         </span>
                       </span>
                     </button>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant="outline">{candidate.source.sourceType}</Badge>
-                      <Badge variant="outline">{candidate.source.trustLevel}</Badge>
+                      <Badge variant="outline">
+                        {candidate.source.sourceType}
+                      </Badge>
+                      <Badge variant="outline">
+                        {candidate.source.trustLevel}
+                      </Badge>
                       {isPriority ? <Badge>priority</Badge> : null}
                     </div>
                   </TableCell>
@@ -681,7 +679,10 @@ function ReviewTable({
                     <TableCell colSpan={5}>
                       <div className="grid gap-4 py-3 lg:grid-cols-[1.4fr_1fr]">
                         <div className="space-y-4">
-                          <ReviewBlock title="Prompt" values={[candidate.prompt]} />
+                          <ReviewBlock
+                            title="Prompt"
+                            values={[candidate.prompt]}
+                          />
                           <ReviewBlock
                             title="Answer"
                             values={[
@@ -703,7 +704,8 @@ function ReviewTable({
                           <ReviewBlock
                             title="Originality"
                             values={[
-                              candidate.source.originalityNote ?? "Originality note missing.",
+                              candidate.source.originalityNote ??
+                                "Originality note missing.",
                               candidate.patternSource,
                             ]}
                           />
@@ -726,7 +728,8 @@ function ReviewTable({
                                 ? []
                                 : [
                                     {
-                                      label: candidate.topic ?? candidate.topicId,
+                                      label:
+                                        candidate.topic ?? candidate.topicId,
                                       value: candidate.topicId,
                                     },
                                   ]),
@@ -793,18 +796,18 @@ function ReviewTable({
                   </TableRow>
                 ) : null}
               </Fragment>
-            )
+            );
           })}
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }
 
 function AnalyticsView({
   analytics,
 }: {
-  analytics: ProfessorAnalyticsDashboard
+  analytics: ProfessorAnalyticsDashboard;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -822,10 +825,12 @@ function AnalyticsView({
       <div className="grid gap-4 lg:grid-cols-2">
         <AnalyticsTable
           title="Review status"
-          rows={Object.entries(analytics.review.byStatus).map(([label, value]) => ({
-            label,
-            value,
-          }))}
+          rows={Object.entries(analytics.review.byStatus).map(
+            ([label, value]) => ({
+              label,
+              value,
+            }),
+          )}
         />
         <AnalyticsTable
           title="Practice topics"
@@ -862,7 +867,7 @@ function AnalyticsView({
         </Table>
       </div>
     </div>
-  )
+  );
 }
 
 function SectionButton({
@@ -871,10 +876,10 @@ function SectionButton({
   label,
   onClick,
 }: {
-  active: boolean
-  icon: ReactNode
-  label: string
-  onClick: () => void
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
 }) {
   return (
     <Button
@@ -885,7 +890,7 @@ function SectionButton({
       {icon}
       {label}
     </Button>
-  )
+  );
 }
 
 function Select({
@@ -894,10 +899,10 @@ function Select({
   options,
   value,
 }: {
-  label: string
-  onChange: (value: string) => void
-  options: Array<{ label: string; value: string }>
-  value: string
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -914,7 +919,7 @@ function Select({
         ))}
       </select>
     </label>
-  )
+  );
 }
 
 function StatusBadge({ status }: { status: ReviewStatus }) {
@@ -930,7 +935,7 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
     >
       {status}
     </Badge>
-  )
+  );
 }
 
 function ReviewBlock({ title, values }: { title: string; values: string[] }) {
@@ -945,7 +950,7 @@ function ReviewBlock({ title, values }: { title: string; values: string[] }) {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -954,15 +959,15 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 font-mono text-lg font-medium">{value}</div>
     </div>
-  )
+  );
 }
 
 function AnalyticsTable({
   rows,
   title,
 }: {
-  rows: Array<{ label: string; value: number }>
-  title: string
+  rows: Array<{ label: string; value: number }>;
+  title: string;
 }) {
   return (
     <div className="border border-border p-3">
@@ -974,7 +979,9 @@ function AnalyticsTable({
               key={`${title}-${row.label}`}
               className="flex items-center justify-between gap-3 text-sm"
             >
-              <span className="truncate text-muted-foreground">{row.label}</span>
+              <span className="truncate text-muted-foreground">
+                {row.label}
+              </span>
               <span className="font-mono">{row.value}</span>
             </div>
           ))
@@ -983,5 +990,5 @@ function AnalyticsTable({
         )}
       </div>
     </div>
-  )
+  );
 }

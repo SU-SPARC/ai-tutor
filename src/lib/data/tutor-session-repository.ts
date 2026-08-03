@@ -1,89 +1,100 @@
-import "server-only"
+import "server-only";
 
-import { randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto";
 
 import {
   readDatabaseRows,
   runDatabaseTransaction,
   type DatabaseQueryExecutor,
-} from "@/lib/data/database-executor"
-import { queryPostgres } from "@/lib/data/postgres"
-import { DataServiceUnavailableError } from "@/lib/data/service-error"
-import { getServerEnv } from "@/lib/env/server"
-import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
+} from "@/lib/data/database-executor";
+import { queryPostgres } from "@/lib/data/postgres";
+import { DataServiceUnavailableError } from "@/lib/data/service-error";
+import { getServerEnv } from "@/lib/env/server";
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
+import type { StudentOwner } from "@/lib/auth/principal";
 import type {
   TutorSessionAttempt,
   TutorSessionRecord,
   TutorSource,
   TutorVerdict,
-} from "@/lib/types"
+} from "@/lib/types";
 
 type TutorSessionRow = {
-  anonymous_user_id: string | null
-  created_at: Date | string
-  id: string
-  last_seen_at: Date | string
-  question_id: string
-  revealed_hints: number
-  revealed_steps: number
-}
+  anonymous_user_id: string | null;
+  created_at: Date | string;
+  id: string;
+  last_seen_at: Date | string;
+  question_id: string;
+  revealed_hints: number;
+  revealed_steps: number;
+  user_id: string | null;
+};
 
 type TutorAttemptRow = {
-  answer_preview: string | null
-  created_at: Date | string
-  id: number | string
-  session_id?: string
-  source: TutorSource | null
-  verdict: TutorVerdict | null
-}
+  answer_preview: string | null;
+  created_at: Date | string;
+  id: number | string;
+  session_id?: string;
+  source: TutorSource | null;
+  verdict: TutorVerdict | null;
+};
 
 export type CreateTutorSessionInput = {
-  anonymousStudentId: string
-  questionId: string
-}
+  owner: StudentOwner;
+  questionId: string;
+};
 
 export type RecordTutorSessionAttemptInput = {
-  answerPreview?: string
-  sessionId: string
-}
+  answerPreview?: string;
+  owner: StudentOwner;
+  sessionId: string;
+};
 
 export type RecordTutorSessionAttemptOutcomeInput = {
-  answerPreview?: string
-  estimatedTokens: number
-  sessionId: string
-  source: TutorSource
-  verdict: TutorVerdict
-}
+  answerPreview?: string;
+  estimatedTokens: number;
+  owner: StudentOwner;
+  sessionId: string;
+  source: TutorSource;
+  verdict: TutorVerdict;
+};
 
 export type TutorSessionRepository = {
-  createSession(input: CreateTutorSessionInput): Promise<TutorSessionRecord>
-  getSession(sessionId: string): Promise<TutorSessionRecord | undefined>
-  listSessionsForStudent(
-    anonymousStudentId: string,
-  ): Promise<TutorSessionRecord[]>
+  createSession(input: CreateTutorSessionInput): Promise<TutorSessionRecord>;
+  getSession(
+    sessionId: string,
+    owner: StudentOwner,
+  ): Promise<TutorSessionRecord | undefined>;
+  listSessionsForStudent(owner: StudentOwner): Promise<TutorSessionRecord[]>;
   recordAttempt(
     input: RecordTutorSessionAttemptInput,
-  ): Promise<TutorSessionRecord | undefined>
+  ): Promise<TutorSessionRecord | undefined>;
   recordAttemptOutcome(
     input: RecordTutorSessionAttemptOutcomeInput,
-  ): Promise<TutorSessionRecord | undefined>
-  revealHint(sessionId: string): Promise<TutorSessionRecord | undefined>
-  revealStep(sessionId: string): Promise<TutorSessionRecord | undefined>
-}
+  ): Promise<TutorSessionRecord | undefined>;
+  revealHint(
+    sessionId: string,
+    owner: StudentOwner,
+  ): Promise<TutorSessionRecord | undefined>;
+  revealStep(
+    sessionId: string,
+    owner: StudentOwner,
+  ): Promise<TutorSessionRecord | undefined>;
+};
 
-const memoryTutorSessionRepository = createMemoryTutorSessionRepository()
-let tutorSessionRepositoryOverride: TutorSessionRepository | undefined
+const memoryTutorSessionRepository = createMemoryTutorSessionRepository();
+let tutorSessionRepositoryOverride: TutorSessionRepository | undefined;
 
 export async function createTutorSession(input: CreateTutorSessionInput) {
   return writeWithConfiguredRepository((repository) =>
     repository.createSession(input),
-  )
+  );
 }
 
-export async function getTutorSession(sessionId: string) {
+export async function getTutorSession(sessionId: string, owner: StudentOwner) {
   return readWithConfiguredRepository((repository) =>
-    repository.getSession(sessionId),
-  )
+    repository.getSession(sessionId, owner),
+  );
 }
 
 export async function recordTutorSessionAttempt(
@@ -91,7 +102,7 @@ export async function recordTutorSessionAttempt(
 ) {
   return writeWithConfiguredRepository((repository) =>
     repository.recordAttempt(input),
-  )
+  );
 }
 
 export async function recordTutorSessionAttemptOutcome(
@@ -99,39 +110,35 @@ export async function recordTutorSessionAttemptOutcome(
 ) {
   return writeWithConfiguredRepository((repository) =>
     repository.recordAttemptOutcome(input),
-  )
+  );
 }
 
 export async function listTutorSessionsForStudent(
-  anonymousStudentId: string,
+  owner: StudentOwner,
 ): Promise<{
-  mode: "database" | "demo"
-  sessions: TutorSessionRecord[]
+  mode: "database" | "demo";
+  sessions: TutorSessionRecord[];
 }> {
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
 
   if (tutorSessionRepositoryOverride) {
     try {
       return {
         mode: policy.repositorySource,
         sessions:
-          await tutorSessionRepositoryOverride.listSessionsForStudent(
-            anonymousStudentId,
-          ),
-      }
+          await tutorSessionRepositoryOverride.listSessionsForStudent(owner),
+      };
     } catch (cause) {
       if (!policy.allowDemoFallback) {
-        throw new DataServiceUnavailableError("tutor-session", { cause })
+        throw new DataServiceUnavailableError("tutor-session", { cause });
       }
 
       return {
         mode: "demo",
         sessions:
-          await memoryTutorSessionRepository.listSessionsForStudent(
-            anonymousStudentId,
-          ),
-      }
+          await memoryTutorSessionRepository.listSessionsForStudent(owner),
+      };
     }
   }
 
@@ -139,59 +146,63 @@ export async function listTutorSessionsForStudent(
     return {
       mode: "demo",
       sessions:
-        await memoryTutorSessionRepository.listSessionsForStudent(
-          anonymousStudentId,
-        ),
-    }
+        await memoryTutorSessionRepository.listSessionsForStudent(owner),
+    };
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("tutor-session")
+    throw new DataServiceUnavailableError("tutor-session");
   }
 
   try {
     const repository = createDatabaseTutorSessionRepository(
       env.DATABASE_URL,
       queryPostgres,
-    )
+    );
     return {
       mode: "database",
-      sessions: await repository.listSessionsForStudent(anonymousStudentId),
-    }
+      sessions: await repository.listSessionsForStudent(owner),
+    };
   } catch (cause) {
     if (!policy.allowDemoFallback) {
-      throw new DataServiceUnavailableError("tutor-session", { cause })
+      throw new DataServiceUnavailableError("tutor-session", { cause });
     }
 
     return {
       mode: "demo",
       sessions:
-        await memoryTutorSessionRepository.listSessionsForStudent(
-          anonymousStudentId,
-        ),
-    }
+        await memoryTutorSessionRepository.listSessionsForStudent(owner),
+    };
   }
 }
 
-export async function revealTutorSessionHint(sessionId: string) {
+export async function revealTutorSessionHint(
+  sessionId: string,
+  owner: StudentOwner,
+) {
   return writeWithConfiguredRepository((repository) =>
-    repository.revealHint(sessionId),
-  )
+    repository.revealHint(sessionId, owner),
+  );
 }
 
-export async function revealTutorSessionStep(sessionId: string) {
+export async function revealTutorSessionStep(
+  sessionId: string,
+  owner: StudentOwner,
+) {
   return writeWithConfiguredRepository((repository) =>
-    repository.revealStep(sessionId),
-  )
+    repository.revealStep(sessionId, owner),
+  );
 }
 
 export function createMemoryTutorSessionRepository(): TutorSessionRepository {
-  const sessions = new Map<string, TutorSessionRecord>()
+  const sessions = new Map<
+    string,
+    { owner: StudentOwner; session: TutorSessionRecord }
+  >();
 
   return {
     async createSession(input) {
       const session: TutorSessionRecord = {
-        anonymousStudentId: input.anonymousStudentId,
         attempts: [],
         createdAt: new Date().toISOString(),
         id: randomUUID(),
@@ -199,54 +210,64 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         questionId: input.questionId,
         revealedHints: 0,
         revealedSteps: 0,
-      }
+      };
 
-      sessions.set(session.id, cloneSession(session))
-      return cloneSession(session)
+      sessions.set(session.id, {
+        owner: input.owner,
+        session: cloneSession(session),
+      });
+      return cloneSession(session);
     },
 
-    async getSession(sessionId) {
-      const session = sessions.get(sessionId)
-      return session ? cloneSession(session) : undefined
+    async getSession(sessionId, owner) {
+      const stored = sessions.get(sessionId);
+      return stored && sameOwner(stored.owner, owner)
+        ? cloneSession(stored.session)
+        : undefined;
     },
 
-    async listSessionsForStudent(anonymousStudentId) {
+    async listSessionsForStudent(owner) {
       return [...sessions.values()]
-        .filter((session) => session.anonymousStudentId === anonymousStudentId)
-        .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))
-        .map(cloneSession)
+        .filter((stored) => sameOwner(stored.owner, owner))
+        .sort((left, right) =>
+          right.session.lastSeenAt.localeCompare(left.session.lastSeenAt),
+        )
+        .map((stored) => cloneSession(stored.session));
     },
 
     async recordAttempt(input) {
-      const session = sessions.get(input.sessionId)
+      const stored = sessions.get(input.sessionId);
 
-      if (!session) {
-        return undefined
+      if (!stored || !sameOwner(stored.owner, input.owner)) {
+        return undefined;
       }
+      const session = stored.session;
 
       session.attempts.push({
         answerPreview: previewString(input.answerPreview),
         createdAt: new Date().toISOString(),
         id: randomUUID(),
-      })
-      session.lastSeenAt = new Date().toISOString()
-      sessions.set(session.id, cloneSession(session))
-      return cloneSession(session)
+      });
+      session.lastSeenAt = new Date().toISOString();
+      stored.session = cloneSession(session);
+      sessions.set(session.id, stored);
+      return cloneSession(session);
     },
 
     async recordAttemptOutcome(input) {
-      const session = sessions.get(input.sessionId)
+      const stored = sessions.get(input.sessionId);
 
-      if (!session) {
-        return undefined
+      if (!stored || !sameOwner(stored.owner, input.owner)) {
+        return undefined;
       }
+      const session = stored.session;
 
       const pendingAttempt = [...session.attempts]
         .reverse()
-        .find((attempt) => !attempt.verdict)
+        .find((attempt) => !attempt.verdict);
       if (pendingAttempt) {
-        pendingAttempt.source = input.source
-        pendingAttempt.verdict = input.verdict
+        pendingAttempt.source = input.source;
+        pendingAttempt.verdict = input.verdict;
       } else {
         session.attempts.push({
           answerPreview: previewString(input.answerPreview),
@@ -254,39 +275,44 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
           id: randomUUID(),
           source: input.source,
           verdict: input.verdict,
-        })
+        });
       }
-      session.lastSeenAt = new Date().toISOString()
-      sessions.set(session.id, cloneSession(session))
-      return cloneSession(session)
+      session.lastSeenAt = new Date().toISOString();
+      stored.session = cloneSession(session);
+      sessions.set(session.id, stored);
+      return cloneSession(session);
     },
 
-    async revealHint(sessionId) {
-      const session = sessions.get(sessionId)
+    async revealHint(sessionId, owner) {
+      const stored = sessions.get(sessionId);
 
-      if (!session) {
-        return undefined
+      if (!stored || !sameOwner(stored.owner, owner)) {
+        return undefined;
       }
+      const session = stored.session;
 
-      session.revealedHints += 1
-      session.lastSeenAt = new Date().toISOString()
-      sessions.set(session.id, cloneSession(session))
-      return cloneSession(session)
+      session.revealedHints += 1;
+      session.lastSeenAt = new Date().toISOString();
+      stored.session = cloneSession(session);
+      sessions.set(session.id, stored);
+      return cloneSession(session);
     },
 
-    async revealStep(sessionId) {
-      const session = sessions.get(sessionId)
+    async revealStep(sessionId, owner) {
+      const stored = sessions.get(sessionId);
 
-      if (!session) {
-        return undefined
+      if (!stored || !sameOwner(stored.owner, owner)) {
+        return undefined;
       }
+      const session = stored.session;
 
-      session.revealedSteps += 1
-      session.lastSeenAt = new Date().toISOString()
-      sessions.set(session.id, cloneSession(session))
-      return cloneSession(session)
+      session.revealedSteps += 1;
+      session.lastSeenAt = new Date().toISOString();
+      stored.session = cloneSession(session);
+      sessions.set(session.id, stored);
+      return cloneSession(session);
     },
-  }
+  };
 }
 
 export function createDatabaseTutorSessionRepository(
@@ -300,37 +326,54 @@ export function createDatabaseTutorSessionRepository(
           insert into tutor_sessions (
             id,
             anonymous_user_id,
+            user_id,
             question_id,
+            expires_at,
             revealed_hints,
             revealed_steps
           )
-          values ($1, $2, $3, 0, 0)
+          values ($1, $2, $3, $4, $5, 0, 0)
           returning *
         `,
-        [randomUUID(), input.anonymousStudentId, input.questionId],
-      )
+        [
+          randomUUID(),
+          input.owner.kind === "anonymous" ? input.owner.anonymousId : null,
+          input.owner.kind === "user" ? input.owner.userId : null,
+          input.questionId,
+          input.owner.kind === "anonymous"
+            ? new Date(
+                Date.now() +
+                  getServerEnv().ANONYMOUS_COOKIE_DAYS * 24 * 60 * 60 * 1_000,
+              )
+            : null,
+        ],
+      );
 
-      return mapTutorSession(rows[0] as TutorSessionRow, [])
+      return mapTutorSession(rows[0] as TutorSessionRow, []);
     },
 
-    async getSession(sessionId) {
-      return readDatabaseSession(query, sessionId)
+    async getSession(sessionId, owner) {
+      return readDatabaseSession(query, sessionId, owner);
     },
 
-    async listSessionsForStudent(anonymousStudentId) {
+    async listSessionsForStudent(owner) {
       const rows = (await readDatabaseRows(
         query,
         `
           select *
           from tutor_sessions
-          where anonymous_user_id = $1
+          where (
+            ($1 = 'user' and user_id = $2 and anonymous_user_id is null)
+            or
+            ($1 = 'anonymous' and anonymous_user_id = $2 and user_id is null)
+          )
           order by last_seen_at desc, created_at desc
         `,
-        [anonymousStudentId],
-      )) as TutorSessionRow[]
+        [owner.kind, ownerIdentifier(owner)],
+      )) as TutorSessionRow[];
 
       if (rows.length === 0) {
-        return []
+        return [];
       }
 
       const attemptRows = (await readDatabaseRows(
@@ -342,18 +385,19 @@ export function createDatabaseTutorSessionRepository(
           order by session_id, created_at, id
         `,
         [rows.map((row) => row.id)],
-      )) as TutorAttemptRow[]
-      const attemptsBySession = new Map<string, TutorAttemptRow[]>()
+      )) as TutorAttemptRow[];
+      const attemptsBySession = new Map<string, TutorAttemptRow[]>();
 
       for (const attempt of attemptRows) {
-        const sessionAttempts = attemptsBySession.get(attempt.session_id!) ?? []
-        sessionAttempts.push(attempt)
-        attemptsBySession.set(attempt.session_id!, sessionAttempts)
+        const sessionAttempts =
+          attemptsBySession.get(attempt.session_id!) ?? [];
+        sessionAttempts.push(attempt);
+        attemptsBySession.set(attempt.session_id!, sessionAttempts);
       }
 
       return rows.map((row) =>
         mapTutorSession(row, attemptsBySession.get(row.id) ?? []),
-      )
+      );
     },
 
     async recordAttempt(input) {
@@ -363,10 +407,11 @@ export function createDatabaseTutorSessionRepository(
           const session = await lockDatabaseSession(
             transactionQuery,
             input.sessionId,
-          )
+            input.owner,
+          );
 
           if (!session) {
-            return undefined
+            return undefined;
           }
 
           await transactionQuery(
@@ -386,13 +431,21 @@ export function createDatabaseTutorSessionRepository(
               session.questionId,
               previewString(input.answerPreview) ?? null,
             ],
-          )
-          await touchDatabaseSession(transactionQuery, input.sessionId)
+          );
+          await touchDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+            input.owner,
+          );
 
-          return readDatabaseSession(transactionQuery, input.sessionId)
+          return readDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+            input.owner,
+          );
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
     async recordAttemptOutcome(input) {
@@ -402,10 +455,11 @@ export function createDatabaseTutorSessionRepository(
           const session = await lockDatabaseSession(
             transactionQuery,
             input.sessionId,
-          )
+            input.owner,
+          );
 
           if (!session) {
-            return undefined
+            return undefined;
           }
 
           const updated = await transactionQuery(
@@ -431,7 +485,7 @@ export function createDatabaseTutorSessionRepository(
               input.source,
               input.estimatedTokens,
             ],
-          )
+          );
 
           if (updated.length === 0) {
             await transactionQuery(
@@ -455,17 +509,25 @@ export function createDatabaseTutorSessionRepository(
                 input.verdict,
                 input.estimatedTokens,
               ],
-            )
+            );
           }
 
-          await touchDatabaseSession(transactionQuery, input.sessionId)
-          return readDatabaseSession(transactionQuery, input.sessionId)
+          await touchDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+            input.owner,
+          );
+          return readDatabaseSession(
+            transactionQuery,
+            input.sessionId,
+            input.owner,
+          );
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
-    async revealHint(sessionId) {
+    async revealHint(sessionId, owner) {
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -475,21 +537,26 @@ export function createDatabaseTutorSessionRepository(
               set revealed_hints = revealed_hints + 1,
                   last_seen_at = now()
               where id = $1
+                and (
+                  ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
+                  or
+                  ($2 = 'anonymous' and anonymous_user_id = $3 and user_id is null)
+                )
               returning *
             `,
-            [sessionId],
-          )
-          const row = rows[0] as TutorSessionRow | undefined
+            [sessionId, owner.kind, ownerIdentifier(owner)],
+          );
+          const row = rows[0] as TutorSessionRow | undefined;
 
           return row
             ? readDatabaseSessionAttempts(transactionQuery, row)
-            : undefined
+            : undefined;
         },
         { retryOnConflict: true },
-      )
+      );
     },
 
-    async revealStep(sessionId) {
+    async revealStep(sessionId, owner) {
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -499,110 +566,116 @@ export function createDatabaseTutorSessionRepository(
               set revealed_steps = revealed_steps + 1,
                   last_seen_at = now()
               where id = $1
+                and (
+                  ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
+                  or
+                  ($2 = 'anonymous' and anonymous_user_id = $3 and user_id is null)
+                )
               returning *
             `,
-            [sessionId],
-          )
-          const row = rows[0] as TutorSessionRow | undefined
+            [sessionId, owner.kind, ownerIdentifier(owner)],
+          );
+          const row = rows[0] as TutorSessionRow | undefined;
 
           return row
             ? readDatabaseSessionAttempts(transactionQuery, row)
-            : undefined
+            : undefined;
         },
         { retryOnConflict: true },
-      )
+      );
     },
-  }
+  };
 }
 
 export function resetTutorSessionsForTests() {
-  const freshRepository = createMemoryTutorSessionRepository()
-  Object.assign(memoryTutorSessionRepository, freshRepository)
-  tutorSessionRepositoryOverride = undefined
+  const freshRepository = createMemoryTutorSessionRepository();
+  Object.assign(memoryTutorSessionRepository, freshRepository);
+  tutorSessionRepositoryOverride = undefined;
 }
 
 export function setTutorSessionRepositoryForTests(
   repository: TutorSessionRepository | undefined,
 ) {
-  tutorSessionRepositoryOverride = repository
+  tutorSessionRepositoryOverride = repository;
 }
 
 async function readWithConfiguredRepository<T>(
   read: (repository: TutorSessionRepository) => Promise<T>,
 ) {
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
 
   if (tutorSessionRepositoryOverride) {
     try {
-      return await read(tutorSessionRepositoryOverride)
+      return await read(tutorSessionRepositoryOverride);
     } catch (cause) {
       if (!policy.allowDemoFallback) {
-        throw new DataServiceUnavailableError("tutor-session", { cause })
+        throw new DataServiceUnavailableError("tutor-session", { cause });
       }
 
-      return read(memoryTutorSessionRepository)
+      return read(memoryTutorSessionRepository);
     }
   }
 
   if (policy.repositorySource === "demo") {
-    return read(memoryTutorSessionRepository)
+    return read(memoryTutorSessionRepository);
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("tutor-session")
+    throw new DataServiceUnavailableError("tutor-session");
   }
 
   try {
     return await read(
       createDatabaseTutorSessionRepository(env.DATABASE_URL, queryPostgres),
-    )
+    );
   } catch (cause) {
     if (!policy.allowDemoFallback) {
-      throw new DataServiceUnavailableError("tutor-session", { cause })
+      throw new DataServiceUnavailableError("tutor-session", { cause });
     }
 
-    return read(memoryTutorSessionRepository)
+    return read(memoryTutorSessionRepository);
   }
 }
 
 async function writeWithConfiguredRepository<T>(
   write: (repository: TutorSessionRepository) => Promise<T>,
 ) {
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
 
   if (tutorSessionRepositoryOverride) {
     try {
-      return await write(tutorSessionRepositoryOverride)
+      return await write(tutorSessionRepositoryOverride);
     } catch (cause) {
-      throw new DataServiceUnavailableError("tutor-session", { cause })
+      throw new DataServiceUnavailableError("tutor-session", { cause });
     }
   }
 
   if (policy.repositorySource === "demo") {
-    return write(memoryTutorSessionRepository)
+    return write(memoryTutorSessionRepository);
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("tutor-session")
+    throw new DataServiceUnavailableError("tutor-session");
   }
 
   try {
     return await write(
       createDatabaseTutorSessionRepository(env.DATABASE_URL, queryPostgres),
-    )
+    );
   } catch (cause) {
     // A failed database write must never be replayed against process memory.
     // The server cannot prove whether a connection failure happened before or
     // after commit, so callers receive a stable unavailable response instead.
-    throw new DataServiceUnavailableError("tutor-session", { cause })
+    throw new DataServiceUnavailableError("tutor-session", { cause });
   }
 }
 
 async function readDatabaseSession(
   query: DatabaseQueryExecutor,
   sessionId: string,
+  owner: StudentOwner,
 ): Promise<TutorSessionRecord | undefined> {
   const sessionRows = await readDatabaseRows(
     query,
@@ -610,17 +683,22 @@ async function readDatabaseSession(
       select *
       from tutor_sessions
       where id = $1
+        and (
+          ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
+          or
+          ($2 = 'anonymous' and anonymous_user_id = $3 and user_id is null)
+        )
       limit 1
     `,
-    [sessionId],
-  )
-  const sessionRow = sessionRows[0] as TutorSessionRow | undefined
+    [sessionId, owner.kind, ownerIdentifier(owner)],
+  );
+  const sessionRow = sessionRows[0] as TutorSessionRow | undefined;
 
   if (!sessionRow) {
-    return undefined
+    return undefined;
   }
 
-  return readDatabaseSessionAttempts(query, sessionRow)
+  return readDatabaseSessionAttempts(query, sessionRow);
 }
 
 async function readDatabaseSessionAttempts(
@@ -636,9 +714,9 @@ async function readDatabaseSessionAttempts(
       order by created_at, id
     `,
     [sessionRow.id],
-  )
+  );
 
-  return mapTutorSession(sessionRow, attemptRows as TutorAttemptRow[])
+  return mapTutorSession(sessionRow, attemptRows as TutorAttemptRow[]);
 }
 
 function mapTutorSession(
@@ -646,7 +724,6 @@ function mapTutorSession(
   attemptRows: TutorAttemptRow[],
 ): TutorSessionRecord {
   return {
-    anonymousStudentId: sessionRow.anonymous_user_id ?? undefined,
     attempts: attemptRows.map(mapTutorAttempt),
     createdAt: toIsoString(sessionRow.created_at),
     id: String(sessionRow.id),
@@ -654,7 +731,7 @@ function mapTutorSession(
     questionId: String(sessionRow.question_id),
     revealedHints: Number(sessionRow.revealed_hints ?? 0),
     revealedSteps: Number(sessionRow.revealed_steps ?? 0),
-  }
+  };
 }
 
 function mapTutorAttempt(row: TutorAttemptRow): TutorSessionAttempt {
@@ -664,24 +741,25 @@ function mapTutorAttempt(row: TutorAttemptRow): TutorSessionAttempt {
     id: String(row.id),
     source: row.source ?? undefined,
     verdict: row.verdict ?? undefined,
-  }
+  };
 }
 
 function cloneSession(session: TutorSessionRecord): TutorSessionRecord {
   return {
     ...session,
     attempts: session.attempts.map((attempt) => ({ ...attempt })),
-  }
+  };
 }
 
 function previewString(value: string | undefined) {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed.slice(0, 80) : undefined
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 80) : undefined;
 }
 
 async function lockDatabaseSession(
   query: DatabaseQueryExecutor,
   sessionId: string,
+  owner: StudentOwner,
 ) {
   const rows = await readDatabaseRows(
     query,
@@ -689,40 +767,61 @@ async function lockDatabaseSession(
       select *
       from tutor_sessions
       where id = $1
+        and (
+          ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
+          or
+          ($2 = 'anonymous' and anonymous_user_id = $3 and user_id is null)
+        )
       for update
     `,
-    [sessionId],
-  )
-  const row = rows[0] as TutorSessionRow | undefined
+    [sessionId, owner.kind, ownerIdentifier(owner)],
+  );
+  const row = rows[0] as TutorSessionRow | undefined;
 
-  return row ? mapTutorSession(row, []) : undefined
+  return row ? mapTutorSession(row, []) : undefined;
 }
 
 async function touchDatabaseSession(
   query: DatabaseQueryExecutor,
   sessionId: string,
+  owner: StudentOwner,
 ) {
   await query(
     `
       update tutor_sessions
       set last_seen_at = now()
       where id = $1
+        and (
+          ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
+          or
+          ($2 = 'anonymous' and anonymous_user_id = $3 and user_id is null)
+        )
     `,
-    [sessionId],
-  )
+    [sessionId, owner.kind, ownerIdentifier(owner)],
+  );
+}
+
+function ownerIdentifier(owner: StudentOwner) {
+  return owner.kind === "user" ? owner.userId : owner.anonymousId;
+}
+
+function sameOwner(left: StudentOwner, right: StudentOwner) {
+  return (
+    left.kind === right.kind && ownerIdentifier(left) === ownerIdentifier(right)
+  );
 }
 
 function toIsoString(value: Date | string) {
-  return value instanceof Date ? value.toISOString() : value
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 function createUnavailableQueryExecutor(
   databaseUrl: string,
 ): DatabaseQueryExecutor {
-  void databaseUrl
+  void databaseUrl;
   return async () => {
     throw new Error(
       "Tutor session repository has no configured query executor.",
-    )
-  }
+    );
+  };
 }

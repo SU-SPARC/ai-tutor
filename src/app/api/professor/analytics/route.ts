@@ -1,25 +1,25 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 import {
   getContentRepositoryMode,
   getProfessorPracticeAnalytics,
   getReviewQueue,
-} from "@/lib/data/data-store"
-import { authorizeProfessorReview } from "@/lib/tutor/professor-auth"
-import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin"
+} from "@/lib/data/data-store";
+import { authorizeApiRole } from "@/lib/auth/principal";
+import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin";
 
-export async function GET(request: Request) {
-  const auth = authorizeProfessorReview(request.headers)
+export async function GET() {
+  const authorization = await authorizeApiRole("professor");
 
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.reason }, { status: auth.status })
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
   try {
     const [reviewQueue, practice] = await Promise.all([
       getReviewQueue(),
       getProfessorPracticeAnalytics(),
-    ])
+    ]);
 
     return NextResponse.json({
       analytics: buildProfessorAnalyticsDashboard({
@@ -27,11 +27,11 @@ export async function GET(request: Request) {
         practice,
         reviewQueue,
       }),
-    })
+    });
   } catch {
     return NextResponse.json(
       { error: "Professor analytics are unavailable right now." },
       { status: 503 },
-    )
+    );
   }
 }

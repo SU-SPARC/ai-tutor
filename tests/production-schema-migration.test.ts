@@ -1,29 +1,31 @@
-import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import path from "node:path"
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import { PGlite } from "@electric-sql/pglite"
-import { afterEach, describe, expect, it } from "vitest"
+import { PGlite } from "@electric-sql/pglite";
+import { afterEach, describe, expect, it } from "vitest";
 
-const migrationDirectory = path.join(process.cwd(), "db/migrations")
+const migrationDirectory = path.join(process.cwd(), "db/migrations");
 const migrationFiles = readdirSync(migrationDirectory)
   .filter((file) => file.endsWith(".sql"))
-  .sort()
+  .sort();
 
-const openDatabases: PGlite[] = []
-const temporaryDirectories: string[] = []
+const openDatabases: PGlite[] = [];
+const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(openDatabases.splice(0).map((database) => database.close()))
+  await Promise.all(
+    openDatabases.splice(0).map((database) => database.close()),
+  );
   for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { force: true, recursive: true })
+    rmSync(directory, { force: true, recursive: true });
   }
-})
+});
 
 describe("production schema hardening migration", () => {
   it("applies the complete migration chain to an empty Postgres database", async () => {
-    const database = await migratedDatabase()
+    const database = await migratedDatabase();
 
     const tableNames = await columnValues(
       database,
@@ -35,11 +37,12 @@ describe("production schema hardening migration", () => {
         order by table_name
       `,
       "table_name",
-    )
+    );
 
     expect(tableNames).toEqual(
       expect.arrayContaining([
         "ai_usage",
+        "anonymous_identity_claims",
         "approved_content_imports",
         "attempts",
         "audit_events",
@@ -58,7 +61,7 @@ describe("production schema hardening migration", () => {
         "user_roles",
         "users",
       ]),
-    )
+    );
 
     const constraintNames = await columnValues(
       database,
@@ -69,7 +72,7 @@ describe("production schema hardening migration", () => {
         order by conname
       `,
       "conname",
-    )
+    );
 
     expect(constraintNames).toEqual(
       expect.arrayContaining([
@@ -91,8 +94,9 @@ describe("production schema hardening migration", () => {
         "topics_sort_order_unique",
         "tutor_sessions_identity_check",
         "users_human_email_required",
+        "users_session_version_positive",
       ]),
-    )
+    );
 
     const indexNames = await columnValues(
       database,
@@ -103,11 +107,12 @@ describe("production schema hardening migration", () => {
         order by indexname
       `,
       "indexname",
-    )
+    );
 
     expect(indexNames).toEqual(
       expect.arrayContaining([
         "ai_usage_reporting_idx",
+        "anonymous_identity_claims_user_idx",
         "attempts_question_activity_idx",
         "attempts_session_timeline_idx",
         "attempts_topic_activity_idx",
@@ -129,7 +134,7 @@ describe("production schema hardening migration", () => {
         "user_roles_active_role_idx",
         "users_active_email_unique_idx",
       ]),
-    )
+    );
 
     const mutableTablesWithUpdatedAt = await columnValues(
       database,
@@ -159,12 +164,12 @@ describe("production schema hardening migration", () => {
         order by table_name
       `,
       "table_name",
-    )
-    expect(mutableTablesWithUpdatedAt).toHaveLength(16)
+    );
+    expect(mutableTablesWithUpdatedAt).toHaveLength(16);
 
     const deletionRules = await database.query<{
-      confdeltype: string
-      conname: string
+      confdeltype: string;
+      conname: string;
     }>(`
       select conname, confdeltype
       from pg_constraint
@@ -180,7 +185,7 @@ describe("production schema hardening migration", () => {
         'ai_llm_reservations_session_fkey'
       )
       order by conname
-    `)
+    `);
     expect(
       Object.fromEntries(
         deletionRules.rows.map((row) => [row.conname, row.confdeltype]),
@@ -195,23 +200,23 @@ describe("production schema hardening migration", () => {
       student_progress_user_id_fkey: "c",
       tutor_sessions_question_id_fkey: "n",
       tutor_sessions_user_id_fkey: "c",
-    })
+    });
 
     const seededRoles = await columnValues(
       database,
       "select id from roles order by id",
       "id",
-    )
-    expect(seededRoles).toEqual(["admin", "professor", "student"])
-  })
+    );
+    expect(seededRoles).toEqual(["admin", "professor", "student"]);
+  });
 
   it("accepts the public development seed without bypassing review identity", async () => {
-    const database = await migratedDatabase()
+    const database = await migratedDatabase();
     const temporaryDirectory = mkdtempSync(
       path.join(tmpdir(), "pf-xj-schema-seed-"),
-    )
-    temporaryDirectories.push(temporaryDirectory)
-    const outputPath = path.join(temporaryDirectory, "seed.sql")
+    );
+    temporaryDirectories.push(temporaryDirectory);
+    const outputPath = path.join(temporaryDirectory, "seed.sql");
 
     execFileSync(
       process.execPath,
@@ -221,28 +226,28 @@ describe("production schema hardening migration", () => {
         outputPath,
       ],
       { stdio: "pipe" },
-    )
-    await database.exec(readFileSync(outputPath, "utf8"))
+    );
+    await database.exec(readFileSync(outputPath, "utf8"));
 
     const counts = await database.query<{
-      approvals: number
-      public_questions: number
-      questions: number
-      topics: number
+      approvals: number;
+      public_questions: number;
+      questions: number;
+      topics: number;
     }>(`
       select
         (select count(*)::int from topics) as topics,
         (select count(*)::int from questions) as questions,
         (select count(*)::int from app_public_questions) as public_questions,
         (select count(*)::int from question_approval_history) as approvals
-    `)
+    `);
 
     expect(counts.rows[0]).toEqual({
       approvals: 8,
       public_questions: 8,
       questions: 8,
       topics: 11,
-    })
+    });
 
     const latestVersion = await database.query<{ snapshot_json: unknown }>(`
       select snapshot_json
@@ -250,25 +255,25 @@ describe("production schema hardening migration", () => {
       where question_id = 'demo-basic-probability-colored-tickets'
       order by version_number desc
       limit 1
-    `)
+    `);
     const snapshot = latestVersion.rows[0]?.snapshot_json as {
-      hints: Array<{ body: string; order: number }>
-      solutionSteps: Array<{ body: string; order: number }>
-    }
-    expect(snapshot.hints).toHaveLength(3)
+      hints: Array<{ body: string; order: number }>;
+      solutionSteps: Array<{ body: string; order: number }>;
+    };
+    expect(snapshot.hints).toHaveLength(3);
     expect(snapshot.hints[0]).toEqual({
       body: "First find the total number of tickets.",
       order: 1,
-    })
-    expect(snapshot.solutionSteps).toHaveLength(3)
+    });
+    expect(snapshot.solutionSteps).toHaveLength(3);
     expect(snapshot.solutionSteps[0]).toEqual({
       body: "Count all tickets: 4 + 3 + 5 = 12.",
       order: 1,
-    })
-  })
+    });
+  });
 
   it("preserves and backfills legacy content and activity rows", async () => {
-    const database = await databaseThrough("006_syllabus_topic_order.sql")
+    const database = await databaseThrough("006_syllabus_topic_order.sql");
 
     await database.exec(`
       insert into topics (
@@ -377,21 +382,22 @@ describe("production schema hardening migration", () => {
         'pending',
         now() + interval '1 hour'
       );
-    `)
+    `);
 
-    await applyMigration(database, "007_production_schema_hardening.sql")
-    await applyMigration(database, "008_approved_content_import.sql")
+    await applyMigration(database, "007_production_schema_hardening.sql");
+    await applyMigration(database, "008_approved_content_import.sql");
+    await applyMigration(database, "009_authentication_authorization.sql");
 
     const preserved = await database.query<{
-      attempts: number
-      hints: number
-      misconceptions: number
-      questions: number
-      reservations: number
-      sessions: number
-      steps: number
-      topics: number
-      usage_rows: number
+      attempts: number;
+      hints: number;
+      misconceptions: number;
+      questions: number;
+      reservations: number;
+      sessions: number;
+      steps: number;
+      topics: number;
+      usage_rows: number;
     }>(`
       select
         (select count(*)::int from topics) as topics,
@@ -403,7 +409,7 @@ describe("production schema hardening migration", () => {
         (select count(*)::int from attempts) as attempts,
         (select count(*)::int from ai_usage) as usage_rows,
         (select count(*)::int from ai_llm_reservations) as reservations
-    `)
+    `);
 
     expect(preserved.rows[0]).toEqual({
       attempts: 1,
@@ -415,47 +421,47 @@ describe("production schema hardening migration", () => {
       steps: 1,
       topics: 1,
       usage_rows: 1,
-    })
+    });
 
     const question = await database.query<{
-      pattern_id: string
-      reviewed_by: string
-      reviewed_by_user_id: string
+      pattern_id: string;
+      reviewed_by: string;
+      reviewed_by_user_id: string;
     }>(`
       select pattern_id, reviewed_by, reviewed_by_user_id
       from questions
       where id = 'legacy-question'
-    `)
+    `);
     expect(question.rows[0]).toEqual({
       pattern_id: "legacy-untracked-pattern",
       reviewed_by: "professor",
       reviewed_by_user_id: "system:schema-migration",
-    })
+    });
 
     const history = await database.query<{
-      decisions: number
-      versions: number
+      decisions: number;
+      versions: number;
     }>(`
       select
         (select count(*)::int from question_versions) as versions,
         (select count(*)::int from question_approval_history) as decisions
-    `)
-    expect(history.rows[0]).toEqual({ decisions: 1, versions: 1 })
+    `);
+    expect(history.rows[0]).toEqual({ decisions: 1, versions: 1 });
 
     const attempt = await database.query<{
-      question_version_id: number
-      topic_id: string
+      question_version_id: number;
+      topic_id: string;
     }>(`
       select question_version_id, topic_id
       from attempts
       where session_id = 'legacy-session'
-    `)
-    expect(attempt.rows[0]?.question_version_id).toBeTypeOf("number")
-    expect(attempt.rows[0]?.topic_id).toBe("probability")
-  })
+    `);
+    expect(attempt.rows[0]?.question_version_id).toBeTypeOf("number");
+    expect(attempt.rows[0]?.topic_id).toBe("probability");
+  });
 
   it("enforces publication, ordering, role, history, and deletion invariants", async () => {
-    const database = await migratedDatabase()
+    const database = await migratedDatabase();
 
     await database.exec(`
       insert into users (
@@ -511,14 +517,14 @@ describe("production schema hardening migration", () => {
         'professor-1',
         now()
       );
-    `)
+    `);
 
     await expect(
       database.exec(`
         insert into topics (id, title, description, sort_order)
         values ('duplicate-order', 'Duplicate order', '', 1)
       `),
-    ).rejects.toThrow()
+    ).rejects.toThrow();
 
     await database.exec(`
       insert into questions (
@@ -547,7 +553,7 @@ describe("production schema hardening migration", () => {
         'needs_review',
         'public'
       )
-    `)
+    `);
 
     await expect(
       database.exec(`
@@ -558,14 +564,14 @@ describe("production schema hardening migration", () => {
             reviewed_at = now()
         where id = 'draft-question'
       `),
-    ).rejects.toThrow(/active professor or admin identity/)
+    ).rejects.toThrow(/active professor or admin identity/);
 
     await expect(
       database.exec(`
         insert into hints (question_id, hint_order, body)
         values ('approved-question', 0, 'Invalid order')
       `),
-    ).rejects.toThrow()
+    ).rejects.toThrow();
 
     await expect(
       database.exec(`
@@ -596,14 +602,14 @@ describe("production schema hardening migration", () => {
           'public'
         )
       `),
-    ).rejects.toThrow()
+    ).rejects.toThrow();
 
     const initialHistory = await database.query<{ count: number }>(`
       select count(*)::int as count
       from question_approval_history
       where question_id = 'approved-question'
-    `)
-    expect(initialHistory.rows[0]?.count).toBe(1)
+    `);
+    expect(initialHistory.rows[0]?.count).toBe(1);
 
     await expect(
       database.exec(`
@@ -611,7 +617,7 @@ describe("production schema hardening migration", () => {
         set notes = 'rewrite history'
         where question_id = 'approved-question'
       `),
-    ).rejects.toThrow(/append-only/)
+    ).rejects.toThrow(/append-only/);
 
     await database.exec(`
       insert into audit_events (
@@ -628,11 +634,11 @@ describe("production schema hardening migration", () => {
         'question',
         'approved-question'
       );
-    `)
+    `);
 
     await expect(database.exec("delete from audit_events")).rejects.toThrow(
       /append-only/,
-    )
+    );
 
     await database.exec(`
       insert into tutor_sessions (id, user_id, question_id)
@@ -704,13 +710,13 @@ describe("production schema hardening migration", () => {
       limit 1;
 
       delete from users where id = 'student-1';
-    `)
+    `);
 
     const studentRows = await database.query<{
-      attempts: number
-      feedback: number
-      progress: number
-      sessions: number
+      attempts: number;
+      feedback: number;
+      progress: number;
+      sessions: number;
     }>(`
       select
         (select count(*)::int from tutor_sessions where user_id = 'student-1') as sessions,
@@ -722,48 +728,48 @@ describe("production schema hardening migration", () => {
           where reporter_user_id is null
             and reporter_subject_hash = 'student-subject-hash'
         ) as feedback
-    `)
+    `);
     expect(studentRows.rows[0]).toEqual({
       attempts: 0,
       feedback: 1,
       progress: 0,
       sessions: 0,
-    })
+    });
 
     await expect(
       database.exec("delete from questions where id = 'approved-question'"),
-    ).rejects.toThrow()
-  })
-})
+    ).rejects.toThrow();
+  });
+});
 
 async function migratedDatabase() {
-  return databaseThrough(migrationFiles.at(-1))
+  return databaseThrough(migrationFiles.at(-1));
 }
 
 async function databaseThrough(lastMigration: string | undefined) {
   if (!lastMigration) {
-    throw new Error("No database migration was found.")
+    throw new Error("No database migration was found.");
   }
 
-  const database = new PGlite()
-  openDatabases.push(database)
+  const database = new PGlite();
+  openDatabases.push(database);
 
   for (const file of migrationFiles) {
-    await applyMigration(database, file)
+    await applyMigration(database, file);
     if (file === lastMigration) {
-      break
+      break;
     }
   }
 
-  return database
+  return database;
 }
 
 async function applyMigration(database: PGlite, file: string) {
-  const sql = readFileSync(path.join(migrationDirectory, file), "utf8")
-  await database.exec(sql)
+  const sql = readFileSync(path.join(migrationDirectory, file), "utf8");
+  await database.exec(sql);
 }
 
 async function columnValues(database: PGlite, sql: string, column: string) {
-  const result = await database.query<Record<string, unknown>>(sql)
-  return result.rows.map((row) => String(row[column]))
+  const result = await database.query<Record<string, unknown>>(sql);
+  return result.rows.map((row) => String(row[column]));
 }

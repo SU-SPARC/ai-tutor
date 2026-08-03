@@ -1,63 +1,64 @@
-import "server-only"
+import "server-only";
 
-import { getApprovedQuestions, getTopics } from "@/lib/data/data-store"
-import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository"
-import type { StudentProgressDashboard } from "@/lib/types"
+import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
+import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
+import type { StudentProgressDashboard } from "@/lib/types";
+import type { StudentOwner } from "@/lib/auth/principal";
 
-const RECENT_SESSION_LIMIT = 8
+const RECENT_SESSION_LIMIT = 8;
 
 export async function getStudentProgress(
-  anonymousStudentId: string,
+  owner: StudentOwner,
 ): Promise<StudentProgressDashboard> {
   const [{ mode, sessions }, questions, topics] = await Promise.all([
-    listTutorSessionsForStudent(anonymousStudentId),
+    listTutorSessionsForStudent(owner),
     getApprovedQuestions(),
     getTopics(),
-  ])
+  ]);
   const questionsById = new Map(
     questions.map((question) => [question.id, question]),
-  )
-  const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
+  );
+  const topicsById = new Map(topics.map((topic) => [topic.id, topic]));
   const activeSessions = sessions.filter(
     (session) =>
       session.attempts.length > 0 ||
       session.revealedHints > 0 ||
       session.revealedSteps > 0,
-  )
-  const attemptedQuestionIds = new Set<string>()
-  const practicedTopicIds = new Set<string>()
-  let correctAttempts = 0
-  let hintsUsed = 0
-  let stepsRevealed = 0
+  );
+  const attemptedQuestionIds = new Set<string>();
+  const practicedTopicIds = new Set<string>();
+  let correctAttempts = 0;
+  let hintsUsed = 0;
+  let stepsRevealed = 0;
 
   for (const session of activeSessions) {
-    const question = questionsById.get(session.questionId)
+    const question = questionsById.get(session.questionId);
 
     if (!question) {
-      continue
+      continue;
     }
 
     if (session.attempts.length > 0) {
-      attemptedQuestionIds.add(question.id)
+      attemptedQuestionIds.add(question.id);
     }
 
-    practicedTopicIds.add(question.topicId)
+    practicedTopicIds.add(question.topicId);
     correctAttempts += session.attempts.filter(
       (attempt) => attempt.verdict === "correct",
-    ).length
-    hintsUsed += session.revealedHints
-    stepsRevealed += session.revealedSteps
+    ).length;
+    hintsUsed += session.revealedHints;
+    stepsRevealed += session.revealedSteps;
   }
 
   return {
     mode,
     recentSessions: activeSessions
       .flatMap((session) => {
-        const question = questionsById.get(session.questionId)
-        const topic = question ? topicsById.get(question.topicId) : undefined
+        const question = questionsById.get(session.questionId);
+        const topic = question ? topicsById.get(question.topicId) : undefined;
 
         if (!question || !topic) {
-          return []
+          return [];
         }
 
         return [
@@ -74,7 +75,7 @@ export async function getStudentProgress(
             topicId: topic.id,
             topicTitle: topic.title,
           },
-        ]
+        ];
       })
       .slice(0, RECENT_SESSION_LIMIT),
     summary: {
@@ -87,5 +88,5 @@ export async function getStudentProgress(
     topics: topics
       .filter((topic) => practicedTopicIds.has(topic.id))
       .map(({ id, title }) => ({ id, title })),
-  }
+  };
 }

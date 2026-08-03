@@ -1,21 +1,21 @@
-import Link from "next/link"
-import { ArrowLeft, ClipboardCheck } from "lucide-react"
+import Link from "next/link";
+import { ArrowLeft, ClipboardCheck } from "lucide-react";
 
-import { ProfessorFriendlyReviewPanel } from "@/components/admin/professor-friendly-review-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ProfessorFriendlyReviewPanel } from "@/components/admin/professor-friendly-review-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { listTopics } from "@/lib/data/data-store"
-import { safeTopics } from "@/lib/tutor/professor-admin"
+} from "@/components/ui/card";
+import { listTopics } from "@/lib/data/data-store";
+import { safeTopics } from "@/lib/tutor/professor-admin";
 
 export default async function AdminReviewPage() {
-  const topics = safeTopics(await listTopics())
+  const topics = safeTopics(await listTopics());
 
   return (
     <main className="min-h-svh bg-background">
@@ -49,7 +49,7 @@ export default async function AdminReviewPage() {
           <CardHeader>
             <CardTitle>Review queue</CardTitle>
             <CardDescription>
-              Enter the admin secret to load generated questions needing review.
+              Your professor or administrator role authorizes review actions.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -58,5 +58,5 @@ export default async function AdminReviewPage() {
         </Card>
       </section>
     </main>
-  )
+  );
 }

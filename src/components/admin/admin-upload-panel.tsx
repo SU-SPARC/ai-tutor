@@ -1,85 +1,72 @@
-"use client"
+"use client";
 
-import { useRef, useState, type FormEvent } from "react"
-import {
-  AlertTriangle,
-  FileText,
-  KeyRound,
-  Loader2,
-  UploadCloud,
-} from "lucide-react"
+import { useRef, useState, type FormEvent } from "react";
+import { AlertTriangle, FileText, Loader2, UploadCloud } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import type { AdminContentUploadPreview } from "@/lib/tutor/admin-content-upload"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type { AdminContentUploadPreview } from "@/lib/tutor/admin-content-upload";
 
 type UploadPayload = {
-  error?: string
-  imported?: boolean
-  preview?: AdminContentUploadPreview
-  reviewStatus?: "needs_review"
-}
+  error?: string;
+  imported?: boolean;
+  preview?: AdminContentUploadPreview;
+  reviewStatus?: "needs_review";
+};
 
 export function AdminUploadPanel() {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [preview, setPreview] = useState<AdminContentUploadPreview | null>(null)
-  const [token, setToken] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [preview, setPreview] = useState<AdminContentUploadPreview | null>(
+    null,
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsUploading(true)
-    setMessage(null)
-    setPreview(null)
+    event.preventDefault();
+    setIsUploading(true);
+    setMessage(null);
+    setPreview(null);
 
-    const file = fileInputRef.current?.files?.[0]
+    const file = fileInputRef.current?.files?.[0];
 
     if (!file) {
-      setMessage("Choose a .tex or .pdf file.")
-      setIsUploading(false)
-      return
+      setMessage("Choose a .tex or .pdf file.");
+      setIsUploading(false);
+      return;
     }
 
-    const formData = new FormData()
-    formData.set("file", file)
+    const formData = new FormData();
+    formData.set("file", file);
 
     try {
       const response = await fetch("/api/admin/upload", {
         body: formData,
-        headers: token ? { "x-professor-token": token } : undefined,
         method: "POST",
-      })
-      const payload = (await response.json()) as UploadPayload
+      });
+      const payload = (await response.json()) as UploadPayload;
 
       if (!response.ok || !payload.preview) {
-        setMessage(payload.error ?? "Upload preview failed.")
-        return
+        setMessage(payload.error ?? "Upload preview failed.");
+        return;
       }
 
-      setPreview(payload.preview)
-      setMessage("Preview generated. Nothing was approved or imported.")
+      setPreview(payload.preview);
+      setMessage("Preview generated. Nothing was approved or imported.");
     } catch {
-      setMessage("Upload preview failed.")
+      setMessage("Upload preview failed.");
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <form className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]" onSubmit={handleSubmit}>
-        <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            className="pl-9"
-            type="password"
-            placeholder="Admin secret"
-          />
-        </div>
+      <form
+        className="grid gap-3 lg:grid-cols-[1fr_auto]"
+        onSubmit={handleSubmit}
+      >
         <Input
           ref={fileInputRef}
           accept=".tex,.pdf,application/pdf,text/x-tex,application/x-tex"
@@ -103,7 +90,7 @@ export function AdminUploadPanel() {
 
       {preview ? <PreviewResult preview={preview} /> : null}
     </div>
-  )
+  );
 }
 
 function PreviewResult({ preview }: { preview: AdminContentUploadPreview }) {
@@ -118,8 +105,14 @@ function PreviewResult({ preview }: { preview: AdminContentUploadPreview }) {
 
       <div className="grid gap-3 text-sm md:grid-cols-3">
         <Info label="File" value={preview.file.name} />
-        <Info label="Size" value={`${Math.ceil(preview.file.size / 1024)} KB`} />
-        <Info label="Storage" value={preview.privateStorage ?? "preview only"} />
+        <Info
+          label="Size"
+          value={`${Math.ceil(preview.file.size / 1024)} KB`}
+        />
+        <Info
+          label="Storage"
+          value={preview.privateStorage ?? "preview only"}
+        />
       </div>
 
       {preview.warnings.length > 0 ? (
@@ -134,7 +127,10 @@ function PreviewResult({ preview }: { preview: AdminContentUploadPreview }) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <PreviewSection title="Topics" items={preview.topics.map((item) => item.label)} />
+        <PreviewSection
+          title="Topics"
+          items={preview.topics.map((item) => item.label)}
+        />
         <PreviewSection
           title="Patterns"
           items={preview.patterns.map((item) => item.label)}
@@ -151,7 +147,7 @@ function PreviewResult({ preview }: { preview: AdminContentUploadPreview }) {
         />
       </div>
     </div>
-  )
+  );
 }
 
 function Info({ label, value }: { label: string; value: string }) {
@@ -160,7 +156,7 @@ function Info({ label, value }: { label: string; value: string }) {
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 truncate font-medium">{value}</div>
     </div>
-  )
+  );
 }
 
 function PreviewSection({ items, title }: { items: string[]; title: string }) {
@@ -171,7 +167,9 @@ function PreviewSection({ items, title }: { items: string[]; title: string }) {
         {title}
       </div>
       {items.length === 0 ? (
-        <div className="text-sm text-muted-foreground">No preview items found.</div>
+        <div className="text-sm text-muted-foreground">
+          No preview items found.
+        </div>
       ) : (
         <ul className="flex flex-col gap-2 text-sm">
           {items.map((item) => (
@@ -182,5 +180,5 @@ function PreviewSection({ items, title }: { items: string[]; title: string }) {
         </ul>
       )}
     </section>
-  )
+  );
 }

@@ -70,9 +70,10 @@ Audit baseline: `e310048`
 
 ### Identity And Operations
 
-- Students currently use a browser-generated anonymous identifier. This
-  provides continuity, not authentication or access control.
-- Professor/admin operations currently use one shared `ADMIN_SECRET`.
+- Auth.js provides provider-neutral OIDC sessions and application roles. An
+  approved institutional provider and credentials are still required.
+- Optional anonymous practice uses a signed, HTTP-only server cookie and
+  ownership-aware repository queries; it remains continuity, not affiliation.
 - Local demo mode uses committed fixtures and in-memory state. Deployed
   database modes now fail closed instead of substituting either source.
 - Typed configuration now distinguishes Development, Test, Preview, Staging,
@@ -93,23 +94,23 @@ by themselves establish production readiness:
 - [x] Student topic catalog follows canonical syllabus order.
 - [x] Student-facing content filters out unapproved and untrusted questions.
 - [x] Rule-based answer checking, incremental hints, solution steps, and
-  misconception feedback are implemented.
+      misconception feedback are implemented.
 - [x] Anonymous tutor sessions and aggregate progress have Postgres repository
-  implementations and an explicitly non-durable demo implementation.
+      implementations and an explicitly non-durable demo implementation.
 - [x] Generated questions default to `needs_review`,
-  `generated_unverified`, and original generated source types.
+      `generated_unverified`, and original generated source types.
 - [x] Professor review, question editing, rejection, approval, upload preview,
-  and deterministic regeneration foundations exist.
+      and deterministic regeneration foundations exist.
 - [x] Private course files and derived private artifacts are ignored by Git.
 - [x] Private-reference retrieval requires approved safe summaries; raw private
-  chunks are not returned through student APIs.
+      chunks are not returned through student APIs.
 - [x] Server-side LLM fallback has response guardrails, caching, and token/call
-  controls.
+      controls.
 - [x] Aggregate professor analytics and AI usage dashboards exist.
 - [x] Explicit operating modes prevent Preview database mode, Staging, and
-  Production from falling back to demo content or in-memory sessions.
+      Production from falling back to demo content or in-memory sessions.
 - [x] Lint, TypeScript, unit/API tests, and the production build pass at the
-  audit baseline.
+      audit baseline.
 
 Relevant safety and workflow documentation:
 
@@ -123,49 +124,49 @@ Relevant safety and workflow documentation:
 Owners below identify the role accountable for closure. A named individual or
 team should replace each role before a pilot is scheduled.
 
-| ID | Severity | Major task | Status | Accountable owner | Completion evidence |
-| --- | --- | --- | --- | --- | --- |
-| PR-01 | Critical | Maintain this readiness record and link evidence from later production prompts. | In progress | Project engineering | This document is reviewed and updated for every production-transition change. |
-| PR-02 | Critical | Complete the data-flow, privacy, retention, and deletion inventory. | Planned | Privacy owner + engineering | Approved inventory covers identifiers, answers, tutor messages, AI inputs/outputs, logs, caches, analytics, and third parties. |
-| PR-03 | Critical | Record production architecture and environment decisions. | Decision required | Project owner + university IT | Approved architecture decision record names environment, database, auth, AI, logging, backup, deployment, and rollback choices. |
-| PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data. | In progress | Platform engineering | [Typed environment validation](environment-configuration.md) and automated tests cover configuration; deployed resource isolation remains to be proven. |
-| PR-05 | Critical | Remove production demo and in-memory fallbacks. | Complete | Application engineering | [Operating-mode policy](operating-modes.md) and production-mode tests prove database failures return controlled errors and never read or mutate demo state. |
-| PR-06 | Critical | Establish production database ownership, billing, credentials, backup, deletion, and incident responsibilities. | Decision required | University IT + project owner | Written ownership handoff and separate staging/production database evidence. |
-| PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators. | Decision required | University IT + security + engineering | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure. |
-| PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation. | Planned | Application engineering | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records. |
-| PR-09 | Critical | Protect all professor/admin pages and reads; replace the shared secret and record the authenticated reviewer. | Planned | Application engineering | Anonymous/student access is denied; review history records the real reviewer; no secret is entered or stored in browser UI. |
-| PR-10 | High | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions. | Complete | Database engineering | The [database operations runbook](database-operations.md), checksum-ledger runner, deployment check, destructive/Production gates, and executable empty/upgrade tests provide the required evidence. |
-| PR-11 | High | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete | Database engineering + privacy owner | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
-| PR-12 | High | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe. | Planned | Database engineering | Failure and simultaneous-review tests prove atomicity and conflict handling. |
-| PR-13 | High | Add an idempotent, dry-run production importer for approved content only. | Complete | Content engineering + professor | The [approved-content importer](approved-content-import.md), immutable import ledger, and executable tests prove stable IDs/order, exact no-op replay, transactional rollback, and exclusion of private, draft, retrieval, test, student, and session data. |
-| PR-14 | High | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks. | Planned | Platform + database engineering | Load/failure tests and health checks prove bounded, non-leaking behavior. |
-| PR-15 | High | Define and test backup, restore, RPO, RTO, and rollback procedures. | Decision required | University IT + database engineering | Provider backup evidence and a successful disposable restore exercise. |
-| PR-16 | High | Add read-only integrity checks and explicitly gated repair tools. | Planned | Database + content engineering | Reports detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data. |
-| PR-17 | High | Replace runtime local-file private upload storage with approved private processing and storage. | Decision required | Security + platform engineering | Threat-reviewed storage, malware/content handling, retention, deletion, and serverless deployment evidence. |
-| PR-18 | High | Decide whether answer previews are necessary; implement retention, consent, and deletion accordingly. | Decision required | Privacy owner + professor | Approved collection purpose and tested retention/deletion behavior. |
-| PR-19 | High | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them. | Planned | Application engineering + professor | Browser/API tests prove progression is server-enforced. |
-| PR-20 | High | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation. | Planned | Platform engineering + security | Staging evidence demonstrates useful diagnostics without secrets, raw private content, or student answers. |
-| PR-21 | High | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests. | Planned | Quality engineering | CI blocks deployment when any production gate fails. |
-| PR-22 | Medium | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts. | Decision required | AI engineering + project owner | Failure tests and provider budget alerts prove spend remains bounded. |
-| PR-23 | Medium | Add rate limits and abuse controls for session creation and public APIs. | Planned | Security + application engineering | Tests cover identity rotation, bursts, oversized requests, and controlled throttling. |
-| PR-24 | Medium | Correct analytics semantics and document metric definitions. | Planned | Data/analytics owner + professor | Validated metrics distinguish detected misconceptions from general missed attempts. |
-| PR-25 | Medium | Complete accessibility verification and remediation. | Planned | Frontend engineering + accessibility reviewer | WCAG acceptance review, keyboard/screen-reader checks, and automated tests pass. |
-| PR-26 | Medium | Add global failure UI, operational status behavior, and recoverable retry paths. | Planned | Application + platform engineering | Browser tests cover database, network, provider, and expired-session failures. |
-| PR-27 | High | Add deployment configuration, security headers, staging promotion, smoke checks, and rollback automation. | Planned | Platform engineering | Staging-to-production runbook and successful rollback exercise. |
-| PR-28 | Critical | Complete institutional privacy, security, accessibility, and pilot approval. | Decision required | Project owner + university approvers | Written approvals and named incident/support contacts. |
+| ID    | Severity | Major task                                                                                                                          | Status            | Accountable owner                             | Completion evidence                                                                                                                                                                                                                                                                                                         |
+| ----- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR-01 | Critical | Maintain this readiness record and link evidence from later production prompts.                                                     | In progress       | Project engineering                           | This document is reviewed and updated for every production-transition change.                                                                                                                                                                                                                                               |
+| PR-02 | Critical | Complete the data-flow, privacy, retention, and deletion inventory.                                                                 | Planned           | Privacy owner + engineering                   | Approved inventory covers identifiers, answers, tutor messages, AI inputs/outputs, logs, caches, analytics, and third parties.                                                                                                                                                                                              |
+| PR-03 | Critical | Record production architecture and environment decisions.                                                                           | Decision required | Project owner + university IT                 | Approved architecture decision record names environment, database, auth, AI, logging, backup, deployment, and rollback choices.                                                                                                                                                                                             |
+| PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data.                                                 | In progress       | Platform engineering                          | [Typed environment validation](environment-configuration.md) and automated tests cover configuration; deployed resource isolation remains to be proven.                                                                                                                                                                     |
+| PR-05 | Critical | Remove production demo and in-memory fallbacks.                                                                                     | Complete          | Application engineering                       | [Operating-mode policy](operating-modes.md) and production-mode tests prove database failures return controlled errors and never read or mutate demo state.                                                                                                                                                                 |
+| PR-06 | Critical | Establish production database ownership, billing, credentials, backup, deletion, and incident responsibilities.                     | Decision required | University IT + project owner                 | Written ownership handoff and separate staging/production database evidence.                                                                                                                                                                                                                                                |
+| PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators.                                        | Decision required | University IT + security + engineering        | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure.                                                                                                                                                                                                               |
+| PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation.                             | Planned           | Application engineering                       | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records.                                                                                                                                                                                                                  |
+| PR-09 | Critical | Protect all professor/admin pages and reads; replace the shared secret and record the authenticated reviewer.                       | Planned           | Application engineering                       | Anonymous/student access is denied; review history records the real reviewer; no secret is entered or stored in browser UI.                                                                                                                                                                                                 |
+| PR-10 | High     | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions.                       | Complete          | Database engineering                          | The [database operations runbook](database-operations.md), checksum-ledger runner, deployment check, destructive/Production gates, and executable empty/upgrade tests provide the required evidence.                                                                                                                        |
+| PR-11 | High     | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete          | Database engineering + privacy owner          | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
+| PR-12 | High     | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe.                              | Planned           | Database engineering                          | Failure and simultaneous-review tests prove atomicity and conflict handling.                                                                                                                                                                                                                                                |
+| PR-13 | High     | Add an idempotent, dry-run production importer for approved content only.                                                           | Complete          | Content engineering + professor               | The [approved-content importer](approved-content-import.md), immutable import ledger, and executable tests prove stable IDs/order, exact no-op replay, transactional rollback, and exclusion of private, draft, retrieval, test, student, and session data.                                                                 |
+| PR-14 | High     | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks.                        | Planned           | Platform + database engineering               | Load/failure tests and health checks prove bounded, non-leaking behavior.                                                                                                                                                                                                                                                   |
+| PR-15 | High     | Define and test backup, restore, RPO, RTO, and rollback procedures.                                                                 | Decision required | University IT + database engineering          | Provider backup evidence and a successful disposable restore exercise.                                                                                                                                                                                                                                                      |
+| PR-16 | High     | Add read-only integrity checks and explicitly gated repair tools.                                                                   | Planned           | Database + content engineering                | Reports detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data.                                                                                                                                                                                                            |
+| PR-17 | High     | Replace runtime local-file private upload storage with approved private processing and storage.                                     | Decision required | Security + platform engineering               | Threat-reviewed storage, malware/content handling, retention, deletion, and serverless deployment evidence.                                                                                                                                                                                                                 |
+| PR-18 | High     | Decide whether answer previews are necessary; implement retention, consent, and deletion accordingly.                               | Decision required | Privacy owner + professor                     | Approved collection purpose and tested retention/deletion behavior.                                                                                                                                                                                                                                                         |
+| PR-19 | High     | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them.                              | Planned           | Application engineering + professor           | Browser/API tests prove progression is server-enforced.                                                                                                                                                                                                                                                                     |
+| PR-20 | High     | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation.                                    | Planned           | Platform engineering + security               | Staging evidence demonstrates useful diagnostics without secrets, raw private content, or student answers.                                                                                                                                                                                                                  |
+| PR-21 | High     | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests.       | Planned           | Quality engineering                           | CI blocks deployment when any production gate fails.                                                                                                                                                                                                                                                                        |
+| PR-22 | Medium   | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts.                          | Decision required | AI engineering + project owner                | Failure tests and provider budget alerts prove spend remains bounded.                                                                                                                                                                                                                                                       |
+| PR-23 | Medium   | Add rate limits and abuse controls for session creation and public APIs.                                                            | Planned           | Security + application engineering            | Tests cover identity rotation, bursts, oversized requests, and controlled throttling.                                                                                                                                                                                                                                       |
+| PR-24 | Medium   | Correct analytics semantics and document metric definitions.                                                                        | Planned           | Data/analytics owner + professor              | Validated metrics distinguish detected misconceptions from general missed attempts.                                                                                                                                                                                                                                         |
+| PR-25 | Medium   | Complete accessibility verification and remediation.                                                                                | Planned           | Frontend engineering + accessibility reviewer | WCAG acceptance review, keyboard/screen-reader checks, and automated tests pass.                                                                                                                                                                                                                                            |
+| PR-26 | Medium   | Add global failure UI, operational status behavior, and recoverable retry paths.                                                    | Planned           | Application + platform engineering            | Browser tests cover database, network, provider, and expired-session failures.                                                                                                                                                                                                                                              |
+| PR-27 | High     | Add deployment configuration, security headers, staging promotion, smoke checks, and rollback automation.                           | Planned           | Platform engineering                          | Staging-to-production runbook and successful rollback exercise.                                                                                                                                                                                                                                                             |
+| PR-28 | Critical | Complete institutional privacy, security, accessibility, and pilot approval.                                                        | Decision required | Project owner + university approvers          | Written approvals and named incident/support contacts.                                                                                                                                                                                                                                                                      |
 
 ## External Dependencies
 
-| Dependency | Required for | Current evidence |
-| --- | --- | --- |
-| Suffolk-approved identity provider | Student/professor/admin authentication and account recovery | Not selected or configured |
-| Institution- or project-owned Postgres | Durable content, sessions, progress, usage, roles, and audit data | Repository support exists; production ownership is unverified |
-| Approved LLM and embedding provider | Limited AI fallback and optional vector retrieval | OpenAI-compatible implementation exists; institutional approval is unverified |
-| Private object storage or approved processing environment | Durable private uploads and derived artifacts | Current implementation uses ignored local files |
-| Error tracking and log platform | Production diagnosis, security monitoring, and alerts | Not configured |
-| Backup provider/process | Database recovery | Not verified |
-| CI/CD and hosting project | Environment isolation, deployment gates, promotion, and rollback | Not represented in the repository |
-| Privacy, security, accessibility, and legal review | Real-student pilot authorization | No approval evidence in the repository |
+| Dependency                                                | Required for                                                      | Current evidence                                                              |
+| --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Suffolk-approved identity provider                        | Student/professor/admin authentication and account recovery       | Not selected or configured                                                    |
+| Institution- or project-owned Postgres                    | Durable content, sessions, progress, usage, roles, and audit data | Repository support exists; production ownership is unverified                 |
+| Approved LLM and embedding provider                       | Limited AI fallback and optional vector retrieval                 | OpenAI-compatible implementation exists; institutional approval is unverified |
+| Private object storage or approved processing environment | Durable private uploads and derived artifacts                     | Current implementation uses ignored local files                               |
+| Error tracking and log platform                           | Production diagnosis, security monitoring, and alerts             | Not configured                                                                |
+| Backup provider/process                                   | Database recovery                                                 | Not verified                                                                  |
+| CI/CD and hosting project                                 | Environment isolation, deployment gates, promotion, and rollback  | Not represented in the repository                                             |
+| Privacy, security, accessibility, and legal review        | Real-student pilot authorization                                  | No approval evidence in the repository                                        |
 
 ## Institutional Decisions Required
 
@@ -230,71 +231,72 @@ Production acceptance requires evidence for every item below.
 
 - [ ] A named project owner accepts the production architecture.
 - [ ] Privacy/security owners approve the data inventory, collection purpose,
-  retention, deletion, incident response, and third-party processors.
+      retention, deletion, incident response, and third-party processors.
 - [ ] Accessibility review requirements and the responsible approver are named.
 - [ ] Production content authority and review-history requirements are defined.
 - [ ] No real student data, fake students, demo sessions, or development logs
-  are present at production launch.
+      are present at production launch.
 
 ### Environments And Deployment
 
 - [ ] Development, automated test, Preview/Staging, and Production use isolated
-  configuration, credentials, data, and external resources.
+      configuration, credentials, data, and external resources.
 - [ ] Production fails startup when database, auth, application URL, usage
-  secret, logging, or other required configuration is missing.
+      secret, logging, or other required configuration is missing.
 - [x] Production cannot silently use demo fixtures or in-memory persistence.
 - [ ] CI runs lint, typecheck, tests, migration tests, accessibility checks, and
-  a production build.
+      a production build.
 - [ ] Deployment includes health checks, migration status, staged promotion,
-  smoke tests, rollback instructions, and security headers.
+      smoke tests, rollback instructions, and security headers.
 
 ### Authentication And Authorization
 
-- [ ] Students, professors, and administrators use approved authentication.
-- [ ] Server-side authorization denies access by default.
-- [ ] Students can read and mutate only their own sessions and progress.
-- [ ] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and
-  exports enforce the appropriate role.
-- [ ] Role assignment is server-controlled and auditable.
-- [ ] Review actions record the authenticated reviewer.
-- [ ] Production does not depend on a shared `ADMIN_SECRET`.
+- [ ] University IT has approved and provisioned the institutional OIDC provider.
+- [x] Auth.js provides secure server-side sessions without application passwords.
+- [x] Server-side authorization denies access by default.
+- [x] Students can read and mutate only their own sessions and progress.
+- [x] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and
+      exports enforce the appropriate role.
+- [x] Role assignment is server-controlled and auditable.
+- [x] Review actions record the authenticated reviewer user ID.
+- [x] Production rejects and does not depend on a shared `ADMIN_SECRET`.
 
 ### Database And Recovery
 
 - [x] One versioned migration history applies cleanly to empty and upgraded
-  disposable databases through the [checksum-ledger workflow](database-operations.md).
+      disposable databases through the [checksum-ledger workflow](database-operations.md).
 - [x] [Schema constraints, indexes, foreign keys, deletion rules, timestamps,
-  roles, review history, audit events, and publication states](database.md#production-schema-hardening)
-  are verified.
+      roles, review history, audit events, and publication states](database.md#production-schema-hardening)
+      are verified.
 - [x] [Approved-content import](approved-content-import.md) is idempotent,
-  transactional, dry-runnable, and excludes private/draft/demo/test records.
+      transactional, dry-runnable, and excludes private/draft/demo/test records.
 - [ ] Database pooling, timeouts, safe retries, concurrency, and controlled
-  errors are load/failure tested.
+      errors are load/failure tested.
 - [ ] Integrity checks pass on production-shaped data.
 - [ ] Backup existence is verified and a restore succeeds in a disposable
-  environment.
+      environment.
 
 ### AI, Retrieval, And Cost
 
 - [ ] The institution approves the AI and embedding provider boundary.
 - [ ] Only allowed approved content or reviewed safe summaries enter prompts.
 - [ ] Provider timeouts, retry limits, output guardrails, and failure fallbacks
-  are tested.
+      are tested.
 - [ ] Session, student, question, global, token, and monetary budgets are
-  durable and resistant to identity rotation and concurrency.
+      durable and resistant to identity rotation and concurrency.
 - [ ] Provider usage is reconciled and billing alerts are active.
 
 ### Operations And Quality
 
 - [ ] Structured logs, audit events, error tracking, request IDs, dashboards,
-  and alerts are active without exposing secrets, private sources, or student
-  answers.
+      and alerts are active without exposing secrets, private sources, or student
+      answers.
 - [ ] Browser E2E tests cover student, professor, admin, recovery, and
-  authorization flows in Staging.
+      authorization flows in Staging.
 - [ ] Keyboard, screen-reader, contrast, responsive, and automated accessibility
-  checks meet the approved standard.
+      checks meet the approved standard.
 - [ ] Failure exercises cover database outage, AI outage, expired sessions,
-  failed deployment, rollback, backup restore, and pilot shutdown.
+      failed deployment, rollback, backup restore, and pilot shutdown.
 - [ ] Owners complete and sign the launch checklist below.
 
 ## Maintained Production Checklist
@@ -319,11 +321,11 @@ must link to its evidence in the task table or accompanying documentation.
 - [ ] Prompt 90 — Production database ownership plan approved.
 - [ ] Prompt 91 — Production database migration plan approved.
 - [x] Prompt 92 — [Production schema hardened](database.md#production-schema-hardening)
-  through migration 007 and executable fresh/upgrade tests.
+      through migration 007 and executable fresh/upgrade tests.
 - [x] Prompt 93 — [Safe migration workflow operational](database-operations.md)
-  with status, pending-deployment, safety-gate, and empty-database CI tests.
+      with status, pending-deployment, safety-gate, and empty-database CI tests.
 - [x] Prompt 94 — [Approved-content production importer verified](approved-content-import.md)
-  with manifest, duplicate, dry-run, rollback, no-op, order, and contamination tests.
+      with manifest, duplicate, dry-run, rollback, no-op, order, and contamination tests.
 - [ ] Prompt 95 — Database runtime reliability verified.
 - [ ] Prompt 96 — Backup and restore process exercised.
 - [ ] Prompt 97 — Data integrity and cleanup tools verified.
@@ -353,6 +355,7 @@ verification evidence.
 - [Local Setup](local-setup.md)
 - [Database Schema And Migrations](database.md)
 - [Anonymous Student Sessions](anonymous-students.md)
+- [Authentication and Authorization](authentication-authorization.md)
 - [Course Material Safety](course-material-safety.md)
 - [Content Ingestion](content-ingestion.md)
 - [Original Question Generation Workflow](question-generation.md)
@@ -364,5 +367,6 @@ verification evidence.
 - [Syllabus Topic Order Migration](../db/migrations/006_syllabus_topic_order.sql)
 - [Production Schema Hardening Migration](../db/migrations/007_production_schema_hardening.sql)
 - [Approved Content Import Migration](../db/migrations/008_approved_content_import.sql)
+- [Authentication and Authorization Migration](../db/migrations/009_authentication_authorization.sql)
 - [Database Migration Operations](database-operations.md)
 - [Approved Content Production Import](approved-content-import.md)

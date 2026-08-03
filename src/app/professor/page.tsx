@@ -1,16 +1,16 @@
-import Link from "next/link"
-import { ArrowLeft, ClipboardCheck, Gauge, LockKeyhole } from "lucide-react"
+import Link from "next/link";
+import { ArrowLeft, ClipboardCheck, Gauge, LockKeyhole } from "lucide-react";
 
-import { ProfessorReviewPanel } from "@/components/tutor/professor-review-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ProfessorReviewPanel } from "@/components/tutor/professor-review-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 
 export default function ProfessorPage() {
   return (
@@ -32,7 +32,8 @@ export default function ProfessorPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Draft questions are separated from approved student-facing
-              content. Approval mutations require a server-side ADMIN_SECRET.
+              content. Approval mutations require a professor or administrator
+              role.
             </p>
           </div>
         </div>
@@ -79,8 +80,7 @@ export default function ProfessorPage() {
           <CardHeader>
             <CardTitle>Review queue</CardTitle>
             <CardDescription>
-              Enter the professor token locally to test approve/reject actions.
-              Without it, the route stays read-only.
+              Your current account role authorizes approve and reject actions.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -89,5 +89,5 @@ export default function ProfessorPage() {
         </Card>
       </section>
     </main>
-  )
+  );
 }

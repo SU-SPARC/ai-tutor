@@ -1,26 +1,29 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 import {
-  ANONYMOUS_STUDENT_HEADER,
-  isAnonymousStudentId,
-} from "@/lib/auth/anonymous-student"
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable"
-import { getStudentProgress } from "@/lib/data/student-progress"
+  AnonymousPilotUnavailableError,
+  resolveStudentOwner,
+} from "@/lib/auth/anonymous-session";
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { getStudentProgress } from "@/lib/data/student-progress";
 
-export async function GET(request: Request) {
-  const anonymousStudentId = request.headers.get(ANONYMOUS_STUDENT_HEADER)
-
-  if (!isAnonymousStudentId(anonymousStudentId)) {
-    return NextResponse.json(
-      { error: "A valid anonymous student session is required." },
-      { status: 400 },
-    )
-  }
-
+export async function GET() {
   try {
-    const progress = await getStudentProgress(anonymousStudentId)
-    return NextResponse.json({ progress })
-  } catch {
-    return dataServiceUnavailableResponse()
+    const owner = await resolveStudentOwner({ createAnonymous: true });
+
+    if (!owner) {
+      return NextResponse.json(
+        { error: "A valid student session is required." },
+        { status: 401 },
+      );
+    }
+
+    const progress = await getStudentProgress(owner);
+    return NextResponse.json({ progress });
+  } catch (error) {
+    if (error instanceof AnonymousPilotUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    return dataServiceUnavailableResponse();
   }
 }

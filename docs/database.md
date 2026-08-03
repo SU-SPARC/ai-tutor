@@ -58,7 +58,7 @@ production integrity layer without deleting existing rows:
 | Questions                    | Content fields and answer JSON are validated; approved public rows require an immutable reviewer user ID, timestamp, approved trust level, and no archive timestamp |
 | Versions and approvals       | Every question/content-child mutation snapshots the full question into append-only `question_versions`; review transitions append to `question_approval_history`    |
 | Hints, steps, misconceptions | One-based child ordering is unique per question; bodies/IDs are nonblank; misconception terms are arrays and metadata is an object                                  |
-| Approved imports             | Public-safe pattern metadata and release evidence are immutable; new pattern references must resolve to an approved metadata row                                 |
+| Approved imports             | Public-safe pattern metadata and release evidence are immutable; new pattern references must resolve to an approved metadata row                                    |
 | Sessions and attempts        | Each session has exactly one authenticated or anonymous identity; attempts require a matching question, topic, and immutable question version                       |
 | Progress                     | `student_progress` has one row per student/question with matching topic/version foreign keys and nonnegative counters                                               |
 | AI state                     | Usage/token counters are nonnegative and internally consistent; reservations require a session; cache question/topic pairs must match                               |
@@ -79,6 +79,10 @@ append-only `approved_content_imports` release ledger. New pattern references
 must resolve to reviewed metadata; the Production importer accepts only the
 minimal pattern fields required by approved generated questions.
 
+`009_authentication_authorization.sql` adds application-session versioning and
+the hashed, one-account-only ledger used for anonymous progress claims. Auth.js
+provider tokens are not stored in the database.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
@@ -91,13 +95,13 @@ Deletion behavior is explicit:
 - reviewer identities referenced by immutable academic history cannot be
   physically deleted and must instead be disabled or soft-deleted.
 
-`tests/production-schema-migration.test.ts` executes migrations `001`–`008`
+`tests/production-schema-migration.test.ts` executes migrations `001`–`009`
 against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
 with legacy content/activity, the development seed, publication and role
 constraints, append-only history, snapshot completeness, and deletion rules.
 
-Tutor sessions store an opaque `anonymous_user_id`; no name or email is
-required. Attempts belong to that identity through their `session_id` foreign
+Tutor sessions store exactly one authenticated `user_id` or opaque
+`anonymous_user_id`. Attempts belong to that owner through their `session_id` foreign
 key. See `docs/anonymous-students.md` for browser persistence and the future
 authentication upgrade path.
 

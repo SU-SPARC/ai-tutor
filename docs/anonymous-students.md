@@ -1,36 +1,40 @@
 # Anonymous Student Sessions
 
-The MVP does not require login. On the first visit to student practice,
-`getOrCreateAnonymousStudentId()` creates an opaque random ID and stores it in
-browser local storage under `suffolk-tutor-anonymous-student-id`.
+Anonymous practice is an optional, student-only pilot. The server creates an
+opaque identifier and stores it in the `suffolk-tutor-anonymous` cookie. The
+cookie is signed, HTTP-only, SameSite=Lax, Secure on HTTPS, and expires after
+`ANONYMOUS_COOKIE_DAYS`. Browser JavaScript never receives the identifier and
+API requests never accept an anonymous ID in a body or header.
 
-The ID contains no name, email address, or campus identifier. It is sent only
-when creating a tutor session or requesting that browser's aggregate progress.
-Saved session keys are scoped to both the anonymous ID and question, so
-changing the local anonymous identity does not resume another identity's saved
-session or load its progress.
+Every tutor-session repository operation takes a server-resolved
+`StudentOwner`: either the authenticated `users.id` or the verified anonymous
+cookie subject. Database reads and writes match both the session ID and owner;
+a known session ID belonging to another owner returns 404. API responses omit
+`user_id` and `anonymous_user_id`.
 
-Tutor sessions store the ID in `tutor_sessions.anonymous_user_id`. Attempts are
-linked to the student through `attempts.session_id`, which references that tutor
-session. The same opaque ID also supplies the server-side HMAC scope used for
-AI quotas and per-student response caching; raw IDs are not used as cache or
-quota keys.
+Production-like environments require an explicit
+`ANONYMOUS_PILOT_ENABLED` decision. An enabled deployed pilot also requires a
+separate `ANONYMOUS_ID_SECRET` and explicit cookie duration. Local development
+uses a per-process random signing key when no secret is configured, so a server
+restart can invalidate local anonymous continuity.
 
-## MVP Limitations
+## Import after sign-in
 
-- The ID provides browser continuity, not authentication or access control.
-- Clearing site storage creates a new anonymous identity and loses locally
-  saved session pointers. This can also reset low-friction prototype limits.
-- When local storage is unavailable, the helper returns an ephemeral ID for the
-  current page load.
-- Demo progress is held in server memory and is lost when the demo server
-  restarts. Postgres-backed progress is durable.
-- No names or email addresses are requested or needed.
+Sign-in does not automatically attach browser history. The account page asks
+the user to choose whether to import, with a shared-device warning. A claim:
 
-## Future Authentication
+- verifies the signed cookie;
+- hashes the anonymous subject before recording the one-account-only claim;
+- moves matching sessions to the authenticated user in one transaction;
+- records migrated counts and an audit event; and
+- is idempotent for the same destination account.
 
-The browser identity boundary lives in
-`src/lib/auth/anonymous-student.ts`. Campus authentication can replace this
-identity resolver while preserving the tutor-session repository and attempt
-relationship. At that point, session creation should resolve the authenticated
-student on the server instead of accepting the anonymous ID from the browser.
+Declining clears the cookie without linking its history. The old local-storage
+identifier is supported only when the explicitly time-limited legacy bridge is
+enabled. Possession is its only proof, so the bridge is rate-limited and each
+legacy identity can be claimed once. Browser storage is removed only after a
+successful exchange.
+
+Anonymous identity is pseudonymous personal data, not authentication,
+institutional affiliation, or account recovery. Clearing or losing the cookie
+loses browser continuity, and anonymous history is unavailable across devices.

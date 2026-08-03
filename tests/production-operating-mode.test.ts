@@ -1,26 +1,31 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GET as getQuestion } from "@/app/api/questions/[id]/route"
-import { GET as listQuestionsRoute } from "@/app/api/questions/route"
-import { POST as postTutorSession } from "@/app/api/tutor/session/route"
+import { GET as getQuestion } from "@/app/api/questions/[id]/route";
+import { GET as listQuestionsRoute } from "@/app/api/questions/route";
+import { POST as postTutorSession } from "@/app/api/tutor/session/route";
 import {
   getContentRepository,
   getDataRepositoryMetadata,
   setContentRepositoryForTests,
-} from "@/lib/data/data-store"
-import { demoContentRepository } from "@/lib/data/demo-repository"
-import type { ContentRepository } from "@/lib/data/repository"
-import { searchLocalRetrieval } from "@/lib/ai/retrieval"
+} from "@/lib/data/data-store";
+import { demoContentRepository } from "@/lib/data/demo-repository";
+import type { ContentRepository } from "@/lib/data/repository";
+import { searchLocalRetrieval } from "@/lib/ai/retrieval";
 import {
   resetTutorSessionsForTests,
   setTutorSessionRepositoryForTests,
   type TutorSessionRepository,
-} from "@/lib/data/tutor-session-repository"
+} from "@/lib/data/tutor-session-repository";
 import {
   operatingModePolicyFor,
   type OperatingModePolicy,
-} from "@/lib/runtime/operating-mode"
-import type { TutorQuestion } from "@/lib/types"
+} from "@/lib/runtime/operating-mode";
+import type { TutorQuestion } from "@/lib/types";
+import {
+  mockStudentOwner,
+  resetAuthMocks,
+  TEST_ANONYMOUS_OWNER,
+} from "./auth-test-helpers";
 
 const draftQuestion: TutorQuestion = {
   answer: {
@@ -43,17 +48,18 @@ const draftQuestion: TutorQuestion = {
   },
   title: "Hidden draft",
   topicId: "binomial-models",
-}
+};
 
 describe("production operating mode", () => {
   afterEach(() => {
-    setContentRepositoryForTests(undefined)
-    resetTutorSessionsForTests()
-    vi.unstubAllEnvs()
-  })
+    setContentRepositoryForTests(undefined);
+    resetTutorSessionsForTests();
+    resetAuthMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("always selects the configured database and disables demo fallback", () => {
-    stubProductionEnvironment()
+    stubProductionEnvironment();
 
     expect(getDataRepositoryMetadata()).toMatchObject({
       databaseConfigured: true,
@@ -61,33 +67,34 @@ describe("production operating mode", () => {
       mode: "database",
       operatingMode: "production",
       source: "postgres",
-    })
-    expect(getContentRepository()).not.toBe(demoContentRepository)
-  })
+    });
+    expect(getContentRepository()).not.toBe(demoContentRepository);
+  });
 
   it("returns a controlled 503 instead of demo questions after repository failure", async () => {
-    stubProductionEnvironment()
+    stubProductionEnvironment();
     setContentRepositoryForTests(
       failingContentRepository("production database unavailable"),
-    )
+    );
 
     const response = await listQuestionsRoute(
       new Request("https://tutor.example.edu/api/questions"),
-    )
-    const body = await response.text()
+    );
+    const body = await response.text();
 
-    expect(response.status).toBe(503)
-    expect(response.headers.get("Cache-Control")).toBe("no-store")
-    expect(body).toContain("DATA_SERVICE_UNAVAILABLE")
-    expect(body).not.toContain("dice-sum-eight")
-    expect(body).not.toContain("production database unavailable")
-  })
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(body).toContain("DATA_SERVICE_UNAVAILABLE");
+    expect(body).not.toContain("dice-sum-eight");
+    expect(body).not.toContain("production database unavailable");
+  });
 
   it("returns a controlled 503 instead of creating an in-memory session", async () => {
-    stubProductionEnvironment()
+    stubProductionEnvironment();
     setTutorSessionRepositoryForTests(
       failingTutorSessionRepository("session database unavailable"),
-    )
+    );
+    mockStudentOwner(TEST_ANONYMOUS_OWNER);
 
     const response = await postTutorSession(
       new Request("https://tutor.example.edu/api/tutor/session", {
@@ -100,22 +107,22 @@ describe("production operating mode", () => {
         },
         method: "POST",
       }),
-    )
-    const body = await response.text()
+    );
+    const body = await response.text();
 
-    expect(response.status).toBe(503)
-    expect(body).toContain("DATA_SERVICE_UNAVAILABLE")
-    expect(body).not.toContain("session database unavailable")
-    expect(body).not.toContain('"session"')
-  })
+    expect(response.status).toBe(503);
+    expect(body).toContain("DATA_SERVICE_UNAVAILABLE");
+    expect(body).not.toContain("session database unavailable");
+    expect(body).not.toContain('"session"');
+  });
 
   it("keeps generated unapproved questions hidden in production APIs", async () => {
-    stubProductionEnvironment()
+    stubProductionEnvironment();
     setContentRepositoryForTests({
       getQuestionById: async () => draftQuestion,
       listQuestions: async () => [draftQuestion],
       listQuestionsByTopic: async () => [draftQuestion],
-    } as unknown as ContentRepository)
+    } as unknown as ContentRepository);
 
     const [listResponse, detailResponse] = await Promise.all([
       listQuestionsRoute(
@@ -129,66 +136,66 @@ describe("production operating mode", () => {
           params: Promise.resolve({ id: draftQuestion.id }),
         },
       ),
-    ])
+    ]);
     const [listBody, detailBody] = await Promise.all([
       listResponse.text(),
       detailResponse.text(),
-    ])
+    ]);
 
-    expect(listResponse.status).toBe(200)
-    expect(listBody).not.toContain(draftQuestion.prompt)
-    expect(detailResponse.status).toBe(404)
-    expect(detailBody).not.toContain(draftQuestion.prompt)
-  })
+    expect(listResponse.status).toBe(200);
+    expect(listBody).not.toContain(draftQuestion.prompt);
+    expect(detailResponse.status).toBe(404);
+    expect(detailBody).not.toContain(draftQuestion.prompt);
+  });
 
   it("does not load committed demo retrieval chunks in production", async () => {
-    stubProductionEnvironment()
+    stubProductionEnvironment();
 
     const results = await searchLocalRetrieval("binomial probability", {
       audience: "student",
-    })
+    });
 
-    expect(results).toEqual([])
-  })
+    expect(results).toEqual([]);
+  });
 
   it("shows environment indicators only for Development and Preview", () => {
-    expect(policy("development", true).indicatorLabel).toBe("Local demo")
-    expect(policy("development", false).indicatorLabel).toBe("Development")
-    expect(policy("preview", true).indicatorLabel).toBe("Preview demo")
-    expect(policy("preview", false).indicatorLabel).toBe("Preview")
-    expect(policy("test", true).indicatorLabel).toBeUndefined()
-    expect(policy("staging", false).indicatorLabel).toBeUndefined()
-    expect(policy("production", false).indicatorLabel).toBeUndefined()
-  })
+    expect(policy("development", true).indicatorLabel).toBe("Local demo");
+    expect(policy("development", false).indicatorLabel).toBe("Development");
+    expect(policy("preview", true).indicatorLabel).toBe("Preview demo");
+    expect(policy("preview", false).indicatorLabel).toBe("Preview");
+    expect(policy("test", true).indicatorLabel).toBeUndefined();
+    expect(policy("staging", false).indicatorLabel).toBeUndefined();
+    expect(policy("production", false).indicatorLabel).toBeUndefined();
+  });
 
   it("allows automatic demo fallback only in local and test database modes", () => {
     expect(policy("development", false)).toMatchObject({
       allowDemoFallback: true,
       mode: "local-database",
       repositorySource: "database",
-    })
+    });
     expect(policy("test", false)).toMatchObject({
       allowDemoFallback: true,
       mode: "test-database",
       repositorySource: "database",
-    })
+    });
     expect(policy("preview", false)).toMatchObject({
       allowDemoFallback: false,
       mode: "preview-database",
       repositorySource: "database",
-    })
+    });
     expect(policy("staging", false)).toMatchObject({
       allowDemoFallback: false,
       mode: "staging",
       repositorySource: "database",
-    })
+    });
     expect(policy("production", false)).toMatchObject({
       allowDemoFallback: false,
       mode: "production",
       repositorySource: "database",
-    })
-  })
-})
+    });
+  });
+});
 
 function policy(
   APP_ENV: "development" | "preview" | "production" | "staging" | "test",
@@ -197,11 +204,12 @@ function policy(
   return operatingModePolicyFor({
     APP_DEMO_MODE,
     APP_ENV,
-  })
+  });
 }
 
 function stubProductionEnvironment() {
   const values = {
+    ANONYMOUS_PILOT_ENABLED: "false",
     AI_ENABLED: "false",
     APP_DEMO_MODE: "false",
     APP_ENV: "production",
@@ -215,17 +223,17 @@ function stubProductionEnvironment() {
     LOG_LEVEL: "info",
     RATE_LIMIT_MAX_REQUESTS: "40",
     RATE_LIMIT_WINDOW_SECONDS: "60",
-  }
+  };
 
   for (const [name, value] of Object.entries(values)) {
-    vi.stubEnv(name, value)
+    vi.stubEnv(name, value);
   }
 }
 
 function failingContentRepository(message: string): ContentRepository {
   const fail = async () => {
-    throw new Error(message)
-  }
+    throw new Error(message);
+  };
 
   return {
     getAdminQuestions: fail,
@@ -246,15 +254,15 @@ function failingContentRepository(message: string): ContentRepository {
     updateAdminQuestions: fail,
     updateReviewCandidates: fail,
     updateReviewCandidateStatus: fail,
-  } as ContentRepository
+  } as ContentRepository;
 }
 
 function failingTutorSessionRepository(
   message: string,
 ): TutorSessionRepository {
   const fail = async () => {
-    throw new Error(message)
-  }
+    throw new Error(message);
+  };
 
   return {
     createSession: fail,
@@ -264,5 +272,5 @@ function failingTutorSessionRepository(
     recordAttemptOutcome: fail,
     revealHint: fail,
     revealStep: fail,
-  } as TutorSessionRepository
+  } as TutorSessionRepository;
 }

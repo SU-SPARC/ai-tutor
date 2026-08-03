@@ -37,34 +37,39 @@ server must explicitly set `APP_ENV=production`.
 
 ## Variable inventory
 
-| Variable                    | Category                  | Secret           | Requirement and behavior                                                                                                                                                                     |
-| --------------------------- | ------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `APP_ENV`                   | Runtime                   | No               | Recommended everywhere; required to identify Staging and non-Vercel Production explicitly.                                                                                                   |
-| `APP_URL`                   | Application URL           | No               | Required in Preview unless derived from `VERCEL_URL`; required in Staging and Production and must use HTTPS. Development/Test default to `http://localhost:3000`.                            |
-| `APP_DEMO_MODE`             | Runtime/data              | No               | Defaults to `true` outside strict environments. Must be explicitly `false` in Staging and Production.                                                                                        |
-| `DATABASE_URL`              | Database                  | **Yes**          | Required in Staging and Production. Must be a `postgres://` or `postgresql://` URL. Optional for local demo/test/preview.                                                                    |
-| `AUTH_ISSUER_URL`           | Authentication            | Sensitive config | Required in Staging and Production and must use HTTPS. The identity provider is an institutional decision.                                                                                   |
-| `AUTH_CLIENT_ID`            | Authentication            | Sensitive config | Required in Staging and Production.                                                                                                                                                          |
-| `AUTH_CLIENT_SECRET`        | Authentication            | **Yes**          | Required in Staging and Production. Server-only.                                                                                                                                             |
-| `AUTH_SESSION_SECRET`       | Authentication            | **Yes**          | Required in Staging and Production and must contain at least 32 characters. Server-only.                                                                                                     |
-| `ADMIN_SECRET`              | Legacy demo authorization | **Yes**          | Optional temporary shared secret used by the existing professor/admin prototype. It is not a substitute for production authentication and should be removed by the authentication migration. |
-| `AI_ENABLED`                | AI                        | No               | Must be explicitly `true` or `false` in Staging and Production. Outside strict environments it defaults to enabled only when an OpenRouter key is supplied.                                  |
-| `AI_PROVIDER`               | AI                        | No               | Required when AI is enabled. The current integration accepts `openrouter` only. This does not constitute institutional provider approval.                                                    |
-| `OPENROUTER_API_KEY`        | AI                        | **Yes**          | Required when AI is enabled with the current provider. Server-only.                                                                                                                          |
-| `AI_MODEL`                  | AI                        | No               | Required when AI is enabled in Staging or Production. A demo model default is available only outside strict environments.                                                                    |
-| `MAX_LLM_OUTPUT_TOKENS`     | AI/cost                   | No               | Required positive integer when AI is enabled in Staging or Production. Defaults to `400` only outside strict environments.                                                                   |
-| `LOG_LEVEL`                 | Logging                   | No               | Required in Staging and Production. Allowed values: `debug`, `info`, `warn`, `error`, `silent`.                                                                                              |
-| `ERROR_TRACKING_DSN`        | Error tracking            | **Yes**          | Required in Staging and Production and must use HTTPS. The provider remains an institutional decision. Server-only.                                                                          |
-| `RATE_LIMIT_MAX_REQUESTS`   | Abuse controls            | No               | Required positive integer in Staging and Production. Defaults to `20` only outside strict environments.                                                                                      |
-| `RATE_LIMIT_WINDOW_SECONDS` | Abuse controls            | No               | Required positive integer in Staging and Production. Defaults to `60` only outside strict environments.                                                                                      |
-| `NODE_ENV`                  | Framework                 | No               | Set by Node/Next.js; used to recognize automated tests and a running production server. Do not use it to represent Staging.                                                                  |
-| `NEXT_PHASE`                | Framework                 | No               | Set by Next.js; used to distinguish a production build from a running production server.                                                                                                     |
-| `VERCEL_ENV`                | Hosting                   | No               | Set by Vercel; used to infer Development, Preview, or Production when `APP_ENV` is absent.                                                                                                   |
-| `VERCEL_URL`                | Hosting                   | No               | Set by Vercel; used as the Preview application URL when `APP_URL` is absent.                                                                                                                 |
+| Variable                                | Category         | Secret           | Requirement and behavior                                                                                                                                                           |
+| --------------------------------------- | ---------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_ENV`                               | Runtime          | No               | Recommended everywhere; required to identify Staging and non-Vercel Production explicitly.                                                                                         |
+| `APP_URL`                               | Application URL  | No               | Required in Preview unless derived from `VERCEL_URL`; required in Staging and Production. Every deployed URL must use HTTPS. Development/Test defaults to `http://localhost:3000`. |
+| `APP_DEMO_MODE`                         | Runtime/data     | No               | Defaults to `true` outside strict environments. Must be explicitly `false` in Staging and Production.                                                                              |
+| `DATABASE_URL`                          | Database         | **Yes**          | Required in Staging and Production. Must be a `postgres://` or `postgresql://` URL. Optional for local demo/test/preview.                                                          |
+| `AUTH_ISSUER_URL`                       | Authentication   | Sensitive config | Required in Staging and Production and must use HTTPS. The identity provider is an institutional decision.                                                                         |
+| `AUTH_CLIENT_ID`                        | Authentication   | Sensitive config | Required in Staging and Production.                                                                                                                                                |
+| `AUTH_CLIENT_SECRET`                    | Authentication   | **Yes**          | Required in Staging and Production. Server-only.                                                                                                                                   |
+| `AUTH_SESSION_SECRET`                   | Authentication   | **Yes**          | Required in Staging and Production and must contain at least 32 characters. Server-only.                                                                                           |
+| `AUTH_TEST_MODE`                        | Authentication   | No               | Optional local/test-only identity selector. Requires `AUTH_SESSION_SECRET`; rejected in Preview, Staging, and Production.                                                          |
+| `ANONYMOUS_PILOT_ENABLED`               | Student identity | No               | Defaults to `true` locally. Must be explicit in deployed environments. When false, unauthenticated practice is rejected.                                                           |
+| `ANONYMOUS_ID_SECRET`                   | Student identity | **Yes**          | HMAC key for signed anonymous cookies. Required with at least 32 characters when the anonymous pilot is enabled in a deployed environment.                                         |
+| `ANONYMOUS_COOKIE_DAYS`                 | Student identity | No               | Positive cookie/retention duration. Defaults to 30 days locally and is required for a deployed anonymous pilot.                                                                    |
+| `LEGACY_ANONYMOUS_MIGRATION_ENABLED`    | Student identity | No               | Enables the time-limited local-storage migration bridge. Defaults to false and requires the anonymous pilot.                                                                       |
+| `LEGACY_ANONYMOUS_MIGRATION_EXPIRES_AT` | Student identity | No               | ISO-8601 cutoff required when the legacy bridge is enabled in a deployed environment.                                                                                              |
+| `AI_ENABLED`                            | AI               | No               | Must be explicitly `true` or `false` in Staging and Production. Outside strict environments it defaults to enabled only when an OpenRouter key is supplied.                        |
+| `AI_PROVIDER`                           | AI               | No               | Required when AI is enabled. The current integration accepts `openrouter` only. This does not constitute institutional provider approval.                                          |
+| `OPENROUTER_API_KEY`                    | AI               | **Yes**          | Required when AI is enabled with the current provider. Server-only.                                                                                                                |
+| `AI_MODEL`                              | AI               | No               | Required when AI is enabled in Staging or Production. A demo model default is available only outside strict environments.                                                          |
+| `MAX_LLM_OUTPUT_TOKENS`                 | AI/cost          | No               | Required positive integer when AI is enabled in Staging or Production. Defaults to `400` only outside strict environments.                                                         |
+| `LOG_LEVEL`                             | Logging          | No               | Required in Staging and Production. Allowed values: `debug`, `info`, `warn`, `error`, `silent`.                                                                                    |
+| `ERROR_TRACKING_DSN`                    | Error tracking   | **Yes**          | Required in Staging and Production and must use HTTPS. The provider remains an institutional decision. Server-only.                                                                |
+| `RATE_LIMIT_MAX_REQUESTS`               | Abuse controls   | No               | Required positive integer in Staging and Production. Defaults to `20` only outside strict environments.                                                                            |
+| `RATE_LIMIT_WINDOW_SECONDS`             | Abuse controls   | No               | Required positive integer in Staging and Production. Defaults to `60` only outside strict environments.                                                                            |
+| `NODE_ENV`                              | Framework        | No               | Set by Node/Next.js; used to recognize automated tests and a running production server. Do not use it to represent Staging.                                                        |
+| `NEXT_PHASE`                            | Framework        | No               | Set by Next.js; used to distinguish a production build from a running production server.                                                                                           |
+| `VERCEL_ENV`                            | Hosting          | No               | Set by Vercel; used to infer Development, Preview, or Production when `APP_ENV` is absent.                                                                                         |
+| `VERCEL_URL`                            | Hosting          | No               | Set by Vercel; used as the Preview application URL when `APP_URL` is absent.                                                                                                       |
 
-The authentication and error-tracking variables reserve required production
-boundaries. Their presence does not mean authentication or error tracking has
-been integrated or institutionally approved.
+The authentication variables configure the provider-neutral Auth.js boundary.
+Their presence does not constitute institutional approval; see
+[Authentication and authorization](authentication-authorization.md).
 
 Repository and user-interface behavior for each environment is documented in
 [Operating Modes And Demo Isolation](operating-modes.md).
@@ -74,7 +79,6 @@ Repository and user-interface behavior for each environment is documented in
 `src/lib/env/server.ts` imports `server-only`, so Next.js rejects imports from
 Client Components. Validation also rejects these browser-exposed aliases:
 
-- `NEXT_PUBLIC_ADMIN_SECRET`
 - `NEXT_PUBLIC_AUTH_CLIENT_SECRET`
 - `NEXT_PUBLIC_AUTH_SESSION_SECRET`
 - `NEXT_PUBLIC_DATABASE_URL`
@@ -95,6 +99,10 @@ npm run dev
 ```
 
 Automated tests infer `APP_ENV=test` from `NODE_ENV=test`.
+
+For local role-flow testing only, set `AUTH_TEST_MODE=true` and provide a fresh
+32-character `AUTH_SESSION_SECRET`. This mode offers predefined non-password
+test identities and is rejected in every deployed environment.
 
 A Staging or Production server must provide all strict variables. AI may be
 disabled, but `AI_ENABLED=false` must be explicit; when it is enabled, provider,
