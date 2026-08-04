@@ -185,12 +185,14 @@ describe("typed server environment", () => {
     try {
       parseServerEnv({
         NODE_ENV: "test",
+        NEXT_PUBLIC_ADMIN_SECRET: exposedValue,
         NEXT_PUBLIC_DATABASE_URL: exposedValue,
         NEXT_PUBLIC_OPENROUTER_API_KEY: exposedValue,
       });
       throw new Error("Expected public secret validation to fail.");
     } catch (error) {
       expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
+      expect(String(error)).toContain("NEXT_PUBLIC_ADMIN_SECRET");
       expect(String(error)).toContain("NEXT_PUBLIC_DATABASE_URL");
       expect(String(error)).toContain("NEXT_PUBLIC_OPENROUTER_API_KEY");
       expect(String(error)).not.toContain(exposedValue);

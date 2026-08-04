@@ -78,6 +78,27 @@ professor review candidates omit matching terms and internal source fields,
 and analytics omit unused duplicate aggregates. Repository models and grants
 must never be serialized directly.
 
+## Shared review secret deprecation
+
+The shared review-secret flow is removed. Review and analytics browser code has
+no secret input, does not send `x-professor-token`, and does not store a review
+secret in local storage or session storage. Approval and rejection routes use
+the current Auth.js session, require the application `professor` or `admin`
+role, and derive reviewer display name and `reviewed_by_user_id` from the
+server-created authorization grant. A submitted token, reviewer, or role field
+cannot authorize or attribute an action.
+
+The configuration deprecation path is intentionally one-way:
+
+1. Preview, Staging, and Production reject `ADMIN_SECRET` during startup.
+2. Development and Test temporarily tolerate the variable only so an existing
+   local `.env` file does not block startup. The parser discards it, no runtime
+   type exposes it, and it grants no access. Local operators should remove it
+   now.
+3. After local configuration cleanup, the compatibility tolerance may be
+   removed so every environment rejects the obsolete variable. It must never
+   be restored as a browser field, request header, or production fallback.
+
 ## Provider registration checklist
 
 University IT/security must supply and approve all provider values. For each

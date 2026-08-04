@@ -302,9 +302,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
       <Database className="h-5 w-5" />
-      <span>
-        Enter the admin secret to load aggregate instructor analytics.
-      </span>
+      <span>Load analytics using your signed-in instructor account.</span>
     </div>
   );
 }

@@ -21,9 +21,9 @@ import {
   mockPrincipal,
   resetAuthMocks,
   TEST_PROFESSOR,
+  TEST_STUDENT,
 } from "./auth-test-helpers";
 
-const TOKEN = "review-secret";
 const followingSyllabusCandidates =
   followingSyllabusReviewCandidateData as unknown as ReviewCandidate[];
 const nextSyllabusCandidates =
@@ -74,9 +74,6 @@ describe("professor admin APIs", () => {
     const response = await getReviewQueue(
       new Request(
         `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
-        {
-          headers: { "x-professor-token": TOKEN },
-        },
       ),
     );
     const payload = (await response.json()) as {
@@ -151,37 +148,70 @@ describe("professor admin APIs", () => {
     });
   });
 
-  it("protects both approval and rejection mutations with the professor role", async () => {
-    const [candidate] = await firstCandidates(1);
+  it("denies anonymous and student approval and rejection without changing review state", async () => {
+    const [approvalCandidate, rejectionCandidate] = await firstCandidates(2);
+
     mockPrincipal(undefined);
-    const unauthorizedApproval = await patchReviewQueue(
+    const anonymousApproval = await patchReviewQueue(
       mutationRequest(
         {
           action: "approve",
-          candidateId: candidate.id,
+          candidateId: approvalCandidate.id,
           reviewPriority: "priority",
         },
-        undefined,
         "PATCH",
       ),
     );
-    const unauthorizedRejection = await postReviewQueue(
-      mutationRequest(
+    const anonymousRejection = await postReviewQueue(
+      legacySecretMutationRequest(
         {
           action: "reject",
-          candidateId: candidate.id,
+          candidateId: rejectionCandidate.id,
         },
-        "wrong-secret",
         "POST",
       ),
     );
-    mockPrincipal(TEST_PROFESSOR);
-    const unchanged = await selectedTopicQueue(candidate.topicId);
 
-    expect(unauthorizedApproval.status).toBe(401);
-    expect(unauthorizedRejection.status).toBe(401);
-    expect(unchanged.candidates.some((item) => item.id === candidate.id)).toBe(
-      true,
+    mockPrincipal(TEST_STUDENT);
+    const studentApproval = await patchReviewQueue(
+      mutationRequest(
+        {
+          action: "approve",
+          candidateId: approvalCandidate.id,
+          reviewPriority: "priority",
+        },
+        "PATCH",
+      ),
+    );
+    const studentRejection = await postReviewQueue(
+      mutationRequest(
+        {
+          action: "reject",
+          candidateId: rejectionCandidate.id,
+        },
+        "POST",
+      ),
+    );
+
+    mockPrincipal(TEST_PROFESSOR);
+    const unchangedResponse = await getReviewQueue(authedRequest());
+    const unchangedPayload = (await unchangedResponse.json()) as {
+      candidates: ReviewCandidate[];
+    };
+    const unchangedById = new Map(
+      unchangedPayload.candidates.map((candidate) => [candidate.id, candidate]),
+    );
+
+    expect(anonymousApproval.status).toBe(401);
+    expect(anonymousRejection.status).toBe(401);
+    expect(studentApproval.status).toBe(403);
+    expect(studentRejection.status).toBe(403);
+    expect(unchangedResponse.status).toBe(200);
+    expect(unchangedById.get(approvalCandidate.id)?.review.status).toBe(
+      "needs_review",
+    );
+    expect(unchangedById.get(rejectionCandidate.id)?.review.status).toBe(
+      "needs_review",
     );
   });
 
@@ -211,9 +241,6 @@ describe("professor admin APIs", () => {
       const filtered = await getReviewQueue(
         new Request(
           `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
-          {
-            headers: { "x-professor-token": TOKEN },
-          },
         ),
       );
       const filteredPayload = (await filtered.json()) as {
@@ -260,9 +287,6 @@ describe("professor admin APIs", () => {
       const filtered = await getReviewQueue(
         new Request(
           `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
-          {
-            headers: { "x-professor-token": TOKEN },
-          },
         ),
       );
       const filteredPayload = (await filtered.json()) as {
@@ -309,9 +333,6 @@ describe("professor admin APIs", () => {
       const filtered = await getReviewQueue(
         new Request(
           `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
-          {
-            headers: { "x-professor-token": TOKEN },
-          },
         ),
       );
       const filteredPayload = (await filtered.json()) as {
@@ -521,9 +542,6 @@ async function selectedTopicQueue(topicId: string) {
   const response = await getReviewQueue(
     new Request(
       `http://test/api/professor/review?status=needs_review&topicId=${topicId}`,
-      {
-        headers: { "x-professor-token": TOKEN },
-      },
     ),
   );
   const payload = (await response.json()) as {
@@ -540,25 +558,25 @@ function authedRequest(body?: unknown) {
     body: body ? JSON.stringify(body) : undefined,
     headers: {
       "Content-Type": "application/json",
-      "x-professor-token": TOKEN,
     },
     method: body ? "PATCH" : "GET",
   });
 }
 
-function mutationRequest(
-  body: unknown,
-  token: string | undefined,
-  method: "PATCH" | "POST",
-) {
+function mutationRequest(body: unknown, method: "PATCH" | "POST") {
   return new Request("http://test/api/professor/review", {
     body: JSON.stringify(body),
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { "x-professor-token": token } : {}),
     },
     method,
   });
+}
+
+function legacySecretMutationRequest(body: unknown, method: "PATCH" | "POST") {
+  const request = mutationRequest(body, method);
+  request.headers.set("x-professor-token", "legacy-shared-secret");
+  return request;
 }
 
 function validUploadPayload() {

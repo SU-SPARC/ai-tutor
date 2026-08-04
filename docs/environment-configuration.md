@@ -71,6 +71,13 @@ The authentication variables configure the provider-neutral Auth.js boundary.
 Their presence does not constitute institutional approval; see
 [Authentication and authorization](authentication-authorization.md).
 
+`ADMIN_SECRET` is obsolete and is not part of the variable inventory. Deployed
+environments reject it. Development and Test temporarily ignore it only to let
+operators remove the variable from existing local `.env` files without
+blocking startup; it is never returned by the configuration parser and cannot
+authorize a request. See the
+[shared review secret deprecation path](authentication-authorization.md#shared-review-secret-deprecation).
+
 Repository and user-interface behavior for each environment is documented in
 [Operating Modes And Demo Isolation](operating-modes.md).
 
@@ -79,6 +86,7 @@ Repository and user-interface behavior for each environment is documented in
 `src/lib/env/server.ts` imports `server-only`, so Next.js rejects imports from
 Client Components. Validation also rejects these browser-exposed aliases:
 
+- `NEXT_PUBLIC_ADMIN_SECRET`
 - `NEXT_PUBLIC_AUTH_CLIENT_SECRET`
 - `NEXT_PUBLIC_AUTH_SESSION_SECRET`
 - `NEXT_PUBLIC_DATABASE_URL`

@@ -101,6 +101,16 @@ describe("authentication configuration", () => {
     ).toThrowError(/ADMIN_SECRET is no longer supported/);
   });
 
+  it("temporarily tolerates but never exposes a legacy local admin secret", () => {
+    const env = parseServerEnv({
+      ADMIN_SECRET: "ignored-local-compatibility-value",
+      NODE_ENV: "development",
+    });
+
+    expect(env).not.toHaveProperty("ADMIN_SECRET");
+    expect(env.AUTH_ENABLED).toBe(false);
+  });
+
   it("rejects an insecure issuer in a deployed preview", () => {
     expect(() =>
       parseServerEnv({
