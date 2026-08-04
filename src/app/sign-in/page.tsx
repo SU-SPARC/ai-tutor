@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { authenticationErrorMessage } from "@/lib/auth/authentication-errors";
 import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
-import { safeReturnPath } from "@/lib/auth/return-path";
+import { isInstructorReturnPath, safeReturnPath } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
@@ -35,6 +35,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   }
 
   const errorMessage = authenticationErrorMessage(error);
+  const instructorSignIn = isInstructorReturnPath(returnTo);
   const schoolSignInAction = signInWithSchoolAccount.bind(null, returnTo);
   const testSignInAction = signInWithTestAccount.bind(null, returnTo);
 
@@ -47,11 +48,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           </div>
           <div>
             <h1 className="text-3xl font-semibold">
-              Sign in to save your progress
+              {instructorSignIn
+                ? "Sign in to instructor tools"
+                : "Sign in to save your progress"}
             </h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Use your school account to keep your practice history available on
-              your approved devices. The tutor does not collect a password.
+              {instructorSignIn
+                ? "Use your school account. Access is granted only after the server verifies your instructor permissions."
+                : "Use your school account to keep your practice history available on your approved devices. The tutor does not collect a password."}
             </p>
           </div>
         </CardHeader>

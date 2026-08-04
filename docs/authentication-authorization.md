@@ -87,6 +87,31 @@ must not be reused as test fixtures.
 
 ## Roles and recovery
 
+### Initial professor provisioning
+
+Professor access is provisioned only after the real institutional account has
+signed in once and the application has created its minimal `users` record. The
+server-controlled sequence is:
+
+1. The instructor signs in with the approved school account and initially
+   receives only the baseline `student` role.
+2. The service owner approves professor access under a change ticket and gives
+   an authorized operator the existing application user ID. Email addresses,
+   email domains, display names, and browser-submitted claims are not accepted
+   as role evidence.
+3. An active application administrator runs the audited `auth:role grant`
+   command from a controlled operator environment with `DATABASE_URL`,
+   `APP_ENV`, the target user ID, operator user ID, and change ticket.
+4. The command changes `user_roles` in a transaction, writes an `audit_events`
+   record, and increments `users.session_version`. The instructor signs in
+   again before entering `/professor`.
+
+There is no client route, form field, email allowlist, or identity-provider
+profile claim that can grant `professor` or `admin`. The browser can request a
+review action, but protected routes derive both authorization and
+`reviewed_by_user_id` from the current server session; submitted reviewer or
+role fields are ignored.
+
 Use the audited operator command only after the target has signed in and has an
 existing user ID. `DATABASE_URL` and `APP_ENV` must be set explicitly in the
 operator environment:

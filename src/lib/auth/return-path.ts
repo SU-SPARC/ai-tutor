@@ -52,3 +52,18 @@ export function onboardingPath(returnTo?: string | null) {
   });
   return `/onboarding?${search.toString()}`;
 }
+
+export function isInstructorReturnPath(value?: string | null) {
+  const pathname = new URL(safeReturnPath(value), LOCAL_ORIGIN).pathname;
+  return (
+    pathname === "/professor" ||
+    pathname.startsWith("/professor/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/")
+  );
+}
+
+export function postSignInPath(returnTo?: string | null) {
+  const safePath = safeReturnPath(returnTo);
+  return isInstructorReturnPath(safePath) ? safePath : onboardingPath(safePath);
+}

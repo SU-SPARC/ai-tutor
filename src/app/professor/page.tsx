@@ -32,8 +32,8 @@ export default function ProfessorPage() {
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               Draft questions are separated from approved student-facing
-              content. Approval mutations require a professor or administrator
-              role.
+              content. The server verifies your current instructor permissions
+              before every read and review action.
             </p>
           </div>
         </div>
@@ -46,7 +46,7 @@ export default function ProfessorPage() {
                 Pending drafts
               </CardTitle>
               <CardDescription>
-                Queue loads after professor authentication.
+                Queue access is limited to signed-in instructor accounts.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -57,8 +57,8 @@ export default function ProfessorPage() {
                 Usage dashboard
               </CardTitle>
               <CardDescription>
-                Aggregate LLM calls, provider tokens, cache hits, and limits
-                load after professor authentication.
+                Aggregate model usage, cache hits, and limits load only after
+                instructor access is verified.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -69,8 +69,8 @@ export default function ProfessorPage() {
                 Server-side control
               </CardTitle>
               <CardDescription>
-                Review changes and LLM fallbacks are handled only by server
-                routes.
+                Review changes are attributed to the signed-in account and
+                handled only by protected server routes.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -80,7 +80,8 @@ export default function ProfessorPage() {
           <CardHeader>
             <CardTitle>Review queue</CardTitle>
             <CardDescription>
-              Your current account role authorizes approve and reject actions.
+              Approve and reject actions are recorded under your authenticated
+              application account.
             </CardDescription>
           </CardHeader>
           <CardContent>

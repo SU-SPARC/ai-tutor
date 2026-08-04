@@ -158,6 +158,14 @@ describe("student sign-in routes", () => {
     );
   });
 
+  it("returns instructor sign-in directly to the protected workspace", async () => {
+    await signInWithSchoolAccount("/professor?section=review");
+
+    expect(mocks.signIn).toHaveBeenCalledWith("institutional-oidc", {
+      redirectTo: "/professor?section=review",
+    });
+  });
+
   it("renders a clear, sanitized and accessible authentication error", async () => {
     const element = await SignInPage({
       searchParams: Promise.resolve({

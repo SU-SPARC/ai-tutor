@@ -5,11 +5,11 @@ import {
   LOCAL_TEST_PROVIDER_ID,
   signIn,
 } from "@/auth";
-import { onboardingPath } from "@/lib/auth/return-path";
+import { postSignInPath } from "@/lib/auth/return-path";
 
 export async function signInWithSchoolAccount(returnTo: string) {
   await signIn(INSTITUTIONAL_PROVIDER_ID, {
-    redirectTo: onboardingPath(returnTo),
+    redirectTo: postSignInPath(returnTo),
   });
 }
 
@@ -17,6 +17,6 @@ export async function signInWithTestAccount(
   returnTo: string,
   formData: FormData,
 ) {
-  formData.set("redirectTo", onboardingPath(returnTo));
+  formData.set("redirectTo", postSignInPath(returnTo));
   await signIn(LOCAL_TEST_PROVIDER_ID, formData);
 }
