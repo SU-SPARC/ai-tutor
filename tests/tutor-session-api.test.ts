@@ -18,9 +18,11 @@ import {
 import type { TutorQuestion } from "@/lib/types";
 import {
   authorizationForStudentOwner,
+  mockPrincipal,
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
+  TEST_STUDENT,
 } from "./auth-test-helpers";
 
 type SessionPayload = {
@@ -196,6 +198,78 @@ describe("tutor session API", () => {
     ]);
     expect(responseBodies.join("\n")).not.toContain(draft.id);
     expect(responseBodies.join("\n")).not.toContain(draft.prompt);
+    expect(unchanged).toMatchObject({
+      attempts: [],
+      revealedHints: 0,
+      revealedSteps: 0,
+    });
+  });
+
+  it("conceals and preserves another authenticated student's session across every direct API", async () => {
+    const victimOwner = {
+      kind: "user" as const,
+      userId: TEST_STUDENT.userId,
+    };
+    const victimAuthorization = authorizationForStudentOwner(victimOwner);
+    const victimSession = await createTutorSession(
+      victimAuthorization,
+      "dice-sum-eight",
+    );
+    mockPrincipal({
+      displayName: "Attacking Student",
+      email: "attacker@example.invalid",
+      kind: "user",
+      roles: ["student"],
+      userId: "user:attacking-student",
+    });
+
+    const context = sessionContext(victimSession.id);
+    const responses = await Promise.all([
+      getSession(
+        new Request(`http://localhost/api/tutor/session/${victimSession.id}`),
+        context,
+      ),
+      postAttempt(
+        jsonRequest(
+          `http://localhost/api/tutor/session/${victimSession.id}/attempt`,
+          { answer: "cross-student write" },
+        ),
+        context,
+      ),
+      postHint(
+        new Request(
+          `http://localhost/api/tutor/session/${victimSession.id}/hint`,
+          { method: "POST" },
+        ),
+        context,
+      ),
+      postStep(
+        new Request(
+          `http://localhost/api/tutor/session/${victimSession.id}/step`,
+          { method: "POST" },
+        ),
+        context,
+      ),
+      postTutorResponse(
+        jsonRequest("http://localhost/api/tutor/respond", {
+          answer: "cross-student tutor request",
+          mode: "check",
+          sessionId: victimSession.id,
+        }),
+      ),
+    ]);
+    const responseBodies = await Promise.all(
+      responses.map((response) => response.text()),
+    );
+    const unchanged = await getTutorSessionRecord(
+      victimAuthorization,
+      victimSession.id,
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([
+      404, 404, 404, 404, 404,
+    ]);
+    expect(responseBodies.join("\n")).not.toContain(victimSession.id);
     expect(unchanged).toMatchObject({
       attempts: [],
       revealedHints: 0,

@@ -16,6 +16,7 @@ import {
   mockPrincipal,
   resetAuthMocks,
   TEST_PROFESSOR,
+  TEST_STUDENT,
 } from "./auth-test-helpers";
 
 afterEach(() => {
@@ -24,6 +25,33 @@ afterEach(() => {
 });
 
 describe("authenticated review attribution", () => {
+  it("rejects a direct student mutation even when the request spoofs admin role and reviewer fields", async () => {
+    mockPrincipal(TEST_STUDENT);
+
+    const response = await patchReviewQueue(
+      new Request("http://test/api/professor/review", {
+        body: JSON.stringify({
+          action: "approve",
+          candidateId: "candidate:test",
+          reviewedBy: "Spoofed Administrator",
+          reviewedByUserId: "user:spoofed-admin",
+          roles: ["professor", "admin"],
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-professor-token": "obsolete-shared-secret",
+        },
+        method: "PATCH",
+      }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(403);
+    expect(dataStoreMocks.getReviewQueue).not.toHaveBeenCalled();
+    expect(dataStoreMocks.updateReviewCandidates).not.toHaveBeenCalled();
+    expect(body).not.toMatch(/candidate:test|spoofed|obsolete-shared-secret/i);
+  });
+
   it("ignores client reviewer and role fields in favor of the session", async () => {
     mockPrincipal(TEST_PROFESSOR);
     dataStoreMocks.updateReviewCandidates.mockResolvedValue([

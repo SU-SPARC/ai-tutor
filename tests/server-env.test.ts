@@ -137,6 +137,39 @@ describe("typed server environment", () => {
     }
   });
 
+  it("fails Production startup when an otherwise valid environment is missing authentication configuration", () => {
+    const input = {
+      ...strictEnvironment("production"),
+      AUTH_CLIENT_ID: undefined,
+      AUTH_CLIENT_SECRET: undefined,
+      AUTH_ISSUER_URL: undefined,
+      AUTH_SESSION_SECRET: undefined,
+    };
+
+    try {
+      parseServerEnv(input);
+      throw new Error("Expected Production authentication validation to fail.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
+      expect((error as ServerEnvironmentValidationError).environment).toBe(
+        "production",
+      );
+      expect((error as ServerEnvironmentValidationError).issues).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^AUTH_ISSUER_URL is required/),
+          "AUTH_CLIENT_ID is required.",
+          "AUTH_CLIENT_SECRET is required.",
+          "AUTH_SESSION_SECRET is required.",
+        ]),
+      );
+      expect((error as ServerEnvironmentValidationError).issues).not.toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/APP_URL|DATABASE_URL|ERROR_TRACKING_DSN/),
+        ]),
+      );
+    }
+  });
+
   it("rejects demo mode and insecure URLs in strict environments", () => {
     expect(() =>
       parseServerEnv({

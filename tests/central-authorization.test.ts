@@ -155,6 +155,26 @@ describe("central role authorization", () => {
     });
   });
 
+  it("keeps protected export access administrator-only", async () => {
+    mockPrincipal(undefined);
+    await expect(requireExportAccess()).rejects.toBeInstanceOf(
+      AuthenticationRequiredError,
+    );
+
+    for (const principal of [TEST_STUDENT, TEST_PROFESSOR]) {
+      mockPrincipal(principal);
+      await expect(requireExportAccess()).rejects.toBeInstanceOf(
+        AuthorizationDeniedError,
+      );
+    }
+
+    mockPrincipal(TEST_ADMIN);
+    await expect(requireExportAccess()).resolves.toMatchObject({
+      permission: "export",
+      principal: TEST_ADMIN,
+    });
+  });
+
   it("denies unknown permissions by default", () => {
     expect(
       hasPermission(

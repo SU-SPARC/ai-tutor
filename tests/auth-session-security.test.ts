@@ -144,6 +144,49 @@ describe("authentication session cookies", () => {
     expect(sessionCookieHeaders(response).join("\n")).toContain("Max-Age=0");
   });
 
+  it.each([
+    ["missing", undefined],
+    ["disabled", activeAccount({ status: "disabled" })],
+    ["deleted", activeAccount({ status: "deleted" })],
+    ["not yet active", activeAccount({ status: "invited" })],
+  ])(
+    "rejects and clears a session for a %s account",
+    async (_label, account) => {
+      mocks.getApplicationUserAccess.mockResolvedValue(account);
+
+      const response = await readSession(await issueSession());
+
+      await expect(response.json()).resolves.toBeNull();
+      expect(mocks.getApplicationUserAccess).toHaveBeenCalledWith(
+        "user:student",
+      );
+      expect(sessionCookieHeaders(response).join("\n")).toContain("Max-Age=0");
+    },
+  );
+
+  it("replaces elevated JWT role claims with current database roles", async () => {
+    mocks.getApplicationUserAccess.mockResolvedValue(
+      activeAccount({ roles: ["student"] }),
+    );
+
+    const response = await readSession(
+      await issueSession({ roles: ["student", "professor", "admin"] }),
+    );
+    const body = (await response.json()) as {
+      user: { roles: string[] };
+    };
+    const rotatedToken = sessionTokenFrom(sessionCookieHeaders(response));
+    const rotatedClaims = await decode({
+      salt: secureCookie.name,
+      secret: SESSION_SECRET,
+      token: rotatedToken,
+    });
+
+    expect(body.user.roles).toEqual(["student"]);
+    expect(rotatedClaims?.roles).toEqual(["student"]);
+    expect(JSON.stringify(body)).not.toMatch(/professor|admin/);
+  });
+
   it("revalidates and rotates a current session without extending its absolute expiry", async () => {
     const sessionStartedAt = epochSeconds() - 60 * 60;
     const originalToken = await issueSession({ sessionStartedAt });
@@ -249,6 +292,7 @@ function activeAccount(
   overrides: Partial<{
     roles: ("student" | "professor" | "admin")[];
     sessionVersion: number;
+    status: "active" | "deleted" | "disabled" | "invited";
   }> = {},
 ) {
   return {
@@ -257,7 +301,7 @@ function activeAccount(
     id: "user:student",
     roles: overrides.roles ?? ["student"],
     sessionVersion: overrides.sessionVersion ?? 1,
-    status: "active" as const,
+    status: overrides.status ?? ("active" as const),
   };
 }
 
