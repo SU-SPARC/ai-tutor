@@ -113,6 +113,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     (APP_ENV === "preview" ? previewUrl : undefined) ??
     (local ? DEFAULTS.APP_URL : undefined);
   const APP_URL = parseHttpUrl("APP_URL", rawAppUrl, issues, {
+    originOnly: true,
     requireHttps: deployed,
     required: true,
   });
@@ -169,6 +170,22 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
         Boolean(input.AUTH_SESSION_SECRET),
     },
   );
+  if (
+    AUTH_SESSION_SECRET &&
+    deployed &&
+    !hasProductionSessionSecretStrength(AUTH_SESSION_SECRET)
+  ) {
+    issues.push(
+      "AUTH_SESSION_SECRET must be a high-entropy value in deployed environments, not a placeholder or repeated pattern.",
+    );
+  }
+  if (
+    AUTH_SESSION_SECRET &&
+    AUTH_CLIENT_SECRET &&
+    AUTH_SESSION_SECRET === AUTH_CLIENT_SECRET
+  ) {
+    issues.push("AUTH_SESSION_SECRET must differ from AUTH_CLIENT_SECRET.");
+  }
   const AUTH_OIDC_ENABLED = Boolean(
     AUTH_ISSUER_URL &&
     AUTH_CLIENT_ID &&
@@ -573,6 +590,7 @@ function parseHttpUrl(
   issues: string[],
   options: {
     oidcIssuer?: boolean;
+    originOnly?: boolean;
     preserveExact?: boolean;
     requireHttps: boolean;
     required: boolean;
@@ -595,6 +613,20 @@ function parseHttpUrl(
 
     if (options.requireHttps && parsed.protocol !== "https:") {
       issues.push(`${name} must use https in deployed environments.`);
+      return undefined;
+    }
+
+    if (
+      options.originOnly &&
+      (parsed.username ||
+        parsed.password ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash)
+    ) {
+      issues.push(
+        `${name} must be an origin only, without credentials, a path, query string, or fragment.`,
+      );
       return undefined;
     }
 
@@ -660,6 +692,12 @@ function urlFromVercelHostname(value: string | undefined) {
 function optionalString(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function hasProductionSessionSecretStrength(value: string) {
+  const obviousPlaceholder =
+    /(change.?me|replace|example|placeholder|development|testing|test[-_ ]|sample|your[-_ ]|secret[-_ ]?(here|value))/i;
+  return new Set(value).size >= 12 && !obviousPlaceholder.test(value);
 }
 
 function uniqueIssues(issues: string[]) {

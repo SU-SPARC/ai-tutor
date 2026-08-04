@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/anonymous-claims";
 import {
   IdentityConflictError,
+  invalidateApplicationSessionOnLogout,
   upsertOidcAccount,
 } from "@/lib/auth/account-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
@@ -141,6 +142,67 @@ describe("session authorization", () => {
     expect(student.ok ? 200 : student.response.status).toBe(403);
     expect(professor.ok).toBe(true);
     expect(inheritedProfessor.ok).toBe(true);
+  });
+
+  it("invalidates logout sessions transactionally and audits only once", async () => {
+    const database = new PGlite();
+    await database.exec(`
+      create table users (
+        id text primary key,
+        user_type text not null,
+        status text not null,
+        session_version integer not null default 1,
+        updated_at timestamptz not null default now()
+      );
+      create table audit_events (
+        id bigserial primary key,
+        actor_user_id text,
+        actor_subject text not null,
+        action text not null,
+        entity_type text not null,
+        entity_id text,
+        metadata_json jsonb not null
+      );
+      insert into users (id, user_type, status)
+      values ('user:logout', 'human', 'active');
+    `);
+    const query: DatabaseQueryExecutor = async (sql, params = []) => {
+      const result = await database.query<Record<string, unknown>>(sql, params);
+      return result.rows;
+    };
+
+    const first = await invalidateApplicationSessionOnLogout(
+      { sessionVersion: 1, userId: "user:logout" },
+      query,
+    );
+    const repeated = await invalidateApplicationSessionOnLogout(
+      { sessionVersion: 1, userId: "user:logout" },
+      query,
+    );
+    const user = await database.query<{ session_version: number }>(
+      "select session_version from users where id = 'user:logout'",
+    );
+    const audits = await database.query<{
+      action: string;
+      actor_user_id: string;
+      count: number;
+    }>(`
+      select
+        min(action) as action,
+        min(actor_user_id) as actor_user_id,
+        count(*)::int as count
+      from audit_events
+    `);
+
+    expect(first).toEqual({ invalidated: true, sessionVersion: 2 });
+    expect(repeated).toEqual({ invalidated: false });
+    expect(user.rows[0].session_version).toBe(2);
+    expect(audits.rows[0]).toEqual({
+      action: "auth.session_logged_out",
+      actor_user_id: "user:logout",
+      count: 1,
+    });
+    await database.close();
   });
 
   it("never links different OIDC subjects by matching email", async () => {

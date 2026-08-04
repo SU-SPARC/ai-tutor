@@ -8,8 +8,15 @@ claims mapping, or SSO settings are invented in this repository.
 
 ## Runtime model
 
-- Auth.js creates encrypted JWT-backed, HTTP-only application sessions lasting
-  eight hours, with no remember-me option.
+- Auth.js creates encrypted JWT-backed application sessions with an absolute
+  eight-hour lifetime and no remember-me option. The signed-in-at claim is
+  preserved when Auth.js rotates the encrypted JWT, so reading a session never
+  extends that absolute lifetime.
+- HTTPS deployments use a host-only `__Host-authjs.session-token` cookie with
+  `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, and no `Domain`. Lax is needed
+  for the top-level OIDC callback while preventing the cookie from being sent on
+  cross-site subrequests. Local HTTP Development/Test uses the same controls
+  except `Secure` and the `__Host-` prefix so localhost remains usable.
 - OIDC accounts are keyed only by the validated `(issuer, subject)` pair.
 - The existing `users` row stores the subject, issuer, institutional email,
   display name, status, `session_version`, and timestamps.
@@ -18,6 +25,14 @@ claims mapping, or SSO settings are invented in this repository.
 - Every protected boundary re-reads current status, session version, and roles
   from PostgreSQL. Disabling an account or rotating `session_version`
   invalidates existing sessions; role revocation takes effect immediately.
+- Auth.js also performs that account revalidation whenever the session endpoint
+  evaluates a JWT. Missing, malformed, expired, disabled, or version-revoked
+  sessions resolve to no identity, and invalid cookies are cleared.
+- Normal sign-out clears the browser cookie, atomically increments the user's
+  `session_version`, and records `auth.session_logged_out`. This intentionally
+  invalidates every copy of the prior application session, including a copied
+  cookie. Recovery and incident-response invalidation use the same versioning
+  boundary.
 - `admin` may perform professor operations. `professor` does not imply admin.
 - Staff pages have coarse proxy redirects and repeat authorization in layouts,
   route handlers, and ownership-aware repository queries.
@@ -31,6 +46,18 @@ claims mapping, or SSO settings are invented in this repository.
 - Navigation is session-aware: signed-out visitors receive a sign-in link that
   preserves the current safe page, while signed-in users receive account and
   sign-out controls. Internal role and provider identifiers are not rendered.
+- Session tokens are cookie-only: application return-path validation rejects
+  token-bearing query strings/fragments, session payloads never expose the
+  encrypted JWT, and the authentication logger emits only Auth.js error types,
+  not error details or credentials.
+
+`APP_URL` is an exact origin, not a path or dynamic request-host hint. Auth.js
+uses it as `AUTH_URL`, fixing callback and session-action origins for each
+environment. Preview can derive its own HTTPS origin from `VERCEL_URL`, while
+Staging and Production must set their own origins. The host-only session cookie
+prevents a Preview hostname from sharing a session with Production even when
+both are subdomains of the same parent domain. Preview must still use separate
+provider credentials and a separate session secret.
 
 Unauthenticated protected APIs return 401, insufficient roles return 403, and
 non-owned tutor sessions return 404. Identity or role-store failures fail
@@ -112,8 +139,10 @@ environment:
    another application.
 4. Set the environment-specific `AUTH_CLIENT_ID` and server-only
    `AUTH_CLIENT_SECRET` issued for this application.
-5. Generate a new server-only `AUTH_SESSION_SECRET` with at least 32 random
-   characters. Do not reuse a Development, Staging, or Production secret.
+5. Generate a new high-entropy server-only `AUTH_SESSION_SECRET` with at least
+   32 random characters. It must differ from `AUTH_CLIENT_SECRET`, must not be a
+   placeholder or repeated pattern, and must not be reused across Development,
+   Preview, Staging, or Production.
 6. Approve only `openid profile email` scopes and release a stable subject,
    institutional email, and display name. No groups, directory/Graph access,
    course enrollment, photos, or refresh/offline scope are requested.

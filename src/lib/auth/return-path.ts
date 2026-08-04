@@ -3,6 +3,20 @@ export const DEFAULT_STUDENT_RETURN_PATH = "/dashboard";
 const LOCAL_ORIGIN = "https://student-flow.invalid";
 const UNSAFE_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
 const NON_RETURNABLE_PATHS = ["/sign-in", "/onboarding", "/api"];
+const AUTH_CREDENTIAL_PARAMETER_KEYS = new Set([
+  "accesstoken",
+  "assertion",
+  "authtoken",
+  "authorization",
+  "bearer",
+  "credential",
+  "csrftoken",
+  "idtoken",
+  "oauthtoken",
+  "refreshtoken",
+  "sessiontoken",
+  "token",
+]);
 
 export function safeReturnPath(
   value: string | null | undefined,
@@ -31,12 +45,22 @@ export function safeReturnPath(
     NON_RETURNABLE_PATHS.some(
       (path) =>
         parsed.pathname === path || parsed.pathname.startsWith(`${path}/`),
-    )
+    ) ||
+    containsAuthenticationCredential(parsed.searchParams) ||
+    containsAuthenticationCredential(new URLSearchParams(parsed.hash.slice(1)))
   ) {
     return fallback;
   }
 
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
+function containsAuthenticationCredential(parameters: URLSearchParams) {
+  return [...parameters.keys()].some((key) =>
+    AUTH_CREDENTIAL_PARAMETER_KEYS.has(
+      key.toLowerCase().replaceAll(/[-_.]/g, ""),
+    ),
+  );
 }
 
 export function signInPath(returnTo?: string | null) {

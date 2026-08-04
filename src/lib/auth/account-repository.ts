@@ -29,6 +29,16 @@ export type OidcAccountInput = {
   subject: string;
 };
 
+export type LogoutSessionInvalidationInput = {
+  sessionVersion: number;
+  userId: string;
+};
+
+export type LogoutSessionInvalidationResult = {
+  invalidated: boolean;
+  sessionVersion?: number;
+};
+
 export class IdentityConflictError extends Error {
   constructor() {
     super("The institutional identity conflicts with an existing account.");
@@ -176,6 +186,58 @@ export async function getApplicationUserAccess(
     sessionVersion: Number(row.session_version),
     status: row.status as ApplicationUserAccess["status"],
   };
+}
+
+export async function invalidateApplicationSessionOnLogout(
+  input: LogoutSessionInvalidationInput,
+  query: DatabaseQueryExecutor = queryPostgres,
+): Promise<LogoutSessionInvalidationResult> {
+  return runDatabaseTransaction(query, async (transactionQuery) => {
+    const rows = await transactionQuery(
+      `
+        update users
+        set session_version = session_version + 1,
+            updated_at = now()
+        where id = $1
+          and user_type = 'human'
+          and status <> 'deleted'
+          and session_version = $2
+        returning session_version
+      `,
+      [input.userId, input.sessionVersion],
+    );
+    const nextSessionVersion = Number(rows[0]?.session_version);
+
+    if (!Number.isInteger(nextSessionVersion)) {
+      return { invalidated: false };
+    }
+
+    await transactionQuery(
+      `
+        insert into audit_events (
+          actor_user_id,
+          actor_subject,
+          action,
+          entity_type,
+          entity_id,
+          metadata_json
+        )
+        values ($1, $1, 'auth.session_logged_out', 'user', $1, $2::jsonb)
+      `,
+      [
+        input.userId,
+        JSON.stringify({
+          previousSessionVersion: input.sessionVersion,
+          sessionVersion: nextSessionVersion,
+        }),
+      ],
+    );
+
+    return {
+      invalidated: true,
+      sessionVersion: nextSessionVersion,
+    };
+  });
 }
 
 async function requireApplicationUserAccess(

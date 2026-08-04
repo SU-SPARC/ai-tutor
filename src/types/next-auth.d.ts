@@ -25,6 +25,7 @@ declare module "next-auth/jwt" {
     appUserId?: string;
     authMode?: "oidc" | "test";
     roles?: ApplicationRole[];
+    sessionStartedAt?: number;
     sessionVersion?: number;
   }
 }

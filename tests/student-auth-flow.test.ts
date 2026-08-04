@@ -109,6 +109,10 @@ describe("safe authentication return paths", () => {
     "/onboarding?returnTo=/practice",
     "/api/auth/callback/institutional-oidc",
     "/api/student/progress",
+    "/practice?access_token=secret",
+    "/practice?sessionToken=secret",
+    "/practice?session_token=secret",
+    "/practice#id_token=secret",
     `/practice?value=${"x".repeat(2_100)}`,
   ])("rejects unsafe or recursive return target %s", (requested) => {
     expect(safeReturnPath(requested)).toBe(DEFAULT_STUDENT_RETURN_PATH);

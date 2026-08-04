@@ -253,6 +253,9 @@ Production acceptance requires evidence for every item below.
 
 - [ ] University IT has approved and provisioned the institutional OIDC provider.
 - [x] Auth.js provides secure server-side sessions without application passwords.
+- [x] Authentication sessions use host-only secure/HTTP-only/SameSite cookies,
+      an absolute eight-hour expiry, continuous account/version checks, audited
+      logout invalidation, and token-safe redirects and logging.
 - [x] Server-side authorization denies access by default.
 - [x] Students can read and mutate only their own sessions and progress.
 - [x] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and

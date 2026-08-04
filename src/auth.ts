@@ -1,19 +1,30 @@
 import { randomBytes } from "node:crypto";
 
-import NextAuth, { type User } from "next-auth";
+import NextAuth, { type NextAuthConfig, type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
 
 import {
   IdentityConflictError,
+  getApplicationUserAccess,
+  invalidateApplicationSessionOnLogout,
   upsertOidcAccount,
   type ApplicationRole,
 } from "@/lib/auth/account-repository";
+import {
+  AUTH_SESSION_MAX_AGE_SECONDS,
+  applicationSessionExpiresAt,
+  authSessionCookie,
+  epochSeconds,
+  isApplicationSessionCurrent,
+  isApplicationSessionExpired,
+  readApplicationSessionClaims,
+} from "@/lib/auth/session-policy";
 import { getServerEnv } from "@/lib/env/server";
 
 export const INSTITUTIONAL_PROVIDER_ID = "institutional-oidc";
 export const LOCAL_TEST_PROVIDER_ID = "local-test-identity";
-export const AUTH_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+export { AUTH_SESSION_MAX_AGE_SECONDS } from "@/lib/auth/session-policy";
 
 const env = getServerEnv();
 
@@ -77,19 +88,50 @@ const authSecret =
   (!env.IS_DEPLOYED_ENVIRONMENT
     ? randomBytes(32).toString("base64url")
     : undefined);
+const sessionCookie = authSessionCookie(env.APP_URL);
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authConfig: NextAuthConfig = {
+  basePath: "/api/auth",
   providers,
   secret: authSecret,
+  useSecureCookies: sessionCookie.options.secure,
+  cookies: {
+    sessionToken: sessionCookie,
+  },
   trustHost: true,
   session: {
     strategy: "jwt",
     maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
-    updateAge: 60 * 60,
   },
   pages: {
     signIn: "/sign-in",
     error: "/sign-in",
+  },
+  logger: {
+    debug() {},
+    error(error) {
+      console.error("[auth][error]", authErrorCode(error));
+    },
+    warn(code) {
+      console.warn("[auth][warn]", code);
+    },
+  },
+  events: {
+    async signOut(message) {
+      if (!("token" in message)) {
+        return;
+      }
+
+      const claims = readApplicationSessionClaims(message.token);
+      if (!claims || claims.authMode !== "oidc") {
+        return;
+      }
+
+      await invalidateApplicationSessionOnLogout({
+        sessionVersion: claims.sessionVersion,
+        userId: claims.appUserId,
+      });
+    },
   },
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -134,11 +176,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         throw error;
       }
     },
-    jwt({ token, user }) {
-      if (user?.appUserId && user.authMode && user.sessionVersion) {
+    async jwt({ token, user }) {
+      if (
+        user?.appUserId &&
+        user.authMode &&
+        Number.isInteger(user.sessionVersion) &&
+        Number(user.sessionVersion) > 0
+      ) {
         token.appUserId = user.appUserId;
         token.authMode = user.authMode;
         token.roles = user.roles ?? [];
+        token.sessionStartedAt = epochSeconds();
         token.sessionVersion = user.sessionVersion;
         token.sub = user.appUserId;
       }
@@ -148,32 +196,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       delete token.email;
       delete token.name;
       delete token.picture;
+
+      const claims = readApplicationSessionClaims(token);
+      if (!claims || isApplicationSessionExpired(claims)) {
+        return null;
+      }
+
+      if (claims.authMode === "test") {
+        return env.AUTH_TEST_MODE && !env.IS_DEPLOYED_ENVIRONMENT
+          ? token
+          : null;
+      }
+
+      const account = await getApplicationUserAccess(claims.appUserId);
+      if (!isApplicationSessionCurrent(claims, account)) {
+        return null;
+      }
+
+      token.roles = account!.roles;
       return token;
     },
     session({ session, token }) {
-      const applicationToken = token as typeof token & {
-        appUserId?: string;
-        authMode?: "oidc" | "test";
-        roles?: ApplicationRole[];
-        sessionVersion?: number;
-      };
-      if (
-        !applicationToken.appUserId ||
-        !applicationToken.authMode ||
-        !applicationToken.sessionVersion ||
-        !session.user
-      ) {
+      const claims = readApplicationSessionClaims(token);
+      if (!claims || !session.user) {
         return session;
       }
 
-      session.user.appUserId = applicationToken.appUserId;
-      session.user.authMode = applicationToken.authMode;
-      session.user.roles = applicationToken.roles ?? [];
-      session.user.sessionVersion = applicationToken.sessionVersion;
-      return session;
+      return {
+        ...session,
+        expires: applicationSessionExpiresAt(claims),
+        user: {
+          ...session.user,
+          appUserId: claims.appUserId,
+          authMode: claims.authMode,
+          roles: claims.roles,
+          sessionVersion: claims.sessionVersion,
+        },
+      };
     },
   },
-});
+};
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 function requiredClaim(value: unknown, name: string) {
   if (typeof value !== "string" || !value.trim()) {
@@ -227,4 +291,9 @@ function attachApplicationIdentity(
   user.authMode = identity.authMode;
   user.roles = identity.roles;
   user.sessionVersion = identity.sessionVersion;
+}
+
+function authErrorCode(error: Error) {
+  const type = (error as Error & { type?: unknown }).type;
+  return typeof type === "string" && type ? type : error.name || "AuthError";
 }

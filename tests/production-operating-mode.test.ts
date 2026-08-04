@@ -214,7 +214,7 @@ function stubProductionEnvironment() {
     AUTH_CLIENT_ID: "test-client",
     AUTH_CLIENT_SECRET: "test-client-secret",
     AUTH_ISSUER_URL: "https://identity.example.edu",
-    AUTH_SESSION_SECRET: "a-test-session-secret-with-32-characters",
+    AUTH_SESSION_SECRET: "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ",
     DATABASE_URL: "postgresql://user:password@database.example.edu/tutor",
     ERROR_TRACKING_DSN: "https://errors.example.edu/project",
     LOG_LEVEL: "info",

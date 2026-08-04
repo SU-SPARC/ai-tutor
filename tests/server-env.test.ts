@@ -158,6 +158,48 @@ describe("typed server environment", () => {
     );
   });
 
+  it.each([
+    "https://user:password@tutor.example.edu",
+    "https://tutor.example.edu/application",
+    "https://tutor.example.edu?environment=production",
+    "https://tutor.example.edu#configuration",
+  ])(
+    "rejects a deployed APP_URL that is not an exact origin: %s",
+    (APP_URL) => {
+      expect(() =>
+        parseServerEnv({
+          ...strictEnvironment("production"),
+          APP_URL,
+        }),
+      ).toThrowError(/APP_URL must be an origin only/);
+    },
+  );
+
+  it.each([
+    "a-test-session-secret-with-32-characters",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "replace-this-placeholder-session-secret",
+  ])("rejects a weak deployed session secret", (AUTH_SESSION_SECRET) => {
+    expect(() =>
+      parseServerEnv({
+        ...strictEnvironment("production"),
+        AUTH_SESSION_SECRET,
+      }),
+    ).toThrowError(/AUTH_SESSION_SECRET must be a high-entropy value/);
+  });
+
+  it("requires the application session and OIDC client secrets to differ", () => {
+    const sharedSecret = "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ";
+
+    expect(() =>
+      parseServerEnv({
+        ...strictEnvironment("production"),
+        AUTH_CLIENT_SECRET: sharedSecret,
+        AUTH_SESSION_SECRET: sharedSecret,
+      }),
+    ).toThrowError(/AUTH_SESSION_SECRET must differ from AUTH_CLIENT_SECRET/);
+  });
+
   it("requires complete provider configuration when AI is enabled", () => {
     expect(() =>
       parseServerEnv({
@@ -231,7 +273,7 @@ function strictEnvironment(
     AUTH_CLIENT_ID: "tutor-client",
     AUTH_CLIENT_SECRET: "test-client-secret",
     AUTH_ISSUER_URL: "https://identity.example.edu",
-    AUTH_SESSION_SECRET: "a-test-session-secret-with-32-characters",
+    AUTH_SESSION_SECRET: "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ",
     DATABASE_URL: "postgresql://user:password@database.example.edu/tutor",
     ERROR_TRACKING_DSN: "https://errors.example.edu/project",
     LOG_LEVEL: "info",
