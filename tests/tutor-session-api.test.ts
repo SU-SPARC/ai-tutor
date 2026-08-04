@@ -5,12 +5,19 @@ import { POST as postHint } from "@/app/api/tutor/session/[sessionId]/hint/route
 import { GET as getSession } from "@/app/api/tutor/session/[sessionId]/route";
 import { POST as postStep } from "@/app/api/tutor/session/[sessionId]/step/route";
 import { POST as postSession } from "@/app/api/tutor/session/route";
+import { POST as postTutorResponse } from "@/app/api/tutor/respond/route";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
+import { setContentRepositoryForTests } from "@/lib/data/data-store";
+import type { ContentRepository } from "@/lib/data/repository";
 import {
+  createTutorSession,
   createDatabaseTutorSessionRepository,
+  getTutorSession as getTutorSessionRecord,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
+import type { TutorQuestion } from "@/lib/types";
 import {
+  authorizationForStudentOwner,
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
@@ -29,6 +36,7 @@ describe("tutor session API", () => {
   });
 
   afterEach(() => {
+    setContentRepositoryForTests(undefined);
     vi.unstubAllEnvs();
     resetAuthMocks();
   });
@@ -117,6 +125,82 @@ describe("tutor session API", () => {
       ((await missingIdentityResponse.json()) as SessionPayload).error,
     ).toContain("Authentication");
     expect(missingResponse.status).toBe(404);
+  });
+
+  it("never creates, returns, or mutates a session bound to a generated draft", async () => {
+    const draft = generatedDraftQuestion();
+    setContentRepositoryForTests({
+      getQuestionById: async () => draft,
+    } as unknown as ContentRepository);
+
+    const createResponse = await postSession(
+      jsonRequest("http://localhost/api/tutor/session", {
+        questionId: draft.id,
+      }),
+    );
+    expect(createResponse.status).toBe(404);
+    expect(await createResponse.text()).not.toContain(draft.id);
+
+    const authorization = authorizationForStudentOwner(TEST_ANONYMOUS_OWNER);
+    const legacyDraftSession = await createTutorSession(
+      authorization,
+      draft.id,
+    );
+    const context = sessionContext(legacyDraftSession.id);
+    const responses = await Promise.all([
+      getSession(
+        new Request(
+          `http://localhost/api/tutor/session/${legacyDraftSession.id}`,
+        ),
+        context,
+      ),
+      postAttempt(
+        jsonRequest(
+          `http://localhost/api/tutor/session/${legacyDraftSession.id}/attempt`,
+          { answer: "private answer" },
+        ),
+        context,
+      ),
+      postHint(
+        new Request(
+          `http://localhost/api/tutor/session/${legacyDraftSession.id}/hint`,
+          { method: "POST" },
+        ),
+        context,
+      ),
+      postStep(
+        new Request(
+          `http://localhost/api/tutor/session/${legacyDraftSession.id}/step`,
+          { method: "POST" },
+        ),
+        context,
+      ),
+      postTutorResponse(
+        jsonRequest("http://localhost/api/tutor/respond", {
+          answer: "private answer",
+          mode: "check",
+          sessionId: legacyDraftSession.id,
+        }),
+      ),
+    ]);
+    const responseBodies = await Promise.all(
+      responses.map((response) => response.text()),
+    );
+    const unchanged = await getTutorSessionRecord(
+      authorization,
+      legacyDraftSession.id,
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([
+      404, 404, 404, 404, 404,
+    ]);
+    expect(responseBodies.join("\n")).not.toContain(draft.id);
+    expect(responseBodies.join("\n")).not.toContain(draft.prompt);
+    expect(unchanged).toMatchObject({
+      attempts: [],
+      revealedHints: 0,
+      revealedSteps: 0,
+    });
   });
 
   it("fails closed without leaking connection details when a database write cannot connect", async () => {
@@ -350,5 +434,28 @@ function createFakeTutorSessionRows() {
 
       throw new Error(`Unexpected SQL: ${normalizedSql}`);
     },
+  };
+}
+
+function generatedDraftQuestion(): TutorQuestion {
+  return {
+    answer: {
+      acceptedAnswers: ["private-draft-answer"],
+      explanation: "Private draft explanation.",
+    },
+    difficulty: "intermediate",
+    hints: ["Private draft hint."],
+    id: "generated-draft-never-student-facing",
+    misconceptions: [],
+    prompt: "Private generated draft prompt.",
+    review: { status: "needs_review" },
+    solutionSteps: ["Private draft solution."],
+    source: {
+      sourceType: "generated_original",
+      trustLevel: "generated_unverified",
+      visibility: "public",
+    },
+    title: "Private generated draft",
+    topicId: "binomial-models",
   };
 }

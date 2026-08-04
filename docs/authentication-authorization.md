@@ -99,6 +99,11 @@ Server Actions are public session-lifecycle operations and therefore do not
 carry an application-role grant; any future protected Server Action must call
 the same named helpers before reading or mutating data.
 
+The complete page, Route Handler, and Server Action inventory is maintained in
+the [server authorization permission matrix](authorization-permission-matrix.md).
+Its executable counterpart is checked against the App Router filesystem, so a
+new server boundary cannot be added without an explicit access/data policy.
+
 Browser responses use explicit DTOs. Account pages receive only display name
 and email, tutor-session responses receive only session ID and question ID,
 professor review candidates omit matching terms and internal source fields,

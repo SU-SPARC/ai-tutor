@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { toTutorSessionDto } from "@/lib/api/tutor-session-dto";
 import { authorizeApi, requireStudentAccess } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { getApprovedQuestionById } from "@/lib/data/data-store";
 import { createTutorSession } from "@/lib/data/tutor-session-repository";
 
 type CreateSessionBody = {
@@ -38,6 +39,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const question = await getApprovedQuestionById(questionId);
+    if (!question) {
+      return NextResponse.json(
+        { error: "Question was not found." },
+        { status: 404 },
+      );
+    }
+
     const session = await createTutorSession(access.authorization, questionId);
     return NextResponse.json(
       { session: toTutorSessionDto(session) },

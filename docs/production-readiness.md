@@ -257,6 +257,9 @@ Production acceptance requires evidence for every item below.
       an absolute eight-hour expiry, continuous account/version checks, audited
       logout invalidation, and token-safe redirects and logging.
 - [x] Server-side authorization denies access by default.
+- [x] The [server authorization permission matrix](authorization-permission-matrix.md)
+      inventories every page, Route Handler method, and Server Action; direct
+      handler tests cover anonymous and lower-role denial.
 - [x] Students can read and mutate only their own sessions and progress.
 - [x] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and
       exports enforce the appropriate role.

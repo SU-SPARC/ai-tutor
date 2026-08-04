@@ -1,3 +1,6 @@
+import "server-only";
+
+import { getApprovedQuestionById } from "@/lib/data/data-store";
 import type { TutorSessionRecord } from "@/lib/types";
 
 export type TutorSessionDto = {
@@ -17,4 +20,16 @@ export function toTutorSessionDto(
     id: session.id,
     questionId: session.questionId,
   };
+}
+
+/**
+ * Student APIs must not echo a session's question binding unless that question
+ * is still approved for publication. This also conceals legacy/corrupt
+ * sessions that reference drafts without deleting their audit history.
+ */
+export async function toStudentTutorSessionDto(
+  session: Pick<TutorSessionRecord, "id" | "questionId">,
+) {
+  const question = await getApprovedQuestionById(session.questionId);
+  return question ? toTutorSessionDto(session) : undefined;
 }

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { toTutorResponseDto } from "@/lib/api/tutor-response-dto";
 import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import {
   getTutorSession,
   recordTutorSessionAttemptOutcome,
 } from "@/lib/data/tutor-session-repository";
+import { getApprovedQuestionById } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createTutorResponse } from "@/lib/tutor/tutor-engine";
@@ -70,13 +72,17 @@ export async function POST(request: Request) {
   }
 
   let session;
+  let question;
 
   try {
     session = await getTutorSession(access.authorization, body.sessionId);
+    question = session
+      ? await getApprovedQuestionById(session.questionId)
+      : undefined;
   } catch {
     return dataServiceUnavailableResponse();
   }
-  if (!session) {
+  if (!session || !question) {
     return NextResponse.json(
       { error: "Tutor session was not found." },
       { status: 404 },
@@ -96,9 +102,9 @@ export async function POST(request: Request) {
       answer,
       allowLlmFallback: body.allowLlmFallback ?? false,
       mode: body.mode,
-      questionId: body.questionId,
+      questionId: question.id,
       sessionId: body.sessionId,
-      topicId: body.topicId,
+      topicId: question.topicId,
     });
 
     if (body.mode === "check") {
@@ -111,7 +117,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json(response);
+    return NextResponse.json(toTutorResponseDto(response));
   } catch {
     return dataServiceUnavailableResponse();
   }
