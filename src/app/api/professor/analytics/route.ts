@@ -1,32 +1,35 @@
 import { NextResponse } from "next/server";
 
+import { toProfessorAnalyticsDto } from "@/lib/api/professor-dtos";
 import {
   getContentRepositoryMode,
   getProfessorPracticeAnalytics,
   getReviewQueue,
 } from "@/lib/data/data-store";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireAnalyticsAccess } from "@/lib/auth/authorization";
 import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin";
 
 export async function GET() {
-  const authorization = await authorizeApiRole("professor");
+  const access = await authorizeApi(requireAnalyticsAccess);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   try {
     const [reviewQueue, practice] = await Promise.all([
-      getReviewQueue(),
-      getProfessorPracticeAnalytics(),
+      getReviewQueue(access.authorization),
+      getProfessorPracticeAnalytics(access.authorization),
     ]);
 
     return NextResponse.json({
-      analytics: buildProfessorAnalyticsDashboard({
-        mode: getContentRepositoryMode(),
-        practice,
-        reviewQueue,
-      }),
+      analytics: toProfessorAnalyticsDto(
+        buildProfessorAnalyticsDashboard({
+          mode: getContentRepositoryMode(),
+          practice,
+          reviewQueue,
+        }),
+      ),
     });
   } catch {
     return NextResponse.json(

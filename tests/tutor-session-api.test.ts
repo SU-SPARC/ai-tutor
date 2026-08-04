@@ -5,11 +5,11 @@ import { POST as postHint } from "@/app/api/tutor/session/[sessionId]/hint/route
 import { GET as getSession } from "@/app/api/tutor/session/[sessionId]/route";
 import { POST as postStep } from "@/app/api/tutor/session/[sessionId]/step/route";
 import { POST as postSession } from "@/app/api/tutor/session/route";
+import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import {
   createDatabaseTutorSessionRepository,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
-import type { TutorSessionRecord } from "@/lib/types";
 import {
   mockStudentOwner,
   resetAuthMocks,
@@ -19,7 +19,7 @@ import {
 type SessionPayload = {
   code?: string;
   error?: string;
-  session?: TutorSessionRecord;
+  session?: TutorSessionDto;
 };
 
 describe("tutor session API", () => {
@@ -44,10 +44,7 @@ describe("tutor session API", () => {
 
     expect(createdResponse.status).toBe(201);
     expect(created.session).toMatchObject({
-      attempts: [],
       questionId: "dice-sum-eight",
-      revealedHints: 0,
-      revealedSteps: 0,
     });
 
     const hinted = await postHint(
@@ -78,19 +75,21 @@ describe("tutor session API", () => {
     const attemptedPayload = (await attempted.json()) as SessionPayload;
     const fetchedPayload = (await fetched.json()) as SessionPayload;
 
-    expect(hintedPayload.session?.revealedHints).toBe(1);
-    expect(steppedPayload.session?.revealedSteps).toBe(1);
-    expect(attemptedPayload.session?.attempts).toHaveLength(1);
-    expect(attemptedPayload.session?.attempts[0].answerPreview).toBe(
-      "2/36 because I counted all dice outcomes",
-    );
+    expect(hintedPayload.session).toEqual(created.session);
+    expect(steppedPayload.session).toEqual(created.session);
+    expect(attemptedPayload.session).toEqual(created.session);
     expect(fetchedPayload.session).toMatchObject({
       id: sessionId,
       questionId: "dice-sum-eight",
-      revealedHints: 1,
-      revealedSteps: 1,
     });
-    expect(fetchedPayload.session?.attempts).toHaveLength(1);
+    expect(
+      JSON.stringify({
+        attemptedPayload,
+        fetchedPayload,
+        hintedPayload,
+        steppedPayload,
+      }),
+    ).not.toMatch(/answerPreview|attempts|revealedHints|revealedSteps/);
   });
 
   it("validates required session route inputs", async () => {
@@ -116,7 +115,7 @@ describe("tutor session API", () => {
     expect(missingIdentityResponse.status).toBe(401);
     expect(
       ((await missingIdentityResponse.json()) as SessionPayload).error,
-    ).toContain("identity");
+    ).toContain("Authentication");
     expect(missingResponse.status).toBe(404);
   });
 

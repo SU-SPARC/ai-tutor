@@ -12,11 +12,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAdminQuestionDashboard } from "@/lib/data/data-store";
-import { requirePageRole } from "@/lib/auth/page-authorization";
+import {
+  requireAdministrator,
+  requirePageAccess,
+} from "@/lib/auth/authorization";
 
 export default async function AdminQuestionsPage() {
-  await requirePageRole("admin");
-  const initialDashboard = await getAdminQuestionDashboard();
+  const authorization = await requirePageAccess(
+    requireAdministrator,
+    "/admin/questions",
+  );
+  const initialDashboard = await getAdminQuestionDashboard(authorization);
 
   return (
     <main className="min-h-svh bg-background">

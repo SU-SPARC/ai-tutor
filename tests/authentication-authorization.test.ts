@@ -5,7 +5,7 @@ import {
   signAnonymousCookie,
   verifyAnonymousCookie,
 } from "@/lib/auth/anonymous-session";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireProfessor } from "@/lib/auth/authorization";
 import {
   AnonymousIdentityAlreadyClaimedError,
   claimAnonymousIdentity,
@@ -119,13 +119,13 @@ describe("authentication configuration", () => {
 describe("session authorization", () => {
   it("distinguishes missing authentication, insufficient role, and allowed roles", async () => {
     mockPrincipal(undefined);
-    const missing = await authorizeApiRole("professor");
+    const missing = await authorizeApi(requireProfessor);
     mockPrincipal(TEST_STUDENT);
-    const student = await authorizeApiRole("professor");
+    const student = await authorizeApi(requireProfessor);
     mockPrincipal(TEST_PROFESSOR);
-    const professor = await authorizeApiRole("professor");
+    const professor = await authorizeApi(requireProfessor);
     mockPrincipal(TEST_ADMIN);
-    const inheritedProfessor = await authorizeApiRole("professor");
+    const inheritedProfessor = await authorizeApi(requireProfessor);
 
     expect(missing.ok ? 200 : missing.response.status).toBe(401);
     expect(student.ok ? 200 : student.response.status).toBe(403);

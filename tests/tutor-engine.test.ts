@@ -24,7 +24,11 @@ import {
   setContentRepositoryForTests,
 } from "@/lib/data/data-store";
 import type { ContentRepository } from "@/lib/data/repository";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import {
+  authorizeApi,
+  requireProfessor,
+  requireProfessorReview,
+} from "@/lib/auth/authorization";
 import { getServerEnv } from "@/lib/env/server";
 import {
   checkStudentAttempt,
@@ -995,7 +999,10 @@ describe("content provenance and review metadata", () => {
   });
 
   it("keeps generated questions in needs-review status by default", async () => {
-    const queue = await getReviewQueue();
+    mockPrincipal(TEST_PROFESSOR);
+    const authorization = await requireProfessorReview();
+    resetAuthMocks();
+    const queue = await getReviewQueue(authorization);
     const additionalDrafts = queue.filter((candidate) =>
       candidate.id.startsWith("generated-additional-"),
     );
@@ -1975,9 +1982,9 @@ describe("professor review authorization", () => {
 
   it("fails closed without a session and rejects the student role", async () => {
     mockPrincipal(undefined);
-    const unauthenticated = await authorizeApiRole("professor");
+    const unauthenticated = await authorizeApi(requireProfessor);
     mockPrincipal(TEST_STUDENT);
-    const forbidden = await authorizeApiRole("professor");
+    const forbidden = await authorizeApi(requireProfessor);
 
     expect(unauthenticated.ok).toBe(false);
     expect(unauthenticated.ok ? 200 : unauthenticated.response.status).toBe(

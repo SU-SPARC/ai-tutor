@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { clearAnonymousSession } from "@/lib/auth/anonymous-session";
-import { AuthenticationRequiredError, requireUser } from "@/lib/auth/principal";
+import { authorizeApi, requireStudent } from "@/lib/auth/authorization";
 
 export async function POST() {
-  try {
-    await requireUser();
-    await clearAnonymousSession();
-    return NextResponse.json({ discarded: true });
-  } catch (error) {
-    if (error instanceof AuthenticationRequiredError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
-    throw error;
+  const access = await authorizeApi(requireStudent);
+  if (!access.ok) {
+    return access.response;
   }
+
+  await clearAnonymousSession();
+  return NextResponse.json({ discarded: true });
 }

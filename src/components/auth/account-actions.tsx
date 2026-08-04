@@ -3,15 +3,18 @@ import Link from "next/link";
 
 import { signOutAction } from "@/app/auth-actions";
 import { CurrentPageSignInLink } from "@/components/auth/current-page-sign-in-link";
-import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
+import {
+  currentAuthenticatedUser,
+  hasPermission,
+} from "@/lib/auth/authorization";
 
 const navigationClassName =
   "rounded-sm text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export async function AccountActions() {
-  let principal: Awaited<ReturnType<typeof resolveAuthenticatedPrincipal>>;
+  let principal: Awaited<ReturnType<typeof currentAuthenticatedUser>>;
   try {
-    principal = await resolveAuthenticatedPrincipal();
+    principal = await currentAuthenticatedUser();
   } catch {
     // Header decoration must not make otherwise-public content unavailable
     // when identity storage is temporarily unreachable.
@@ -22,8 +25,7 @@ export async function AccountActions() {
     return <SignInNavigation />;
   }
 
-  const canAccessInstructorTools =
-    principal.roles.includes("professor") || principal.roles.includes("admin");
+  const canAccessInstructorTools = hasPermission(principal, "professor");
 
   return (
     <div className="flex items-center gap-3">

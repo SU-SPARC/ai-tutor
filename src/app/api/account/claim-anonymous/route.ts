@@ -8,12 +8,16 @@ import {
   clearAnonymousSession,
   readAnonymousCookieSubject,
 } from "@/lib/auth/anonymous-session";
-import { AuthenticationRequiredError, requireUser } from "@/lib/auth/principal";
+import { authorizeApi, requireStudent } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 
 export async function POST() {
+  const access = await authorizeApi(requireStudent);
+  if (!access.ok) {
+    return access.response;
+  }
+
   try {
-    const principal = await requireUser();
     const anonymousId = await readAnonymousCookieSubject();
     if (!anonymousId) {
       return NextResponse.json(
@@ -25,14 +29,11 @@ export async function POST() {
     const result = await claimAnonymousIdentity({
       anonymousId,
       source: "signed_cookie",
-      userId: principal.userId,
+      userId: access.authorization.principal.userId,
     });
     await clearAnonymousSession();
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
     if (error instanceof AnonymousIdentityAlreadyClaimedError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

@@ -3,7 +3,10 @@ import {
   type AuthenticatedPrincipal,
   type StudentOwner,
 } from "@/lib/auth/principal";
-import { setStudentOwnerResolverForTests } from "@/lib/auth/anonymous-session";
+import {
+  createStudentAuthorizationForTests,
+  setStudentOwnerResolverForTests,
+} from "@/lib/auth/authorization";
 
 export const TEST_STUDENT: AuthenticatedPrincipal = {
   kind: "user",
@@ -40,6 +43,10 @@ export function mockPrincipal(principal: AuthenticatedPrincipal | undefined) {
 
 export function mockStudentOwner(owner: StudentOwner | undefined) {
   setStudentOwnerResolverForTests(async () => owner);
+}
+
+export function authorizationForStudentOwner(owner: StudentOwner) {
+  return createStudentAuthorizationForTests(owner);
 }
 
 export function resetAuthMocks() {

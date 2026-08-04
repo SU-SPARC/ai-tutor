@@ -3,15 +3,15 @@ import "server-only";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
 import type { StudentProgressDashboard } from "@/lib/types";
-import type { StudentOwner } from "@/lib/auth/principal";
+import type { StudentAuthorization } from "@/lib/auth/authorization";
 
 const RECENT_SESSION_LIMIT = 8;
 
 export async function getStudentProgress(
-  owner: StudentOwner,
+  authorization: StudentAuthorization,
 ): Promise<StudentProgressDashboard> {
   const [{ mode, sessions }, questions, topics] = await Promise.all([
-    listTutorSessionsForStudent(owner),
+    listTutorSessionsForStudent(authorization),
     getApprovedQuestions(),
     getTopics(),
   ]);

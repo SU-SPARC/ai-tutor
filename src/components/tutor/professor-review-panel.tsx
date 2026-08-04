@@ -28,12 +28,10 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type {
-  Difficulty,
-  ProfessorAnalyticsDashboard,
-  ReviewCandidate,
-  ReviewPriority,
-  ReviewStatus,
-} from "@/lib/types";
+  ProfessorAnalyticsDto,
+  ProfessorReviewCandidateDto,
+} from "@/lib/api/professor-dtos";
+import type { Difficulty, ReviewPriority, ReviewStatus } from "@/lib/types";
 
 type ProfessorSection = "analytics" | "review" | "upload";
 
@@ -79,9 +77,12 @@ export function ProfessorReviewPanel() {
   const [activeSection, setActiveSection] =
     useState<ProfessorSection>("review");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [analytics, setAnalytics] =
-    useState<ProfessorAnalyticsDashboard | null>(null);
-  const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
+  const [analytics, setAnalytics] = useState<ProfessorAnalyticsDto | null>(
+    null,
+  );
+  const [candidates, setCandidates] = useState<ProfessorReviewCandidateDto[]>(
+    [],
+  );
   const [edits, setEdits] = useState<Record<string, CandidateEdit>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
@@ -92,7 +93,9 @@ export function ProfessorReviewPanel() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [topics, setTopics] = useState<TopicOption[]>([]);
   const [uploadText, setUploadText] = useState("");
-  const [uploadPreview, setUploadPreview] = useState<ReviewCandidate[]>([]);
+  const [uploadPreview, setUploadPreview] = useState<
+    ProfessorReviewCandidateDto[]
+  >([]);
 
   const selectedCandidates = useMemo(
     () => candidates.filter((candidate) => selectedIds.has(candidate.id)),
@@ -119,7 +122,7 @@ export function ProfessorReviewPanel() {
 
       const result = await fetch(`/api/professor/review?${params.toString()}`);
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[];
+        candidates?: ProfessorReviewCandidateDto[];
         error?: string;
         topics?: TopicOption[];
       };
@@ -148,7 +151,7 @@ export function ProfessorReviewPanel() {
     try {
       const result = await fetch("/api/professor/analytics");
       const payload = (await result.json()) as {
-        analytics?: ProfessorAnalyticsDashboard;
+        analytics?: ProfessorAnalyticsDto;
         error?: string;
       };
 
@@ -188,7 +191,7 @@ export function ProfessorReviewPanel() {
         body: JSON.stringify({ candidateIds, ...update }),
       });
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[];
+        candidates?: ProfessorReviewCandidateDto[];
         error?: string;
       };
 
@@ -229,7 +232,7 @@ export function ProfessorReviewPanel() {
         body: JSON.stringify({ payload: parsed }),
       });
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[];
+        candidates?: ProfessorReviewCandidateDto[];
         errors?: string[];
         message?: string;
         nonDurable?: boolean;
@@ -254,7 +257,7 @@ export function ProfessorReviewPanel() {
     }
   }
 
-  function editFor(candidate: ReviewCandidate): CandidateEdit {
+  function editFor(candidate: ProfessorReviewCandidateDto): CandidateEdit {
     return (
       edits[candidate.id] ?? {
         difficulty: candidate.difficulty,
@@ -266,7 +269,7 @@ export function ProfessorReviewPanel() {
   }
 
   function updateEdit(
-    candidate: ReviewCandidate,
+    candidate: ProfessorReviewCandidateDto,
     patch: Partial<CandidateEdit>,
   ) {
     setEdits((current) => ({
@@ -531,11 +534,14 @@ function ReviewTable({
   topics,
 }: {
   activeId: string | null;
-  candidates: ReviewCandidate[];
-  editFor: (candidate: ReviewCandidate) => CandidateEdit;
+  candidates: ProfessorReviewCandidateDto[];
+  editFor: (candidate: ProfessorReviewCandidateDto) => CandidateEdit;
   expandedId: string | null;
-  onEdit: (candidate: ReviewCandidate, patch: Partial<CandidateEdit>) => void;
-  onSaveEdit: (candidate: ReviewCandidate) => void;
+  onEdit: (
+    candidate: ProfessorReviewCandidateDto,
+    patch: Partial<CandidateEdit>,
+  ) => void;
+  onSaveEdit: (candidate: ProfessorReviewCandidateDto) => void;
   onSelect: (candidateId: string) => void;
   onToggleExpand: (candidateId: string) => void;
   onUpdate: (
@@ -804,11 +810,7 @@ function ReviewTable({
   );
 }
 
-function AnalyticsView({
-  analytics,
-}: {
-  analytics: ProfessorAnalyticsDashboard;
-}) {
+function AnalyticsView({ analytics }: { analytics: ProfessorAnalyticsDto }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

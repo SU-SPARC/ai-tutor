@@ -10,7 +10,7 @@ import type {
   AdminQuestionUpdate,
 } from "@/lib/data/repository";
 import { isValidSourceType } from "@/lib/api/question-serialization";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
 import { isValidReviewStatus } from "@/lib/tutor/professor-admin";
 import type { ReviewStatus, SourceType } from "@/lib/types";
 
@@ -22,9 +22,9 @@ const ADMIN_QUESTION_ACTIONS = [
 ] satisfies AdminQuestionUpdate["action"][];
 
 export async function GET(request: Request) {
-  const authorization = await authorizeApiRole("admin");
-  if (!authorization.ok) {
-    return authorization.response;
+  const access = await authorizeApi(requireAdministrator);
+  if (!access.ok) {
+    return access.response;
   }
 
   const parsed = parseFilters(new URL(request.url).searchParams);
@@ -34,7 +34,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const dashboard = await getAdminQuestionDashboard(parsed.filters);
+    const dashboard = await getAdminQuestionDashboard(
+      access.authorization,
+      parsed.filters,
+    );
     return NextResponse.json({ dashboard });
   } catch {
     return dataServiceUnavailableResponse();
@@ -42,10 +45,10 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const authorization = await authorizeApiRole("admin");
+  const access = await authorizeApi(requireAdministrator);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const parsed = await parseMutation(request);
@@ -58,11 +61,10 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const questions = await updateAdminQuestionsStrict({
-      ...parsed.update,
-      reviewedBy: authorization.principal.displayName,
-      reviewedByUserId: authorization.principal.userId,
-    });
+    const questions = await updateAdminQuestionsStrict(
+      access.authorization,
+      parsed.update,
+    );
 
     if (questions.length === 0) {
       return NextResponse.json(

@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { authenticationErrorMessage } from "@/lib/auth/authentication-errors";
-import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
+import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import { isInstructorReturnPath, safeReturnPath } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -25,7 +25,7 @@ type SignInPageProps = {
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const env = getServerEnv();
   const [principal, { callbackUrl, error }] = await Promise.all([
-    resolveAuthenticatedPrincipal(),
+    currentAuthenticatedUser(),
     searchParams,
   ]);
   const returnTo = safeReturnPath(callbackUrl);

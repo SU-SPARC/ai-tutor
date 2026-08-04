@@ -18,7 +18,10 @@ import { GET as getReviewQueue } from "@/app/api/professor/review/route";
 import SignInPage from "@/app/sign-in/page";
 import { AccountActions } from "@/components/auth/account-actions";
 import { resetReviewQueueForTests } from "@/lib/data/data-store";
-import { AuthorizationDeniedError, requireRole } from "@/lib/auth/principal";
+import {
+  AuthorizationDeniedError,
+  requireProfessor,
+} from "@/lib/auth/authorization";
 import { postSignInPath } from "@/lib/auth/return-path";
 import {
   mockPrincipal,
@@ -70,7 +73,7 @@ describe("professor page authorization", () => {
       protectedChild,
     );
 
-    const markup = renderToStaticMarkup(createElement(ProfessorPage));
+    const markup = renderToStaticMarkup(await ProfessorPage());
     expect(markup).toContain("Professor workspace");
     expect(markup).toContain("Review generated practice questions");
     expect(markup).toContain(
@@ -106,7 +109,7 @@ describe("professor page authorization", () => {
       email: "professor@suffolk.edu",
     });
 
-    await expect(requireRole("professor")).rejects.toBeInstanceOf(
+    await expect(requireProfessor()).rejects.toBeInstanceOf(
       AuthorizationDeniedError,
     );
 

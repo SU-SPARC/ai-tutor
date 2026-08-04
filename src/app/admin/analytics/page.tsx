@@ -1,11 +1,16 @@
-import Link from "next/link"
-import { ArrowLeft, BarChart3 } from "lucide-react"
+import Link from "next/link";
+import { ArrowLeft, BarChart3 } from "lucide-react";
 
-import { InstructorAnalyticsPanel } from "@/components/admin/instructor-analytics-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { InstructorAnalyticsPanel } from "@/components/admin/instructor-analytics-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  requireAnalyticsAccess,
+  requirePageAccess,
+} from "@/lib/auth/authorization";
 
-export default function AdminAnalyticsPage() {
+export default async function AdminAnalyticsPage() {
+  await requirePageAccess(requireAnalyticsAccess, "/admin/analytics");
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -38,5 +43,5 @@ export default function AdminAnalyticsPage() {
         <InstructorAnalyticsPanel />
       </section>
     </main>
-  )
+  );
 }

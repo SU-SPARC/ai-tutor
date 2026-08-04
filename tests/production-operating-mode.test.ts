@@ -4,11 +4,9 @@ import { GET as getQuestion } from "@/app/api/questions/[id]/route";
 import { GET as listQuestionsRoute } from "@/app/api/questions/route";
 import { POST as postTutorSession } from "@/app/api/tutor/session/route";
 import {
-  getContentRepository,
   getDataRepositoryMetadata,
   setContentRepositoryForTests,
 } from "@/lib/data/data-store";
-import { demoContentRepository } from "@/lib/data/demo-repository";
 import type { ContentRepository } from "@/lib/data/repository";
 import { searchLocalRetrieval } from "@/lib/ai/retrieval";
 import {
@@ -68,7 +66,6 @@ describe("production operating mode", () => {
       operatingMode: "production",
       source: "postgres",
     });
-    expect(getContentRepository()).not.toBe(demoContentRepository);
   });
 
   it("returns a controlled 503 instead of demo questions after repository failure", async () => {

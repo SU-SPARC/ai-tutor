@@ -1,6 +1,12 @@
 import "server-only";
 
 import {
+  assertAuthorization,
+  isPublishedContent,
+  isStudentSafeRetrievalContent,
+  reviewerAttribution,
+} from "@/lib/auth/authorization";
+import {
   readDatabaseRows,
   runDatabaseTransaction,
   type DatabaseQueryExecutor,
@@ -96,7 +102,8 @@ export function createDatabaseContentRepository(
   query: DatabaseQueryExecutor = createUnavailableQueryExecutor(databaseUrl),
 ): ContentRepository {
   return {
-    async getAdminQuestions(filters) {
+    async getAdminQuestions(authorization, filters) {
+      assertAuthorization(authorization, "administrator");
       const { params, sql } = adminQuestionQuery(filters);
       const rows = await readDatabaseRows(query, sql, params);
       return rows.map((row) => mapAdminQuestionRow(row as QuestionRow));
@@ -119,7 +126,11 @@ export function createDatabaseContentRepository(
         `,
         [questionId],
       );
-      return rows[0] ? mapQuestionRow(rows[0] as QuestionRow) : undefined;
+      if (!rows[0]) {
+        return undefined;
+      }
+      const question = mapQuestionRow(rows[0] as QuestionRow);
+      return isPublishedContent(question) ? question : undefined;
     },
 
     async getApprovedQuestions() {
@@ -155,7 +166,8 @@ export function createDatabaseContentRepository(
       );
     },
 
-    async getProfessorPracticeAnalytics() {
+    async getProfessorPracticeAnalytics(authorization) {
+      assertAuthorization(authorization, "analytics");
       const [questionRows, summaryRows, misconceptionRows, generatedRows] =
         await Promise.all([
           readDatabaseRows(
@@ -326,7 +338,9 @@ export function createDatabaseContentRepository(
         order by t.sort_order, t.title, t.id, q.title, q.id
       `,
       );
-      return rows.map((row) => mapQuestionRow(row as QuestionRow));
+      return rows
+        .map((row) => mapQuestionRow(row as QuestionRow))
+        .filter(isPublishedContent);
     },
 
     async listQuestionsByTopic(topicId) {
@@ -342,7 +356,9 @@ export function createDatabaseContentRepository(
         `,
         [topicId],
       );
-      return rows.map((row) => mapQuestionRow(row as QuestionRow));
+      return rows
+        .map((row) => mapQuestionRow(row as QuestionRow))
+        .filter(isPublishedContent);
     },
 
     async getRetrievalChunks() {
@@ -354,16 +370,29 @@ export function createDatabaseContentRepository(
         order by priority_rank, topic_id, title, id
       `,
       );
-      return rows.map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow));
+      return rows
+        .map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow))
+        .filter(isStudentSafeRetrievalContent);
     },
 
-    async getReviewQueue(filters) {
+    async getReviewQueue(authorization, filters) {
+      switch (authorization.permission) {
+        case "administrator":
+          assertAuthorization(authorization, "administrator");
+          break;
+        case "analytics":
+          assertAuthorization(authorization, "analytics");
+          break;
+        default:
+          assertAuthorization(authorization, "professor-review");
+      }
       const { params, sql } = reviewQueueQuery(filters);
       const rows = await readDatabaseRows(query, sql, params);
       return rows.map((row) => mapReviewCandidateRow(row as QuestionRow));
     },
 
-    async importReviewCandidates(candidates) {
+    async importReviewCandidates(authorization, candidates) {
+      assertAuthorization(authorization, "professor-review");
       return runDatabaseTransaction(query, async (transactionQuery) => {
         const imported: ReviewCandidate[] = [];
 
@@ -515,7 +544,9 @@ export function createDatabaseContentRepository(
       }));
     },
 
-    async updateReviewCandidates(input: ReviewCandidateUpdate) {
+    async updateReviewCandidates(authorization, input: ReviewCandidateUpdate) {
+      assertAuthorization(authorization, "professor-review");
+      const reviewer = reviewerAttribution(authorization);
       if (input.candidateIds.length === 0) {
         return [];
       }
@@ -570,8 +601,8 @@ export function createDatabaseContentRepository(
               input.difficulty ?? null,
               input.reviewPriority ?? null,
               input.notes ?? null,
-              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
-              input.reviewedByUserId ?? "system:schema-migration",
+              reviewer.displayName,
+              reviewer.userId,
               Boolean(
                 status ||
                 input.notes !== undefined ||
@@ -589,7 +620,9 @@ export function createDatabaseContentRepository(
       );
     },
 
-    async updateAdminQuestions(input: AdminQuestionUpdate) {
+    async updateAdminQuestions(authorization, input: AdminQuestionUpdate) {
+      assertAuthorization(authorization, "administrator");
+      const reviewer = reviewerAttribution(authorization);
       if (input.questionIds.length === 0) {
         return [];
       }
@@ -625,8 +658,8 @@ export function createDatabaseContentRepository(
             [
               input.questionIds,
               status,
-              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
-              input.reviewedByUserId ?? "system:schema-migration",
+              reviewer.displayName,
+              reviewer.userId,
               onlyGenerated,
             ],
           );
@@ -641,9 +674,12 @@ export function createDatabaseContentRepository(
     },
 
     async updateAdminQuestionDetail(
+      authorization,
       questionId: string,
       input: AdminQuestionDetailUpdate,
     ) {
+      assertAuthorization(authorization, "administrator");
+      const reviewer = reviewerAttribution(authorization);
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -712,14 +748,8 @@ export function createDatabaseContentRepository(
             input.topicId !== undefined ||
             input.difficulty !== undefined
           ) {
-            addAssignment(
-              "reviewed_by",
-              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
-            );
-            addAssignment(
-              "reviewed_by_user_id",
-              input.reviewedByUserId ?? "system:schema-migration",
-            );
+            addAssignment("reviewed_by", reviewer.displayName);
+            addAssignment("reviewed_by_user_id", reviewer.userId);
           }
 
           if (input.action || input.reviewStatus || input.trustLevel) {
@@ -763,7 +793,12 @@ export function createDatabaseContentRepository(
       );
     },
 
-    async regenerateAdminQuestion(input: AdminQuestionRegenerationInput) {
+    async regenerateAdminQuestion(
+      authorization,
+      input: AdminQuestionRegenerationInput,
+    ) {
+      assertAuthorization(authorization, "administrator");
+      const reviewer = reviewerAttribution(authorization);
       return runDatabaseTransaction(
         query,
         async (transactionQuery) => {
@@ -857,8 +892,8 @@ export function createDatabaseContentRepository(
                 candidate.source.originalityNote ?? null,
                 candidate.review.reviewPriority ?? "normal",
                 candidate.review.notes ?? null,
-                input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
-                input.reviewedByUserId ?? "system:schema-migration",
+                reviewer.displayName,
+                reviewer.userId,
               ],
             );
 
@@ -896,8 +931,8 @@ export function createDatabaseContentRepository(
             [
               original.id,
               `Regenerated into ${regenerated.id}; old version preserved for audit.`,
-              input.reviewedBy ?? input.reviewedByUserId ?? "System reviewer",
-              input.reviewedByUserId ?? "system:schema-migration",
+              reviewer.displayName,
+              reviewer.userId,
             ],
           );
 
@@ -920,11 +955,11 @@ export function createDatabaseContentRepository(
       );
     },
 
-    async updateReviewCandidateStatus(candidateId, action, reviewedBy) {
-      const updated = await this.updateReviewCandidates({
+    async updateReviewCandidateStatus(authorization, candidateId, action) {
+      assertAuthorization(authorization, "professor-review");
+      const updated = await this.updateReviewCandidates(authorization, {
         action,
         candidateIds: [candidateId],
-        reviewedBy,
       });
       return updated[0];
     },

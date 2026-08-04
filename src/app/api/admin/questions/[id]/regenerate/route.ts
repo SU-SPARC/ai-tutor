@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { regenerateAdminQuestionStrict } from "@/lib/data/data-store";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
 
 const MAX_BODY_BYTES = 4_096;
 
@@ -13,10 +13,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authorization = await authorizeApiRole("admin");
+  const access = await authorizeApi(requireAdministrator);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const { id } = await params;
@@ -39,12 +39,10 @@ export async function POST(
   }
 
   try {
-    const result = await regenerateAdminQuestionStrict({
+    const result = await regenerateAdminQuestionStrict(access.authorization, {
       keepPattern: parsed.keepPattern,
       mode: "deterministic",
       questionId,
-      reviewedBy: authorization.principal.displayName,
-      reviewedByUserId: authorization.principal.userId,
     });
 
     if (!result) {

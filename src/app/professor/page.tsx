@@ -11,8 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { requirePageAccess, requireProfessor } from "@/lib/auth/authorization";
 
-export default function ProfessorPage() {
+export default async function ProfessorPage() {
+  await requirePageAccess(requireProfessor, "/professor");
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">

@@ -10,6 +10,8 @@ const dataStoreMocks = vi.hoisted(() => ({
 vi.mock("@/lib/data/data-store", () => dataStoreMocks);
 
 import { PATCH as patchReviewQueue } from "@/app/api/professor/review/route";
+import { reviewerAttribution } from "@/lib/auth/authorization";
+import { reviewCandidates } from "@/lib/data/demo-data";
 import {
   mockPrincipal,
   resetAuthMocks,
@@ -25,7 +27,7 @@ describe("authenticated review attribution", () => {
   it("ignores client reviewer and role fields in favor of the session", async () => {
     mockPrincipal(TEST_PROFESSOR);
     dataStoreMocks.updateReviewCandidates.mockResolvedValue([
-      { id: "candidate:test" },
+      { ...reviewCandidates[0], id: "candidate:test" },
     ]);
 
     const response = await patchReviewQueue(
@@ -43,14 +45,18 @@ describe("authenticated review attribution", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(dataStoreMocks.updateReviewCandidates).toHaveBeenCalledWith({
+    const [authorization, update] =
+      dataStoreMocks.updateReviewCandidates.mock.calls[0];
+    expect(reviewerAttribution(authorization)).toEqual({
+      displayName: TEST_PROFESSOR.displayName,
+      userId: TEST_PROFESSOR.userId,
+    });
+    expect(update).toEqual({
       action: "reject",
       candidateIds: ["candidate:test"],
       difficulty: undefined,
       notes: undefined,
       reviewPriority: undefined,
-      reviewedBy: TEST_PROFESSOR.displayName,
-      reviewedByUserId: TEST_PROFESSOR.userId,
       topicId: undefined,
     });
   });

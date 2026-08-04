@@ -12,9 +12,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { listTopics } from "@/lib/data/data-store";
+import {
+  requirePageAccess,
+  requireProfessorReview,
+} from "@/lib/auth/authorization";
 import { safeTopics } from "@/lib/tutor/professor-admin";
 
 export default async function AdminReviewPage() {
+  await requirePageAccess(requireProfessorReview, "/admin/review");
   const topics = safeTopics(await listTopics());
 
   return (

@@ -9,18 +9,11 @@ import {
 
 import { cookies } from "next/headers";
 
-import {
-  resolveAuthenticatedPrincipal,
-  type StudentOwner,
-} from "@/lib/auth/principal";
 import { getServerEnv } from "@/lib/env/server";
 
 export const ANONYMOUS_SESSION_COOKIE = "suffolk-tutor-anonymous";
 
 const localEphemeralSecret = randomBytes(32).toString("base64url");
-type StudentOwnerResolver = () => Promise<StudentOwner | undefined>;
-let testStudentOwnerResolver: StudentOwnerResolver | undefined;
-
 export class AnonymousPilotUnavailableError extends Error {
   constructor() {
     super("Sign in to use student practice in this environment.");
@@ -28,18 +21,9 @@ export class AnonymousPilotUnavailableError extends Error {
   }
 }
 
-export async function resolveStudentOwner(
+export async function resolveAnonymousStudentOwner(
   options: { createAnonymous?: boolean } = {},
 ) {
-  if (process.env.NODE_ENV === "test" && testStudentOwnerResolver) {
-    return testStudentOwnerResolver();
-  }
-
-  const principal = await resolveAuthenticatedPrincipal();
-  if (principal) {
-    return { kind: "user" as const, userId: principal.userId };
-  }
-
   const env = getServerEnv();
   if (!env.ANONYMOUS_PILOT_ENABLED) {
     if (options.createAnonymous) {
@@ -130,17 +114,6 @@ export function verifyAnonymousCookie(value: string | undefined) {
     return undefined;
   }
   return anonymousId;
-}
-
-export function setStudentOwnerResolverForTests(
-  resolver?: StudentOwnerResolver,
-) {
-  if (process.env.NODE_ENV !== "test") {
-    throw new Error(
-      "Student-owner injection is restricted to the test environment.",
-    );
-  }
-  testStudentOwnerResolver = resolver;
 }
 
 function cookieSignature(payload: string) {

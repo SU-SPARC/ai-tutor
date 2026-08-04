@@ -16,10 +16,13 @@ import {
   setPostgresPoolForTests,
 } from "@/lib/data/postgres";
 import { createDatabaseTutorSessionRepository } from "@/lib/data/tutor-session-repository";
+import { requireProfessorReview } from "@/lib/auth/authorization";
+import { mockPrincipal, resetAuthMocks } from "./auth-test-helpers";
 
 const openDatabases: PGlite[] = [];
 
 afterEach(async () => {
+  resetAuthMocks();
   setPostgresPoolForTests(undefined);
   vi.unstubAllEnvs();
   await Promise.all(
@@ -136,22 +139,34 @@ describe("production database reliability", () => {
       "postgres://not-used.invalid/reliability-test",
       executor,
     );
+    mockPrincipal({
+      displayName: "Primary professor",
+      email: "primary@example.invalid",
+      kind: "user",
+      roles: ["professor"],
+      userId: "professor:primary",
+    });
+    const primaryAuthorization = await requireProfessorReview();
+    mockPrincipal({
+      displayName: "Backup professor",
+      email: "backup@example.invalid",
+      kind: "user",
+      roles: ["professor"],
+      userId: "professor:backup",
+    });
+    const backupAuthorization = await requireProfessorReview();
 
     const [approval, rejection] = await Promise.all([
       repository
-        .updateReviewCandidates({
+        .updateReviewCandidates(primaryAuthorization, {
           action: "approve",
           candidateIds: ["concurrent-review"],
-          reviewedBy: "Primary professor",
-          reviewedByUserId: "professor:primary",
         })
         .then((items) => items[0]),
       repository
-        .updateReviewCandidates({
+        .updateReviewCandidates(backupAuthorization, {
           action: "reject",
           candidateIds: ["concurrent-review"],
-          reviewedBy: "Backup professor",
-          reviewedByUserId: "professor:backup",
         })
         .then((items) => items[0]),
     ]);

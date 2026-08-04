@@ -6,15 +6,13 @@ import { Check, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { ProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
 import {
   advanceProfessorTopicReviewProgress,
   professorReviewQueuePath,
   sortProfessorReviewCandidates,
 } from "@/lib/tutor/professor-review-mode";
-import type {
-  ProfessorTopicReviewProgress,
-  ReviewCandidate,
-} from "@/lib/types";
+import type { ProfessorTopicReviewProgress } from "@/lib/types";
 
 type ReviewAction =
   | "approve"
@@ -33,7 +31,9 @@ export function ProfessorFriendlyReviewPanel({
   topics: ProfessorReviewTopicOption[];
 }) {
   const [activeAction, setActiveAction] = useState<ReviewAction | null>(null);
-  const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
+  const [candidates, setCandidates] = useState<ProfessorReviewCandidateDto[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [loadedTopicId, setLoadedTopicId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function ProfessorFriendlyReviewPanel({
     try {
       const result = await fetch(professorReviewQueuePath(selectedTopicId));
       const payload = (await result.json()) as {
-        candidates?: ReviewCandidate[];
+        candidates?: ProfessorReviewCandidateDto[];
         error?: string;
         topicProgress?: ProfessorTopicReviewProgress;
       };
@@ -113,7 +113,7 @@ export function ProfessorFriendlyReviewPanel({
         }),
       });
       const payload = (await result.json()) as {
-        candidate?: ReviewCandidate;
+        candidate?: ProfessorReviewCandidateDto;
         error?: string;
       };
 

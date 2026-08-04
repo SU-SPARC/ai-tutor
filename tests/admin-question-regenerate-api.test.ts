@@ -234,7 +234,7 @@ function contentRepositoryFixture(
         },
       ];
     },
-    async regenerateAdminQuestion(input) {
+    async regenerateAdminQuestion(authorization, input) {
       onRegenerate?.(input);
 
       const current = questions.get(input.questionId);
@@ -262,7 +262,7 @@ function contentRepositoryFixture(
         review: {
           ...current.review,
           notes: `Regenerated into ${regenerated.id}; old version preserved for audit.`,
-          reviewedBy: input.reviewedBy ?? "admin",
+          reviewedBy: authorization.principal.displayName,
           status: "needs_regeneration",
         },
         source: {

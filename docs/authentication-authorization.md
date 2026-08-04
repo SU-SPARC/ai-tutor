@@ -21,8 +21,9 @@ claims mapping, or SSO settings are invented in this repository.
 - `admin` may perform professor operations. `professor` does not imply admin.
 - Staff pages have coarse proxy redirects and repeat authorization in layouts,
   route handlers, and ownership-aware repository queries.
-- Successful sign-in passes through `/onboarding`, which displays only the
-  stored name and school email. Any same-origin return path is validated and
+- Successful student sign-in passes through `/onboarding`, which displays only
+  the stored name and school email. Instructor destinations return directly to
+  their protected workspace. Any same-origin return path is validated and
   API/auth-flow destinations are rejected before redirecting.
 - Anonymous browser progress is never linked during sign-in. Onboarding offers
   explicit import and continue-without-importing choices, including the
@@ -36,6 +37,46 @@ non-owned tutor sessions return 404. Identity or role-store failures fail
 closed. Public approved questions remain available when authentication is not
 configured; sign-in explains that staff and durable account features are
 unavailable.
+
+## Central authorization layer
+
+`src/lib/auth/authorization.ts` is the only application policy entry point.
+Routes and protected Server Components obtain an opaque authorization grant
+from a named helper, then pass that grant into the data gateway or repository.
+Repository mutations validate the grant again and derive reviewer identity
+from it. A user ID, role, reviewer name, owner ID, request header, or hidden UI
+control is never an authorization grant.
+
+| Helper / permission        | Allowed actor                                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `currentAuthenticatedUser` | Current active, session-version-matched account, or no user                                                          |
+| `requireStudent`           | Authenticated student, professor, or administrator                                                                   |
+| `requireStudentAccess`     | The same authenticated roles, plus an approved signed anonymous pilot identity when explicitly enabled by the caller |
+| `requireProfessor`         | Professor or administrator                                                                                           |
+| `requireAdministrator`     | Administrator only                                                                                                   |
+| `requireProfessorReview`   | Professor or administrator; supplies immutable reviewer attribution                                                  |
+| `requireAnalyticsAccess`   | Professor or administrator; aggregate application analytics only                                                     |
+| `requireExportAccess`      | Administrator only; no export route exists until it explicitly requires this grant                                   |
+
+Unknown permissions deny by default. Page adapters redirect anonymous users to
+sign-in and insufficient roles to `/forbidden`; API adapters return 401 or 403.
+Ownership failures return 404. Tutor repositories derive the owner scope from
+the student grant and repeat the owner predicate in every database read or
+write. Publication helpers require approved, public, trusted content; approved
+private-reference retrieval is eligible only for server-side sanitization.
+
+UI visibility is convenience only. The proxy and hidden navigation links are
+coarse UX controls; every Server Component, route handler, data gateway, and
+repository repeats its applicable policy. The existing sign-in and sign-out
+Server Actions are public session-lifecycle operations and therefore do not
+carry an application-role grant; any future protected Server Action must call
+the same named helpers before reading or mutating data.
+
+Browser responses use explicit DTOs. Account pages receive only display name
+and email, tutor-session responses receive only session ID and question ID,
+professor review candidates omit matching terms and internal source fields,
+and analytics omit unused duplicate aggregates. Repository models and grants
+must never be serialized directly.
 
 ## Provider registration checklist
 

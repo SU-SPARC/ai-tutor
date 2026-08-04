@@ -8,10 +8,13 @@ import {
 } from "@/lib/data/tutor-session-repository";
 import { resetTutorStateForTests } from "@/lib/tutor/tutor-state";
 import {
+  authorizationForStudentOwner,
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
 } from "./auth-test-helpers";
+
+const studentAuthorization = authorizationForStudentOwner(TEST_ANONYMOUS_OWNER);
 
 describe("tutor response API", () => {
   beforeEach(() => {
@@ -27,10 +30,10 @@ describe("tutor response API", () => {
   });
 
   it("derives identity from the active session and rejects mismatched questions", async () => {
-    const session = await createTutorSession({
-      owner: TEST_ANONYMOUS_OWNER,
-      questionId: "dice-sum-eight",
-    });
+    const session = await createTutorSession(
+      studentAuthorization,
+      "dice-sum-eight",
+    );
     const mismatch = await POST(
       jsonRequest({
         answer: "2/5",
@@ -55,7 +58,7 @@ describe("tutor response API", () => {
       verdict: "correct",
     });
     await expect(
-      getTutorSession(session.id, TEST_ANONYMOUS_OWNER),
+      getTutorSession(studentAuthorization, session.id),
     ).resolves.toMatchObject({
       attempts: [
         expect.objectContaining({
@@ -67,10 +70,10 @@ describe("tutor response API", () => {
   });
 
   it("does not block non-LLM help when the answer exceeds the AI input cap", async () => {
-    const session = await createTutorSession({
-      owner: TEST_ANONYMOUS_OWNER,
-      questionId: "dice-sum-eight",
-    });
+    const session = await createTutorSession(
+      studentAuthorization,
+      "dice-sum-eight",
+    );
     const response = await POST(
       jsonRequest({
         answer: "x".repeat(801),

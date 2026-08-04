@@ -24,20 +24,6 @@ export type StudentOwner =
   | { kind: "user"; userId: string }
   | { kind: "anonymous"; anonymousId: string };
 
-export class AuthenticationRequiredError extends Error {
-  constructor() {
-    super("Authentication is required.");
-    this.name = "AuthenticationRequiredError";
-  }
-}
-
-export class AuthorizationDeniedError extends Error {
-  constructor() {
-    super("You do not have permission to perform this action.");
-    this.name = "AuthorizationDeniedError";
-  }
-}
-
 type PrincipalResolver = () => Promise<AuthenticatedPrincipal | undefined>;
 let testPrincipalResolver: PrincipalResolver | undefined;
 
@@ -91,47 +77,6 @@ export async function resolveAuthenticatedPrincipal() {
     email: account.email,
     roles: account.roles,
   };
-}
-
-export async function requireUser() {
-  const principal = await resolveAuthenticatedPrincipal();
-  if (!principal) {
-    throw new AuthenticationRequiredError();
-  }
-  return principal;
-}
-
-export async function requireRole(role: "professor" | "admin") {
-  const principal = await requireUser();
-  const allowed =
-    principal.roles.includes(role) ||
-    (role === "professor" && principal.roles.includes("admin"));
-
-  if (!allowed) {
-    throw new AuthorizationDeniedError();
-  }
-  return principal;
-}
-
-export async function authorizeApiRole(role: "professor" | "admin") {
-  try {
-    const principal = await requireRole(role);
-    return { ok: true as const, principal };
-  } catch (error) {
-    if (error instanceof AuthenticationRequiredError) {
-      return {
-        ok: false as const,
-        response: Response.json({ error: error.message }, { status: 401 }),
-      };
-    }
-    if (error instanceof AuthorizationDeniedError) {
-      return {
-        ok: false as const,
-        response: Response.json({ error: error.message }, { status: 403 }),
-      };
-    }
-    throw error;
-  }
 }
 
 export function setPrincipalResolverForTests(resolver?: PrincipalResolver) {

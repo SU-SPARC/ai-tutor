@@ -1,6 +1,11 @@
 import "server-only";
 
 import type {
+  AdministratorAuthorization,
+  AnalyticsAuthorization,
+  ProfessorReviewAuthorization,
+} from "@/lib/auth/authorization";
+import type {
   AdminQuestion,
   Difficulty,
   ProfessorPracticeAnalytics,
@@ -33,8 +38,6 @@ export type ReviewCandidateUpdate = {
   difficulty?: Difficulty;
   notes?: string;
   reviewPriority?: ReviewPriority;
-  reviewedBy?: string;
-  reviewedByUserId?: string;
   topicId?: string;
 };
 
@@ -56,8 +59,6 @@ export type AdminQuestionFilters = {
 export type AdminQuestionUpdate = {
   action: ReviewAction | "mark_needs_review";
   questionIds: string[];
-  reviewedBy?: string;
-  reviewedByUserId?: string;
 };
 
 export type AdminQuestionDetailAction =
@@ -76,8 +77,6 @@ export type AdminQuestionDetailUpdate = {
   difficulty?: Difficulty;
   hints?: string[];
   misconceptions?: AdminQuestionMisconceptionInput[];
-  reviewedBy?: string;
-  reviewedByUserId?: string;
   reviewerNotes?: string;
   reviewStatus?: ReviewStatus;
   topicId?: string;
@@ -88,8 +87,6 @@ export type AdminQuestionRegenerationInput = {
   keepPattern?: boolean;
   mode?: "deterministic";
   questionId: string;
-  reviewedBy?: string;
-  reviewedByUserId?: string;
 };
 
 export type AdminQuestionRegenerationResult = {
@@ -114,39 +111,56 @@ export type DataRepositoryMetadata = {
 };
 
 export type ContentRepository = {
-  getAdminQuestions(filters?: AdminQuestionFilters): Promise<AdminQuestion[]>;
+  getAdminQuestions(
+    authorization: AdministratorAuthorization,
+    filters?: AdminQuestionFilters,
+  ): Promise<AdminQuestion[]>;
   getQuestionById(questionId: string): Promise<TutorQuestion | undefined>;
   getApprovedQuestionById(
     questionId: string,
   ): Promise<TutorQuestion | undefined>;
   getApprovedQuestions(): Promise<TutorQuestion[]>;
   getQuestionCounts(): Promise<QuestionCounts>;
-  getProfessorPracticeAnalytics(): Promise<ProfessorPracticeAnalytics>;
+  getProfessorPracticeAnalytics(
+    authorization: AnalyticsAuthorization,
+  ): Promise<ProfessorPracticeAnalytics>;
   getRetrievalChunks(): Promise<RetrievalChunk[]>;
-  getReviewQueue(filters?: ReviewQueueFilters): Promise<ReviewCandidate[]>;
+  getReviewQueue(
+    authorization:
+      | ProfessorReviewAuthorization
+      | AnalyticsAuthorization
+      | AdministratorAuthorization,
+    filters?: ReviewQueueFilters,
+  ): Promise<ReviewCandidate[]>;
   getTopics(): Promise<Topic[]>;
   importReviewCandidates(
+    authorization: ProfessorReviewAuthorization,
     candidates: ReviewCandidate[],
-    reviewedBy?: string,
   ): Promise<ReviewCandidateImport>;
   listQuestions(): Promise<TutorQuestion[]>;
   listQuestionsByTopic(topicId: string): Promise<TutorQuestion[]>;
   listTopics(): Promise<Topic[]>;
   regenerateAdminQuestion(
+    authorization: AdministratorAuthorization,
     input: AdminQuestionRegenerationInput,
   ): Promise<AdminQuestionRegenerationResult | undefined>;
   updateAdminQuestionDetail(
+    authorization: AdministratorAuthorization,
     questionId: string,
     input: AdminQuestionDetailUpdate,
   ): Promise<AdminQuestion | undefined>;
   updateReviewCandidates(
+    authorization: ProfessorReviewAuthorization,
     input: ReviewCandidateUpdate,
   ): Promise<ReviewCandidate[]>;
-  updateAdminQuestions(input: AdminQuestionUpdate): Promise<AdminQuestion[]>;
+  updateAdminQuestions(
+    authorization: AdministratorAuthorization,
+    input: AdminQuestionUpdate,
+  ): Promise<AdminQuestion[]>;
   updateReviewCandidateStatus(
+    authorization: ProfessorReviewAuthorization,
     candidateId: string,
     action: ReviewAction,
-    reviewedBy?: string,
   ): Promise<ReviewCandidate | undefined>;
 };
 

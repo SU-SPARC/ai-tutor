@@ -5,7 +5,7 @@ import {
   claimAnonymousIdentity,
 } from "@/lib/auth/anonymous-claims";
 import { isAnonymousStudentId } from "@/lib/auth/anonymous-student";
-import { AuthenticationRequiredError, requireUser } from "@/lib/auth/principal";
+import { authorizeApi, requireStudent } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { getServerEnv } from "@/lib/env/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -37,8 +37,12 @@ export async function POST(request: Request) {
     );
   }
 
+  const access = await authorizeApi(requireStudent);
+  if (!access.ok) {
+    return access.response;
+  }
+
   try {
-    const principal = await requireUser();
     const body = (await request.json()) as { legacyAnonymousId?: unknown };
     if (!isAnonymousStudentId(body.legacyAnonymousId)) {
       return NextResponse.json(
@@ -49,13 +53,10 @@ export async function POST(request: Request) {
     const result = await claimAnonymousIdentity({
       anonymousId: body.legacyAnonymousId,
       source: "legacy_local_storage",
-      userId: principal.userId,
+      userId: access.authorization.principal.userId,
     });
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
     if (error instanceof AnonymousIdentityAlreadyClaimedError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

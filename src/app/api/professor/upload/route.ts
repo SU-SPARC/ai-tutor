@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { toProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
+import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import { importReviewCandidates } from "@/lib/data/data-store";
-import { authorizeApiRole } from "@/lib/auth/principal";
 import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-admin";
 
 const MAX_UPLOAD_BYTES = 256_000;
 
 export async function POST(request: Request) {
-  const authorization = await authorizeApiRole("professor");
+  const access = await authorizeApi(requireProfessorReview);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
@@ -45,12 +46,12 @@ export async function POST(request: Request) {
 
   try {
     const result = await importReviewCandidates(
+      access.authorization,
       validation.candidates,
-      authorization.principal.displayName,
     );
 
     return NextResponse.json({
-      candidates: result.candidates,
+      candidates: result.candidates.map(toProfessorReviewCandidateDto),
       count: result.candidates.length,
       imported: result.imported,
       message: result.message,

@@ -32,12 +32,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
+import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import type {
   CourseTopic,
   PracticeQuestion,
   TutorMode,
   TutorResponse,
-  TutorSessionRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +59,7 @@ type ChatMessage = {
 
 type TutorSessionPayload = {
   error?: string;
-  session?: TutorSessionRecord;
+  session?: TutorSessionDto;
 };
 
 export function PracticeWorkspace({
@@ -107,7 +107,7 @@ export function PracticeWorkspace({
   const [latestResponse, setLatestResponse] = useState<TutorResponse | null>(
     null,
   );
-  const [session, setSession] = useState<TutorSessionRecord | null>(null);
+  const [session, setSession] = useState<TutorSessionDto | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hintCount, setHintCount] = useState(0);

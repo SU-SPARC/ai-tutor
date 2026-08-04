@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { toTutorSessionDto } from "@/lib/api/tutor-session-dto";
+import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { recordTutorSessionAttempt } from "@/lib/data/tutor-session-repository";
-import { resolveStudentOwner } from "@/lib/auth/anonymous-session";
 
 type AttemptBody = {
   answer?: unknown;
@@ -15,6 +16,10 @@ type SessionRouteContext = {
 
 export async function POST(request: Request, context: SessionRouteContext) {
   const sessionId = await getSessionId(context);
+  const access = await authorizeStudentResourceApi();
+  if (!access.ok) {
+    return access.response;
+  }
   let body: AttemptBody;
 
   try {
@@ -29,17 +34,9 @@ export async function POST(request: Request, context: SessionRouteContext) {
   let session;
 
   try {
-    const owner = await resolveStudentOwner();
-    if (!owner) {
-      return NextResponse.json(
-        { error: "Tutor session was not found." },
-        { status: 404 },
-      );
-    }
-    session = await recordTutorSessionAttempt({
+    session = await recordTutorSessionAttempt(access.authorization, {
       answerPreview:
         optionalString(body.answerPreview) ?? optionalString(body.answer),
-      owner,
       sessionId,
     });
   } catch {
@@ -53,7 +50,7 @@ export async function POST(request: Request, context: SessionRouteContext) {
     );
   }
 
-  return NextResponse.json({ session });
+  return NextResponse.json({ session: toTutorSessionDto(session) });
 }
 
 async function getSessionId(context: SessionRouteContext) {

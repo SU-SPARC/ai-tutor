@@ -2,25 +2,30 @@ import type {
   ProfessorTopicReviewProgress,
   ReviewCandidate,
   ReviewStatus,
-} from "@/lib/types"
+} from "@/lib/types";
 
 export type ProfessorReviewProgress = {
-  remainingPriorityItems: number
-  reviewedCount: number
-  totalCount: number
-}
+  remainingPriorityItems: number;
+  reviewedCount: number;
+  totalCount: number;
+};
 
-export function sortProfessorReviewCandidates(
-  candidates: ReviewCandidate[],
-): ReviewCandidate[] {
+export function sortProfessorReviewCandidates<
+  Candidate extends {
+    review: Pick<ReviewCandidate["review"], "reviewPriority" | "status">;
+    source: Pick<ReviewCandidate["source"], "sourceType">;
+    title: string;
+    topicId: string;
+  },
+>(candidates: Candidate[]): Candidate[] {
   return [...candidates].sort((left, right) => {
     return (
       generatedNeedsReviewRank(right) - generatedNeedsReviewRank(left) ||
       priorityRank(right) - priorityRank(left) ||
       left.topicId.localeCompare(right.topicId) ||
       left.title.localeCompare(right.title)
-    )
-  })
+    );
+  });
 }
 
 export function professorReviewProgress(
@@ -34,7 +39,7 @@ export function professorReviewProgress(
     ).length,
     reviewedCount,
     totalCount: reviewedCount + candidates.length,
-  }
+  };
 }
 
 export function buildProfessorTopicReviewProgress(
@@ -43,8 +48,8 @@ export function buildProfessorTopicReviewProgress(
 ): ProfessorTopicReviewProgress {
   const counts = candidates.reduce(
     (current, candidate) => {
-      current[candidate.review.status] += 1
-      return current
+      current[candidate.review.status] += 1;
+      return current;
     },
     {
       approved: 0,
@@ -53,7 +58,7 @@ export function buildProfessorTopicReviewProgress(
       needs_review: 0,
       rejected: 0,
     } satisfies Record<ReviewStatus, number>,
-  )
+  );
 
   return {
     approved: counts.approved,
@@ -63,7 +68,7 @@ export function buildProfessorTopicReviewProgress(
       counts.needs_review + counts.needs_edit + counts.needs_regeneration,
     topicId,
     totalDrafts: candidates.length,
-  }
+  };
 }
 
 export function advanceProfessorTopicReviewProgress(
@@ -71,7 +76,7 @@ export function advanceProfessorTopicReviewProgress(
   nextStatus: ReviewStatus,
 ): ProfessorTopicReviewProgress {
   if (progress.needsReview === 0) {
-    return progress
+    return progress;
   }
 
   return {
@@ -83,25 +88,30 @@ export function advanceProfessorTopicReviewProgress(
       nextStatus === "approved" || nextStatus === "rejected"
         ? Math.max(0, progress.remaining - 1)
         : progress.remaining,
-  }
+  };
 }
 
 export function professorReviewQueuePath(topicId: string) {
   const params = new URLSearchParams({
     status: "needs_review",
     topicId,
-  })
-  return `/api/professor/review?${params.toString()}`
+  });
+  return `/api/professor/review?${params.toString()}`;
 }
 
-function generatedNeedsReviewRank(candidate: ReviewCandidate) {
+function generatedNeedsReviewRank(candidate: {
+  review: Pick<ReviewCandidate["review"], "status">;
+  source: Pick<ReviewCandidate["source"], "sourceType">;
+}) {
   return candidate.review.status === "needs_review" &&
     (candidate.source.sourceType === "generated_original" ||
       candidate.source.sourceType === "pattern_derived_original")
     ? 1
-    : 0
+    : 0;
 }
 
-function priorityRank(candidate: ReviewCandidate) {
-  return (candidate.review.reviewPriority ?? "normal") === "priority" ? 1 : 0
+function priorityRank(candidate: {
+  review: Pick<ReviewCandidate["review"], "reviewPriority">;
+}) {
+  return (candidate.review.reviewPriority ?? "normal") === "priority" ? 1 : 0;
 }

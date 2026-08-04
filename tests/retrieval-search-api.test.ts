@@ -168,6 +168,15 @@ describe("retrieval search API", () => {
     expect(payload.chunks[0].text).toContain("Private reference match");
   });
 
+  it("reserves admin retrieval mode for administrators", async () => {
+    const response = await postRetrievalSearch(
+      jsonRequest({ mode: "admin_dev", query: "draft question" }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(searchLocalRetrievalMock).not.toHaveBeenCalled();
+  });
+
   it("reports malformed JSON without searching", async () => {
     const response = await postRetrievalSearch(
       new Request("http://localhost/api/retrieval/search", {

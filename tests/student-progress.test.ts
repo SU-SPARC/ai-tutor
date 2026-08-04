@@ -11,6 +11,8 @@ import {
   revealTutorSessionStep,
 } from "@/lib/data/tutor-session-repository";
 import {
+  authorizationForStudentOwner,
+  mockPrincipal,
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
@@ -22,6 +24,8 @@ const otherOwner = {
   kind: "anonymous" as const,
   anonymousId: "anon:test-browser-b",
 };
+const studentAuthorization = authorizationForStudentOwner(studentOwner);
+const otherAuthorization = authorizationForStudentOwner(otherOwner);
 
 describe("student progress dashboard", () => {
   beforeEach(() => {
@@ -36,54 +40,49 @@ describe("student progress dashboard", () => {
   });
 
   it("aggregates attempts, outcomes, help, topics, and recent sessions", async () => {
-    const firstSession = await createTutorSession({
-      owner: studentOwner,
-      questionId: "dice-sum-eight",
-    });
-    await recordTutorSessionAttempt({
+    const firstSession = await createTutorSession(
+      studentAuthorization,
+      "dice-sum-eight",
+    );
+    await recordTutorSessionAttempt(studentAuthorization, {
       answerPreview: "2/5 private working",
-      owner: studentOwner,
       sessionId: firstSession.id,
     });
-    await recordTutorSessionAttemptOutcome({
+    await recordTutorSessionAttemptOutcome(studentAuthorization, {
       answerPreview: "2/5 private working",
       estimatedTokens: 0,
-      owner: studentOwner,
       sessionId: firstSession.id,
       source: "rule",
       verdict: "correct",
     });
-    await revealTutorSessionHint(firstSession.id, studentOwner);
+    await revealTutorSessionHint(studentAuthorization, firstSession.id);
 
-    const secondSession = await createTutorSession({
-      owner: studentOwner,
-      questionId: "five-question-quiz",
-    });
-    await recordTutorSessionAttempt({
+    const secondSession = await createTutorSession(
+      studentAuthorization,
+      "five-question-quiz",
+    );
+    await recordTutorSessionAttempt(studentAuthorization, {
       answerPreview: "0.2 private working",
-      owner: studentOwner,
       sessionId: secondSession.id,
     });
-    await recordTutorSessionAttemptOutcome({
+    await recordTutorSessionAttemptOutcome(studentAuthorization, {
       answerPreview: "0.2 private working",
       estimatedTokens: 0,
-      owner: studentOwner,
       sessionId: secondSession.id,
       source: "rule",
       verdict: "incorrect",
     });
-    await revealTutorSessionStep(secondSession.id, studentOwner);
+    await revealTutorSessionStep(studentAuthorization, secondSession.id);
 
-    const otherStudentSession = await createTutorSession({
-      owner: otherOwner,
-      questionId: "exam-z-score",
-    });
-    await recordTutorSessionAttempt({
-      owner: otherOwner,
+    const otherStudentSession = await createTutorSession(
+      otherAuthorization,
+      "exam-z-score",
+    );
+    await recordTutorSessionAttempt(otherAuthorization, {
       sessionId: otherStudentSession.id,
     });
 
-    const progress = await getStudentProgress(studentOwner);
+    const progress = await getStudentProgress(studentAuthorization);
 
     expect(progress).toMatchObject({
       mode: "demo",
@@ -117,13 +116,12 @@ describe("student progress dashboard", () => {
   });
 
   it("requires an anonymous browser session and returns aggregate-only data", async () => {
-    const session = await createTutorSession({
-      owner: studentOwner,
-      questionId: "dice-sum-eight",
-    });
-    await recordTutorSessionAttempt({
+    const session = await createTutorSession(
+      studentAuthorization,
+      "dice-sum-eight",
+    );
+    await recordTutorSessionAttempt(studentAuthorization, {
       answerPreview: "private student answer",
-      owner: studentOwner,
       sessionId: session.id,
     });
 
@@ -156,24 +154,27 @@ describe("student progress dashboard", () => {
       kind: "user" as const,
       userId: "user:another-student",
     };
-    const ownedSession = await createTutorSession({
-      owner: authenticatedOwner,
-      questionId: "dice-sum-eight",
-    });
-    await recordTutorSessionAttempt({
-      owner: authenticatedOwner,
+    const authenticatedAuthorization =
+      authorizationForStudentOwner(authenticatedOwner);
+    const otherAuthenticatedAuthorization = authorizationForStudentOwner(
+      otherAuthenticatedOwner,
+    );
+    const ownedSession = await createTutorSession(
+      authenticatedAuthorization,
+      "dice-sum-eight",
+    );
+    await recordTutorSessionAttempt(authenticatedAuthorization, {
       sessionId: ownedSession.id,
     });
-    const otherSession = await createTutorSession({
-      owner: otherAuthenticatedOwner,
-      questionId: "exam-z-score",
-    });
-    await recordTutorSessionAttempt({
-      owner: otherAuthenticatedOwner,
+    const otherSession = await createTutorSession(
+      otherAuthenticatedAuthorization,
+      "exam-z-score",
+    );
+    await recordTutorSessionAttempt(otherAuthenticatedAuthorization, {
       sessionId: otherSession.id,
     });
 
-    mockStudentOwner(authenticatedOwner);
+    mockPrincipal(TEST_STUDENT);
     const response = await GET();
     const payload = await response.json();
 

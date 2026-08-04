@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { toTutorSessionDto } from "@/lib/api/tutor-session-dto";
+import { authorizeApi, requireStudentAccess } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { createTutorSession } from "@/lib/data/tutor-session-repository";
-import {
-  AnonymousPilotUnavailableError,
-  resolveStudentOwner,
-} from "@/lib/auth/anonymous-session";
 
 type CreateSessionBody = {
   questionId?: unknown;
@@ -32,24 +30,20 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    const owner = await resolveStudentOwner({ createAnonymous: true });
-    if (!owner) {
-      return NextResponse.json(
-        { error: "Student identity is required." },
-        { status: 401 },
-      );
-    }
-    const session = await createTutorSession({
-      owner,
-      questionId,
-    });
+  const access = await authorizeApi(() =>
+    requireStudentAccess({ allowAnonymous: true, createAnonymous: true }),
+  );
+  if (!access.ok) {
+    return access.response;
+  }
 
-    return NextResponse.json({ session }, { status: 201 });
-  } catch (error) {
-    if (error instanceof AnonymousPilotUnavailableError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
+  try {
+    const session = await createTutorSession(access.authorization, questionId);
+    return NextResponse.json(
+      { session: toTutorSessionDto(session) },
+      { status: 201 },
+    );
+  } catch {
     return dataServiceUnavailableResponse();
   }
 }

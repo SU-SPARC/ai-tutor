@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
 import { AnonymousImportPanel } from "@/components/auth/anonymous-import-panel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { readAnonymousCookieSubject } from "@/lib/auth/anonymous-session";
-import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
-import { safeReturnPath, signInPath } from "@/lib/auth/return-path";
+import {
+  requirePageAccess,
+  requireStudent,
+  toCurrentUserDto,
+} from "@/lib/auth/authorization";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
@@ -22,11 +25,8 @@ export default async function OnboardingPage({
 }: OnboardingPageProps) {
   const { returnTo: requestedReturnPath } = await searchParams;
   const returnTo = safeReturnPath(requestedReturnPath);
-  const principal = await resolveAuthenticatedPrincipal();
-
-  if (!principal) {
-    redirect(signInPath(returnTo));
-  }
+  const authorization = await requirePageAccess(requireStudent, returnTo);
+  const user = toCurrentUserDto(authorization.principal);
 
   const env = getServerEnv();
   const anonymousId = await readAnonymousCookieSubject();
@@ -51,13 +51,13 @@ export default async function OnboardingPage({
           <dl className="grid gap-4 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="font-medium text-muted-foreground">Name</dt>
-              <dd className="mt-1 break-words">{principal.displayName}</dd>
+              <dd className="mt-1 break-words">{user.displayName}</dd>
             </div>
             <div>
               <dt className="font-medium text-muted-foreground">
                 School email
               </dt>
-              <dd className="mt-1 break-all">{principal.email}</dd>
+              <dd className="mt-1 break-all">{user.email}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">

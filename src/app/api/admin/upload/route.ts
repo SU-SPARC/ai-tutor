@@ -5,17 +5,17 @@ import {
   AdminContentUploadError,
   buildAdminContentUploadPreview,
 } from "@/lib/tutor/admin-content-upload";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
 
 export const runtime = "nodejs";
 
 const MAX_MULTIPART_BYTES = ADMIN_CONTENT_UPLOAD_MAX_BYTES + 16_384;
 
 export async function POST(request: Request) {
-  const authorization = await authorizeApiRole("admin");
+  const access = await authorizeApi(requireAdministrator);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const declaredLength = Number(request.headers.get("content-length") ?? 0);

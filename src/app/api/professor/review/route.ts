@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { toProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import {
   getProfessorTopicReviewProgress,
@@ -12,7 +13,7 @@ import type {
   ReviewCandidateUpdate,
   ReviewQueueFilters,
 } from "@/lib/data/repository";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import {
   isValidReviewDifficulty,
   isValidReviewPriority,
@@ -29,10 +30,10 @@ const REVIEW_ACTIONS = [
 ] satisfies ReviewAction[];
 
 export async function GET(request: Request) {
-  const authorization = await authorizeApiRole("professor");
+  const access = await authorizeApi(requireProfessorReview);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const parsed = parseReviewFilters(new URL(request.url).searchParams);
@@ -43,15 +44,18 @@ export async function GET(request: Request) {
 
   try {
     const [candidates, topics, topicProgress] = await Promise.all([
-      getReviewQueue(parsed.filters),
+      getReviewQueue(access.authorization, parsed.filters),
       listTopics(),
       parsed.filters.topicId
-        ? getProfessorTopicReviewProgress(parsed.filters.topicId)
+        ? getProfessorTopicReviewProgress(
+            access.authorization,
+            parsed.filters.topicId,
+          )
         : Promise.resolve(undefined),
     ]);
 
     return NextResponse.json({
-      candidates,
+      candidates: candidates.map(toProfessorReviewCandidateDto),
       count: candidates.length,
       filters: parsed.filters,
       topicProgress,
@@ -63,10 +67,10 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const authorization = await authorizeApiRole("professor");
+  const access = await authorizeApi(requireProfessorReview);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const parsed = await parseReviewUpdate(request);
@@ -80,7 +84,7 @@ export async function PATCH(request: Request) {
 
   try {
     if (parsed.update.action === "approve") {
-      const queue = await getReviewQueue();
+      const queue = await getReviewQueue(access.authorization);
       const queuedById = new Map(
         queue.map((candidate) => [candidate.id, candidate]),
       );
@@ -105,11 +109,10 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const candidates = await updateReviewCandidates({
-      ...parsed.update,
-      reviewedBy: authorization.principal.displayName,
-      reviewedByUserId: authorization.principal.userId,
-    });
+    const candidates = await updateReviewCandidates(
+      access.authorization,
+      parsed.update,
+    );
 
     if (candidates.length === 0) {
       return NextResponse.json(
@@ -119,8 +122,8 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({
-      candidates,
-      candidate: candidates[0],
+      candidates: candidates.map(toProfessorReviewCandidateDto),
+      candidate: toProfessorReviewCandidateDto(candidates[0]),
     });
   } catch {
     return dataServiceUnavailableResponse();

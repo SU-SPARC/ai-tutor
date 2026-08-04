@@ -266,7 +266,7 @@ function contentRepositoryFixture(
         },
       ];
     },
-    async updateAdminQuestionDetail(questionId, input) {
+    async updateAdminQuestionDetail(authorization, questionId, input) {
       onUpdate?.(input);
 
       if (questionId !== current.id) {
@@ -298,7 +298,7 @@ function contentRepositoryFixture(
             input.reviewerNotes !== undefined
               ? input.reviewerNotes
               : current.review.notes,
-          reviewedBy: input.reviewedBy ?? current.review.reviewedBy,
+          reviewedBy: authorization.principal.displayName,
           status: nextStatus,
         },
         source: {

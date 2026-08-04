@@ -1,14 +1,21 @@
-import "server-only"
+import "server-only";
 
-import { createDatabaseContentRepository } from "@/lib/data/database-repository"
+import {
+  assertAuthorization,
+  isPublishedContent,
+  isRetrievalEligibleContent,
+  isStudentSafeRetrievalContent,
+  type AdministratorAuthorization,
+  type AnalyticsAuthorization,
+  type ProfessorReviewAuthorization,
+} from "@/lib/auth/authorization";
+import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import {
   demoContentRepository,
-  isStudentFacingQuestion,
-  isStudentFacingRetrievalChunk,
   resetDemoReviewQueueForTests,
-} from "@/lib/data/demo-repository"
-import { queryPostgres } from "@/lib/data/postgres"
-import { DataServiceUnavailableError } from "@/lib/data/service-error"
+} from "@/lib/data/demo-repository";
+import { queryPostgres } from "@/lib/data/postgres";
+import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import type {
   AdminQuestionDetailUpdate,
   AdminQuestionFilters,
@@ -19,225 +26,258 @@ import type {
   ReviewCandidateUpdate,
   ReviewQueueFilters,
   ReviewAction,
-} from "@/lib/data/repository"
-import type { AdminQuestionDashboard, ReviewCandidate } from "@/lib/types"
-import { getServerEnv } from "@/lib/env/server"
-import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
-import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode"
+} from "@/lib/data/repository";
+import type { AdminQuestionDashboard, ReviewCandidate } from "@/lib/types";
+import { getServerEnv } from "@/lib/env/server";
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
+import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode";
 
-let contentRepositoryOverride: ContentRepository | undefined
+let contentRepositoryOverride: ContentRepository | undefined;
 
 export async function listTopics() {
-  return readWithConfiguredRepository((repository) => repository.listTopics())
+  return readWithConfiguredRepository((repository) => repository.listTopics());
 }
 
 export async function listQuestions() {
   const questions = await readWithConfiguredRepository((repository) =>
     repository.listQuestions(),
-  )
-  return questions.filter(isStudentFacingQuestion)
+  );
+  return questions.filter(isPublishedContent);
 }
 
 export async function getAdminQuestionDashboard(
+  authorization: AdministratorAuthorization,
   filters?: AdminQuestionFilters,
 ): Promise<AdminQuestionDashboard> {
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
-  const topics = await listTopics()
+  assertAuthorization(authorization, "administrator");
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
+  const topics = await listTopics();
 
   if (contentRepositoryOverride) {
     return {
       mode: "demo",
-      questions: await contentRepositoryOverride.getAdminQuestions(filters),
+      questions: await contentRepositoryOverride.getAdminQuestions(
+        authorization,
+        filters,
+      ),
       readOnly: false,
       sections: buildAdminQuestionSections(
-        await contentRepositoryOverride.getAdminQuestions(filters),
+        await contentRepositoryOverride.getAdminQuestions(
+          authorization,
+          filters,
+        ),
       ),
       topics: safeTopicOptions(topics),
-    }
+    };
   }
 
   if (policy.repositorySource === "demo") {
-    return demoAdminQuestionDashboard(filters, topics)
+    return demoAdminQuestionDashboard(authorization, filters, topics);
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("content")
+    throw new DataServiceUnavailableError("content");
   }
 
   try {
     const repository = createDatabaseContentRepository(
       env.DATABASE_URL,
       queryPostgres,
-    )
-    const questions = await repository.getAdminQuestions(filters)
+    );
+    const questions = await repository.getAdminQuestions(
+      authorization,
+      filters,
+    );
     return {
       mode: "database",
       questions,
       readOnly: false,
       sections: buildAdminQuestionSections(questions),
       topics: safeTopicOptions(topics),
-    }
+    };
   } catch (cause) {
     if (policy.allowDemoFallback) {
-      return demoAdminQuestionDashboard(filters, topics, true)
+      return demoAdminQuestionDashboard(authorization, filters, topics, true);
     }
 
-    throw new DataServiceUnavailableError("content", { cause })
+    throw new DataServiceUnavailableError("content", { cause });
   }
 }
 
-export async function updateAdminQuestionsStrict(input: AdminQuestionUpdate) {
+export async function updateAdminQuestionsStrict(
+  authorization: AdministratorAuthorization,
+  input: AdminQuestionUpdate,
+) {
+  assertAuthorization(authorization, "administrator");
   if (contentRepositoryOverride) {
-    return contentRepositoryOverride.updateAdminQuestions(input)
+    return contentRepositoryOverride.updateAdminQuestions(authorization, input);
   }
 
   return writeStrictDatabase((repository) =>
-    repository.updateAdminQuestions(input),
-  )
+    repository.updateAdminQuestions(authorization, input),
+  );
 }
 
 export async function updateAdminQuestionDetailStrict(
+  authorization: AdministratorAuthorization,
   questionId: string,
   input: AdminQuestionDetailUpdate,
 ) {
+  assertAuthorization(authorization, "administrator");
   if (contentRepositoryOverride) {
     return contentRepositoryOverride.updateAdminQuestionDetail(
+      authorization,
       questionId,
       input,
-    )
+    );
   }
 
   return writeStrictDatabase((repository) =>
-    repository.updateAdminQuestionDetail(questionId, input),
-  )
+    repository.updateAdminQuestionDetail(authorization, questionId, input),
+  );
 }
 
 export async function regenerateAdminQuestionStrict(
+  authorization: AdministratorAuthorization,
   input: AdminQuestionRegenerationInput,
 ) {
+  assertAuthorization(authorization, "administrator");
   if (contentRepositoryOverride) {
-    return contentRepositoryOverride.regenerateAdminQuestion(input)
+    return contentRepositoryOverride.regenerateAdminQuestion(
+      authorization,
+      input,
+    );
   }
 
   return writeStrictDatabase((repository) =>
-    repository.regenerateAdminQuestion(input),
-  )
+    repository.regenerateAdminQuestion(authorization, input),
+  );
 }
 
 export async function getQuestionById(questionId: string) {
   const question = await readWithConfiguredRepository((repository) =>
     repository.getQuestionById(questionId),
-  )
-  return question && isStudentFacingQuestion(question) ? question : undefined
+  );
+  return question && isPublishedContent(question) ? question : undefined;
 }
 
 export async function listQuestionsByTopic(topicId: string) {
   const questions = await readWithConfiguredRepository((repository) =>
     repository.listQuestionsByTopic(topicId),
-  )
-  return questions.filter(isStudentFacingQuestion)
+  );
+  return questions.filter(isPublishedContent);
 }
 
 export async function getQuestionCounts() {
   return readWithConfiguredRepository((repository) =>
     repository.getQuestionCounts(),
-  )
+  );
 }
 
-export async function getProfessorPracticeAnalytics() {
+export async function getProfessorPracticeAnalytics(
+  authorization: AnalyticsAuthorization,
+) {
+  assertAuthorization(authorization, "analytics");
   return readWithConfiguredRepository((repository) =>
-    repository.getProfessorPracticeAnalytics(),
-  )
+    repository.getProfessorPracticeAnalytics(authorization),
+  );
 }
 
 export async function getTopics() {
-  return listTopics()
+  return listTopics();
 }
 
 export async function getApprovedQuestions() {
-  return listQuestions()
+  return listQuestions();
 }
 
 export async function getApprovedQuestionById(questionId: string) {
-  return getQuestionById(questionId)
+  return getQuestionById(questionId);
 }
 
 export async function getRetrievalChunks() {
-  return readWithConfiguredRepository((repository) =>
+  const chunks = await readWithConfiguredRepository((repository) =>
     repository.getRetrievalChunks(),
-  )
+  );
+  return chunks.filter(isRetrievalEligibleContent);
 }
 
-export async function getReviewQueue(filters?: ReviewQueueFilters) {
+export async function getReviewQueue(
+  authorization:
+    | ProfessorReviewAuthorization
+    | AnalyticsAuthorization
+    | AdministratorAuthorization,
+  filters?: ReviewQueueFilters,
+) {
+  switch (authorization.permission) {
+    case "administrator":
+      assertAuthorization(authorization, "administrator");
+      break;
+    case "analytics":
+      assertAuthorization(authorization, "analytics");
+      break;
+    default:
+      assertAuthorization(authorization, "professor-review");
+  }
   return readWithConfiguredRepository((repository) =>
-    repository.getReviewQueue(filters),
-  )
+    repository.getReviewQueue(authorization, filters),
+  );
 }
 
-export async function getProfessorTopicReviewProgress(topicId: string) {
+export async function getProfessorTopicReviewProgress(
+  authorization: ProfessorReviewAuthorization,
+  topicId: string,
+) {
+  assertAuthorization(authorization, "professor-review");
   const candidates = await readWithConfiguredRepository((repository) =>
-    repository.getAdminQuestions({
-      generatedOnly: true,
+    repository.getReviewQueue(authorization, {
       topicId,
     }),
-  )
+  );
 
-  return buildProfessorTopicReviewProgress(topicId, candidates)
+  return buildProfessorTopicReviewProgress(topicId, candidates);
 }
 
 export async function importReviewCandidates(
+  authorization: ProfessorReviewAuthorization,
   candidates: ReviewCandidate[],
-  reviewedBy?: string,
 ) {
+  assertAuthorization(authorization, "professor-review");
   return writeWithConfiguredRepository((repository) =>
-    repository.importReviewCandidates(candidates, reviewedBy),
-  )
+    repository.importReviewCandidates(authorization, candidates),
+  );
 }
 
-export async function updateReviewCandidates(input: ReviewCandidateUpdate) {
+export async function updateReviewCandidates(
+  authorization: ProfessorReviewAuthorization,
+  input: ReviewCandidateUpdate,
+) {
+  assertAuthorization(authorization, "professor-review");
   return writeWithConfiguredRepository((repository) =>
-    repository.updateReviewCandidates(input),
-  )
+    repository.updateReviewCandidates(authorization, input),
+  );
 }
 
 export async function updateReviewCandidateStatus(
+  authorization: ProfessorReviewAuthorization,
   candidateId: string,
   action: ReviewAction,
-  reviewedBy?: string,
 ) {
+  assertAuthorization(authorization, "professor-review");
   return writeWithConfiguredRepository((repository) =>
-    repository.updateReviewCandidateStatus(candidateId, action, reviewedBy),
-  )
-}
-
-export function getContentRepository() {
-  if (contentRepositoryOverride) {
-    return contentRepositoryOverride
-  }
-
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
-
-  if (policy.repositorySource === "demo") {
-    return demoContentRepository
-  }
-
-  if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("content")
-  }
-
-  return createDatabaseContentRepository(env.DATABASE_URL, queryPostgres)
+    repository.updateReviewCandidateStatus(authorization, candidateId, action),
+  );
 }
 
 export function getContentRepositoryMode() {
-  return getOperatingModePolicy().repositorySource
+  return getOperatingModePolicy().repositorySource;
 }
 
 export function getDataRepositoryMetadata(): DataRepositoryMetadata {
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
-  const databaseConfigured = Boolean(env.DATABASE_URL)
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
+  const databaseConfigured = Boolean(env.DATABASE_URL);
 
   if (policy.repositorySource === "demo") {
     return {
@@ -247,7 +287,7 @@ export function getDataRepositoryMetadata(): DataRepositoryMetadata {
       operatingMode: policy.mode,
       reason: `${policy.mode} intentionally uses committed public demo fixtures.`,
       source: "demo-json",
-    }
+    };
   }
 
   return {
@@ -261,17 +301,17 @@ export function getDataRepositoryMetadata(): DataRepositoryMetadata {
         : "The configured database is required; demo fallback is disabled."
       : "The selected operating mode requires a database, but DATABASE_URL is unavailable.",
     source: "postgres",
-  }
+  };
 }
 
 export function setContentRepositoryForTests(
   repository: ContentRepository | undefined,
 ) {
-  contentRepositoryOverride = repository
+  contentRepositoryOverride = repository;
 }
 
 export function resetReviewQueueForTests() {
-  resetDemoReviewQueueForTests()
+  resetDemoReviewQueueForTests();
 }
 
 function buildAdminQuestionSections(
@@ -279,7 +319,7 @@ function buildAdminQuestionSections(
 ): AdminQuestionDashboard["sections"] {
   return {
     approved_student_facing: questions
-      .filter(isStudentFacingQuestion)
+      .filter(isPublishedContent)
       .map((question) => question.id),
     generated_original: questions
       .filter((question) => question.source.sourceType === "generated_original")
@@ -294,44 +334,44 @@ function buildAdminQuestionSections(
     professor_provided: questions
       .filter((question) => question.source.sourceType === "professor_provided")
       .map((question) => question.id),
-  }
+  };
 }
 
 function safeTopicOptions(topics: AdminQuestionDashboard["topics"]) {
   return topics.map((topic) => ({
     id: topic.id,
     title: topic.title,
-  }))
+  }));
 }
 
 async function readWithConfiguredRepository<T>(
   read: (repository: ContentRepository) => Promise<T>,
 ) {
   if (contentRepositoryOverride) {
-    return read(contentRepositoryOverride)
+    return read(contentRepositoryOverride);
   }
 
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
 
   if (policy.repositorySource === "demo") {
-    return read(demoContentRepository)
+    return read(demoContentRepository);
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("content")
+    throw new DataServiceUnavailableError("content");
   }
 
   try {
     return await read(
       createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
-    )
+    );
   } catch (cause) {
     if (policy.allowDemoFallback) {
-      return read(demoContentRepository)
+      return read(demoContentRepository);
     }
 
-    throw new DataServiceUnavailableError("content", { cause })
+    throw new DataServiceUnavailableError("content", { cause });
   }
 }
 
@@ -339,53 +379,57 @@ async function writeWithConfiguredRepository<T>(
   write: (repository: ContentRepository) => Promise<T>,
 ) {
   if (contentRepositoryOverride) {
-    return write(contentRepositoryOverride)
+    return write(contentRepositoryOverride);
   }
 
-  const env = getServerEnv()
-  const policy = getOperatingModePolicy()
+  const env = getServerEnv();
+  const policy = getOperatingModePolicy();
 
   if (policy.repositorySource === "demo") {
-    return write(demoContentRepository)
+    return write(demoContentRepository);
   }
 
   if (!env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("content")
+    throw new DataServiceUnavailableError("content");
   }
 
   try {
     return await write(
       createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
-    )
+    );
   } catch (cause) {
-    throw new DataServiceUnavailableError("content", { cause })
+    throw new DataServiceUnavailableError("content", { cause });
   }
 }
 
 async function writeStrictDatabase<T>(
   write: (repository: ContentRepository) => Promise<T>,
 ) {
-  const env = getServerEnv()
+  const env = getServerEnv();
 
   if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
-    throw new DataServiceUnavailableError("content")
+    throw new DataServiceUnavailableError("content");
   }
 
   try {
     return await write(
       createDatabaseContentRepository(env.DATABASE_URL, queryPostgres),
-    )
+    );
   } catch (cause) {
-    throw new DataServiceUnavailableError("content", { cause })
+    throw new DataServiceUnavailableError("content", { cause });
   }
 }
 
 async function demoAdminQuestionDashboard(
+  authorization: AdministratorAuthorization,
   filters: AdminQuestionFilters | undefined,
   topics: AdminQuestionDashboard["topics"],
   fallback = false,
 ): Promise<AdminQuestionDashboard> {
-  const questions = await demoContentRepository.getAdminQuestions(filters)
+  const questions = await demoContentRepository.getAdminQuestions(
+    authorization,
+    filters,
+  );
 
   return {
     mode: "demo",
@@ -396,7 +440,10 @@ async function demoAdminQuestionDashboard(
       : "This operating mode uses read-only demo content.",
     sections: buildAdminQuestionSections(questions),
     topics: safeTopicOptions(topics),
-  }
+  };
 }
 
-export { isStudentFacingQuestion, isStudentFacingRetrievalChunk }
+export {
+  isPublishedContent as isStudentFacingQuestion,
+  isStudentSafeRetrievalContent as isStudentFacingRetrievalChunk,
+};

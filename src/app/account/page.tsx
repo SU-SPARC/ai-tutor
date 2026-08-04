@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AnonymousImportPanel } from "@/components/auth/anonymous-import-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { readAnonymousCookieSubject } from "@/lib/auth/anonymous-session";
-import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
-import { signInPath } from "@/lib/auth/return-path";
+import {
+  requirePageAccess,
+  requireStudent,
+  toCurrentUserDto,
+} from "@/lib/auth/authorization";
 import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
@@ -15,10 +17,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AccountPage() {
-  const principal = await resolveAuthenticatedPrincipal();
-  if (!principal) {
-    redirect(signInPath("/account"));
-  }
+  const authorization = await requirePageAccess(requireStudent, "/account");
+  const user = toCurrentUserDto(authorization.principal);
 
   const env = getServerEnv();
   const anonymousId = await readAnonymousCookieSubject();
@@ -36,13 +36,13 @@ export default async function AccountPage() {
           <dl className="grid gap-4 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="font-medium text-muted-foreground">Name</dt>
-              <dd className="mt-1 break-words">{principal.displayName}</dd>
+              <dd className="mt-1 break-words">{user.displayName}</dd>
             </div>
             <div>
               <dt className="font-medium text-muted-foreground">
                 School email
               </dt>
-              <dd className="mt-1 break-all">{principal.email}</dd>
+              <dd className="mt-1 break-all">{user.email}</dd>
             </div>
           </dl>
           <p className="mt-4 text-sm leading-6 text-muted-foreground">

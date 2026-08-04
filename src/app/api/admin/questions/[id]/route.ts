@@ -6,7 +6,7 @@ import type {
   AdminQuestionDetailAction,
   AdminQuestionDetailUpdate,
 } from "@/lib/data/repository";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
 import { isValidReviewStatus } from "@/lib/tutor/professor-admin";
 import { TRUST_LEVELS, type TrustLevel } from "@/lib/types";
 
@@ -92,10 +92,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authorization = await authorizeApiRole("admin");
+  const access = await authorizeApi(requireAdministrator);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   const { id } = await params;
@@ -118,11 +118,11 @@ export async function PATCH(
   }
 
   try {
-    const question = await updateAdminQuestionDetailStrict(questionId, {
-      ...parsed.update,
-      reviewedBy: authorization.principal.displayName,
-      reviewedByUserId: authorization.principal.userId,
-    });
+    const question = await updateAdminQuestionDetailStrict(
+      access.authorization,
+      questionId,
+      parsed.update,
+    );
 
     if (!question) {
       return NextResponse.json(

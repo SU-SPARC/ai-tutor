@@ -5,7 +5,11 @@ import {
   type LocalKeywordRetrievalResult,
   type LocalRetrievalAudience,
 } from "@/lib/ai/retrieval";
-import { authorizeApiRole } from "@/lib/auth/principal";
+import {
+  authorizeApi,
+  hasPermission,
+  requireProfessor,
+} from "@/lib/auth/authorization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,10 +38,10 @@ const MAX_CHUNK_CHARACTERS = 520;
 const MAX_CONTEXT_CHARACTERS = 2400;
 
 export async function POST(request: Request) {
-  const authorization = await authorizeApiRole("professor");
+  const access = await authorizeApi(requireProfessor);
 
-  if (!authorization.ok) {
-    return authorization.response;
+  if (!access.ok) {
+    return access.response;
   }
 
   let body: RetrievalSearchBody;
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
 
   if (
     parsed.input.mode === "admin_dev" &&
-    !authorization.principal.roles.includes("admin")
+    !hasPermission(access.authorization.principal, "administrator")
   ) {
     return NextResponse.json(
       { error: "Administrator role is required for admin_dev retrieval." },

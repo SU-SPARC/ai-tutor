@@ -3,6 +3,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import {
+  isSameOwner,
+  ownerFromAuthorization,
+  type StudentAuthorization,
+} from "@/lib/auth/authorization";
+import {
   readDatabaseRows,
   runDatabaseTransaction,
   type DatabaseQueryExecutor,
@@ -85,40 +90,62 @@ export type TutorSessionRepository = {
 const memoryTutorSessionRepository = createMemoryTutorSessionRepository();
 let tutorSessionRepositoryOverride: TutorSessionRepository | undefined;
 
-export async function createTutorSession(input: CreateTutorSessionInput) {
+export async function createTutorSession(
+  authorization: StudentAuthorization,
+  questionId: string,
+) {
+  const input: CreateTutorSessionInput = {
+    owner: ownerFromAuthorization(authorization),
+    questionId,
+  };
   return writeWithConfiguredRepository((repository) =>
     repository.createSession(input),
   );
 }
 
-export async function getTutorSession(sessionId: string, owner: StudentOwner) {
+export async function getTutorSession(
+  authorization: StudentAuthorization,
+  sessionId: string,
+) {
+  const owner = ownerFromAuthorization(authorization);
   return readWithConfiguredRepository((repository) =>
     repository.getSession(sessionId, owner),
   );
 }
 
 export async function recordTutorSessionAttempt(
-  input: RecordTutorSessionAttemptInput,
+  authorization: StudentAuthorization,
+  input: Omit<RecordTutorSessionAttemptInput, "owner">,
 ) {
+  const authorizedInput = {
+    ...input,
+    owner: ownerFromAuthorization(authorization),
+  };
   return writeWithConfiguredRepository((repository) =>
-    repository.recordAttempt(input),
+    repository.recordAttempt(authorizedInput),
   );
 }
 
 export async function recordTutorSessionAttemptOutcome(
-  input: RecordTutorSessionAttemptOutcomeInput,
+  authorization: StudentAuthorization,
+  input: Omit<RecordTutorSessionAttemptOutcomeInput, "owner">,
 ) {
+  const authorizedInput = {
+    ...input,
+    owner: ownerFromAuthorization(authorization),
+  };
   return writeWithConfiguredRepository((repository) =>
-    repository.recordAttemptOutcome(input),
+    repository.recordAttemptOutcome(authorizedInput),
   );
 }
 
 export async function listTutorSessionsForStudent(
-  owner: StudentOwner,
+  authorization: StudentAuthorization,
 ): Promise<{
   mode: "database" | "demo";
   sessions: TutorSessionRecord[];
 }> {
+  const owner = ownerFromAuthorization(authorization);
   const env = getServerEnv();
   const policy = getOperatingModePolicy();
 
@@ -177,18 +204,20 @@ export async function listTutorSessionsForStudent(
 }
 
 export async function revealTutorSessionHint(
+  authorization: StudentAuthorization,
   sessionId: string,
-  owner: StudentOwner,
 ) {
+  const owner = ownerFromAuthorization(authorization);
   return writeWithConfiguredRepository((repository) =>
     repository.revealHint(sessionId, owner),
   );
 }
 
 export async function revealTutorSessionStep(
+  authorization: StudentAuthorization,
   sessionId: string,
-  owner: StudentOwner,
 ) {
+  const owner = ownerFromAuthorization(authorization);
   return writeWithConfiguredRepository((repository) =>
     repository.revealStep(sessionId, owner),
   );
@@ -221,14 +250,14 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
 
     async getSession(sessionId, owner) {
       const stored = sessions.get(sessionId);
-      return stored && sameOwner(stored.owner, owner)
+      return stored && isSameOwner(stored.owner, owner)
         ? cloneSession(stored.session)
         : undefined;
     },
 
     async listSessionsForStudent(owner) {
       return [...sessions.values()]
-        .filter((stored) => sameOwner(stored.owner, owner))
+        .filter((stored) => isSameOwner(stored.owner, owner))
         .sort((left, right) =>
           right.session.lastSeenAt.localeCompare(left.session.lastSeenAt),
         )
@@ -238,7 +267,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
     async recordAttempt(input) {
       const stored = sessions.get(input.sessionId);
 
-      if (!stored || !sameOwner(stored.owner, input.owner)) {
+      if (!stored || !isSameOwner(stored.owner, input.owner)) {
         return undefined;
       }
       const session = stored.session;
@@ -257,7 +286,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
     async recordAttemptOutcome(input) {
       const stored = sessions.get(input.sessionId);
 
-      if (!stored || !sameOwner(stored.owner, input.owner)) {
+      if (!stored || !isSameOwner(stored.owner, input.owner)) {
         return undefined;
       }
       const session = stored.session;
@@ -286,7 +315,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
     async revealHint(sessionId, owner) {
       const stored = sessions.get(sessionId);
 
-      if (!stored || !sameOwner(stored.owner, owner)) {
+      if (!stored || !isSameOwner(stored.owner, owner)) {
         return undefined;
       }
       const session = stored.session;
@@ -301,7 +330,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
     async revealStep(sessionId, owner) {
       const stored = sessions.get(sessionId);
 
-      if (!stored || !sameOwner(stored.owner, owner)) {
+      if (!stored || !isSameOwner(stored.owner, owner)) {
         return undefined;
       }
       const session = stored.session;
@@ -803,12 +832,6 @@ async function touchDatabaseSession(
 
 function ownerIdentifier(owner: StudentOwner) {
   return owner.kind === "user" ? owner.userId : owner.anonymousId;
-}
-
-function sameOwner(left: StudentOwner, right: StudentOwner) {
-  return (
-    left.kind === right.kind && ownerIdentifier(left) === ownerIdentifier(right)
-  );
 }
 
 function toIsoString(value: Date | string) {

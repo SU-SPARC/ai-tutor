@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { toTutorSessionDto } from "@/lib/api/tutor-session-dto";
+import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { getTutorSession } from "@/lib/data/tutor-session-repository";
-import { resolveStudentOwner } from "@/lib/auth/anonymous-session";
 
 type SessionRouteContext = {
   params: Promise<{ sessionId: string }> | { sessionId: string };
@@ -10,11 +11,14 @@ type SessionRouteContext = {
 
 export async function GET(_request: Request, context: SessionRouteContext) {
   const sessionId = await getSessionId(context);
+  const access = await authorizeStudentResourceApi();
+  if (!access.ok) {
+    return access.response;
+  }
   let session;
 
   try {
-    const owner = await resolveStudentOwner();
-    session = owner ? await getTutorSession(sessionId, owner) : undefined;
+    session = await getTutorSession(access.authorization, sessionId);
   } catch {
     return dataServiceUnavailableResponse();
   }
@@ -26,7 +30,7 @@ export async function GET(_request: Request, context: SessionRouteContext) {
     );
   }
 
-  return NextResponse.json({ session });
+  return NextResponse.json({ session: toTutorSessionDto(session) });
 }
 
 async function getSessionId(context: SessionRouteContext) {

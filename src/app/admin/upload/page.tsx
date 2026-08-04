@@ -12,10 +12,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ADMIN_CONTENT_UPLOAD_MAX_BYTES } from "@/lib/tutor/admin-content-upload";
-import { requirePageRole } from "@/lib/auth/page-authorization";
+import {
+  requireAdministrator,
+  requirePageAccess,
+} from "@/lib/auth/authorization";
 
 export default async function AdminUploadPage() {
-  await requirePageRole("admin");
+  await requirePageAccess(requireAdministrator, "/admin/upload");
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">

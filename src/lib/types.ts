@@ -357,23 +357,6 @@ export type PatternVariable = {
   values?: number[];
 };
 
-export const STUDENT_FACING_TRUST_LEVELS: readonly TrustLevel[] = [
-  "public_original",
-  "professor_approved",
-  "course_approved",
-];
-
-export function isApprovedPublicTrustedContent(content: {
-  review: ReviewMetadata;
-  source: SourceMetadata;
-}) {
-  return (
-    content.review.status === "approved" &&
-    content.source.visibility === "public" &&
-    STUDENT_FACING_TRUST_LEVELS.includes(content.source.trustLevel)
-  );
-}
-
 export function hasGeneratedQuestionDefaults(question: TutorQuestion) {
   return (
     question.review.status === "needs_review" &&

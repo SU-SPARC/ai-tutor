@@ -13,13 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type {
-  InstructorAnalyticsDashboard,
-  ProfessorAnalyticsDashboard,
-} from "@/lib/types";
+import type { ProfessorAnalyticsDto } from "@/lib/api/professor-dtos";
+import type { InstructorAnalyticsDashboard } from "@/lib/types";
 
 type AnalyticsPayload = {
-  analytics?: ProfessorAnalyticsDashboard;
+  analytics?: ProfessorAnalyticsDto;
   error?: string;
 };
 

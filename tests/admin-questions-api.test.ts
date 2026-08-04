@@ -266,7 +266,7 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
         },
       ];
     },
-    async updateAdminQuestions(input) {
+    async updateAdminQuestions(_authorization, input) {
       current = {
         ...current,
         review: {

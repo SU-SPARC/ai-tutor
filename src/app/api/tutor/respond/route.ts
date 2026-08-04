@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import {
   getTutorSession,
@@ -9,8 +10,6 @@ import { getServerEnv } from "@/lib/env/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createTutorResponse } from "@/lib/tutor/tutor-engine";
 import type { TutorRequest } from "@/lib/types";
-import { resolveStudentOwner } from "@/lib/auth/anonymous-session";
-import type { StudentOwner } from "@/lib/auth/principal";
 
 export async function POST(request: Request) {
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
@@ -65,12 +64,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const access = await authorizeStudentResourceApi();
+  if (!access.ok) {
+    return access.response;
+  }
+
   let session;
-  let owner: StudentOwner | undefined;
 
   try {
-    owner = await resolveStudentOwner();
-    session = owner ? await getTutorSession(body.sessionId, owner) : undefined;
+    session = await getTutorSession(access.authorization, body.sessionId);
   } catch {
     return dataServiceUnavailableResponse();
   }
@@ -90,12 +92,6 @@ export async function POST(request: Request) {
 
   const answer = typeof body.answer === "string" ? body.answer : "";
   try {
-    if (!owner) {
-      return NextResponse.json(
-        { error: "Tutor session was not found." },
-        { status: 404 },
-      );
-    }
     const response = await createTutorResponse({
       answer,
       allowLlmFallback: body.allowLlmFallback ?? false,
@@ -106,10 +102,9 @@ export async function POST(request: Request) {
     });
 
     if (body.mode === "check") {
-      await recordTutorSessionAttemptOutcome({
+      await recordTutorSessionAttemptOutcome(access.authorization, {
         answerPreview: answer,
         estimatedTokens: response.usage.estimatedTokens,
-        owner,
         sessionId: session.id,
         source: response.source,
         verdict: response.verdict,

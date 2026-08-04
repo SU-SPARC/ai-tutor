@@ -1,11 +1,17 @@
-import "server-only"
+import "server-only";
 
+import {
+  assertAuthorization,
+  isPublishedContent,
+  isStudentSafeRetrievalContent,
+  reviewerAttribution,
+} from "@/lib/auth/authorization";
 import {
   demoQuestions,
   demoTopics,
   retrievalChunks,
   reviewCandidates,
-} from "@/lib/data/demo-data"
+} from "@/lib/data/demo-data";
 import {
   type AdminQuestionFilters,
   reviewStatusForAction,
@@ -14,70 +20,81 @@ import {
   type ReviewAction,
   type ReviewCandidateUpdate,
   type ReviewQueueFilters,
-} from "@/lib/data/repository"
+} from "@/lib/data/repository";
 import {
   type GeneratedQuestionReviewOutcomes,
-  isApprovedPublicTrustedContent,
   type AdminQuestion,
   type ProfessorPracticeAnalytics,
-  type RetrievalChunk,
   type ReviewCandidate,
   type TutorQuestion,
-} from "@/lib/types"
-import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin"
+} from "@/lib/types";
+import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin";
 
-let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate)
+let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate);
 
 export const demoContentRepository: ContentRepository = {
-  async getAdminQuestions(filters) {
+  async getAdminQuestions(authorization, filters) {
+    assertAuthorization(authorization, "administrator");
     return filterAdminQuestions(
       [
         ...demoQuestions.map(adminQuestionFromTutorQuestion),
         ...reviewQueue.map(adminQuestionFromReviewCandidate),
       ],
       filters,
-    ).map(cloneAdminQuestion)
+    ).map(cloneAdminQuestion);
   },
 
   async getQuestionById(questionId) {
-    return listDemoQuestions().find((question) => question.id === questionId)
+    return listDemoQuestions().find((question) => question.id === questionId);
   },
 
   async getApprovedQuestionById(questionId) {
-    return this.getQuestionById(questionId)
+    return this.getQuestionById(questionId);
   },
 
   async getApprovedQuestions() {
-    return this.listQuestions()
+    return this.listQuestions();
   },
 
   async getQuestionCounts() {
-    return getQuestionCounts(listDemoQuestions())
+    return getQuestionCounts(listDemoQuestions());
   },
 
-  async getProfessorPracticeAnalytics() {
-    return getDemoProfessorPracticeAnalytics()
+  async getProfessorPracticeAnalytics(authorization) {
+    assertAuthorization(authorization, "analytics");
+    return getDemoProfessorPracticeAnalytics();
   },
 
   async getRetrievalChunks() {
-    return retrievalChunks.filter(isStudentFacingRetrievalChunk)
+    return retrievalChunks.filter(isStudentSafeRetrievalContent);
   },
 
-  async getReviewQueue(filters) {
-    return filterReviewQueue(reviewQueue, filters).map(cloneReviewCandidate)
+  async getReviewQueue(authorization, filters) {
+    switch (authorization.permission) {
+      case "administrator":
+        assertAuthorization(authorization, "administrator");
+        break;
+      case "analytics":
+        assertAuthorization(authorization, "analytics");
+        break;
+      default:
+        assertAuthorization(authorization, "professor-review");
+    }
+    return filterReviewQueue(reviewQueue, filters).map(cloneReviewCandidate);
   },
 
   async getTopics() {
-    return this.listTopics()
+    return this.listTopics();
   },
 
-  async importReviewCandidates(candidates) {
-    const incoming = candidates.map(cloneReviewCandidate)
-    const incomingIds = new Set(incoming.map((candidate) => candidate.id))
+  async importReviewCandidates(authorization, candidates) {
+    assertAuthorization(authorization, "professor-review");
+    const incoming = candidates.map(cloneReviewCandidate);
+    const incomingIds = new Set(incoming.map((candidate) => candidate.id));
     reviewQueue = [
       ...reviewQueue.filter((candidate) => !incomingIds.has(candidate.id)),
       ...incoming,
-    ]
+    ];
 
     return {
       candidates: incoming.map(cloneReviewCandidate),
@@ -86,33 +103,37 @@ export const demoContentRepository: ContentRepository = {
         "Imported into the demo review queue. This import is non-durable and resets with the dev server.",
       mode: "demo",
       nonDurable: true,
-    }
+    };
   },
 
   async listQuestions() {
-    return listDemoQuestions()
+    return listDemoQuestions();
   },
 
   async listQuestionsByTopic(topicId) {
-    return listDemoQuestions().filter((question) => question.topicId === topicId)
+    return listDemoQuestions().filter(
+      (question) => question.topicId === topicId,
+    );
   },
 
   async listTopics() {
-    return demoTopics
+    return demoTopics;
   },
 
-  async updateReviewCandidates(input: ReviewCandidateUpdate) {
-    const ids = new Set(input.candidateIds)
-    const updated: ReviewCandidate[] = []
+  async updateReviewCandidates(authorization, input: ReviewCandidateUpdate) {
+    assertAuthorization(authorization, "professor-review");
+    const reviewer = reviewerAttribution(authorization);
+    const ids = new Set(input.candidateIds);
+    const updated: ReviewCandidate[] = [];
 
     reviewQueue = reviewQueue.map((candidate) => {
       if (!ids.has(candidate.id)) {
-        return candidate
+        return candidate;
       }
 
       const status = input.action
         ? reviewStatusForAction(input.action)
-        : candidate.review.status
+        : candidate.review.status;
       const next: ReviewCandidate = {
         ...candidate,
         difficulty: input.difficulty ?? candidate.difficulty,
@@ -120,10 +141,12 @@ export const demoContentRepository: ContentRepository = {
         review: {
           ...candidate.review,
           notes: input.notes ?? candidate.review.notes,
-          reviewedAt: input.action ? new Date().toISOString() : candidate.review.reviewedAt,
+          reviewedAt: input.action
+            ? new Date().toISOString()
+            : candidate.review.reviewedAt,
           reviewedBy:
             input.action || input.notes !== undefined
-              ? input.reviewedBy ?? "professor"
+              ? reviewer.displayName
               : candidate.review.reviewedBy,
           reviewPriority:
             input.reviewPriority ?? candidate.review.reviewPriority ?? "normal",
@@ -136,58 +159,62 @@ export const demoContentRepository: ContentRepository = {
               ? "professor_approved"
               : candidate.source.trustLevel,
         },
-      }
+      };
 
-      updated.push(cloneReviewCandidate(next))
-      return next
-    })
+      updated.push(cloneReviewCandidate(next));
+      return next;
+    });
 
-    return updated
+    return updated;
   },
 
-  async updateAdminQuestions() {
-    return []
+  async updateAdminQuestions(authorization) {
+    assertAuthorization(authorization, "administrator");
+    return [];
   },
 
-  async regenerateAdminQuestion() {
-    return undefined
+  async regenerateAdminQuestion(authorization) {
+    assertAuthorization(authorization, "administrator");
+    return undefined;
   },
 
-  async updateAdminQuestionDetail() {
-    return undefined
+  async updateAdminQuestionDetail(authorization) {
+    assertAuthorization(authorization, "administrator");
+    return undefined;
   },
 
   async updateReviewCandidateStatus(
+    authorization,
     candidateId: string,
     action: ReviewAction,
-    reviewedBy?: string,
   ) {
-    const updated = await this.updateReviewCandidates({
+    assertAuthorization(authorization, "professor-review");
+    const updated = await this.updateReviewCandidates(authorization, {
       action,
       candidateIds: [candidateId],
-      reviewedBy,
-    })
+    });
 
-    return updated[0]
+    return updated[0];
   },
-}
+};
 
 function listDemoQuestions() {
-  return demoQuestions.filter(isStudentFacingQuestion)
+  return demoQuestions.filter(isPublishedContent);
 }
 
 function getQuestionCounts(questions: TutorQuestion[]): QuestionCounts {
   return questions.reduce<QuestionCounts>(
     (counts, question) => {
-      counts.total += 1
-      counts.byTopic[question.topicId] = (counts.byTopic[question.topicId] ?? 0) + 1
-      return counts
+      counts.total += 1;
+      counts.byTopic[question.topicId] =
+        (counts.byTopic[question.topicId] ?? 0) + 1;
+      return counts;
     },
     {
       byTopic: {},
       total: 0,
     },
-  )
+  );
 }
 
 function getDemoProfessorPracticeAnalytics() {
@@ -213,12 +240,12 @@ function getDemoProfessorPracticeAnalytics() {
       llmAttempts: 0,
       stepsRevealed: 3,
     },
-  ]
+  ];
   const questions = demoQuestions.map((question, index) => {
-    const stats = questionStats[index % questionStats.length]
+    const stats = questionStats[index % questionStats.length];
     const topicTitle =
       demoTopics.find((topic) => topic.id === question.topicId)?.title ??
-      question.topicId
+      question.topicId;
 
     return {
       ...stats,
@@ -226,41 +253,41 @@ function getDemoProfessorPracticeAnalytics() {
       questionTitle: question.title,
       topicId: question.topicId,
       topicTitle,
-    }
-  })
+    };
+  });
   const byTopic = new Map<
     string,
     ProfessorPracticeAnalytics["topics"][number]
-  >()
+  >();
 
   for (const question of questions) {
-    const current =
-      byTopic.get(question.topicId) ??
-      {
-        attempts: 0,
-        correctAttempts: 0,
-        hintsUsed: 0,
-        llmAttempts: 0,
-        stepsRevealed: 0,
-        topicId: question.topicId,
-        topicTitle: question.topicTitle,
-      }
+    const current = byTopic.get(question.topicId) ?? {
+      attempts: 0,
+      correctAttempts: 0,
+      hintsUsed: 0,
+      llmAttempts: 0,
+      stepsRevealed: 0,
+      topicId: question.topicId,
+      topicTitle: question.topicTitle,
+    };
 
-    current.attempts += question.attempts
-    current.correctAttempts += question.correctAttempts
-    current.hintsUsed += question.hintsUsed
-    current.llmAttempts += question.llmAttempts
-    current.stepsRevealed += question.stepsRevealed
-    byTopic.set(question.topicId, current)
+    current.attempts += question.attempts;
+    current.correctAttempts += question.correctAttempts;
+    current.hintsUsed += question.hintsUsed;
+    current.llmAttempts += question.llmAttempts;
+    current.stepsRevealed += question.stepsRevealed;
+    byTopic.set(question.topicId, current);
   }
 
   return {
     commonMisconceptions: questions.flatMap((question) => {
-      const source = demoQuestions.find((item) => item.id === question.questionId)
+      const source = demoQuestions.find(
+        (item) => item.id === question.questionId,
+      );
       const missedAttempts = Math.max(
         0,
         question.attempts - question.correctAttempts,
-      )
+      );
 
       return (
         source?.misconceptions.map((misconception) => ({
@@ -272,7 +299,7 @@ function getDemoProfessorPracticeAnalytics() {
           topicId: question.topicId,
           topicTitle: question.topicTitle,
         })) ?? []
-      )
+      );
     }),
     generatedQuestionOutcomes: demoGeneratedQuestionOutcomes(),
     mode: "demo" as const,
@@ -293,35 +320,24 @@ function getDemoProfessorPracticeAnalytics() {
       totalTutorSessions: 26,
     },
     topics: [...byTopic.values()],
-  }
+  };
 }
 
 function demoGeneratedQuestionOutcomes(): GeneratedQuestionReviewOutcomes {
   return reviewQueue.reduce((counts, candidate) => {
-    counts[candidate.review.status] += 1
-    return counts
-  }, emptyGeneratedQuestionReviewOutcomes())
+    counts[candidate.review.status] += 1;
+    return counts;
+  }, emptyGeneratedQuestionReviewOutcomes());
 }
 
 export function resetDemoReviewQueueForTests() {
-  reviewQueue = reviewCandidates.map(cloneReviewCandidate)
+  reviewQueue = reviewCandidates.map(cloneReviewCandidate);
 }
 
-export function isStudentFacingQuestion(question: TutorQuestion) {
-  return isApprovedPublicTrustedContent(question)
-}
-
-export function isStudentFacingRetrievalChunk(chunk: RetrievalChunk) {
-  return (
-    isApprovedPublicTrustedContent(chunk) ||
-    (chunk.review.status === "approved" &&
-      chunk.source.visibility === "private" &&
-      chunk.source.trustLevel === "private_reference" &&
-      chunk.source.sourceType === "private_reference_pattern" &&
-      Boolean(chunk.llmSafeSummary?.trim()) &&
-      chunk.body === chunk.llmSafeSummary)
-  )
-}
+export {
+  isPublishedContent as isStudentFacingQuestion,
+  isStudentSafeRetrievalContent as isStudentFacingRetrievalChunk,
+};
 
 function filterReviewQueue(
   candidates: ReviewCandidate[],
@@ -329,26 +345,26 @@ function filterReviewQueue(
 ) {
   return candidates.filter((candidate) => {
     if (filters.status && candidate.review.status !== filters.status) {
-      return false
+      return false;
     }
 
     if (
       filters.reviewPriority &&
       (candidate.review.reviewPriority ?? "normal") !== filters.reviewPriority
     ) {
-      return false
+      return false;
     }
 
     if (filters.difficulty && candidate.difficulty !== filters.difficulty) {
-      return false
+      return false;
     }
 
     if (filters.topicId && candidate.topicId !== filters.topicId) {
-      return false
+      return false;
     }
 
-    return true
-  })
+    return true;
+  });
 }
 
 function filterAdminQuestions(
@@ -357,15 +373,18 @@ function filterAdminQuestions(
 ) {
   return questions.filter((question) => {
     if (filters.status && question.review.status !== filters.status) {
-      return false
+      return false;
     }
 
     if (filters.topicId && question.topicId !== filters.topicId) {
-      return false
+      return false;
     }
 
-    if (filters.sourceType && question.source.sourceType !== filters.sourceType) {
-      return false
+    if (
+      filters.sourceType &&
+      question.source.sourceType !== filters.sourceType
+    ) {
+      return false;
     }
 
     if (
@@ -374,20 +393,22 @@ function filterAdminQuestions(
         question.source.sourceType,
       )
     ) {
-      return false
+      return false;
     }
 
-    return true
-  })
+    return true;
+  });
 }
 
-function adminQuestionFromTutorQuestion(question: TutorQuestion): AdminQuestion {
+function adminQuestionFromTutorQuestion(
+  question: TutorQuestion,
+): AdminQuestion {
   return {
     ...question,
     topicTitle:
       demoTopics.find((topic) => topic.id === question.topicId)?.title ??
       question.topicId,
-  }
+  };
 }
 
 function adminQuestionFromReviewCandidate(
@@ -400,7 +421,7 @@ function adminQuestionFromReviewCandidate(
       candidate.topic ??
       demoTopics.find((topic) => topic.id === candidate.topicId)?.title ??
       candidate.topicId,
-  }
+  };
 }
 
 function cloneReviewCandidate(candidate: ReviewCandidate): ReviewCandidate {
@@ -423,7 +444,7 @@ function cloneReviewCandidate(candidate: ReviewCandidate): ReviewCandidate {
         ? [...candidate.source.patternIds]
         : undefined,
     },
-  }
+  };
 }
 
 function cloneAdminQuestion(question: AdminQuestion): AdminQuestion {
@@ -446,5 +467,5 @@ function cloneAdminQuestion(question: AdminQuestion): AdminQuestion {
         ? [...question.source.patternIds]
         : undefined,
     },
-  }
+  };
 }
