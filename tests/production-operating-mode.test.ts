@@ -192,6 +192,19 @@ describe("production operating mode", () => {
       repositorySource: "database",
     });
   });
+
+  it("uses the demo repository in production and staging when explicitly selected", () => {
+    expect(policy("staging", true)).toMatchObject({
+      allowDemoFallback: false,
+      mode: "staging",
+      repositorySource: "demo",
+    });
+    expect(policy("production", true)).toMatchObject({
+      allowDemoFallback: false,
+      mode: "production",
+      repositorySource: "demo",
+    });
+  });
 });
 
 function policy(
