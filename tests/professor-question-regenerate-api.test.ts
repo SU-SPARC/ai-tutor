@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { POST as regenerateAdminQuestion } from "@/app/api/admin/questions/[id]/regenerate/route";
+import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
@@ -11,14 +11,18 @@ import type {
 } from "@/lib/data/repository";
 import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration";
 import type { AdminQuestion } from "@/lib/types";
-import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_PROFESSOR,
+} from "./auth-test-helpers";
 
 const TOKEN = "admin-secret";
 
 describe("admin question regeneration API", () => {
   beforeEach(() => {
     resetReviewQueueForTests();
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     vi.stubEnv("APP_DEMO_MODE", "true");
     vi.stubEnv("DATABASE_URL", "");
   });
@@ -29,12 +33,12 @@ describe("admin question regeneration API", () => {
     vi.unstubAllEnvs();
   });
 
-  it("requires the admin role and keeps demo mode read-only", async () => {
+  it("requires the professor role and keeps demo mode read-only", async () => {
     mockPrincipal(undefined);
     const unauthenticated = await postRegenerate("generated-regeneration", "", {
       keepPattern: true,
     });
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     const readOnly = await postRegenerate("generated-regeneration", TOKEN, {
       keepPattern: true,
     });
@@ -155,7 +159,7 @@ describe("admin question regeneration API", () => {
 
 function postRegenerate(id: string, token: string, body?: unknown) {
   return regenerateAdminQuestion(
-    new Request(`http://test/api/admin/questions/${id}/regenerate`, {
+    new Request(`http://test/api/professor/questions/${id}/regenerate`, {
       body: body ? JSON.stringify(body) : undefined,
       headers: {
         ...(body ? { "Content-Type": "application/json" } : {}),

@@ -8,16 +8,12 @@ import {
   type DatabaseQueryExecutor,
 } from "@/lib/data/database-executor";
 import { queryPostgres } from "@/lib/data/postgres";
-
-export const APPLICATION_ROLES = ["student", "professor", "admin"] as const;
-
-export type ApplicationRole = (typeof APPLICATION_ROLES)[number];
+import type { ApplicationRole } from "@/lib/auth/roles";
 
 export type ApplicationUserAccess = {
   displayName: string;
   email: string;
   id: string;
-  roles: ApplicationRole[];
   sessionVersion: number;
   status: "active" | "deleted" | "disabled" | "invited";
 };
@@ -118,13 +114,6 @@ export async function upsertClerkAccount(
     }
     await transactionQuery(
       `
-        insert into user_roles (user_id, role_id, granted_by_user_id)
-        values ($1, 'student', 'system:schema-migration')
-      `,
-      [userId],
-    );
-    await transactionQuery(
-      `
         insert into audit_events (
           actor_user_id,
           actor_subject,
@@ -139,7 +128,7 @@ export async function upsertClerkAccount(
         userId,
         JSON.stringify({
           identityProvider: CLERK_IDENTITY_PROVIDER,
-          initialRole: "student",
+          defaultAccess: "student",
         }),
       ],
     );
@@ -182,20 +171,10 @@ export async function getApplicationUserAccess(
         u.email,
         u.display_name,
         u.status,
-        u.session_version,
-        coalesce(
-          array_agg(ur.role_id order by ur.role_id)
-            filter (
-              where ur.revoked_at is null
-                and (ur.expires_at is null or ur.expires_at > now())
-            ),
-          array[]::text[]
-        ) as roles
+        u.session_version
       from users u
-      left join user_roles ur on ur.user_id = u.id
       where u.id = $1
         and u.user_type = 'human'
-      group by u.id
       limit 1
     `,
     [userId],
@@ -210,10 +189,62 @@ export async function getApplicationUserAccess(
     displayName: String(row.display_name),
     email: String(row.email),
     id: String(row.id),
-    roles: stringArray(row.roles).filter(isApplicationRole),
     sessionVersion: Number(row.session_version),
     status: row.status as ApplicationUserAccess["status"],
   };
+}
+
+export async function syncClerkRoleProjection(
+  userId: string,
+  role: ApplicationRole,
+  query: DatabaseQueryExecutor = queryPostgres,
+) {
+  return runDatabaseTransaction(query, async (transactionQuery) => {
+    await transactionQuery(
+      `
+        insert into user_roles (user_id, role_id, granted_by_user_id)
+        values ($1, 'student', 'system:schema-migration')
+        on conflict (user_id, role_id) do update
+        set revoked_at = null,
+            revoked_by_user_id = null,
+            expires_at = null,
+            updated_at = now()
+        where user_roles.revoked_at is not null
+           or user_roles.expires_at is not null
+      `,
+      [userId],
+    );
+
+    if (role === "professor") {
+      await transactionQuery(
+        `
+          insert into user_roles (user_id, role_id, granted_by_user_id)
+          values ($1, 'professor', 'system:schema-migration')
+          on conflict (user_id, role_id) do update
+          set revoked_at = null,
+              revoked_by_user_id = null,
+              expires_at = null,
+              updated_at = now()
+          where user_roles.revoked_at is not null
+             or user_roles.expires_at is not null
+        `,
+        [userId],
+      );
+    } else {
+      await transactionQuery(
+        `
+          update user_roles
+          set revoked_at = now(),
+              revoked_by_user_id = 'system:schema-migration',
+              updated_at = now()
+          where user_id = $1
+            and role_id = 'professor'
+            and revoked_at is null
+        `,
+        [userId],
+      );
+    }
+  });
 }
 
 async function requireApplicationUserAccess(
@@ -272,12 +303,4 @@ async function findConflictingEmail(
     [email, excludedUserId ?? null],
   );
   return Boolean(rows[0]);
-}
-
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(String) : [];
-}
-
-function isApplicationRole(value: string): value is ApplicationRole {
-  return (APPLICATION_ROLES as readonly string[]).includes(value);
 }

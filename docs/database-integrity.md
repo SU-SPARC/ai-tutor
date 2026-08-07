@@ -81,7 +81,7 @@ Repair is optional and intentionally separate. It requires all of the following:
 - `--confirm-repair`;
 - a separate `INTEGRITY_REPAIR_DATABASE_URL` credential;
 - `INTEGRITY_REPAIR_ACTOR_USER_ID` naming an active human application user with
-  an unexpired `professor` or `admin` role;
+  an unexpired Clerk-synchronized `professor` role;
 - `INTEGRITY_REPAIR_CHANGE_TICKET` naming the approved ticket; and
 - `--confirm-production` when the ledger target is Production.
 

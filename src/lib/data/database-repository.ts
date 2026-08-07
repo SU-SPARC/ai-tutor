@@ -42,7 +42,7 @@ import type {
   TutorQuestion,
 } from "@/lib/types";
 import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration";
-import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin";
+import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-tools";
 
 type QuestionRow = {
   accepted_answers_json: unknown;
@@ -103,7 +103,7 @@ export function createDatabaseContentRepository(
 ): ContentRepository {
   return {
     async getAdminQuestions(authorization, filters) {
-      assertAuthorization(authorization, "administrator");
+      assertAuthorization(authorization, "professor");
       const { params, sql } = adminQuestionQuery(filters);
       const rows = await readDatabaseRows(query, sql, params);
       return rows.map((row) => mapAdminQuestionRow(row as QuestionRow));
@@ -167,7 +167,7 @@ export function createDatabaseContentRepository(
     },
 
     async getProfessorPracticeAnalytics(authorization) {
-      assertAuthorization(authorization, "analytics");
+      assertAuthorization(authorization, "professor");
       const [questionRows, summaryRows, misconceptionRows, generatedRows] =
         await Promise.all([
           readDatabaseRows(
@@ -376,23 +376,14 @@ export function createDatabaseContentRepository(
     },
 
     async getReviewQueue(authorization, filters) {
-      switch (authorization.permission) {
-        case "administrator":
-          assertAuthorization(authorization, "administrator");
-          break;
-        case "analytics":
-          assertAuthorization(authorization, "analytics");
-          break;
-        default:
-          assertAuthorization(authorization, "professor-review");
-      }
+      assertAuthorization(authorization, "professor");
       const { params, sql } = reviewQueueQuery(filters);
       const rows = await readDatabaseRows(query, sql, params);
       return rows.map((row) => mapReviewCandidateRow(row as QuestionRow));
     },
 
     async importReviewCandidates(authorization, candidates) {
-      assertAuthorization(authorization, "professor-review");
+      assertAuthorization(authorization, "professor");
       return runDatabaseTransaction(query, async (transactionQuery) => {
         const imported: ReviewCandidate[] = [];
 
@@ -545,7 +536,7 @@ export function createDatabaseContentRepository(
     },
 
     async updateReviewCandidates(authorization, input: ReviewCandidateUpdate) {
-      assertAuthorization(authorization, "professor-review");
+      assertAuthorization(authorization, "professor");
       const reviewer = reviewerAttribution(authorization);
       if (input.candidateIds.length === 0) {
         return [];
@@ -621,7 +612,7 @@ export function createDatabaseContentRepository(
     },
 
     async updateAdminQuestions(authorization, input: AdminQuestionUpdate) {
-      assertAuthorization(authorization, "administrator");
+      assertAuthorization(authorization, "professor");
       const reviewer = reviewerAttribution(authorization);
       if (input.questionIds.length === 0) {
         return [];
@@ -678,7 +669,7 @@ export function createDatabaseContentRepository(
       questionId: string,
       input: AdminQuestionDetailUpdate,
     ) {
-      assertAuthorization(authorization, "administrator");
+      assertAuthorization(authorization, "professor");
       const reviewer = reviewerAttribution(authorization);
       return runDatabaseTransaction(
         query,
@@ -797,7 +788,7 @@ export function createDatabaseContentRepository(
       authorization,
       input: AdminQuestionRegenerationInput,
     ) {
-      assertAuthorization(authorization, "administrator");
+      assertAuthorization(authorization, "professor");
       const reviewer = reviewerAttribution(authorization);
       return runDatabaseTransaction(
         query,
@@ -956,7 +947,7 @@ export function createDatabaseContentRepository(
     },
 
     async updateReviewCandidateStatus(authorization, candidateId, action) {
-      assertAuthorization(authorization, "professor-review");
+      assertAuthorization(authorization, "professor");
       const updated = await this.updateReviewCandidates(authorization, {
         action,
         candidateIds: [candidateId],

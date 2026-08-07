@@ -5,14 +5,18 @@ import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovere
 import {
   GET as getAdminQuestions,
   PATCH as patchAdminQuestions,
-} from "@/app/api/admin/questions/route";
+} from "@/app/api/professor/questions/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
 } from "@/lib/data/data-store";
 import type { ContentRepository } from "@/lib/data/repository";
 import type { AdminQuestion } from "@/lib/types";
-import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_PROFESSOR,
+} from "./auth-test-helpers";
 
 const TOKEN = "admin-secret";
 const followingSyllabusIds = new Set(
@@ -22,10 +26,10 @@ const nextUncoveredSyllabusIds = new Set(
   nextUncoveredSyllabusReviewCandidateData.map((candidate) => candidate.id),
 );
 
-describe("admin questions API", () => {
+describe("professor questions API", () => {
   beforeEach(() => {
     resetReviewQueueForTests();
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     vi.stubEnv("APP_DEMO_MODE", "true");
     vi.stubEnv("DATABASE_URL", "");
   });
@@ -38,7 +42,7 @@ describe("admin questions API", () => {
 
   it("returns read-only demo state with required sections and details", async () => {
     const response = await getAdminQuestions(
-      new Request("http://test/api/admin/questions"),
+      new Request("http://test/api/professor/questions"),
     );
     const payload = (await response.json()) as {
       dashboard: {
@@ -75,7 +79,7 @@ describe("admin questions API", () => {
   it("filters by status, topic, source type, and generated-only", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/admin/questions?status=needs_review&topicId=conditional-probability&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&topicId=conditional-probability&sourceType=pattern_derived_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -94,10 +98,10 @@ describe("admin questions API", () => {
     ).toBe(true);
   });
 
-  it("shows all 60 following-syllabus drafts in the admin review section", async () => {
+  it("shows all 60 following-syllabus drafts in the professor review section", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/admin/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -123,10 +127,10 @@ describe("admin questions API", () => {
     ).toBe(true);
   });
 
-  it("shows all 60 next-uncovered drafts in the admin review section", async () => {
+  it("shows all 60 next-uncovered drafts in the professor review section", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/admin/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -152,12 +156,12 @@ describe("admin questions API", () => {
     ).toBe(true);
   });
 
-  it("requires the admin role for mutations and keeps demo mode read-only", async () => {
+  it("requires the professor role for mutations and keeps demo mode read-only", async () => {
     mockPrincipal(undefined);
     const unauthenticated = await patchAdminQuestions(
       mutationRequest({ action: "reject", questionId: "dice-sum-eight" }, ""),
     );
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     const readOnly = await patchAdminQuestions(
       mutationRequest(
         { action: "reject", questionId: "dice-sum-eight" },
@@ -197,7 +201,7 @@ describe("admin questions API", () => {
 });
 
 function mutationRequest(body: unknown, token = TOKEN) {
-  return new Request("http://test/api/admin/questions", {
+  return new Request("http://test/api/professor/questions", {
     body: JSON.stringify(body),
     headers: {
       "Content-Type": "application/json",

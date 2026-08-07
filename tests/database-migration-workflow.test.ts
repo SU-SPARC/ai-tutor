@@ -30,14 +30,20 @@ describe("safe database migration workflow", () => {
     const migrations = await loadMigrations(migrationsDirectory);
 
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     ]);
     expect(
       migrations.every((migration) =>
         /^[0-9a-f]{64}$/.test(migration.checksum),
       ),
     ).toBe(true);
-    expect(migrations.every((migration) => !migration.destructive)).toBe(true);
+    expect(
+      migrations.slice(0, 9).every((migration) => !migration.destructive),
+    ).toBe(true);
+    expect(migrations[9]).toMatchObject({
+      destructive: true,
+      destructiveDirective: true,
+    });
     expect(SUPPORTED_MIGRATION_COMMANDS).toEqual(["status", "check", "up"]);
 
     expect(() =>
@@ -68,7 +74,7 @@ describe("safe database migration workflow", () => {
       issues: [],
       ledgerExists: false,
       state: "pending",
-      total: 9,
+      total: 10,
     });
     expect(status.pending.map((migration) => migration.filename)).toEqual(
       migrations.map((migration) => migration.filename),
@@ -89,22 +95,25 @@ describe("safe database migration workflow", () => {
 
     const firstRun = await runPendingMigrations({
       actor: "ci:migration-test",
+      allowDestructive: true,
+      changeTicket: "TEST-ROLE-SIMPLIFICATION",
       client,
       deploymentSha: "0123456789abcdef",
+      destructiveApprovedBy: "ci:independent-approver",
       migrations,
       target: "test",
     });
 
-    expect(firstRun.applied).toHaveLength(9);
+    expect(firstRun.applied).toHaveLength(10);
     expect(firstRun.status.state).toBe("current");
     expect(deploymentCheckExitCode(firstRun.status)).toBe(0);
     expect(statements[0]).toContain("pg_advisory_lock");
     expect(
       statements.filter((statement) => statement === "begin"),
-    ).toHaveLength(9);
+    ).toHaveLength(10);
     expect(
       statements.filter((statement) => statement === "commit"),
-    ).toHaveLength(9);
+    ).toHaveLength(10);
     expect(statements.at(-1)).toContain("pg_advisory_unlock");
 
     const ledger = await database.query<{
@@ -127,7 +136,7 @@ describe("safe database migration workflow", () => {
       from schema_migrations
       order by version
     `);
-    expect(ledger.rows).toHaveLength(9);
+    expect(ledger.rows).toHaveLength(10);
     expect(ledger.rows[0]).toMatchObject({
       actor: "ci:migration-test",
       deployment_sha: "0123456789abcdef",
@@ -149,8 +158,11 @@ describe("safe database migration workflow", () => {
 
     const secondRun = await runPendingMigrations({
       actor: "ci:migration-test",
+      allowDestructive: true,
+      changeTicket: "TEST-ROLE-SIMPLIFICATION",
       client,
       deploymentSha: "0123456789abcdef",
+      destructiveApprovedBy: "ci:independent-approver",
       migrations,
       target: "test",
     });
@@ -163,8 +175,11 @@ describe("safe database migration workflow", () => {
     const migrations = await loadMigrations(migrationsDirectory);
     await runPendingMigrations({
       actor: "ci:migration-test",
+      allowDestructive: true,
+      changeTicket: "TEST-ROLE-SIMPLIFICATION",
       client: database,
       deploymentSha: "0123456789abcdef",
+      destructiveApprovedBy: "ci:independent-approver",
       migrations,
       target: "test",
     });

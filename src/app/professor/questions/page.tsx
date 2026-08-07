@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-import { AdminQuestionReviewPanel } from "@/components/admin/admin-question-review-panel";
+import { ProfessorQuestionReviewPanel } from "@/components/professor/professor-question-review-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +13,14 @@ import {
 } from "@/components/ui/card";
 import { getAdminQuestionDashboard } from "@/lib/data/data-store";
 import {
-  requireAdministrator,
+  requireProfessorReview,
   requirePageAccess,
 } from "@/lib/auth/authorization";
 
-export default async function AdminQuestionsPage() {
+export default async function ProfessorQuestionsPage() {
   const authorization = await requirePageAccess(
-    requireAdministrator,
-    "/admin/questions",
+    requireProfessorReview,
+    "/professor/questions",
   );
   const initialDashboard = await getAdminQuestionDashboard(authorization);
 
@@ -36,14 +36,14 @@ export default async function AdminQuestionsPage() {
               </Link>
             </Button>
             <Badge variant="secondary" className="mb-3">
-              Admin review
+              Professor review
             </Badge>
             <h1 className="text-3xl font-semibold tracking-normal">
               Question review
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review public-safe question records by source, status, topic, and
-              difficulty. Access and mutations require the administrator role.
+              difficulty. Access and mutations require the professor role.
             </p>
           </div>
           <Badge variant="outline" className="h-10 gap-2 px-4">
@@ -54,14 +54,14 @@ export default async function AdminQuestionsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Admin question queue</CardTitle>
+            <CardTitle>Professor question queue</CardTitle>
             <CardDescription>
               Demo mode is read-only. Database-backed review can approve,
               reject, mark needs review, or request regeneration.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminQuestionReviewPanel initialDashboard={initialDashboard} />
+            <ProfessorQuestionReviewPanel initialDashboard={initialDashboard} />
           </CardContent>
         </Card>
       </section>

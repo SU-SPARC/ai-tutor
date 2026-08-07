@@ -1,7 +1,6 @@
 import "server-only";
 
 import type {
-  AdministratorAuthorization,
   AnalyticsAuthorization,
   ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
@@ -112,7 +111,7 @@ export type DataRepositoryMetadata = {
 
 export type ContentRepository = {
   getAdminQuestions(
-    authorization: AdministratorAuthorization,
+    authorization: ProfessorReviewAuthorization,
     filters?: AdminQuestionFilters,
   ): Promise<AdminQuestion[]>;
   getQuestionById(questionId: string): Promise<TutorQuestion | undefined>;
@@ -126,10 +125,7 @@ export type ContentRepository = {
   ): Promise<ProfessorPracticeAnalytics>;
   getRetrievalChunks(): Promise<RetrievalChunk[]>;
   getReviewQueue(
-    authorization:
-      | ProfessorReviewAuthorization
-      | AnalyticsAuthorization
-      | AdministratorAuthorization,
+    authorization: ProfessorReviewAuthorization | AnalyticsAuthorization,
     filters?: ReviewQueueFilters,
   ): Promise<ReviewCandidate[]>;
   getTopics(): Promise<Topic[]>;
@@ -141,11 +137,11 @@ export type ContentRepository = {
   listQuestionsByTopic(topicId: string): Promise<TutorQuestion[]>;
   listTopics(): Promise<Topic[]>;
   regenerateAdminQuestion(
-    authorization: AdministratorAuthorization,
+    authorization: ProfessorReviewAuthorization,
     input: AdminQuestionRegenerationInput,
   ): Promise<AdminQuestionRegenerationResult | undefined>;
   updateAdminQuestionDetail(
-    authorization: AdministratorAuthorization,
+    authorization: ProfessorReviewAuthorization,
     questionId: string,
     input: AdminQuestionDetailUpdate,
   ): Promise<AdminQuestion | undefined>;
@@ -154,7 +150,7 @@ export type ContentRepository = {
     input: ReviewCandidateUpdate,
   ): Promise<ReviewCandidate[]>;
   updateAdminQuestions(
-    authorization: AdministratorAuthorization,
+    authorization: ProfessorReviewAuthorization,
     input: AdminQuestionUpdate,
   ): Promise<AdminQuestion[]>;
   updateReviewCandidateStatus(

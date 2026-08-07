@@ -17,7 +17,7 @@ const ORIGINS = new Set([
 const TARGETS = new Set(["test", "staging", "production"])
 const PRIVATE_TEXT_PATTERN =
   /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only/i
-const UNSAFE_SIGNER_PATTERN = /^(?:professor|admin|system:schema-migration)$/i
+const UNSAFE_SIGNER_PATTERN = /^(?:professor|system:schema-migration)$/i
 const PRODUCTION_SOURCE_PREFIX = "data/production/approved/"
 const OPERATIONAL_TABLES = [
   "tutor_sessions",
@@ -111,7 +111,6 @@ export function validateApprovedContentManifest(
     sourceFilesVerified: false,
   }
 }
-
 export function computeManifestApprovalHash(manifest) {
   const approval = isPlainObject(manifest?.approval) ? manifest.approval : {}
   return sha256(

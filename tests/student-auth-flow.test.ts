@@ -79,6 +79,7 @@ const student = {
   displayName: "Test Student",
   email: "student@example.invalid",
   kind: "user" as const,
+  role: "student" as const,
   roles: ["student"] as const,
   userId: "user:test-student",
 };

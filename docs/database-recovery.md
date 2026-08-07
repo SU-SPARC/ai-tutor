@@ -74,7 +74,7 @@ below determine validation priority, not whether `pg_dump` may omit a table.
 | Schema evidence               | `schema_migrations`                                                                                         | Must match the immutable checksums in the exact Git release; never reconstruct or edit ledger rows during recovery |
 | Approved academic content     | `topics`, `questions`, `hints`, `solution_steps`, `misconceptions`, `question_patterns`, `retrieval_chunks` | Preserve IDs, topic/hint/step order, content, hashes, review state, visibility, and references                     |
 | Immutable academic evidence   | `question_versions`, `question_approval_history`, `approved_content_imports`                                | Must remain append-only and retain reviewer/signer identity and timestamps                                         |
-| Institutional identity/access | `users`, `roles`, `user_roles`                                                                              | Restore application identities and role history; reconcile active access with the identity provider before traffic |
+| Institutional identity/access | `users`, `roles`, `user_roles`                                                                              | Restore identities and the derived student/professor projection; reconcile it from Clerk before traffic             |
 | Student state                 | `tutor_sessions`, `attempts`, `student_progress`                                                            | Preserve ownership, timestamps, question versions, counters, verdicts, and approved retention/deletion state       |
 | AI accounting                 | `ai_usage`, `ai_llm_reservations`                                                                           | Preserve usage/budget evidence; release or reconcile expired pending reservations before traffic                   |
 | Operational evidence          | `audit_events`, `feedback_reports`                                                                          | Preserve audit chronology, actor snapshots, feedback status, and privacy-safe reporter identifiers                 |
@@ -256,7 +256,7 @@ expected backup manifest or provider knowledge.
 - [ ] `topics.sort_order`, `hints.hint_order`, and `solution_steps.step_order` values and gaps match the approved content manifest.
 - [ ] Approved question/content hashes and `approved_content_imports` hashes match signed release evidence.
 - [ ] Latest `question_versions` and approval-history decisions match their parent questions.
-- [ ] The two named professors and named operator have the expected active roles; disabled/deleted users and revoked/expired grants remain disabled/revoked/expired.
+- [ ] Named professors have `publicMetadata.role = "professor"` in the matching Clerk instance and the restored projection agrees; disabled/deleted users remain disabled/deleted.
 - [ ] Sample student sessions, attempts, progress, answer-preview retention, and deletion state match the selected recovery point without exposing them in the ticket.
 - [ ] `ai_usage` totals and reservation state are internally consistent; expired pending reservations are handled through an approved forward action.
 - [ ] Audit chronology and feedback status/timestamps are plausible through the recovery point.

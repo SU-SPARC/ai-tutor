@@ -72,7 +72,7 @@ const SECTION_ORDER = [
   "approved_student_facing",
 ] satisfies AdminQuestionSection[];
 
-export function AdminQuestionReviewPanel({
+export function ProfessorQuestionReviewPanel({
   initialDashboard,
 }: {
   initialDashboard: AdminQuestionDashboard;
@@ -112,7 +112,9 @@ export function AdminQuestionReviewPanel({
         params.set("generatedOnly", "true");
       }
 
-      const result = await fetch(`/api/admin/questions?${params.toString()}`);
+      const result = await fetch(
+        `/api/professor/questions?${params.toString()}`,
+      );
       const payload = (await result.json()) as {
         dashboard?: AdminQuestionDashboard;
         error?: string;
@@ -146,7 +148,7 @@ export function AdminQuestionReviewPanel({
     try {
       if (action === "request_regeneration") {
         const result = await fetch(
-          `/api/admin/questions/${encodeURIComponent(questionId)}/regenerate`,
+          `/api/professor/questions/${encodeURIComponent(questionId)}/regenerate`,
           {
             method: "POST",
             headers: {
@@ -170,7 +172,7 @@ export function AdminQuestionReviewPanel({
         return;
       }
 
-      const result = await fetch("/api/admin/questions", {
+      const result = await fetch("/api/professor/questions", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

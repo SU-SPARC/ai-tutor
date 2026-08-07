@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PATCH as patchAdminQuestion } from "@/app/api/admin/questions/[id]/route";
+import { PATCH as patchAdminQuestion } from "@/app/api/professor/questions/[id]/route";
 import {
   resetReviewQueueForTests,
   setContentRepositoryForTests,
@@ -10,14 +10,18 @@ import type {
   ContentRepository,
 } from "@/lib/data/repository";
 import type { AdminQuestion } from "@/lib/types";
-import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_PROFESSOR,
+} from "./auth-test-helpers";
 
 const TOKEN = "admin-secret";
 
 describe("admin question detail API", () => {
   beforeEach(() => {
     resetReviewQueueForTests();
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     vi.stubEnv("APP_DEMO_MODE", "true");
     vi.stubEnv("DATABASE_URL", "");
   });
@@ -28,14 +32,14 @@ describe("admin question detail API", () => {
     vi.unstubAllEnvs();
   });
 
-  it("requires the admin role and keeps demo mode read-only", async () => {
+  it("requires the professor role and keeps demo mode read-only", async () => {
     mockPrincipal(undefined);
     const unauthenticated = await patchQuestion(
       "generated-detail",
       { action: "approve_generated" },
       "",
     );
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     const readOnly = await patchQuestion("generated-detail", {
       action: "approve_generated",
     });
@@ -82,7 +86,7 @@ describe("admin question detail API", () => {
       ],
       review: {
         notes: "Approved after checking the arithmetic.",
-        reviewedBy: "Test Administrator",
+        reviewedBy: "Test Professor",
         status: "approved",
       },
       source: { trustLevel: "professor_approved" },
@@ -192,7 +196,7 @@ describe("admin question detail API", () => {
 
 function patchQuestion(id: string, body: unknown, token = TOKEN) {
   return patchAdminQuestion(
-    new Request(`http://test/api/admin/questions/${id}`, {
+    new Request(`http://test/api/professor/questions/${id}`, {
       body: JSON.stringify(body),
       headers: {
         "Content-Type": "application/json",

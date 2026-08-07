@@ -166,36 +166,29 @@ describe("server-controlled role provisioning", () => {
       .join("\n");
 
     expect(clientSource).not.toMatch(
-      /user_roles|grantRole|role_id|PROFESSOR_(EMAILS|ALLOWLIST)/,
+      /user_roles|grantRole|role_id|publicMetadata[\s\S]{0,80}role|unsafeMetadata[\s\S]{0,80}role|PROFESSOR_(EMAILS|ALLOWLIST)/,
     );
     expect(applicationSource).not.toMatch(
-      /PROFESSOR_(EMAILS|ALLOWLIST)|allowedProfessorEmails|@suffolk\.edu/i,
+      /updateUserMetadata|replaceUserMetadata|PROFESSOR_(EMAILS|ALLOWLIST)|allowedProfessorEmails|@suffolk\.edu/i,
     );
   });
 
-  it("documents and implements audited operator-only provisioning", () => {
+  it("documents owner-only Clerk metadata provisioning", () => {
     const documentation = readFileSync(
       path.join(process.cwd(), "docs/authentication-authorization.md"),
       "utf8",
     );
-    const operatorScript = readFileSync(
-      path.join(process.cwd(), "scripts/manage-user-role.mjs"),
+    const packageJson = readFileSync(
+      path.join(process.cwd(), "package.json"),
       "utf8",
     );
 
-    expect(documentation).toContain("Initial professor provisioning");
+    expect(documentation).toContain("Assigning the professor role");
+    expect(documentation).toContain('publicMetadata.role` to `"professor"');
     expect(documentation).toContain(
-      "There is no client route, form field, email allowlist",
+      "There is no administrator role or in-app role-management page",
     );
-    expect(documentation).toContain(
-      "npm run auth:role -- grant --user USER_ID --role professor",
-    );
-    expect(operatorScript).toContain("insert into user_roles");
-    expect(operatorScript).toContain("insert into audit_events");
-    expect(operatorScript).toContain("session_version = session_version + 1");
-    expect(operatorScript).toContain(
-      "--operator must identify an existing active administrator",
-    );
+    expect(packageJson).not.toContain('"auth:role"');
   });
 });
 

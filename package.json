@@ -16,7 +16,6 @@
     "db:integrity": "node scripts/database-integrity.mjs",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",
-    "auth:role": "node scripts/manage-user-role.mjs",
     "extract:pdf": "node scripts/extract-private-pdfs.mjs",
     "extract:tex": "node scripts/extract-private-tex.mjs",
     "prepare:patterns": "node scripts/prepare-question-patterns.mjs",

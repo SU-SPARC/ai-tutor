@@ -13,6 +13,7 @@ export const TEST_STUDENT: AuthenticatedPrincipal = {
   userId: "user:test-student",
   displayName: "Test Student",
   email: "student@example.invalid",
+  role: "student",
   roles: ["student"],
 };
 
@@ -21,15 +22,8 @@ export const TEST_PROFESSOR: AuthenticatedPrincipal = {
   userId: "user:test-professor",
   displayName: "Test Professor",
   email: "professor@example.invalid",
+  role: "professor",
   roles: ["student", "professor"],
-};
-
-export const TEST_ADMIN: AuthenticatedPrincipal = {
-  kind: "user",
-  userId: "user:test-admin",
-  displayName: "Test Administrator",
-  email: "admin@example.invalid",
-  roles: ["student", "professor", "admin"],
 };
 
 export const TEST_ANONYMOUS_OWNER: StudentOwner = {

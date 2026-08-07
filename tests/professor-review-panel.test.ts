@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import topicData from "../data/demo/topics.json";
-import { ProfessorFriendlyReviewPanel } from "@/components/admin/professor-friendly-review-panel";
+import { ProfessorFriendlyReviewPanel } from "@/components/professor/professor-friendly-review-panel";
 
 describe("professor-friendly review panel", () => {
   it("renders syllabus topic choices in fixture order before enabling queue load", () => {
@@ -34,7 +34,7 @@ describe("professor-friendly review panel", () => {
     const reviewPanelSource = readFileSync(
       path.join(
         process.cwd(),
-        "src/components/admin/professor-friendly-review-panel.tsx",
+        "src/components/professor/professor-friendly-review-panel.tsx",
       ),
       "utf8",
     );
@@ -50,7 +50,7 @@ describe("professor-friendly review panel", () => {
       readFileSync(
         path.join(
           process.cwd(),
-          "src/components/admin/instructor-analytics-panel.tsx",
+          "src/components/professor/instructor-analytics-panel.tsx",
         ),
         "utf8",
       ),

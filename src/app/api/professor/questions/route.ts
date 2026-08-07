@@ -10,8 +10,8 @@ import type {
   AdminQuestionUpdate,
 } from "@/lib/data/repository";
 import { isValidSourceType } from "@/lib/api/question-serialization";
-import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
-import { isValidReviewStatus } from "@/lib/tutor/professor-admin";
+import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
+import { isValidReviewStatus } from "@/lib/tutor/professor-tools";
 import type { ReviewStatus, SourceType } from "@/lib/types";
 
 const ADMIN_QUESTION_ACTIONS = [
@@ -22,7 +22,7 @@ const ADMIN_QUESTION_ACTIONS = [
 ] satisfies AdminQuestionUpdate["action"][];
 
 export async function GET(request: Request) {
-  const access = await authorizeApi(requireAdministrator);
+  const access = await authorizeApi(requireProfessorReview);
   if (!access.ok) {
     return access.response;
   }
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await authorizeApi(requireAdministrator);
+  const access = await authorizeApi(requireProfessorReview);
 
   if (!access.ok) {
     return access.response;
@@ -78,7 +78,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Admin question mutations require a configured database. Demo data is read-only.",
+          "Professor question mutations require a configured database. Demo data is read-only.",
       },
       { status: 503 },
     );
@@ -124,7 +124,7 @@ async function parseMutation(
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > 16_384) {
     return {
-      error: "Admin question mutation requests must be smaller than 16KB.",
+      error: "Professor question mutation requests must be smaller than 16KB.",
       status: 413,
     };
   }
@@ -150,7 +150,7 @@ async function parseMutation(
 
   if (!action) {
     return {
-      error: "A supported admin question action is required.",
+      error: "A supported professor question action is required.",
       status: 400,
     };
   }

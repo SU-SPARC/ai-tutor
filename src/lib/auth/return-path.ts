@@ -86,12 +86,7 @@ export function onboardingPath(returnTo?: string | null) {
 
 export function isInstructorReturnPath(value?: string | null) {
   const pathname = new URL(safeReturnPath(value), LOCAL_ORIGIN).pathname;
-  return (
-    pathname === "/professor" ||
-    pathname.startsWith("/professor/") ||
-    pathname === "/admin" ||
-    pathname.startsWith("/admin/")
-  );
+  return pathname === "/professor" || pathname.startsWith("/professor/");
 }
 
 export function postSignInPath(returnTo?: string | null) {

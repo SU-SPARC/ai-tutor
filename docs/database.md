@@ -42,7 +42,7 @@ stable title/id tie-breakers. The public seed reads the canonical catalog from
 positions before writing SQL.
 
 `003_retrieval_chunks.sql` adds server-side retrieval chunk storage and safe
-student/admin views. Student retrieval reads only approved public trusted chunks
+student/internal-review views. Student retrieval reads only approved public trusted chunks
 or approved private reference summaries; raw private book text must remain
 outside public APIs.
 
@@ -53,7 +53,7 @@ production integrity layer without deleting existing rows:
 
 | Area                         | Production invariant                                                                                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Institutional identity       | `users`, `roles`, and `user_roles` separate identity-provider subjects from application roles; active professor/admin membership is required for a review decision  |
+| Institutional identity       | `users` maps Clerk subjects; `roles` and `user_roles` hold the Clerk-synchronized student/professor integrity projection required for review decisions             |
 | Topics                       | IDs/titles are nonblank and `sort_order` is globally unique, nonnegative, and indexed with stable title/ID tie-breakers                                             |
 | Questions                    | Content fields and answer JSON are validated; approved public rows require an immutable reviewer user ID, timestamp, approved trust level, and no archive timestamp |
 | Versions and approvals       | Every question/content-child mutation snapshots the full question into append-only `question_versions`; review transitions append to `question_approval_history`    |
@@ -67,7 +67,7 @@ production integrity layer without deleting existing rows:
 The migration backfills existing review decisions to
 `system:schema-migration`, a non-human system actor. It does not convert legacy
 reviewer labels into professor accounts. New non-pending review decisions must
-use an active `professor` or `admin` user ID; the legacy `reviewed_by` label is
+use an active `professor` user ID; the legacy `reviewed_by` label is
 retained only for compatibility and display.
 
 Question-version `content_hash` values are deterministic internal MD5
@@ -82,6 +82,10 @@ minimal pattern fields required by approved generated questions.
 `009_authentication_authorization.sql` adds application-session versioning and
 the hashed, one-account-only ledger used for anonymous progress claims. Clerk
 provider tokens are not stored in the database.
+
+`010_student_professor_roles.sql` removes legacy administrator grants and the
+administrator role. Clerk `publicMetadata.role` is authoritative; the remaining
+student/professor rows are synchronized projections for database constraints.
 
 Deletion behavior is explicit:
 

@@ -4,7 +4,7 @@ import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { toProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import { importReviewCandidates } from "@/lib/data/data-store";
-import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-admin";
+import { validateGeneratedReviewUpload } from "@/lib/tutor/professor-tools";
 
 const MAX_UPLOAD_BYTES = 256_000;
 

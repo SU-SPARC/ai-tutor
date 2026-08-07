@@ -753,7 +753,7 @@ async function assertHumanRepairActor(client, actorUserId) {
         where u.id = $1
           and u.user_type = 'human'
           and u.status = 'active'
-          and ur.role_id in ('professor', 'admin')
+          and ur.role_id = 'professor'
           and ur.revoked_at is null
           and (ur.expires_at is null or ur.expires_at > now())
       ) as authorized
@@ -762,7 +762,7 @@ async function assertHumanRepairActor(client, actorUserId) {
   );
   if (!result.rows[0]?.authorized) {
     throw new IntegrityWorkflowError(
-      "Repair actor must be an active human professor or administrator.",
+      "Repair actor must be an active human professor.",
     );
   }
 }

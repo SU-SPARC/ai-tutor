@@ -50,9 +50,7 @@ function isCoarselyProtectedPath(pathname: string) {
     pathname === "/account" ||
     pathname === "/onboarding" ||
     pathname === "/professor" ||
-    pathname.startsWith("/professor/") ||
-    pathname === "/admin" ||
-    pathname.startsWith("/admin/")
+    pathname.startsWith("/professor/")
   );
 }
 

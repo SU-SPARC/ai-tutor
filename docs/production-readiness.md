@@ -32,11 +32,11 @@ Audit baseline: `e310048`
 
 ### Application And Routes
 
-- Next.js App Router, React, and TypeScript provide the student, professor, and
-  admin interfaces.
+- Next.js App Router, React, and TypeScript provide the student and professor
+  interfaces.
 - Student pages cover topic browsing, question practice, tutor interaction,
   anonymous session continuity, and progress summaries.
-- Professor/admin pages cover generated-question review, upload previews,
+- Professor pages cover generated-question review, upload previews,
   deterministic regeneration, and aggregate analytics.
 - Route handlers expose question reads, tutor sessions and responses, progress,
   retrieval search, review mutations, uploads, usage, and analytics.
@@ -133,9 +133,9 @@ team should replace each role before a pilot is scheduled.
 | PR-04 | Critical | Separate Development, Preview/Staging, Test, and Production configuration and data.                                                 | In progress       | Platform engineering                          | [Typed environment validation](environment-configuration.md) and automated tests cover configuration; deployed resource isolation remains to be proven.                                                                                                                                                                     |
 | PR-05 | Critical | Remove production demo and in-memory fallbacks.                                                                                     | Complete          | Application engineering                       | [Operating-mode policy](operating-modes.md) and production-mode tests prove database failures return controlled errors and never read or mutate demo state.                                                                                                                                                                 |
 | PR-06 | Critical | Establish production database ownership, billing, credentials, backup, deletion, and incident responsibilities.                     | Decision required | University IT + project owner                 | Written ownership handoff and separate staging/production database evidence.                                                                                                                                                                                                                                                |
-| PR-07 | Critical | Select and integrate production authentication for students, professors, and administrators.                                        | Decision required | University IT + security + engineering        | Approved provider configuration, server sessions, account lifecycle, test identities, and recovery procedure.                                                                                                                                                                                                               |
-| PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation.                             | Planned           | Application engineering                       | Authorization matrix tests cover anonymous, student, professor, and admin roles and student-owned records.                                                                                                                                                                                                                  |
-| PR-09 | Critical | Protect all professor/admin pages and reads; replace the shared secret and record the authenticated reviewer.                       | Complete          | Application engineering                       | [Authenticated review authorization](authentication-authorization.md#shared-review-secret-deprecation) and API regressions prove anonymous/student access is denied, review history records the real reviewer, and no secret is entered or stored in browser UI.                                                            |
+| PR-07 | Critical | Approve the integrated Clerk authentication for students and professors.                                                            | Decision required | University IT + security + engineering        | Approved Clerk configuration, server sessions, account lifecycle, test identities, and recovery procedure.                                                                                                                                                                                                                  |
+| PR-08 | Critical | Centralize deny-by-default authorization and enforce ownership on every route and repository operation.                             | Complete          | Application engineering                       | Authorization matrix tests cover anonymous, student, professor, and student-owned records.                                                                                                                                                                                                                                  |
+| PR-09 | Critical | Protect all professor pages and reads; replace the shared secret and record the authenticated reviewer.                             | Complete          | Application engineering                       | [Authenticated professor authorization](authentication-authorization.md#server-side-enforcement) and API regressions prove anonymous/student access is denied, review history records the real reviewer, and no secret is entered or stored in browser UI.                                                                   |
 | PR-10 | High     | Add a migration ledger, migration status command, CI migration test, safety gates, and recovery instructions.                       | Complete          | Database engineering                          | The [database operations runbook](database-operations.md), checksum-ledger runner, deployment check, destructive/Production gates, and executable empty/upgrade tests provide the required evidence.                                                                                                                        |
 | PR-11 | High     | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete          | Database engineering + privacy owner          | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
 | PR-12 | High     | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe.                              | Planned           | Database engineering                          | Failure and simultaneous-review tests prove atomicity and conflict handling.                                                                                                                                                                                                                                                |
@@ -160,7 +160,7 @@ team should replace each role before a pilot is scheduled.
 
 | Dependency                                                | Required for                                                      | Current evidence                                                              |
 | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Suffolk-approved identity provider                        | Student/professor/admin authentication and account recovery       | Not selected or configured                                                    |
+| Suffolk-approved Clerk configuration                      | Student/professor authentication and account recovery             | Clerk integration exists; institutional approval/configuration is outstanding |
 | Institution- or project-owned Postgres                    | Durable content, sessions, progress, usage, roles, and audit data | Repository support exists; production ownership is unverified                 |
 | Approved LLM and embedding provider                       | Limited AI fallback and optional vector retrieval                 | OpenAI-compatible implementation exists; institutional approval is unverified |
 | Private object storage or approved processing environment | Durable private uploads and derived artifacts                     | Current implementation uses ignored local files                               |
@@ -176,7 +176,7 @@ The project must not invent or assume answers to these questions:
 1. Which Suffolk-approved identity provider and tenant will be used?
 2. May the pilot allow anonymous students, or must all progress be attached to
    institutional accounts?
-3. Who may provision professor/admin roles, and who reviews role changes?
+3. Which project owner may assign professor metadata in Clerk Dashboard, and who reviews those changes?
 4. Who owns and pays for Development, Staging, and Production databases?
 5. What regions, retention periods, deletion rules, RPO, and RTO apply?
 6. Should student answer previews, tutor messages, and AI prompts be collected?
@@ -209,8 +209,8 @@ link it from the corresponding task above.
 ### Unresolved Risks
 
 - Anonymous identifiers and session IDs are not authenticated ownership proof.
-- Professor/admin pages and the admin question read API are not centrally
-  role-protected.
+- Clerk instance ownership, production keys, and institutional approval remain
+  external prerequisites.
 - Accepted answers and solution steps are delivered to the browser before
   progression requires them.
 - Attempt answer previews are retained without an approved retention/deletion
@@ -266,9 +266,10 @@ Production acceptance requires evidence for every item below.
       inventories every page and Route Handler method; direct
       handler tests cover anonymous and lower-role denial.
 - [x] Students can read and mutate only their own sessions and progress.
-- [x] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and
-      exports enforce the appropriate role.
-- [x] Role assignment is server-controlled and auditable.
+- [x] Professor pages, reads, writes, analytics, uploads, and retrieval enforce
+      the professor role.
+- [x] Role assignment is owner-controlled through Clerk public metadata; there
+      is no in-app role-management surface.
 - [x] Review actions record the authenticated reviewer user ID.
 - [x] Production rejects and does not depend on a shared `ADMIN_SECRET`.
 
@@ -302,7 +303,7 @@ Production acceptance requires evidence for every item below.
 - [ ] Structured logs, audit events, error tracking, request IDs, dashboards,
       and alerts are active without exposing secrets, private sources, or student
       answers.
-- [ ] Browser E2E tests cover student, professor, admin, recovery, and
+- [ ] Browser E2E tests cover student, professor, recovery, and
       authorization flows in Staging.
 - [ ] Keyboard, screen-reader, contrast, responsive, and automated accessibility
       checks meet the approved standard.
@@ -346,9 +347,9 @@ must link to its evidence in the task table or accompanying documentation.
 - [ ] Prompt 98 — Authentication architecture approved.
 - [ ] Prompt 99 — Authentication provider integration verified.
 - [ ] Prompt 100 — Student authentication and onboarding verified.
-- [ ] Prompt 101 — Professor/admin authentication verified.
+- [ ] Prompt 101 — Professor authentication verified.
 - [ ] Prompt 102 — Central authorization layer enforced.
-- [x] Prompt 103 — [Shared admin-secret review input removed from production](authentication-authorization.md#shared-review-secret-deprecation).
+- [x] Prompt 103 — [Shared admin-secret review input removed](authentication-authorization.md#configuration-and-local-behavior).
 
 ### Later Production Prompts
 

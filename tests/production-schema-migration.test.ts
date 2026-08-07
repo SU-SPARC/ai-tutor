@@ -207,7 +207,7 @@ describe("production schema hardening migration", () => {
       "select id from roles order by id",
       "id",
     );
-    expect(seededRoles).toEqual(["admin", "professor", "student"]);
+    expect(seededRoles).toEqual(["professor", "student"]);
   });
 
   it("accepts the public development seed without bypassing review identity", async () => {
@@ -564,7 +564,7 @@ describe("production schema hardening migration", () => {
             reviewed_at = now()
         where id = 'draft-question'
       `),
-    ).rejects.toThrow(/active professor or admin identity/);
+    ).rejects.toThrow(/active professor identity/);
 
     await expect(
       database.exec(`

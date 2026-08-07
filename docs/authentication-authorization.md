@@ -2,242 +2,168 @@
 
 ## Current decision
 
-The initial release uses Clerk-managed email and password authentication through
-`@clerk/nextjs`. Institutional OIDC/SSO is not required for this release and the
-application no longer reads `AUTH_ISSUER_URL`, `AUTH_CLIENT_ID`,
-`AUTH_CLIENT_SECRET`, or `AUTH_SESSION_SECRET`.
+The application uses Clerk through `@clerk/nextjs` for sign-up, sign-in,
+verified-email recovery, credential policy, and sessions. Students and
+professors use the same `/sign-up` and `/sign-in` pages. The application does
+not collect or store passwords.
 
-Clerk owns credentials, password policy, password reset, email verification,
-session cookies, and authentication UI. The application never receives or
-stores a password or password hash. Suffolk SSO can be enabled later as a Clerk
-enterprise connection after University approval without replacing the
-application authorization model.
+There are exactly two application roles:
 
-## Trust boundaries
+- `student`
+- `professor`
 
-Authentication and authorization are deliberately separate:
+There is no administrator role or in-app role-management page.
 
-- Clerk proves the current identity and supplies an immutable Clerk user ID.
-- PostgreSQL maps that ID to an application user and stores account status and
-  application roles.
-- Server Components, Route Handlers, and repositories enforce roles and record
-  ownership close to the data operation.
-- Client fields, Clerk public/unsafe metadata, email addresses, and email
-  domains never grant a role.
+## Role source of truth
 
-The mapping is stored in the existing `users` row:
+The authoritative role value is the Clerk user's `publicMetadata.role`.
+`resolveAuthenticatedPrincipal()` reads the current Clerk Backend `User` on the
+server for each authorization boundary. It accepts only the exact value
+`"professor"`; missing, null, differently cased, array-valued, legacy `admin`,
+or otherwise malformed values resolve to `student`.
 
-| Column              | Value                                                  |
-| ------------------- | ------------------------------------------------------ |
-| `identity_provider` | `clerk`                                                |
-| `external_subject`  | authenticated Clerk user ID, such as `user_...`        |
-| `email`             | verified primary email copied at profile creation      |
-| `display_name`      | Clerk display name, falling back to the verified email |
-| `status`            | application-controlled account state                   |
+Clerk public metadata is readable by the user but writable only through Clerk's
+Backend API or Dashboard. This repository exposes no metadata mutation route,
+role selector, role form, email allowlist, or domain-based elevation. Request
+headers, request bodies, unsafe metadata, session claims, display names, and
+email addresses never grant professor access.
 
-`user_roles` remains the only application-role source. Provider tokens,
-passwords, password hashes, session cookies, profile photos, organization
-metadata, and Clerk role metadata are not persisted in the application
-database.
+PostgreSQL retains `roles` and `user_roles` as a derived two-role projection for
+reviewer-integrity triggers and approved-content import checks. It is not an
+operator-managed authorization source. The projection is synchronized from the
+validated Clerk user before the request receives an application principal. The
+`010_student_professor_roles.sql` migration deletes every legacy `admin` grant
+and the `admin` role.
 
-## Account creation and sign-in
+## Account creation
 
-The public authentication pages are:
+On the first valid Clerk session, the server:
 
-- `/sign-up` — Clerk's prebuilt sign-up flow.
-- `/sign-in` — Clerk's prebuilt sign-in, forgot-password, verification, and
-  password-reset flow.
+1. obtains the immutable Clerk user ID from `auth()`;
+2. loads the current Clerk Backend `User` with `currentUser()`;
+3. requires a verified primary email;
+4. maps the identity by `(identity_provider = 'clerk', external_subject = Clerk
+   user ID)`;
+5. creates or refreshes the application `users` row;
+6. resolves missing role metadata to `student`; and
+7. synchronizes the database projection before granting access.
 
-Successful student authentication continues through `/onboarding`. On the
-first active session, the server:
+Email matching is never used to link a different Clerk identity. A duplicate
+email with a different Clerk subject fails closed.
 
-1. reads the authenticated Clerk user ID with Clerk's server helper;
-2. looks up `(identity_provider = 'clerk', external_subject = Clerk user ID)`;
-3. if no mapping exists, retrieves the Clerk user on the server;
-4. requires the primary email to be verified;
-5. creates the application user and `student` role in one database transaction;
-6. rejects a duplicate-email/different-Clerk-ID conflict instead of linking by
-   email.
+## Assigning the professor role
 
-Later requests use the stable Clerk user ID to load the application account.
-The database status and current, non-revoked roles are re-read at each protected
-boundary. Clerk session claims and browser-submitted metadata are not used for
-authorization.
+The intended professor first creates a normal account through the same Clerk
+sign-up page used by students and verifies the email address. The project owner
+then uses the correct Clerk environment:
 
-All callback targets go through `safeReturnPath`. External URLs, recursive
-authentication paths, API paths, credential-bearing query/fragment values, and
-oversized or malformed targets fall back to `/dashboard`. Clerk receives a
-forced, server-computed post-authentication path.
+1. Open Clerk Dashboard and select the Development, Staging, or Production
+   instance that belongs to the deployment.
+2. Open **Users** and select the intended, verified account. Confirm its Clerk
+   user ID and email with the account owner; do not select by display name alone.
+3. Edit the user's public metadata.
+4. Set `publicMetadata.role` to `"professor"`. The equivalent JSON object is:
 
-## Clerk Dashboard setup
+   ```json
+   {
+     "role": "professor"
+   }
+   ```
 
-Create separate Clerk Development and Production instances. In each approved
-instance:
+5. Save, then have the professor reload or navigate to `/professor`.
 
-1. Enable sign-up with email and require an email address.
-2. Enable sign-in with email.
-3. Enable sign-up with password.
-4. Keep **Verify at sign-up** enabled and select the approved email verification
-   strategy. Email verification code is the baseline.
-5. Keep password-reset by verified email enabled so the prebuilt `<SignIn />`
-   flow can handle forgotten passwords.
-6. Configure the application domains/origins for local, Staging, and Production
-   as appropriate for that Clerk instance.
-7. Do not add role fields to sign-up, public metadata, or unsafe metadata.
+A sign-out/sign-in cycle is not required by this implementation because the
+server reads the current Backend `User` rather than a possibly stale custom JWT
+claim. If Clerk Dashboard still shows the old value or the application request
+was already in flight, reload once after the save.
 
-Copy only the corresponding instance keys into the environment. A Production
-deployment rejects Clerk development-instance keys.
+To return an account to student access, remove `role` or set it to `"student"`.
+The next protected request synchronizes the projection and denies professor
+operations. Do not add a custom `admin` value; it resolves to student.
 
-Required in Staging and Production:
+## Server-side enforcement
+
+Central helpers in `src/lib/auth/authorization.ts` include:
+
+- `requireAuthenticatedUser()`
+- `requireStudent()`
+- `requireProfessor()`
+- specialized professor review and analytics aliases
+
+Professors also satisfy the student boundary. The server never relies on
+navigation visibility or proxy middleware as authorization.
+
+`src/proxy.ts` performs a coarse authentication redirect for `/account`,
+`/onboarding`, and `/professor/**`. Every Professor Server Component and Route
+Handler repeats the role check close to its data operation:
+
+- `/professor`, `/professor/review`, `/professor/questions`,
+  `/professor/upload`, and `/professor/analytics`
+- `/api/professor/review`
+- `/api/professor/questions` and its detail/regeneration routes
+- `/api/professor/upload` for generated candidate import
+- `/api/professor/content-preview` for private upload previews
+- `/api/professor/analytics`
+- `/api/retrieval/search`
+
+Unauthenticated page access redirects to `/sign-in` with the original professor
+path as `callbackUrl`. A signed-in student is redirected to `/forbidden`.
+Professor API calls return `401` without authentication and `403` for a student.
+
+Review approvals, rejections, edits, regeneration, imports, and publication
+changes receive the authenticated application user ID through the server-created
+authorization grant. Client-supplied reviewer IDs, roles, and legacy shared
+secret headers are ignored.
+
+## Student boundaries
+
+Students and professors may browse approved public topics/questions and use
+student practice. Tutor-session repositories require a server-resolved
+`StudentOwner` and match both the session ID and the authenticated `user_id` or
+signed anonymous identity. A known session ID owned by another student returns
+not found and cannot affect progress.
+
+Public question endpoints filter through the publication policy: generated,
+needs-review, rejected, private, or otherwise unapproved questions are not
+student-visible.
+
+## Configuration and local behavior
+
+Required Clerk variables in Staging and Production:
 
 ```text
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
 ```
 
-The publishable key is intentionally exposed to the browser. The secret key is
-server-only and must never use a `NEXT_PUBLIC_` prefix. Local Development/Test
-may omit both keys; public/anonymous functionality remains available, while
-`/sign-in` and `/sign-up` display a clear unavailable state and do not simulate
-authentication. A partial key pair is rejected.
+Use separate Clerk Development and Production instances. Production rejects
+Clerk development keys. Local Development/Test may omit both keys; public and
+anonymous practice remains available, while sign-in/sign-up renders a clear
+unavailable state and never simulates authentication. A partial key pair is
+invalid.
 
-Provide the environment-specific Clerk key pair during both the Next.js build
-and runtime deployment. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is compiled into the
-browser bundle; injecting it only after the build is unsupported.
+`ADMIN_SECRET`, `AUTH_TEST_MODE`, the retired OIDC variables, and browser role
+selectors do not enable authentication. `ADMIN_SECRET` is rejected in every
+environment; there is no development bypass.
 
-Email/password authentication has no Suffolk OIDC callback URL. Clerk's own
-domains and allowed application origins must be configured in the Clerk
-Dashboard. If enterprise SSO is added later, use the callback and connection
-settings shown by that approved Clerk connection; do not invent them in this
-repository.
+Tests inject typed principals only when `NODE_ENV=test`; CI does not contact
+Clerk or contain real institutional identities. Interactive testing uses
+synthetic users in a Clerk Development instance, with professor metadata set by
+the project owner through that instance's Dashboard.
 
-## Roles and permissions
+## Recovery and privacy
 
-Application roles are `student`, `professor`, and `admin`.
+Credential reset and email verification remain in Clerk. Application account
+status is still checked in PostgreSQL and disabled accounts fail closed. Clerk
+session revocation and account recovery are performed through Clerk Dashboard;
+application identity rebinding must never occur by email alone.
 
-- Every newly created application user receives only `student`.
-- `professor` and `admin` are never inferred from email, domain, name, Clerk
-  organizations, public metadata, unsafe metadata, or request headers.
-- `admin` can perform professor operations plus admin-only question/upload
-  operations.
-- Professor/admin grants and revocations are server-side database operations
-  with an operator, change ticket, and audit event.
+Clerk receives authentication activity and credential data. The application
+stores the Clerk user ID, verified email, display name, account status, the
+derived role projection, audit/review history, and learning progress. Never log
+raw Clerk cookies or tokens, passwords, answers, anonymous IDs, or provider
+secrets.
 
-There is no client route, form field, email allowlist, or role switch that can
-grant `professor` or `admin`.
-
-### Initial professor provisioning
-
-The target must first complete Clerk sign-up so an application user row exists.
-Use the application's `users.id` (not the Clerk ID) with the protected operator
-CLI:
-
-```bash
-npm run auth:role -- grant --user USER_ID --role professor --operator ADMIN_USER_ID --ticket CHANGE_TICKET
-```
-
-The operator must be an existing active administrator. Production additionally
-requires `--confirm-production PRODUCTION`.
-
-### First administrator bootstrap
-
-After the intended administrator creates an account, a trusted database
-operator performs the one-time bootstrap:
-
-```bash
-npm run auth:role -- bootstrap-admin --user USER_ID --operator OPERATOR_ID --ticket CHANGE_TICKET
-```
-
-Bootstrap refuses to run once an active human administrator exists. Later admin
-grants use the ordinary audited command:
-
-```bash
-npm run auth:role -- grant --user USER_ID --role admin --operator ADMIN_USER_ID --ticket CHANGE_TICKET
-```
-
-Revocation uses the same process with `revoke`. Account disable/enable is also
-operator-controlled. A Clerk subject may be rebound only after documented
-account-owner verification:
-
-```bash
-npm run auth:role -- rebind-clerk --user USER_ID --clerk-user-id CLERK_USER_ID --operator ADMIN_USER_ID --ticket CHANGE_TICKET
-```
-
-Never rebind by matching email.
-
-## Server-side enforcement
-
-`resolveAuthenticatedPrincipal()` converts a Clerk session into an application
-principal. `requireUser()`, `requireStudent()`, `requireProfessor()`,
-`requireAdministrator()`, and the specialized review/analytics checks remain
-the shared authorization boundary.
-
-`src/proxy.ts` performs only coarse authentication redirects for `/account`,
-`/onboarding`, `/professor/**`, and `/admin/**`. It does not trust or evaluate
-Clerk role metadata. Every protected page and API repeats application-role
-authorization on the server. API behavior is:
-
-- `401` for missing authentication;
-- `403` for an authenticated account without the required database role;
-- `404` for a tutor session not owned by the current server-resolved owner.
-
-Tutor-session repository operations require `StudentOwner` and match both the
-session ID and `user_id` or signed `anonymous_user_id`. Public question routes
-continue to use approved/published-content queries, so draft and generated
-review content is not exposed by the authentication migration.
-
-## Anonymous pilot migration
-
-Optional anonymous practice still uses a signed, HTTP-only browser cookie. A
-signed-in student explicitly chooses whether to import practice from that
-browser. Claims are transactional, unique, idempotent, audited, and cannot be
-claimed by a second account. No automatic merge occurs on shared devices.
-
-## Recovery and session response
-
-- Password and email-verification recovery stay in Clerk.
-- Role correction and application account enable/disable stay in the audited
-  application operator process.
-- Disabling an application account or revoking a role takes effect at the next
-  protected application boundary because status and roles are read from the
-  database.
-- If the Clerk session itself must be revoked, an authorized operator must use
-  the Clerk Dashboard. The legacy `users.session_version` column remains as an
-  account authorization revision for migration compatibility; it is not a
-  substitute for Clerk session revocation.
-
-## Testing
-
-Unit and API tests inject principals directly; CI does not contact Clerk and
-does not store real accounts. Tests cover anonymous, student, professor, admin,
-disabled-account, self-role-escalation, duplicate-email/different-Clerk-ID, and
-cross-student ownership cases.
-
-Interactive smoke tests use synthetic accounts in a Clerk Development instance.
-There is no application-provided local professor/admin identity selector. Grant
-staff roles only in an isolated test database through the audited CLI. Never
-reuse Production accounts or keys.
-
-## Privacy and remaining limitations
-
-Clerk is an identity and credential processor and receives authentication
-activity, email, and credential data according to the configured instance. The
-application stores the Clerk user ID, verified email, display name, account
-status, roles, audit history, and learning progress. Raw cookies, Clerk tokens,
-passwords, password hashes, answers, and provider secrets must not be logged.
-
-Current limitations:
-
-- email/password is the only release authentication strategy;
-- no Suffolk SSO, Google, Microsoft, SAML, group, or course-roster mapping is
-  configured;
-- accounts created under the retired OIDC boundary are not linked by email;
-  after account-owner verification, an operator must use `rebind-clerk` to map
-  existing application progress to the intended Clerk user ID;
-- no Clerk webhook synchronizes later email/display-name changes, so the
-  application profile is copied at initial linking and corrected through the
-  documented support process if needed;
-- Clerk account deletion is not yet synchronized automatically with application
-  data deletion/deactivation;
-- Clerk Dashboard setup, Production keys, domain configuration, privacy review,
-  and operational ownership remain deployment prerequisites.
+Suffolk SSO is not configured by this change. If the University later approves
+an enterprise connection, use the settings and callback information supplied by
+Clerk and University IT; do not invent tenant, issuer, or SSO values.

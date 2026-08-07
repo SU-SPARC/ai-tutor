@@ -3,16 +3,21 @@ import "server-only";
 import {
   CLERK_IDENTITY_PROVIDER,
   getApplicationUserAccessByExternalIdentity,
+  syncClerkRoleProjection,
   upsertClerkAccount,
-  type ApplicationRole,
 } from "@/lib/auth/account-repository";
 import { getServerEnv } from "@/lib/env/server";
+import {
+  applicationRoleFromPublicMetadata,
+  type ApplicationRole,
+} from "@/lib/auth/roles";
 
 export type AuthenticatedPrincipal = {
   kind: "user";
   userId: string;
   displayName: string;
   email: string;
+  role: ApplicationRole;
   roles: ApplicationRole[];
 };
 
@@ -29,7 +34,9 @@ export type StudentOwner =
 type PrincipalResolver = () => Promise<AuthenticatedPrincipal | undefined>;
 let testPrincipalResolver: PrincipalResolver | undefined;
 
-export async function resolveAuthenticatedPrincipal() {
+export async function resolveAuthenticatedPrincipal(): Promise<
+  AuthenticatedPrincipal | undefined
+> {
   if (process.env.NODE_ENV === "test") {
     return testPrincipalResolver?.();
   }
@@ -52,12 +59,12 @@ export async function resolveAuthenticatedPrincipal() {
     clerkUserId,
   );
 
-  if (!account) {
-    const clerkUser = await currentUser();
-    if (!clerkUser || clerkUser.id !== clerkUserId) {
-      return undefined;
-    }
+  const clerkUser = await currentUser();
+  if (!clerkUser || clerkUser.id !== clerkUserId) {
+    return undefined;
+  }
 
+  if (!account) {
     const primaryEmail = clerkUser.emailAddresses.find(
       ({ id }) => id === clerkUser.primaryEmailAddressId,
     );
@@ -84,12 +91,18 @@ export async function resolveAuthenticatedPrincipal() {
     return undefined;
   }
 
+  const role = applicationRoleFromPublicMetadata(clerkUser.publicMetadata);
+  await syncClerkRoleProjection(account.id, role);
+  const roles: ApplicationRole[] =
+    role === "professor" ? ["student", "professor"] : ["student"];
+
   return {
     kind: "user" as const,
     userId: account.id,
     displayName: account.displayName,
     email: account.email,
-    roles: account.roles,
+    role,
+    roles,
   };
 }
 

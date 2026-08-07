@@ -6,8 +6,8 @@ import type {
   AdminQuestionDetailAction,
   AdminQuestionDetailUpdate,
 } from "@/lib/data/repository";
-import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
-import { isValidReviewStatus } from "@/lib/tutor/professor-admin";
+import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
+import { isValidReviewStatus } from "@/lib/tutor/professor-tools";
 import { TRUST_LEVELS, type TrustLevel } from "@/lib/types";
 
 const MAX_BODY_BYTES = 32_768;
@@ -92,7 +92,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await authorizeApi(requireAdministrator);
+  const access = await authorizeApi(requireProfessorReview);
 
   if (!access.ok) {
     return access.response;
@@ -136,7 +136,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error:
-          "Admin question mutations require a configured database and public-safe question record.",
+          "Professor question mutations require a configured database and public-safe question record.",
       },
       { status: 503 },
     );
@@ -148,7 +148,7 @@ async function parseMutation(request: Request): Promise<ParseResult> {
 
   if (declaredLength > MAX_BODY_BYTES) {
     return {
-      error: "Admin question mutation requests must be smaller than 32KB.",
+      error: "Professor question mutation requests must be smaller than 32KB.",
       status: 413,
     };
   }
@@ -171,7 +171,7 @@ async function parseMutation(request: Request): Promise<ParseResult> {
 
   if (unsupportedField) {
     return {
-      error: `Unsupported admin question update field: ${unsupportedField}.`,
+      error: `Unsupported professor question update field: ${unsupportedField}.`,
       status: 400,
     };
   }
@@ -225,7 +225,7 @@ async function parseMutation(request: Request): Promise<ParseResult> {
     if (body.trustLevel === "private_reference") {
       return {
         error:
-          "private_reference trust cannot be written through admin question mutations.",
+          "private_reference trust cannot be written through professor question mutations.",
         status: 400,
       };
     }

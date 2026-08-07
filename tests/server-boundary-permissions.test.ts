@@ -8,10 +8,10 @@ import { POST as discardAnonymous } from "@/app/api/account/discard-anonymous/ro
 import {
   GET as getAdminQuestions,
   PATCH as patchAdminQuestions,
-} from "@/app/api/admin/questions/route";
-import { PATCH as patchAdminQuestion } from "@/app/api/admin/questions/[id]/route";
-import { POST as regenerateAdminQuestion } from "@/app/api/admin/questions/[id]/regenerate/route";
-import { POST as uploadAdminContent } from "@/app/api/admin/upload/route";
+} from "@/app/api/professor/questions/route";
+import { PATCH as patchAdminQuestion } from "@/app/api/professor/questions/[id]/route";
+import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
+import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
 import { GET as getProfessorAnalytics } from "@/app/api/professor/analytics/route";
 import {
@@ -120,7 +120,7 @@ describe("server boundary permission matrix", () => {
     expect([...discovered].sort()).toEqual([...declared].sort());
   });
 
-  it("has no export endpoint and reserves export permission for administrators", async () => {
+  it("has no student-data export endpoint", async () => {
     const files = await walkFiles(path.join(APP_ROOT, "api"));
     const apiPaths = files
       .filter((file) => file.endsWith(`${path.sep}route.ts`))
@@ -205,29 +205,30 @@ describe("direct professor API authorization", () => {
   );
 });
 
-describe("direct administrator API authorization", () => {
+describe("direct professor content API authorization", () => {
   const boundaries = [
     [
-      "GET /api/admin/questions",
-      () => getAdminQuestions(new Request("http://test/api/admin/questions")),
+      "GET /api/professor/questions",
+      () =>
+        getAdminQuestions(new Request("http://test/api/professor/questions")),
     ],
     [
-      "PATCH /api/admin/questions",
+      "PATCH /api/professor/questions",
       () =>
         patchAdminQuestions(
           jsonRequest(
-            "http://test/api/admin/questions",
+            "http://test/api/professor/questions",
             { action: "reject", questionId: "question:test" },
             "PATCH",
           ),
         ),
     ],
     [
-      "PATCH /api/admin/questions/[id]",
+      "PATCH /api/professor/questions/[id]",
       () =>
         patchAdminQuestion(
           jsonRequest(
-            "http://test/api/admin/questions/question:test",
+            "http://test/api/professor/questions/question:test",
             { reviewStatus: "needs_review" },
             "PATCH",
           ),
@@ -235,21 +236,23 @@ describe("direct administrator API authorization", () => {
         ),
     ],
     [
-      "POST /api/admin/questions/[id]/regenerate",
+      "POST /api/professor/questions/[id]/regenerate",
       () =>
         regenerateAdminQuestion(
           jsonRequest(
-            "http://test/api/admin/questions/question:test/regenerate",
+            "http://test/api/professor/questions/question:test/regenerate",
             { keepPattern: true },
           ),
           routeContext("question:test", "id"),
         ),
     ],
     [
-      "POST /api/admin/upload",
+      "POST /api/professor/content-preview",
       () =>
         uploadAdminContent(
-          new Request("http://test/api/admin/upload", { method: "POST" }),
+          new Request("http://test/api/professor/content-preview", {
+            method: "POST",
+          }),
         ),
     ],
   ] as const;
@@ -273,11 +276,11 @@ describe("direct administrator API authorization", () => {
   );
 
   it.each(boundaries)(
-    "returns 403 for a direct professor call to %s",
+    "passes the role gate for a direct professor call to %s",
     async (_name, call) => {
       mockPrincipal(TEST_PROFESSOR);
 
-      expect((await call()).status).toBe(403);
+      expect([401, 403]).not.toContain((await call()).status);
     },
   );
 });

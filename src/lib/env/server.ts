@@ -245,12 +245,9 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
 
   assertNoPublicSecrets(input, issues);
 
-  // Old local .env files may still contain ADMIN_SECRET during the documented
-  // cleanup window. It is intentionally absent from ServerEnv and is never an
-  // authorization input. Every deployed environment rejects it outright.
-  if (deployed && optionalString(input.ADMIN_SECRET)) {
+  if (optionalString(input.ADMIN_SECRET)) {
     issues.push(
-      "ADMIN_SECRET is no longer supported; use authenticated application roles.",
+      "ADMIN_SECRET is no longer supported; use authenticated professor access.",
     );
   }
 

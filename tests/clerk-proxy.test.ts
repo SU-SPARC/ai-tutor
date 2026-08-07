@@ -78,7 +78,7 @@ describe("Clerk proxy", () => {
     );
   });
 
-  it("does not use Clerk metadata as a role gate", async () => {
+  it("leaves the professor role decision to the server boundary", async () => {
     mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
     mocks.auth.mockResolvedValue({
       isAuthenticated: true,
@@ -88,7 +88,7 @@ describe("Clerk proxy", () => {
 
     const response = requireResponse(
       await proxy(
-        new NextRequest("https://tutor.example.edu/admin/review"),
+        new NextRequest("https://tutor.example.edu/professor/review"),
         {} as never,
       ),
     );

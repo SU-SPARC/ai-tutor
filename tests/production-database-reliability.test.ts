@@ -143,7 +143,8 @@ describe("production database reliability", () => {
       displayName: "Primary professor",
       email: "primary@example.invalid",
       kind: "user",
-      roles: ["professor"],
+      role: "professor",
+      roles: ["student", "professor"],
       userId: "professor:primary",
     });
     const primaryAuthorization = await requireProfessorReview();
@@ -151,7 +152,8 @@ describe("production database reliability", () => {
       displayName: "Backup professor",
       email: "backup@example.invalid",
       kind: "user",
-      roles: ["professor"],
+      role: "professor",
+      roles: ["student", "professor"],
       userId: "professor:backup",
     });
     const backupAuthorization = await requireProfessorReview();

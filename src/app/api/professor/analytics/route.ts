@@ -7,7 +7,7 @@ import {
   getReviewQueue,
 } from "@/lib/data/data-store";
 import { authorizeApi, requireAnalyticsAccess } from "@/lib/auth/authorization";
-import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin";
+import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-tools";
 
 export async function GET() {
   const access = await authorizeApi(requireAnalyticsAccess);

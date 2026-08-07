@@ -288,8 +288,11 @@ describe("production data integrity", () => {
     );
     await runPendingMigrations({
       actor: "integrity-test",
+      allowDestructive: true,
+      changeTicket: "TEST-ROLE-SIMPLIFICATION",
       client,
       deploymentSha: "integrity-test-sha",
+      destructiveApprovedBy: "independent-integrity-approver",
       migrations,
       target: "test",
     });

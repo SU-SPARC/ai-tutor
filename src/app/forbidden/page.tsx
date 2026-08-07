@@ -22,7 +22,7 @@ export default function ForbiddenPage() {
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               This signed-in account does not have access to instructor tools.
               If access was recently granted, sign out and sign in again. For
-              help, contact the application administrator.
+              help, contact the application support team.
             </p>
           </div>
         </CardHeader>

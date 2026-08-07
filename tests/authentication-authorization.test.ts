@@ -20,7 +20,6 @@ import { parseServerEnv } from "@/lib/env/server";
 import {
   mockPrincipal,
   resetAuthMocks,
-  TEST_ADMIN,
   TEST_PROFESSOR,
   TEST_STUDENT,
 } from "./auth-test-helpers";
@@ -82,14 +81,13 @@ describe("authentication configuration", () => {
     ).toThrowError(/ADMIN_SECRET is no longer supported/);
   });
 
-  it("temporarily tolerates but never exposes a legacy local admin secret", () => {
-    const env = parseServerEnv({
-      ADMIN_SECRET: "ignored-local-compatibility-value",
-      NODE_ENV: "development",
-    });
-
-    expect(env).not.toHaveProperty("ADMIN_SECRET");
-    expect(env.CLERK_ENABLED).toBe(false);
+  it("rejects legacy admin secrets locally too", () => {
+    expect(() =>
+      parseServerEnv({
+        ADMIN_SECRET: "obsolete-local-value",
+        NODE_ENV: "development",
+      }),
+    ).toThrowError(/ADMIN_SECRET is no longer supported/);
   });
 
   it("does not enable authentication from legacy OIDC variables", () => {
@@ -112,7 +110,7 @@ describe("session authorization", () => {
     const student = await authorizeApi(requireProfessor);
     mockPrincipal(TEST_PROFESSOR);
     const professor = await authorizeApi(requireProfessor);
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     const inheritedProfessor = await authorizeApi(requireProfessor);
 
     expect(missing.ok ? 200 : missing.response.status).toBe(401);
@@ -137,14 +135,6 @@ describe("session authorization", () => {
         deleted_at timestamptz,
         updated_at timestamptz not null default now(),
         unique (identity_provider, external_subject)
-      );
-      create table user_roles (
-        user_id text not null,
-        role_id text not null,
-        granted_by_user_id text,
-        revoked_at timestamptz,
-        expires_at timestamptz,
-        primary key (user_id, role_id)
       );
       create table audit_events (
         id bigserial primary key,
@@ -189,11 +179,9 @@ describe("session authorization", () => {
       ),
     ).rejects.toBeInstanceOf(IdentityConflictError);
 
-    expect(first.roles).toEqual(["student"]);
     expect(repeated).toMatchObject({
       displayName: "First Identity Updated",
       id: first.id,
-      roles: ["student"],
     });
     const stored = await database.query<{
       external_subject: string;

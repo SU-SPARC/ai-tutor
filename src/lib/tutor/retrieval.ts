@@ -4,7 +4,7 @@ import {
   AuthorizationDeniedError,
   assertAuthorization,
   isPublishedContent,
-  type AdministratorAuthorization,
+  type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
 import {
   getApprovedQuestions,
@@ -32,7 +32,7 @@ export type RetrievalOptions = {
   audience?: RetrievalAudience;
   includeQuestionExamples?: boolean;
   maxResults?: number;
-  administratorAuthorization?: AdministratorAuthorization;
+  professorAuthorization?: ProfessorReviewAuthorization;
   topicId?: string;
 };
 
@@ -97,17 +97,17 @@ export async function retrieveTutorContext(
   const audience = options.audience ?? "student";
   const includeQuestionExamples = options.includeQuestionExamples ?? true;
   if (audience === "admin_dev") {
-    if (!options.administratorAuthorization) {
+    if (!options.professorAuthorization) {
       throw new AuthorizationDeniedError();
     }
-    assertAuthorization(options.administratorAuthorization, "administrator");
+    assertAuthorization(options.professorAuthorization, "professor");
   }
   const [storedChunks, approvedQuestions, reviewCandidates, localResults] =
     await Promise.all([
       getRetrievalChunks(),
       includeQuestionExamples ? getApprovedQuestions() : Promise.resolve([]),
       audience === "admin_dev"
-        ? getReviewQueue(options.administratorAuthorization!)
+        ? getReviewQueue(options.professorAuthorization!)
         : Promise.resolve([]),
       searchLocalRetrieval(query, {
         audience: audience === "admin_dev" ? "admin_dev" : "student",

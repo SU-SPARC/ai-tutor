@@ -18,14 +18,7 @@ import type {
   SourceMetadata,
 } from "@/lib/types";
 
-export const AUTHORIZATION_PERMISSIONS = [
-  "student",
-  "professor",
-  "administrator",
-  "professor-review",
-  "analytics",
-  "export",
-] as const;
+export const AUTHORIZATION_PERMISSIONS = ["student", "professor"] as const;
 
 export type AuthorizationPermission =
   (typeof AUTHORIZATION_PERMISSIONS)[number];
@@ -64,12 +57,8 @@ export type AuthenticatedStudentAuthorization = StudentAuthorization &
   }>;
 
 export type ProfessorAuthorization = AuthenticatedAuthorization<"professor">;
-export type AdministratorAuthorization =
-  AuthenticatedAuthorization<"administrator">;
-export type ProfessorReviewAuthorization =
-  AuthenticatedAuthorization<"professor-review">;
-export type AnalyticsAuthorization = AuthenticatedAuthorization<"analytics">;
-export type ExportAuthorization = AuthenticatedAuthorization<"export">;
+export type ProfessorReviewAuthorization = ProfessorAuthorization;
+export type AnalyticsAuthorization = ProfessorAuthorization;
 
 type AnyAuthorization =
   | StudentAuthorization
@@ -132,32 +121,28 @@ export function hasPermission(
 
   switch (permission) {
     case "student":
-      return principal.roles.some((role) =>
-        ["student", "professor", "admin"].includes(role),
-      );
+      return principal.role === "student" || principal.role === "professor";
     case "professor":
-    case "professor-review":
-    case "analytics":
-      return principal.roles.some((role) =>
-        ["professor", "admin"].includes(role),
-      );
-    case "administrator":
-    case "export":
-      return principal.roles.includes("admin");
+      return principal.role === "professor";
     default:
       return false;
   }
 }
 
 export async function requireStudent(): Promise<AuthenticatedStudentAuthorization> {
-  const principal = await currentAuthenticatedUser();
-  if (!principal) {
-    throw new AuthenticationRequiredError();
-  }
+  const principal = await requireAuthenticatedUser();
   if (!hasPermission(principal, "student")) {
     throw new AuthorizationDeniedError();
   }
   return studentAuthorizationFor(principal);
+}
+
+export async function requireAuthenticatedUser(): Promise<AuthenticatedPrincipal> {
+  const principal = await currentAuthenticatedUser();
+  if (!principal) {
+    throw new AuthenticationRequiredError();
+  }
+  return principal;
 }
 
 export async function requireStudentAccess(
@@ -198,30 +183,18 @@ export async function requireProfessor(): Promise<ProfessorAuthorization> {
   return requireAuthenticatedPermission("professor");
 }
 
-export async function requireAdministrator(): Promise<AdministratorAuthorization> {
-  return requireAuthenticatedPermission("administrator");
-}
-
 export async function requireProfessorReview(): Promise<ProfessorReviewAuthorization> {
-  return requireAuthenticatedPermission("professor-review");
+  return requireProfessor();
 }
 
 export async function requireAnalyticsAccess(): Promise<AnalyticsAuthorization> {
-  return requireAuthenticatedPermission("analytics");
-}
-
-export async function requireExportAccess(): Promise<ExportAuthorization> {
-  return requireAuthenticatedPermission("export");
+  return requireProfessor();
 }
 
 export function reviewerAttribution(
-  authorization: ProfessorReviewAuthorization | AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
 ): ReviewerAttribution {
-  if (authorization.permission === "administrator") {
-    assertAuthorization(authorization, "administrator");
-  } else {
-    assertAuthorization(authorization, "professor-review");
-  }
+  assertAuthorization(authorization, "professor");
   return {
     displayName: authorization.principal.displayName,
     userId: authorization.principal.userId,
@@ -409,10 +382,7 @@ export function createStudentAuthorizationForTests(
 async function requireAuthenticatedPermission<
   Permission extends AuthorizationPermission,
 >(permission: Permission) {
-  const principal = await currentAuthenticatedUser();
-  if (!principal) {
-    throw new AuthenticationRequiredError();
-  }
+  const principal = await requireAuthenticatedUser();
   if (!hasPermission(principal, permission)) {
     throw new AuthorizationDeniedError();
   }

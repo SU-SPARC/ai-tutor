@@ -3,22 +3,26 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { POST as uploadAdminContent } from "@/app/api/admin/upload/route";
+import { POST as uploadProfessorContent } from "@/app/api/professor/content-preview/route";
 import {
-  ADMIN_CONTENT_UPLOAD_MAX_BYTES,
-  type AdminContentUploadPreview,
-} from "@/lib/tutor/admin-content-upload";
-import { mockPrincipal, resetAuthMocks, TEST_ADMIN } from "./auth-test-helpers";
+  PROFESSOR_CONTENT_UPLOAD_MAX_BYTES,
+  type ProfessorContentUploadPreview,
+} from "@/lib/tutor/professor-content-upload";
+import {
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_PROFESSOR,
+} from "./auth-test-helpers";
 
 const TOKEN = "admin-secret";
 const privatePreviewDir = path.join(
   process.cwd(),
-  "data/private/extracted/admin-upload-previews",
+  "data/private/extracted/professor-upload-previews",
 );
 
-describe("admin content upload API", () => {
+describe("professor content preview API", () => {
   beforeEach(() => {
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
   });
 
   afterEach(async () => {
@@ -27,9 +31,9 @@ describe("admin content upload API", () => {
     await rm(privatePreviewDir, { force: true, recursive: true });
   });
 
-  it("requires the admin role", async () => {
+  it("requires the professor role", async () => {
     mockPrincipal(undefined);
-    const response = await uploadAdminContent(
+    const response = await uploadProfessorContent(
       uploadRequest(texFile(), { token: "" }),
     );
 
@@ -37,15 +41,15 @@ describe("admin content upload API", () => {
   });
 
   it("rejects unsupported file types and oversized files", async () => {
-    const unsupported = await uploadAdminContent(
+    const unsupported = await uploadProfessorContent(
       uploadRequest(
         new File(["{}"], "notes.json", { type: "application/json" }),
       ),
     );
-    const oversized = await uploadAdminContent(
+    const oversized = await uploadProfessorContent(
       uploadRequest(
         new File(
-          [new Uint8Array(ADMIN_CONTENT_UPLOAD_MAX_BYTES + 1)],
+          [new Uint8Array(PROFESSOR_CONTENT_UPLOAD_MAX_BYTES + 1)],
           "large.tex",
           {
             type: "text/x-tex",
@@ -59,9 +63,9 @@ describe("admin content upload API", () => {
   });
 
   it("parses LaTeX uploads into a needs-review metadata preview", async () => {
-    const response = await uploadAdminContent(uploadRequest(texFile()));
+    const response = await uploadProfessorContent(uploadRequest(texFile()));
     const payload = (await response.json()) as {
-      preview: AdminContentUploadPreview;
+      preview: ProfessorContentUploadPreview;
     } & Record<string, unknown>;
     const serialized = JSON.stringify(payload);
 
@@ -84,9 +88,9 @@ describe("admin content upload API", () => {
   });
 
   it("extracts PDF text only to ignored private storage and returns abstract preview", async () => {
-    const response = await uploadAdminContent(uploadRequest(pdfFile()));
+    const response = await uploadProfessorContent(uploadRequest(pdfFile()));
     const payload = (await response.json()) as {
-      preview: AdminContentUploadPreview;
+      preview: ProfessorContentUploadPreview;
     } & Record<string, unknown>;
     const serialized = JSON.stringify(payload);
     const privateFiles = await readdir(privatePreviewDir);
@@ -99,7 +103,7 @@ describe("admin content upload API", () => {
       preview: {
         approved: false,
         privateTextSaved: true,
-        privateStorage: "data/private/extracted/admin-upload-previews/",
+        privateStorage: "data/private/extracted/professor-upload-previews/",
         reviewStatus: "needs_review",
         uploadKind: "pdf",
       },
@@ -115,7 +119,7 @@ function uploadRequest(file: File, { token = TOKEN } = {}) {
   const formData = new FormData();
   formData.set("file", file);
 
-  return new Request("http://test/api/admin/upload", {
+  return new Request("http://test/api/professor/content-preview", {
     body: formData,
     headers: token ? { "x-professor-token": token } : undefined,
     method: "POST",

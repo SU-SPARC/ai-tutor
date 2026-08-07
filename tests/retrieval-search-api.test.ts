@@ -12,7 +12,6 @@ import { POST as postRetrievalSearch } from "@/app/api/retrieval/search/route";
 import {
   mockPrincipal,
   resetAuthMocks,
-  TEST_ADMIN,
   TEST_PROFESSOR,
 } from "./auth-test-helpers";
 
@@ -114,7 +113,7 @@ describe("retrieval search API", () => {
   });
 
   it("redacts private reference text from API responses", async () => {
-    mockPrincipal(TEST_ADMIN);
+    mockPrincipal(TEST_PROFESSOR);
     searchLocalRetrievalMock.mockResolvedValue([
       retrievalResult({
         metadata: {
@@ -138,7 +137,7 @@ describe("retrieval search API", () => {
     const response = await postRetrievalSearch(
       jsonRequest(
         {
-          mode: "admin",
+          mode: "student",
           query: "bayes flagged cases",
         },
         "review-secret",
@@ -154,10 +153,10 @@ describe("retrieval search API", () => {
     expect(searchLocalRetrievalMock).toHaveBeenCalledWith(
       "bayes flagged cases",
       expect.objectContaining({
-        audience: "admin_dev",
+        audience: "student",
       }),
     );
-    expect(payload.mode).toBe("admin_dev");
+    expect(payload.mode).toBe("student");
     expect(payload.retrievalMode).toBe("keyword");
     expect(payload.chunks[0].metadata).toMatchObject({
       sourceType: "private_reference_pattern",
@@ -168,12 +167,12 @@ describe("retrieval search API", () => {
     expect(payload.chunks[0].text).toContain("Private reference match");
   });
 
-  it("reserves admin retrieval mode for administrators", async () => {
+  it("does not expose the internal draft retrieval audience", async () => {
     const response = await postRetrievalSearch(
       jsonRequest({ mode: "admin_dev", query: "draft question" }),
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
     expect(searchLocalRetrievalMock).not.toHaveBeenCalled();
   });
 

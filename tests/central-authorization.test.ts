@@ -11,9 +11,8 @@ import {
   isPublishedContent,
   isRetrievalEligibleContent,
   isStudentSafeRetrievalContent,
-  requireAdministrator,
+  requireAuthenticatedUser,
   requireAnalyticsAccess,
-  requireExportAccess,
   requireOwnership,
   requireProfessor,
   requireProfessorReview,
@@ -35,7 +34,7 @@ import {
   getTutorSession,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
-import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-admin";
+import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-tools";
 import { retrieveTutorContext } from "@/lib/tutor/retrieval";
 import type {
   RetrievalChunk,
@@ -45,7 +44,6 @@ import type {
 import {
   mockPrincipal,
   resetAuthMocks,
-  TEST_ADMIN,
   TEST_ANONYMOUS_OWNER,
   TEST_PROFESSOR,
   TEST_STUDENT,
@@ -70,37 +68,28 @@ describe("central role authorization", () => {
     expect(toCurrentUserDto(TEST_PROFESSOR)).not.toHaveProperty("userId");
   });
 
-  it("denies every authenticated permission when no session exists", async () => {
+  it("denies authenticated requirements when no session exists", async () => {
     mockPrincipal(undefined);
 
-    await expect(requireStudent()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-    await expect(requireProfessor()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-    await expect(requireAdministrator()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-    await expect(requireProfessorReview()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-    await expect(requireAnalyticsAccess()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-    await expect(requireExportAccess()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
+    for (const requirement of [
+      requireAuthenticatedUser,
+      requireStudent,
+      requireProfessor,
+      requireProfessorReview,
+      requireAnalyticsAccess,
+    ]) {
+      await expect(requirement()).rejects.toBeInstanceOf(
+        AuthenticationRequiredError,
+      );
+    }
   });
 
-  it("applies the student, professor, administrator, review, analytics, and export matrix", async () => {
+  it("applies the student and professor permission matrix", async () => {
     mockPrincipal(TEST_STUDENT);
+    await expect(requireAuthenticatedUser()).resolves.toBe(TEST_STUDENT);
     await expect(requireStudent()).resolves.toMatchObject({
       permission: "student",
     });
-    await expect(requireAdministrator()).rejects.toBeInstanceOf(
-      AuthorizationDeniedError,
-    );
     await expect(requireProfessor()).rejects.toBeInstanceOf(
       AuthorizationDeniedError,
     );
@@ -108,77 +97,30 @@ describe("central role authorization", () => {
       AuthorizationDeniedError,
     );
     await expect(requireAnalyticsAccess()).rejects.toBeInstanceOf(
-      AuthorizationDeniedError,
-    );
-    await expect(requireExportAccess()).rejects.toBeInstanceOf(
       AuthorizationDeniedError,
     );
 
     mockPrincipal(TEST_PROFESSOR);
+    await expect(requireAuthenticatedUser()).resolves.toBe(TEST_PROFESSOR);
     await expect(requireStudent()).resolves.toMatchObject({
       permission: "student",
     });
-    await expect(requireProfessor()).resolves.toMatchObject({
-      permission: "professor",
-    });
-    await expect(requireProfessorReview()).resolves.toMatchObject({
-      permission: "professor-review",
-    });
-    await expect(requireAnalyticsAccess()).resolves.toMatchObject({
-      permission: "analytics",
-    });
-    await expect(requireAdministrator()).rejects.toBeInstanceOf(
-      AuthorizationDeniedError,
-    );
-    await expect(requireExportAccess()).rejects.toBeInstanceOf(
-      AuthorizationDeniedError,
-    );
-
-    mockPrincipal(TEST_ADMIN);
-    await expect(requireStudent()).resolves.toMatchObject({
-      permission: "student",
-    });
-    await expect(requireProfessor()).resolves.toMatchObject({
-      permission: "professor",
-    });
-    await expect(requireAdministrator()).resolves.toMatchObject({
-      permission: "administrator",
-    });
-    await expect(requireExportAccess()).resolves.toMatchObject({
-      permission: "export",
-    });
-    await expect(requireProfessorReview()).resolves.toMatchObject({
-      permission: "professor-review",
-    });
-    await expect(requireAnalyticsAccess()).resolves.toMatchObject({
-      permission: "analytics",
-    });
-  });
-
-  it("keeps protected export access administrator-only", async () => {
-    mockPrincipal(undefined);
-    await expect(requireExportAccess()).rejects.toBeInstanceOf(
-      AuthenticationRequiredError,
-    );
-
-    for (const principal of [TEST_STUDENT, TEST_PROFESSOR]) {
-      mockPrincipal(principal);
-      await expect(requireExportAccess()).rejects.toBeInstanceOf(
-        AuthorizationDeniedError,
-      );
+    for (const requirement of [
+      requireProfessor,
+      requireProfessorReview,
+      requireAnalyticsAccess,
+    ]) {
+      await expect(requirement()).resolves.toMatchObject({
+        permission: "professor",
+        principal: TEST_PROFESSOR,
+      });
     }
-
-    mockPrincipal(TEST_ADMIN);
-    await expect(requireExportAccess()).resolves.toMatchObject({
-      permission: "export",
-      principal: TEST_ADMIN,
-    });
   });
 
   it("denies unknown permissions by default", () => {
     expect(
       hasPermission(
-        TEST_ADMIN,
+        TEST_PROFESSOR,
         "unregistered-permission" as AuthorizationPermission,
       ),
     ).toBe(false);
@@ -244,16 +186,22 @@ describe("central ownership and publication policies", () => {
     expect(isStudentSafeRetrievalContent(sanitizedPrivate)).toBe(true);
   });
 
-  it("requires an administrator grant for internal admin retrieval", async () => {
+  it("requires a professor grant for internal draft retrieval", async () => {
     mockPrincipal(TEST_PROFESSOR);
     const professorReview = await requireProfessorReview();
 
     await expect(
       retrieveTutorContext("draft question", {
-        administratorAuthorization: professorReview as never,
         audience: "admin_dev",
       }),
     ).rejects.toBeInstanceOf(AuthorizationDeniedError);
+
+    await expect(
+      retrieveTutorContext("draft question", {
+        professorAuthorization: professorReview,
+        audience: "admin_dev",
+      }),
+    ).resolves.toBeDefined();
   });
 });
 

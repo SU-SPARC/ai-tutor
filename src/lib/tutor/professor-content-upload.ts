@@ -8,36 +8,36 @@ import path from "node:path"
 
 import type { ReviewStatus } from "@/lib/types"
 
-export const ADMIN_CONTENT_UPLOAD_MAX_BYTES = 512_000
+export const PROFESSOR_CONTENT_UPLOAD_MAX_BYTES = 512_000
 
-export type AdminUploadKind = "pdf" | "tex"
+export type ProfessorUploadKind = "pdf" | "tex"
 
-export type AdminUploadPreviewItem = {
+export type ProfessorUploadPreviewItem = {
   evidence: string[]
   label: string
   reviewStatus: ReviewStatus
 }
 
-export type AdminFormulaPreviewItem = AdminUploadPreviewItem & {
+export type ProfessorFormulaPreviewItem = ProfessorUploadPreviewItem & {
   symbolicFormula: string
 }
 
-export type AdminContentUploadPreview = {
+export type ProfessorContentUploadPreview = {
   approved: false
   file: {
     name: string
     size: number
     type: string
   }
-  formulas: AdminFormulaPreviewItem[]
-  misconceptions: AdminUploadPreviewItem[]
-  patterns: AdminUploadPreviewItem[]
+  formulas: ProfessorFormulaPreviewItem[]
+  misconceptions: ProfessorUploadPreviewItem[]
+  patterns: ProfessorUploadPreviewItem[]
   privateTextSaved?: boolean
   privateStorage?: string
   reviewStatus: "needs_review"
   sourceUse: "private_reference_only"
-  topics: AdminUploadPreviewItem[]
-  uploadKind: AdminUploadKind
+  topics: ProfessorUploadPreviewItem[]
+  uploadKind: ProfessorUploadKind
   warnings: string[]
 }
 
@@ -55,7 +55,7 @@ type TopicCatalogItem = {
 }
 
 const PRIVATE_EXTRACTED_PREVIEW_DIR =
-  "data/private/extracted/admin-upload-previews"
+  "data/private/extracted/professor-upload-previews"
 
 const topicCatalog = [
   {
@@ -95,13 +95,13 @@ const topicCatalog = [
   },
 ] satisfies TopicCatalogItem[]
 
-export async function buildAdminContentUploadPreview(
+export async function buildProfessorContentUploadPreview(
   file: UploadedFileInput,
-): Promise<AdminContentUploadPreview> {
-  const fileType = validateAdminContentUploadFile(file)
+): Promise<ProfessorContentUploadPreview> {
+  const fileType = validateProfessorContentUploadFile(file)
 
   if ("error" in fileType) {
-    throw new AdminContentUploadError(fileType.error, fileType.status)
+    throw new ProfessorContentUploadError(fileType.error, fileType.status)
   }
 
   if (fileType.kind === "tex") {
@@ -111,18 +111,18 @@ export async function buildAdminContentUploadPreview(
   return buildPdfPreview(file)
 }
 
-export function validateAdminContentUploadFile(
+export function validateProfessorContentUploadFile(
   file: Pick<UploadedFileInput, "bytes" | "name" | "size" | "type">,
 ):
-  | { kind: AdminUploadKind }
+  | { kind: ProfessorUploadKind }
   | { error: string; status: 400 | 413 } {
   if (file.size <= 0) {
     return { error: "Upload must include a non-empty file.", status: 400 }
   }
 
-  if (file.size > ADMIN_CONTENT_UPLOAD_MAX_BYTES) {
+  if (file.size > PROFESSOR_CONTENT_UPLOAD_MAX_BYTES) {
     return {
-      error: "Admin content uploads must be smaller than 512KB.",
+      error: "Professor content uploads must be smaller than 512KB.",
       status: 413,
     }
   }
@@ -167,7 +167,7 @@ export function validateAdminContentUploadFile(
   }
 }
 
-export class AdminContentUploadError extends Error {
+export class ProfessorContentUploadError extends Error {
   status: 400 | 413 | 503
 
   constructor(message: string, status: 400 | 413 | 503) {
@@ -176,7 +176,7 @@ export class AdminContentUploadError extends Error {
   }
 }
 
-function buildTexPreview(file: UploadedFileInput): AdminContentUploadPreview {
+function buildTexPreview(file: UploadedFileInput): ProfessorContentUploadPreview {
   const source = Buffer.from(file.bytes).toString("utf8")
   const stripped = stripTexComments(source)
   const sections = extractSectionTitles(stripped)
@@ -210,7 +210,7 @@ function buildTexPreview(file: UploadedFileInput): AdminContentUploadPreview {
 
 async function buildPdfPreview(
   file: UploadedFileInput,
-): Promise<AdminContentUploadPreview> {
+): Promise<ProfessorContentUploadPreview> {
   const extractedText = await extractPdfText(file)
   const privateStorage = await writePrivateExtractedText(file.name, extractedText)
   const safeText = normalizePlainText(extractedText)
@@ -245,7 +245,7 @@ async function buildPdfPreview(
 }
 
 async function extractPdfText(file: UploadedFileInput) {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "suffolk-admin-upload-"))
+  const tempDir = await mkdtemp(path.join(tmpdir(), "suffolk-professor-upload-"))
   const pdfPath = path.join(tempDir, "upload.pdf")
   const textPath = path.join(tempDir, "upload.txt")
 
@@ -293,7 +293,7 @@ function assertIgnoredPrivatePath(targetPath: string) {
   })
 
   if (result.status !== 0) {
-    throw new AdminContentUploadError(
+    throw new ProfessorContentUploadError(
       "Private extraction output path is not ignored by Git.",
       503,
     )
@@ -308,7 +308,7 @@ function assertInsideDirectory(targetPath: string, allowedDirectory: string) {
     !path.isAbsolute(relativePath)
 
   if (!inside) {
-    throw new AdminContentUploadError(
+    throw new ProfessorContentUploadError(
       "Private extraction output path is invalid.",
       503,
     )
@@ -414,7 +414,7 @@ function extractLearningObjectives(source: string) {
 }
 
 function patternItems(
-  topics: AdminUploadPreviewItem[],
+  topics: ProfessorUploadPreviewItem[],
   sectionTitles: string[],
   formulas: Array<{ name: string; symbolicFormula: string }>,
 ) {
@@ -456,7 +456,7 @@ function patternItems(
 }
 
 function misconceptionItems(
-  topics: AdminUploadPreviewItem[],
+  topics: ProfessorUploadPreviewItem[],
   formulas: Array<{ name: string; symbolicFormula: string }>,
 ) {
   const labels = new Set<string>()

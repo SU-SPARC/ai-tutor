@@ -28,13 +28,13 @@ import {
   type ReviewCandidate,
   type TutorQuestion,
 } from "@/lib/types";
-import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-admin";
+import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-tools";
 
 let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate);
 
 export const demoContentRepository: ContentRepository = {
   async getAdminQuestions(authorization, filters) {
-    assertAuthorization(authorization, "administrator");
+    assertAuthorization(authorization, "professor");
     return filterAdminQuestions(
       [
         ...demoQuestions.map(adminQuestionFromTutorQuestion),
@@ -61,7 +61,7 @@ export const demoContentRepository: ContentRepository = {
   },
 
   async getProfessorPracticeAnalytics(authorization) {
-    assertAuthorization(authorization, "analytics");
+    assertAuthorization(authorization, "professor");
     return getDemoProfessorPracticeAnalytics();
   },
 
@@ -70,16 +70,7 @@ export const demoContentRepository: ContentRepository = {
   },
 
   async getReviewQueue(authorization, filters) {
-    switch (authorization.permission) {
-      case "administrator":
-        assertAuthorization(authorization, "administrator");
-        break;
-      case "analytics":
-        assertAuthorization(authorization, "analytics");
-        break;
-      default:
-        assertAuthorization(authorization, "professor-review");
-    }
+    assertAuthorization(authorization, "professor");
     return filterReviewQueue(reviewQueue, filters).map(cloneReviewCandidate);
   },
 
@@ -88,7 +79,7 @@ export const demoContentRepository: ContentRepository = {
   },
 
   async importReviewCandidates(authorization, candidates) {
-    assertAuthorization(authorization, "professor-review");
+    assertAuthorization(authorization, "professor");
     const incoming = candidates.map(cloneReviewCandidate);
     const incomingIds = new Set(incoming.map((candidate) => candidate.id));
     reviewQueue = [
@@ -121,7 +112,7 @@ export const demoContentRepository: ContentRepository = {
   },
 
   async updateReviewCandidates(authorization, input: ReviewCandidateUpdate) {
-    assertAuthorization(authorization, "professor-review");
+    assertAuthorization(authorization, "professor");
     const reviewer = reviewerAttribution(authorization);
     const ids = new Set(input.candidateIds);
     const updated: ReviewCandidate[] = [];
@@ -169,17 +160,17 @@ export const demoContentRepository: ContentRepository = {
   },
 
   async updateAdminQuestions(authorization) {
-    assertAuthorization(authorization, "administrator");
+    assertAuthorization(authorization, "professor");
     return [];
   },
 
   async regenerateAdminQuestion(authorization) {
-    assertAuthorization(authorization, "administrator");
+    assertAuthorization(authorization, "professor");
     return undefined;
   },
 
   async updateAdminQuestionDetail(authorization) {
-    assertAuthorization(authorization, "administrator");
+    assertAuthorization(authorization, "professor");
     return undefined;
   },
 
@@ -188,7 +179,7 @@ export const demoContentRepository: ContentRepository = {
     candidateId: string,
     action: ReviewAction,
   ) {
-    assertAuthorization(authorization, "professor-review");
+    assertAuthorization(authorization, "professor");
     const updated = await this.updateReviewCandidates(authorization, {
       action,
       candidateIds: [candidateId],

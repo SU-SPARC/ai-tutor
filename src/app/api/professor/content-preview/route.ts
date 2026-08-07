@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 
 import {
-  ADMIN_CONTENT_UPLOAD_MAX_BYTES,
-  AdminContentUploadError,
-  buildAdminContentUploadPreview,
-} from "@/lib/tutor/admin-content-upload";
-import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
+  PROFESSOR_CONTENT_UPLOAD_MAX_BYTES,
+  ProfessorContentUploadError,
+  buildProfessorContentUploadPreview,
+} from "@/lib/tutor/professor-content-upload";
+import { authorizeApi, requireProfessor } from "@/lib/auth/authorization";
 
 export const runtime = "nodejs";
 
-const MAX_MULTIPART_BYTES = ADMIN_CONTENT_UPLOAD_MAX_BYTES + 16_384;
+const MAX_MULTIPART_BYTES = PROFESSOR_CONTENT_UPLOAD_MAX_BYTES + 16_384;
 
 export async function POST(request: Request) {
-  const access = await authorizeApi(requireAdministrator);
+  const access = await authorizeApi(requireProfessor);
 
   if (!access.ok) {
     return access.response;
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > MAX_MULTIPART_BYTES) {
     return NextResponse.json(
-      { error: "Admin content uploads must be smaller than 512KB." },
+      { error: "Professor content uploads must be smaller than 512KB." },
       { status: 413 },
     );
   }
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const preview = await buildAdminContentUploadPreview({
+    const preview = await buildProfessorContentUploadPreview({
       bytes,
       name: file.name,
       size: file.size,
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       reviewStatus: "needs_review",
     });
   } catch (error) {
-    if (error instanceof AdminContentUploadError) {
+    if (error instanceof ProfessorContentUploadError) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status },

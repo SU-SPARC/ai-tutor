@@ -5,11 +5,7 @@ import {
   type LocalKeywordRetrievalResult,
   type LocalRetrievalAudience,
 } from "@/lib/ai/retrieval";
-import {
-  authorizeApi,
-  hasPermission,
-  requireProfessor,
-} from "@/lib/auth/authorization";
+import { authorizeApi, requireProfessor } from "@/lib/auth/authorization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,16 +55,6 @@ export async function POST(request: Request) {
 
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-
-  if (
-    parsed.input.mode === "admin_dev" &&
-    !hasPermission(access.authorization.principal, "administrator")
-  ) {
-    return NextResponse.json(
-      { error: "Administrator role is required for admin_dev retrieval." },
-      { status: 403 },
-    );
   }
 
   try {
@@ -220,16 +206,12 @@ function parseMode(value: unknown):
     return { ok: true, value: "student" };
   }
 
-  if (value === "student" || value === "admin_dev") {
+  if (value === "student") {
     return { ok: true, value };
   }
 
-  if (value === "admin") {
-    return { ok: true, value: "admin_dev" };
-  }
-
   return {
-    error: "mode must be one of: student, admin_dev.",
+    error: "mode must be student.",
     ok: false,
   };
 }

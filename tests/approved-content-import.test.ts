@@ -699,8 +699,11 @@ async function importReadyDatabase() {
   const migrations = await loadMigrations(migrationsDirectory)
   await runPendingMigrations({
     actor: "ci:approved-content-test",
+    allowDestructive: true,
+    changeTicket: "TEST-ROLE-SIMPLIFICATION",
     client: database,
     deploymentSha: "abcdef1234567890",
+    destructiveApprovedBy: "ci:independent-test-approver",
     migrations,
     target: "test",
   })

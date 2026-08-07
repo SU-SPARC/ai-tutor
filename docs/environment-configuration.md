@@ -72,12 +72,10 @@ prerequisites; see
 Provide the Clerk key pair to both the build and runtime environment because the
 publishable key is compiled into the browser bundle.
 
-`ADMIN_SECRET` is obsolete and is not part of the variable inventory. Deployed
-environments reject it. Development and Test temporarily ignore it only to let
-operators remove the variable from existing local `.env` files without
-blocking startup; it is never returned by the configuration parser and cannot
-authorize a request. See the
-[role provisioning process](authentication-authorization.md#roles-and-permissions).
+`ADMIN_SECRET` is obsolete, is not part of the variable inventory, and is
+rejected in every environment. It cannot authorize a request. Professor access
+is assigned only through Clerk public metadata; see the
+[role provisioning process](authentication-authorization.md#assigning-the-professor-role).
 
 Repository and user-interface behavior for each environment is documented in
 [Operating Modes And Demo Isolation](operating-modes.md).
@@ -115,7 +113,7 @@ Automated tests infer `APP_ENV=test` from `NODE_ENV=test`.
 For interactive local authentication, configure both Clerk keys from a Clerk
 Development instance. With neither key, the public local demo continues to run
 but account sign-in remains unavailable. Automated role tests inject principals
-directly; there is no browser role selector or simulated professor/admin login.
+directly; there is no browser role selector or simulated professor login.
 
 A Staging or Production server must provide all strict variables. AI may be
 disabled, but `AI_ENABLED=false` must be explicit; when it is enabled, provider,

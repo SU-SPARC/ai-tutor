@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, BarChart3 } from "lucide-react";
 
-import { InstructorAnalyticsPanel } from "@/components/admin/instructor-analytics-panel";
+import { InstructorAnalyticsPanel } from "@/components/professor/instructor-analytics-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,8 +9,8 @@ import {
   requirePageAccess,
 } from "@/lib/auth/authorization";
 
-export default async function AdminAnalyticsPage() {
-  await requirePageAccess(requireAnalyticsAccess, "/admin/analytics");
+export default async function ProfessorAnalyticsPage() {
+  await requirePageAccess(requireAnalyticsAccess, "/professor/analytics");
   return (
     <main className="min-h-svh bg-background">
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">

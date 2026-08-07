@@ -5,7 +5,6 @@ import {
   isPublishedContent,
   isRetrievalEligibleContent,
   isStudentSafeRetrievalContent,
-  type AdministratorAuthorization,
   type AnalyticsAuthorization,
   type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
@@ -46,10 +45,10 @@ export async function listQuestions() {
 }
 
 export async function getAdminQuestionDashboard(
-  authorization: AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
   filters?: AdminQuestionFilters,
 ): Promise<AdminQuestionDashboard> {
-  assertAuthorization(authorization, "administrator");
+  assertAuthorization(authorization, "professor");
   const env = getServerEnv();
   const policy = getOperatingModePolicy();
   const topics = await listTopics();
@@ -106,10 +105,10 @@ export async function getAdminQuestionDashboard(
 }
 
 export async function updateAdminQuestionsStrict(
-  authorization: AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
   input: AdminQuestionUpdate,
 ) {
-  assertAuthorization(authorization, "administrator");
+  assertAuthorization(authorization, "professor");
   if (contentRepositoryOverride) {
     return contentRepositoryOverride.updateAdminQuestions(authorization, input);
   }
@@ -120,11 +119,11 @@ export async function updateAdminQuestionsStrict(
 }
 
 export async function updateAdminQuestionDetailStrict(
-  authorization: AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
   questionId: string,
   input: AdminQuestionDetailUpdate,
 ) {
-  assertAuthorization(authorization, "administrator");
+  assertAuthorization(authorization, "professor");
   if (contentRepositoryOverride) {
     return contentRepositoryOverride.updateAdminQuestionDetail(
       authorization,
@@ -139,10 +138,10 @@ export async function updateAdminQuestionDetailStrict(
 }
 
 export async function regenerateAdminQuestionStrict(
-  authorization: AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
   input: AdminQuestionRegenerationInput,
 ) {
-  assertAuthorization(authorization, "administrator");
+  assertAuthorization(authorization, "professor");
   if (contentRepositoryOverride) {
     return contentRepositoryOverride.regenerateAdminQuestion(
       authorization,
@@ -178,7 +177,7 @@ export async function getQuestionCounts() {
 export async function getProfessorPracticeAnalytics(
   authorization: AnalyticsAuthorization,
 ) {
-  assertAuthorization(authorization, "analytics");
+  assertAuthorization(authorization, "professor");
   return readWithConfiguredRepository((repository) =>
     repository.getProfessorPracticeAnalytics(authorization),
   );
@@ -204,22 +203,10 @@ export async function getRetrievalChunks() {
 }
 
 export async function getReviewQueue(
-  authorization:
-    | ProfessorReviewAuthorization
-    | AnalyticsAuthorization
-    | AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization | AnalyticsAuthorization,
   filters?: ReviewQueueFilters,
 ) {
-  switch (authorization.permission) {
-    case "administrator":
-      assertAuthorization(authorization, "administrator");
-      break;
-    case "analytics":
-      assertAuthorization(authorization, "analytics");
-      break;
-    default:
-      assertAuthorization(authorization, "professor-review");
-  }
+  assertAuthorization(authorization, "professor");
   return readWithConfiguredRepository((repository) =>
     repository.getReviewQueue(authorization, filters),
   );
@@ -229,7 +216,7 @@ export async function getProfessorTopicReviewProgress(
   authorization: ProfessorReviewAuthorization,
   topicId: string,
 ) {
-  assertAuthorization(authorization, "professor-review");
+  assertAuthorization(authorization, "professor");
   const candidates = await readWithConfiguredRepository((repository) =>
     repository.getReviewQueue(authorization, {
       topicId,
@@ -243,7 +230,7 @@ export async function importReviewCandidates(
   authorization: ProfessorReviewAuthorization,
   candidates: ReviewCandidate[],
 ) {
-  assertAuthorization(authorization, "professor-review");
+  assertAuthorization(authorization, "professor");
   return writeWithConfiguredRepository((repository) =>
     repository.importReviewCandidates(authorization, candidates),
   );
@@ -253,7 +240,7 @@ export async function updateReviewCandidates(
   authorization: ProfessorReviewAuthorization,
   input: ReviewCandidateUpdate,
 ) {
-  assertAuthorization(authorization, "professor-review");
+  assertAuthorization(authorization, "professor");
   return writeWithConfiguredRepository((repository) =>
     repository.updateReviewCandidates(authorization, input),
   );
@@ -264,7 +251,7 @@ export async function updateReviewCandidateStatus(
   candidateId: string,
   action: ReviewAction,
 ) {
-  assertAuthorization(authorization, "professor-review");
+  assertAuthorization(authorization, "professor");
   return writeWithConfiguredRepository((repository) =>
     repository.updateReviewCandidateStatus(authorization, candidateId, action),
   );
@@ -421,7 +408,7 @@ async function writeStrictDatabase<T>(
 }
 
 async function demoAdminQuestionDashboard(
-  authorization: AdministratorAuthorization,
+  authorization: ProfessorReviewAuthorization,
   filters: AdminQuestionFilters | undefined,
   topics: AdminQuestionDashboard["topics"],
   fallback = false,

@@ -6,20 +6,20 @@ import { AlertTriangle, FileText, Loader2, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AdminContentUploadPreview } from "@/lib/tutor/admin-content-upload";
+import type { ProfessorContentUploadPreview } from "@/lib/tutor/professor-content-upload";
 
 type UploadPayload = {
   error?: string;
   imported?: boolean;
-  preview?: AdminContentUploadPreview;
+  preview?: ProfessorContentUploadPreview;
   reviewStatus?: "needs_review";
 };
 
-export function AdminUploadPanel() {
+export function ProfessorUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [preview, setPreview] = useState<AdminContentUploadPreview | null>(
+  const [preview, setPreview] = useState<ProfessorContentUploadPreview | null>(
     null,
   );
 
@@ -41,7 +41,7 @@ export function AdminUploadPanel() {
     formData.set("file", file);
 
     try {
-      const response = await fetch("/api/admin/upload", {
+      const response = await fetch("/api/professor/content-preview", {
         body: formData,
         method: "POST",
       });
@@ -93,7 +93,11 @@ export function AdminUploadPanel() {
   );
 }
 
-function PreviewResult({ preview }: { preview: AdminContentUploadPreview }) {
+function PreviewResult({
+  preview,
+}: {
+  preview: ProfessorContentUploadPreview;
+}) {
   return (
     <div className="flex flex-col gap-4 border border-border p-4">
       <div className="flex flex-wrap items-center gap-2">

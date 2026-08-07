@@ -195,7 +195,7 @@ Audit environment:
 
 Repair environment:
   INTEGRITY_REPAIR_DATABASE_URL       Separately controlled repair credential
-  INTEGRITY_REPAIR_ACTOR_USER_ID      Active human professor/admin application user ID
+  INTEGRITY_REPAIR_ACTOR_USER_ID      Active human professor application user ID
   INTEGRITY_REPAIR_CHANGE_TICKET      Approved repair ticket
 
 Repair actions:

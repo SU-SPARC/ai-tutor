@@ -19,7 +19,7 @@ import {
   isValidReviewPriority,
   isValidReviewStatus,
   safeTopics,
-} from "@/lib/tutor/professor-admin";
+} from "@/lib/tutor/professor-tools";
 import type { Difficulty, ReviewPriority } from "@/lib/types";
 
 const REVIEW_ACTIONS = [

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { regenerateAdminQuestionStrict } from "@/lib/data/data-store";
-import { authorizeApi, requireAdministrator } from "@/lib/auth/authorization";
+import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 
 const MAX_BODY_BYTES = 4_096;
 
@@ -13,7 +13,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await authorizeApi(requireAdministrator);
+  const access = await authorizeApi(requireProfessorReview);
 
   if (!access.ok) {
     return access.response;

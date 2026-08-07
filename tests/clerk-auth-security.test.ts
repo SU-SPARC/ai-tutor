@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   currentUser: vi.fn(),
   getApplicationUserAccessByExternalIdentity: vi.fn(),
   getServerEnv: vi.fn(),
+  syncClerkRoleProjection: vi.fn(),
   upsertClerkAccount: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("@/lib/auth/account-repository", () => ({
   CLERK_IDENTITY_PROVIDER: "clerk",
   getApplicationUserAccessByExternalIdentity:
     mocks.getApplicationUserAccessByExternalIdentity,
+  syncClerkRoleProjection: mocks.syncClerkRoleProjection,
   upsertClerkAccount: mocks.upsertClerkAccount,
 }));
 
@@ -25,12 +27,12 @@ vi.mock("@/lib/env/server", () => ({
 }));
 
 import { resolveAuthenticatedPrincipal } from "@/lib/auth/principal";
+import { applicationRoleFromPublicMetadata } from "@/lib/auth/roles";
 
 const activeStudent = {
   displayName: "Clerk Student",
   email: "student@example.edu",
   id: "user:application-student",
-  roles: ["student"],
   sessionVersion: 1,
   status: "active",
 };
@@ -46,6 +48,7 @@ beforeEach(() => {
     },
     userId: "user_clerk_student",
   });
+  mocks.currentUser.mockResolvedValue(clerkUser());
   mocks.getApplicationUserAccessByExternalIdentity.mockResolvedValue(
     activeStudent,
   );
@@ -75,18 +78,58 @@ describe("Clerk identity boundary", () => {
     ).not.toHaveBeenCalled();
   });
 
-  it("uses only database roles and ignores client/session role metadata", async () => {
+  it("uses Clerk public metadata and ignores session/client role metadata", async () => {
     await expect(resolveAuthenticatedPrincipal()).resolves.toEqual({
       displayName: "Clerk Student",
       email: "student@example.edu",
       kind: "user",
+      role: "student",
       roles: ["student"],
       userId: "user:application-student",
     });
     expect(
       mocks.getApplicationUserAccessByExternalIdentity,
     ).toHaveBeenCalledWith("clerk", "user_clerk_student");
-    expect(mocks.currentUser).not.toHaveBeenCalled();
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
+    expect(mocks.syncClerkRoleProjection).toHaveBeenCalledWith(
+      "user:application-student",
+      "student",
+    );
+  });
+
+  it("recognizes only the exact professor public metadata value", async () => {
+    mocks.currentUser.mockResolvedValue(
+      clerkUser({ publicMetadata: { role: "professor" } }),
+    );
+
+    await expect(resolveAuthenticatedPrincipal()).resolves.toMatchObject({
+      role: "professor",
+      roles: ["student", "professor"],
+    });
+  });
+
+  it.each([
+    undefined,
+    null,
+    {},
+    { role: "admin" },
+    { role: "Professor" },
+    { role: ["professor"] },
+  ])("defaults missing or malformed metadata to student", (metadata) => {
+    expect(applicationRoleFromPublicMetadata(metadata)).toBe("student");
+  });
+
+  it("does not accept a self-writable unsafe metadata role", async () => {
+    mocks.currentUser.mockResolvedValue(
+      clerkUser({
+        publicMetadata: {},
+        unsafeMetadata: { role: "professor" },
+      }),
+    );
+
+    await expect(resolveAuthenticatedPrincipal()).resolves.toMatchObject({
+      role: "student",
+    });
   });
 
   it("creates a student application profile from a verified primary email", async () => {
@@ -106,6 +149,7 @@ describe("Clerk identity boundary", () => {
       id: "user_clerk_student",
       lastName: "Student",
       primaryEmailAddressId: "email_primary",
+      publicMetadata: {},
     });
     mocks.upsertClerkAccount.mockResolvedValue({
       ...activeStudent,
@@ -114,6 +158,7 @@ describe("Clerk identity boundary", () => {
     });
 
     await expect(resolveAuthenticatedPrincipal()).resolves.toMatchObject({
+      role: "student",
       roles: ["student"],
       userId: "user:application-student",
     });
@@ -138,6 +183,7 @@ describe("Clerk identity boundary", () => {
       ],
       id: "user_clerk_student",
       primaryEmailAddressId: "email_primary",
+      publicMetadata: {},
     });
 
     await expect(resolveAuthenticatedPrincipal()).resolves.toBeUndefined();
@@ -153,3 +199,26 @@ describe("Clerk identity boundary", () => {
     await expect(resolveAuthenticatedPrincipal()).resolves.toBeUndefined();
   });
 });
+
+function clerkUser(
+  overrides: Partial<{
+    publicMetadata: Record<string, unknown>;
+    unsafeMetadata: Record<string, unknown>;
+  }> = {},
+) {
+  return {
+    emailAddresses: [
+      {
+        emailAddress: "student@example.edu",
+        id: "email_primary",
+        verification: { status: "verified" },
+      },
+    ],
+    fullName: "Clerk Student",
+    id: "user_clerk_student",
+    primaryEmailAddressId: "email_primary",
+    publicMetadata: {},
+    unsafeMetadata: {},
+    ...overrides,
+  };
+}

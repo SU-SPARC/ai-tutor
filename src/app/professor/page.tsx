@@ -40,6 +40,21 @@ export default async function ProfessorPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href="/professor/review">Review queue</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/professor/questions">Question catalog</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/professor/upload">Upload preview</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/professor/analytics">Analytics</Link>
+          </Button>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader>

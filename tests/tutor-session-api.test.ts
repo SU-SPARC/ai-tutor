@@ -219,6 +219,7 @@ describe("tutor session API", () => {
       displayName: "Attacking Student",
       email: "attacker@example.invalid",
       kind: "user",
+      role: "student",
       roles: ["student"],
       userId: "user:attacking-student",
     });

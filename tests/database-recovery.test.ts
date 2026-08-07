@@ -197,8 +197,11 @@ describe("database recovery workflow", () => {
     )
     await runPendingMigrations({
       actor: "recovery-test",
+      allowDestructive: true,
+      changeTicket: "TEST-ROLE-SIMPLIFICATION",
       client,
       deploymentSha: "b".repeat(40),
+      destructiveApprovedBy: "independent-recovery-approver",
       migrations,
       target: "test",
     })

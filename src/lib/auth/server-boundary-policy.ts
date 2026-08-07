@@ -5,10 +5,9 @@ export const SERVER_BOUNDARY_ACCESS = [
   "student-or-anonymous",
   "student-authenticated",
   "owned-student-resource",
-  "professor-or-admin",
-  "professor-review-or-admin",
-  "professor-analytics-or-admin",
-  "administrator",
+  "professor",
+  "professor-review",
+  "professor-analytics",
 ] as const;
 
 export type ServerBoundaryAccess = (typeof SERVER_BOUNDARY_ACCESS)[number];
@@ -33,27 +32,6 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page("/account", "src/app/account/page.tsx", "student-authenticated", [
     "requireStudent",
   ]),
-  page(
-    "/admin/analytics",
-    "src/app/admin/analytics/page.tsx",
-    "professor-analytics-or-admin",
-    ["requireAnalyticsAccess"],
-  ),
-  page(
-    "/admin/questions",
-    "src/app/admin/questions/page.tsx",
-    "administrator",
-    ["requireAdministrator", "getAdminQuestionDashboard"],
-  ),
-  page(
-    "/admin/review",
-    "src/app/admin/review/page.tsx",
-    "professor-review-or-admin",
-    ["requireProfessorReview"],
-  ),
-  page("/admin/upload", "src/app/admin/upload/page.tsx", "administrator", [
-    "requireAdministrator",
-  ]),
   page("/dashboard", "src/app/dashboard/page.tsx", "student-or-anonymous", [
     "ProgressDashboard",
   ]),
@@ -70,7 +48,28 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "public",
     ["getApprovedQuestionById"],
   ),
-  page("/professor", "src/app/professor/page.tsx", "professor-or-admin", [
+  page("/professor", "src/app/professor/page.tsx", "professor", [
+    "requireProfessor",
+  ]),
+  page(
+    "/professor/analytics",
+    "src/app/professor/analytics/page.tsx",
+    "professor-analytics",
+    ["requireAnalyticsAccess"],
+  ),
+  page(
+    "/professor/questions",
+    "src/app/professor/questions/page.tsx",
+    "professor-review",
+    ["requireProfessorReview", "getAdminQuestionDashboard"],
+  ),
+  page(
+    "/professor/review",
+    "src/app/professor/review/page.tsx",
+    "professor-review",
+    ["requireProfessorReview"],
+  ),
+  page("/professor/upload", "src/app/professor/upload/page.tsx", "professor", [
     "requireProfessor",
   ]),
   page(
@@ -91,10 +90,7 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ]),
 
   layout("/", "src/app/layout.tsx", "public", []),
-  layout("/admin", "src/app/admin/layout.tsx", "professor-or-admin", [
-    "requireProfessor",
-  ]),
-  layout("/professor", "src/app/professor/layout.tsx", "professor-or-admin", [
+  layout("/professor", "src/app/professor/layout.tsx", "professor", [
     "requireProfessor",
   ]),
 
@@ -114,38 +110,38 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "GET",
-    "/api/admin/questions",
-    "src/app/api/admin/questions/route.ts",
-    "administrator",
-    ["requireAdministrator"],
+    "/api/professor/questions",
+    "src/app/api/professor/questions/route.ts",
+    "professor-review",
+    ["requireProfessorReview"],
   ),
   route(
     "PATCH",
-    "/api/admin/questions",
-    "src/app/api/admin/questions/route.ts",
-    "administrator",
-    ["requireAdministrator"],
+    "/api/professor/questions",
+    "src/app/api/professor/questions/route.ts",
+    "professor-review",
+    ["requireProfessorReview"],
   ),
   route(
     "PATCH",
-    "/api/admin/questions/[id]",
-    "src/app/api/admin/questions/[id]/route.ts",
-    "administrator",
-    ["requireAdministrator"],
+    "/api/professor/questions/[id]",
+    "src/app/api/professor/questions/[id]/route.ts",
+    "professor-review",
+    ["requireProfessorReview"],
   ),
   route(
     "POST",
-    "/api/admin/questions/[id]/regenerate",
-    "src/app/api/admin/questions/[id]/regenerate/route.ts",
-    "administrator",
-    ["requireAdministrator"],
+    "/api/professor/questions/[id]/regenerate",
+    "src/app/api/professor/questions/[id]/regenerate/route.ts",
+    "professor-review",
+    ["requireProfessorReview"],
   ),
   route(
     "POST",
-    "/api/admin/upload",
-    "src/app/api/admin/upload/route.ts",
-    "administrator",
-    ["requireAdministrator"],
+    "/api/professor/content-preview",
+    "src/app/api/professor/content-preview/route.ts",
+    "professor",
+    ["requireProfessor"],
   ),
   route(
     "GET",
@@ -165,35 +161,35 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "GET",
     "/api/professor/analytics",
     "src/app/api/professor/analytics/route.ts",
-    "professor-analytics-or-admin",
+    "professor-analytics",
     ["requireAnalyticsAccess", "toProfessorAnalyticsDto"],
   ),
   route(
     "GET",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
-    "professor-review-or-admin",
+    "professor-review",
     ["requireProfessorReview", "toProfessorReviewCandidateDto"],
   ),
   route(
     "PATCH",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
-    "professor-review-or-admin",
+    "professor-review",
     ["requireProfessorReview", "updateReviewCandidates"],
   ),
   route(
     "POST",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
-    "professor-review-or-admin",
+    "professor-review",
     ["requireProfessorReview", "updateReviewCandidates"],
   ),
   route(
     "POST",
     "/api/professor/upload",
     "src/app/api/professor/upload/route.ts",
-    "professor-review-or-admin",
+    "professor-review",
     ["requireProfessorReview"],
   ),
   route("GET", "/api/questions", "src/app/api/questions/route.ts", "public", [
@@ -210,8 +206,8 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "POST",
     "/api/retrieval/search",
     "src/app/api/retrieval/search/route.ts",
-    "professor-or-admin",
-    ["requireProfessor", "Administrator role is required"],
+    "professor",
+    ["requireProfessor"],
   ),
   route(
     "GET",
@@ -331,12 +327,10 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
       return "Current active application account only.";
     case "owned-student-resource":
       return "Session ID plus server-resolved owner; ownership failures are 404.";
-    case "professor-or-admin":
-    case "professor-review-or-admin":
+    case "professor":
+    case "professor-review":
       return "Professor-safe course data; private internals and student identity omitted.";
-    case "professor-analytics-or-admin":
+    case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
-    case "administrator":
-      return "Administrative public-safe records and mutations; private source bodies excluded.";
   }
 }
