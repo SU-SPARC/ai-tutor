@@ -21,6 +21,7 @@ describe("typed server environment", () => {
       APP_DEMO_MODE: true,
       APP_ENV: "development",
       APP_URL: "http://localhost:3000",
+      CLERK_ENABLED: false,
       IS_DEPLOYED_ENVIRONMENT: false,
       IS_PRODUCTION: false,
       LOG_LEVEL: "debug",
@@ -85,6 +86,7 @@ describe("typed server environment", () => {
       APP_DEMO_MODE: false,
       APP_ENV: "staging",
       APP_URL: "https://staging.example.edu",
+      CLERK_ENABLED: true,
       IS_DEPLOYED_ENVIRONMENT: true,
       IS_PRODUCTION: false,
       LOG_LEVEL: "info",
@@ -124,10 +126,10 @@ describe("typed server environment", () => {
       expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
       expect(String(error)).toContain("APP_URL is required");
       expect(String(error)).toContain("DATABASE_URL is required");
-      expect(String(error)).toContain("AUTH_ISSUER_URL is required");
-      expect(String(error)).toContain("AUTH_CLIENT_ID is required");
-      expect(String(error)).toContain("AUTH_CLIENT_SECRET is required");
-      expect(String(error)).toContain("AUTH_SESSION_SECRET is required");
+      expect(String(error)).toContain(
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is required",
+      );
+      expect(String(error)).toContain("CLERK_SECRET_KEY is required");
       expect(String(error)).toContain("ERROR_TRACKING_DSN is required");
       expect(String(error)).toContain("APP_DEMO_MODE must be explicitly set");
       expect(String(error)).toContain("AI_ENABLED must be explicitly set");
@@ -140,10 +142,8 @@ describe("typed server environment", () => {
   it("fails Production startup when an otherwise valid environment is missing authentication configuration", () => {
     const input = {
       ...strictEnvironment("production"),
-      AUTH_CLIENT_ID: undefined,
-      AUTH_CLIENT_SECRET: undefined,
-      AUTH_ISSUER_URL: undefined,
-      AUTH_SESSION_SECRET: undefined,
+      CLERK_SECRET_KEY: undefined,
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: undefined,
     };
 
     try {
@@ -156,10 +156,8 @@ describe("typed server environment", () => {
       );
       expect((error as ServerEnvironmentValidationError).issues).toEqual(
         expect.arrayContaining([
-          expect.stringMatching(/^AUTH_ISSUER_URL is required/),
-          "AUTH_CLIENT_ID is required.",
-          "AUTH_CLIENT_SECRET is required.",
-          "AUTH_SESSION_SECRET is required.",
+          "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is required.",
+          "CLERK_SECRET_KEY is required.",
         ]),
       );
       expect((error as ServerEnvironmentValidationError).issues).not.toEqual(
@@ -176,7 +174,6 @@ describe("typed server environment", () => {
         ...strictEnvironment("production"),
         APP_DEMO_MODE: "true",
         APP_URL: "http://production.example.edu",
-        AUTH_ISSUER_URL: "http://identity.example.edu",
         ERROR_TRACKING_DSN: "http://errors.example.edu/project",
       }),
     ).toThrowError(
@@ -184,7 +181,6 @@ describe("typed server environment", () => {
         issues: expect.arrayContaining([
           "APP_DEMO_MODE must be false in staging and production.",
           "APP_URL must use https in deployed environments.",
-          "AUTH_ISSUER_URL must use https in deployed environments.",
           "ERROR_TRACKING_DSN must use https in deployed environments.",
         ]),
       }),
@@ -208,29 +204,34 @@ describe("typed server environment", () => {
     },
   );
 
-  it.each([
-    "a-test-session-secret-with-32-characters",
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "replace-this-placeholder-session-secret",
-  ])("rejects a weak deployed session secret", (AUTH_SESSION_SECRET) => {
+  it("rejects malformed Clerk keys", () => {
     expect(() =>
       parseServerEnv({
         ...strictEnvironment("production"),
-        AUTH_SESSION_SECRET,
+        CLERK_SECRET_KEY: "not-a-clerk-secret",
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "not-a-clerk-key",
       }),
-    ).toThrowError(/AUTH_SESSION_SECRET must be a high-entropy value/);
+    ).toThrowError(/must be a Clerk publishable key/);
   });
 
-  it("requires the application session and OIDC client secrets to differ", () => {
-    const sharedSecret = "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ";
+  it("rejects Clerk keys from different instance environments", () => {
+    expect(() =>
+      parseServerEnv({
+        ...strictEnvironment("staging"),
+        CLERK_SECRET_KEY: clerkKey("secret", "live"),
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey("publishable", "test"),
+      }),
+    ).toThrowError(/must belong to the same Clerk instance environment/);
+  });
 
+  it("rejects Clerk development-instance keys in Production", () => {
     expect(() =>
       parseServerEnv({
         ...strictEnvironment("production"),
-        AUTH_CLIENT_SECRET: sharedSecret,
-        AUTH_SESSION_SECRET: sharedSecret,
+        CLERK_SECRET_KEY: clerkKey("secret", "test"),
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey("publishable", "test"),
       }),
-    ).toThrowError(/AUTH_SESSION_SECRET must differ from AUTH_CLIENT_SECRET/);
+    ).toThrowError(/Production requires Clerk production-instance keys/);
   });
 
   it("requires complete provider configuration when AI is enabled", () => {
@@ -261,6 +262,7 @@ describe("typed server environment", () => {
       parseServerEnv({
         NODE_ENV: "test",
         NEXT_PUBLIC_ADMIN_SECRET: exposedValue,
+        NEXT_PUBLIC_CLERK_SECRET_KEY: exposedValue,
         NEXT_PUBLIC_DATABASE_URL: exposedValue,
         NEXT_PUBLIC_OPENROUTER_API_KEY: exposedValue,
       });
@@ -268,6 +270,7 @@ describe("typed server environment", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
       expect(String(error)).toContain("NEXT_PUBLIC_ADMIN_SECRET");
+      expect(String(error)).toContain("NEXT_PUBLIC_CLERK_SECRET_KEY");
       expect(String(error)).toContain("NEXT_PUBLIC_DATABASE_URL");
       expect(String(error)).toContain("NEXT_PUBLIC_OPENROUTER_API_KEY");
       expect(String(error)).not.toContain(exposedValue);
@@ -303,16 +306,28 @@ function strictEnvironment(
       environment === "production"
         ? "https://tutor.example.edu"
         : "https://staging.example.edu",
-    AUTH_CLIENT_ID: "tutor-client",
-    AUTH_CLIENT_SECRET: "test-client-secret",
-    AUTH_ISSUER_URL: "https://identity.example.edu",
-    AUTH_SESSION_SECRET: "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ",
+    CLERK_SECRET_KEY:
+      environment === "production"
+        ? clerkKey("secret", "live")
+        : clerkKey("secret", "test"),
     DATABASE_URL: "postgresql://user:password@database.example.edu/tutor",
     ERROR_TRACKING_DSN: "https://errors.example.edu/project",
     LOG_LEVEL: "info",
     MAX_LLM_OUTPUT_TOKENS: "250",
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+      environment === "production"
+        ? clerkKey("publishable", "live")
+        : clerkKey("publishable", "test"),
     OPENROUTER_API_KEY: "test-openrouter-key",
     RATE_LIMIT_MAX_REQUESTS: "40",
     RATE_LIMIT_WINDOW_SECONDS: "60",
   };
+}
+
+function clerkKey(
+  kind: "publishable" | "secret",
+  environment: "live" | "test",
+) {
+  const prefix = kind === "publishable" ? `${"p"}k` : `${"s"}k`;
+  return `${prefix}_${environment}_${"unit-test".repeat(4)}`;
 }

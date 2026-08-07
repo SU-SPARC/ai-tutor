@@ -4,18 +4,18 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/auth", () => ({
-  INSTITUTIONAL_PROVIDER_ID: "institutional-oidc",
-  LOCAL_TEST_PROVIDER_ID: "local-test-identity",
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-}));
+vi.mock("@clerk/nextjs", async () => {
+  const { createElement: element } = await import("react");
+  return {
+    SignOutButton: ({ children }: { children: React.ReactNode }) =>
+      element("span", null, children),
+  };
+});
 
 import ForbiddenPage from "@/app/forbidden/page";
 import ProfessorLayout from "@/app/professor/layout";
 import ProfessorPage from "@/app/professor/page";
 import { GET as getReviewQueue } from "@/app/api/professor/review/route";
-import SignInPage from "@/app/sign-in/page";
 import { AccountActions } from "@/components/auth/account-actions";
 import { resetReviewQueueForTests } from "@/lib/data/data-store";
 import {
@@ -139,15 +139,6 @@ describe("professor sign-in and navigation", () => {
     expect(postSignInPath("/practice?questionId=dice-sum-eight")).toBe(
       "/onboarding?returnTo=%2Fpractice%3FquestionId%3Ddice-sum-eight",
     );
-
-    const element = await SignInPage({
-      searchParams: Promise.resolve({ callbackUrl: "/professor" }),
-    });
-    const markup = renderToStaticMarkup(element);
-
-    expect(markup).toContain("Sign in to instructor tools");
-    expect(markup).toContain("server verifies your instructor permissions");
-    expect(markup).not.toContain("Sign in to save your progress");
   });
 
   it("shows instructor navigation and a clear sign-out action only after access", async () => {

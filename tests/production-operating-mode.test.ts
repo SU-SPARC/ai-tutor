@@ -211,13 +211,11 @@ function stubProductionEnvironment() {
     APP_DEMO_MODE: "false",
     APP_ENV: "production",
     APP_URL: "https://tutor.example.edu",
-    AUTH_CLIENT_ID: "test-client",
-    AUTH_CLIENT_SECRET: "test-client-secret",
-    AUTH_ISSUER_URL: "https://identity.example.edu",
-    AUTH_SESSION_SECRET: "B7vQ2kX9mR4tL8wC6zH3pN5sY1dF0aGJ",
+    CLERK_SECRET_KEY: clerkKey("secret", "live"),
     DATABASE_URL: "postgresql://user:password@database.example.edu/tutor",
     ERROR_TRACKING_DSN: "https://errors.example.edu/project",
     LOG_LEVEL: "info",
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey("publishable", "live"),
     RATE_LIMIT_MAX_REQUESTS: "40",
     RATE_LIMIT_WINDOW_SECONDS: "60",
   };
@@ -225,6 +223,14 @@ function stubProductionEnvironment() {
   for (const [name, value] of Object.entries(values)) {
     vi.stubEnv(name, value);
   }
+}
+
+function clerkKey(
+  kind: "publishable" | "secret",
+  environment: "live" | "test",
+) {
+  const prefix = kind === "publishable" ? `${"p"}k` : `${"s"}k`;
+  return `${prefix}_${environment}_${"unit-test".repeat(4)}`;
 }
 
 function failingContentRepository(message: string): ContentRepository {

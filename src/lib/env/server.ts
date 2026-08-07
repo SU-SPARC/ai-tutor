@@ -21,13 +21,8 @@ type ServerEnvBase = {
   APP_DEMO_MODE: boolean;
   APP_ENV: AppEnvironment;
   APP_URL: string;
-  AUTH_CLIENT_ID?: string;
-  AUTH_CLIENT_SECRET?: string;
-  AUTH_ENABLED: boolean;
-  AUTH_ISSUER_URL?: string;
-  AUTH_OIDC_ENABLED: boolean;
-  AUTH_SESSION_SECRET?: string;
-  AUTH_TEST_MODE: boolean;
+  CLERK_ENABLED: boolean;
+  CLERK_SECRET_KEY?: string;
   DATABASE_URL?: string;
   ERROR_TRACKING_DSN?: string;
   IS_DEPLOYED_ENVIRONMENT: boolean;
@@ -37,6 +32,7 @@ type ServerEnvBase = {
   LOG_LEVEL: LogLevel;
   RATE_LIMIT_MAX_REQUESTS: number;
   RATE_LIMIT_WINDOW_SECONDS: number;
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
 };
 
 type EnabledAiServerEnv = {
@@ -72,8 +68,7 @@ const STRICT_ENVIRONMENTS = new Set<AppEnvironment>(["staging", "production"]);
 const SERVER_SECRET_NAMES = [
   "ADMIN_SECRET",
   "ANONYMOUS_ID_SECRET",
-  "AUTH_CLIENT_SECRET",
-  "AUTH_SESSION_SECRET",
+  "CLERK_SECRET_KEY",
   "DATABASE_URL",
   "ERROR_TRACKING_DSN",
   "OPENROUTER_API_KEY",
@@ -122,77 +117,31 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     issues,
     strict,
   );
-  const AUTH_TEST_MODE = parseBoolean(
-    "AUTH_TEST_MODE",
-    input.AUTH_TEST_MODE,
-    issues,
-    { defaultValue: false },
-  );
-  const oidcConfigured = [
-    input.AUTH_ISSUER_URL,
-    input.AUTH_CLIENT_ID,
-    input.AUTH_CLIENT_SECRET,
+  const clerkConfigured = [
+    input.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    input.CLERK_SECRET_KEY,
   ].some((value) => Boolean(optionalString(value)));
-  const AUTH_ISSUER_URL = parseHttpUrl(
-    "AUTH_ISSUER_URL",
-    optionalString(input.AUTH_ISSUER_URL),
+  const NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = parseString(
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    input.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     issues,
-    {
-      oidcIssuer: true,
-      preserveExact: true,
-      requireHttps: deployed,
-      required: strict || oidcConfigured,
-    },
+    { required: strict || clerkConfigured },
   );
-  const AUTH_CLIENT_ID = parseString(
-    "AUTH_CLIENT_ID",
-    input.AUTH_CLIENT_ID,
+  const CLERK_SECRET_KEY = parseString(
+    "CLERK_SECRET_KEY",
+    input.CLERK_SECRET_KEY,
     issues,
-    { required: strict || oidcConfigured },
+    { required: strict || clerkConfigured },
   );
-  const AUTH_CLIENT_SECRET = parseString(
-    "AUTH_CLIENT_SECRET",
-    input.AUTH_CLIENT_SECRET,
+  validateClerkKeys(
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    CLERK_SECRET_KEY,
     issues,
-    { required: strict || oidcConfigured },
+    production,
   );
-  const AUTH_SESSION_SECRET = parseString(
-    "AUTH_SESSION_SECRET",
-    input.AUTH_SESSION_SECRET,
-    issues,
-    {
-      minimumLength:
-        strict || oidcConfigured || AUTH_TEST_MODE ? 32 : undefined,
-      required:
-        strict ||
-        oidcConfigured ||
-        AUTH_TEST_MODE ||
-        Boolean(input.AUTH_SESSION_SECRET),
-    },
+  const CLERK_ENABLED = Boolean(
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && CLERK_SECRET_KEY,
   );
-  if (
-    AUTH_SESSION_SECRET &&
-    deployed &&
-    !hasProductionSessionSecretStrength(AUTH_SESSION_SECRET)
-  ) {
-    issues.push(
-      "AUTH_SESSION_SECRET must be a high-entropy value in deployed environments, not a placeholder or repeated pattern.",
-    );
-  }
-  if (
-    AUTH_SESSION_SECRET &&
-    AUTH_CLIENT_SECRET &&
-    AUTH_SESSION_SECRET === AUTH_CLIENT_SECRET
-  ) {
-    issues.push("AUTH_SESSION_SECRET must differ from AUTH_CLIENT_SECRET.");
-  }
-  const AUTH_OIDC_ENABLED = Boolean(
-    AUTH_ISSUER_URL &&
-    AUTH_CLIENT_ID &&
-    AUTH_CLIENT_SECRET &&
-    AUTH_SESSION_SECRET,
-  );
-  const AUTH_ENABLED = AUTH_OIDC_ENABLED || AUTH_TEST_MODE;
   const ANONYMOUS_PILOT_ENABLED = parseBoolean(
     "ANONYMOUS_PILOT_ENABLED",
     input.ANONYMOUS_PILOT_ENABLED,
@@ -305,8 +254,10 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     );
   }
 
-  if (deployed && AUTH_TEST_MODE) {
-    issues.push("AUTH_TEST_MODE must not be enabled in deployed environments.");
+  if (deployed && optionalString(input.AUTH_TEST_MODE)) {
+    issues.push(
+      "AUTH_TEST_MODE is no longer supported in deployed environments; use a Clerk development instance for non-production testing.",
+    );
   }
 
   if (LEGACY_ANONYMOUS_MIGRATION_ENABLED && !ANONYMOUS_PILOT_ENABLED) {
@@ -337,13 +288,8 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     APP_DEMO_MODE,
     APP_ENV,
     APP_URL: APP_URL!,
-    AUTH_CLIENT_ID,
-    AUTH_CLIENT_SECRET,
-    AUTH_ENABLED,
-    AUTH_ISSUER_URL,
-    AUTH_OIDC_ENABLED,
-    AUTH_SESSION_SECRET,
-    AUTH_TEST_MODE,
+    CLERK_ENABLED,
+    CLERK_SECRET_KEY,
     DATABASE_URL,
     ERROR_TRACKING_DSN,
     IS_DEPLOYED_ENVIRONMENT: deployed,
@@ -353,6 +299,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     LOG_LEVEL: LOG_LEVEL!,
     RATE_LIMIT_MAX_REQUESTS: RATE_LIMIT_MAX_REQUESTS!,
     RATE_LIMIT_WINDOW_SECONDS: RATE_LIMIT_WINDOW_SECONDS!,
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   };
 
   if (AI_ENABLED) {
@@ -684,6 +631,57 @@ function assertNoPublicSecrets(input: ProcessEnvironment, issues: string[]) {
   }
 }
 
+function validateClerkKeys(
+  publishableKey: string | undefined,
+  secretKey: string | undefined,
+  issues: string[],
+  production: boolean,
+) {
+  const publishableEnvironment = clerkKeyEnvironment(publishableKey, "pk");
+  const secretEnvironment = clerkKeyEnvironment(secretKey, "sk");
+
+  if (publishableKey && !publishableEnvironment) {
+    issues.push(
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY must be a Clerk publishable key.",
+    );
+  }
+
+  if (secretKey && !secretEnvironment) {
+    issues.push("CLERK_SECRET_KEY must be a Clerk secret key.");
+  }
+
+  if (
+    publishableEnvironment &&
+    secretEnvironment &&
+    publishableEnvironment !== secretEnvironment
+  ) {
+    issues.push(
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY must belong to the same Clerk instance environment.",
+    );
+  }
+
+  if (
+    production &&
+    (publishableEnvironment === "test" || secretEnvironment === "test")
+  ) {
+    issues.push(
+      "Production requires Clerk production-instance keys; development-instance keys are not allowed.",
+    );
+  }
+}
+
+function clerkKeyEnvironment(value: string | undefined, kind: "pk" | "sk") {
+  if (value?.startsWith(`${kind}_test_`)) {
+    return "test" as const;
+  }
+
+  if (value?.startsWith(`${kind}_live_`)) {
+    return "live" as const;
+  }
+
+  return undefined;
+}
+
 function urlFromVercelHostname(value: string | undefined) {
   const hostname = optionalString(value);
   return hostname ? `https://${hostname}` : undefined;
@@ -692,12 +690,6 @@ function urlFromVercelHostname(value: string | undefined) {
 function optionalString(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
-}
-
-function hasProductionSessionSecretStrength(value: string) {
-  const obviousPlaceholder =
-    /(change.?me|replace|example|placeholder|development|testing|test[-_ ]|sample|your[-_ ]|secret[-_ ]?(here|value))/i;
-  return new Set(value).size >= 12 && !obviousPlaceholder.test(value);
 }
 
 function uniqueIssues(issues: string[]) {

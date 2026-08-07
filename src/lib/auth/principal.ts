@@ -1,7 +1,9 @@
 import "server-only";
 
 import {
-  getApplicationUserAccess,
+  CLERK_IDENTITY_PROVIDER,
+  getApplicationUserAccessByExternalIdentity,
+  upsertClerkAccount,
   type ApplicationRole,
 } from "@/lib/auth/account-repository";
 import { getServerEnv } from "@/lib/env/server";
@@ -32,41 +34,53 @@ export async function resolveAuthenticatedPrincipal() {
     return testPrincipalResolver?.();
   }
 
-  const { auth } = await import("@/auth");
-  const session = await auth();
-  const sessionUser = session?.user;
-
-  if (!sessionUser?.appUserId || !sessionUser.sessionVersion) {
-    return undefined;
-  }
-
   const env = getServerEnv();
-
-  if (
-    sessionUser.authMode === "test" &&
-    env.AUTH_TEST_MODE &&
-    !env.IS_DEPLOYED_ENVIRONMENT
-  ) {
-    return {
-      kind: "user" as const,
-      userId: sessionUser.appUserId,
-      displayName: sessionUser.name ?? "Local test user",
-      email: sessionUser.email ?? "local-test@example.invalid",
-      roles: sessionUser.roles,
-    };
-  }
-
-  if (sessionUser.authMode !== "oidc") {
+  if (!env.CLERK_ENABLED) {
     return undefined;
   }
 
-  const account = await getApplicationUserAccess(sessionUser.appUserId);
+  const { auth, currentUser } = await import("@clerk/nextjs/server");
+  const session = await auth();
+  const clerkUserId = session.userId;
 
-  if (
-    !account ||
-    account.status !== "active" ||
-    account.sessionVersion !== sessionUser.sessionVersion
-  ) {
+  if (!session.isAuthenticated || !clerkUserId) {
+    return undefined;
+  }
+
+  let account = await getApplicationUserAccessByExternalIdentity(
+    CLERK_IDENTITY_PROVIDER,
+    clerkUserId,
+  );
+
+  if (!account) {
+    const clerkUser = await currentUser();
+    if (!clerkUser || clerkUser.id !== clerkUserId) {
+      return undefined;
+    }
+
+    const primaryEmail = clerkUser.emailAddresses.find(
+      ({ id }) => id === clerkUser.primaryEmailAddressId,
+    );
+    if (
+      !primaryEmail?.emailAddress ||
+      primaryEmail.verification?.status !== "verified"
+    ) {
+      return undefined;
+    }
+
+    const displayName =
+      clerkUser.fullName?.trim() ||
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+      primaryEmail.emailAddress;
+
+    account = await upsertClerkAccount({
+      clerkUserId,
+      displayName,
+      email: primaryEmail.emailAddress,
+    });
+  }
+
+  if (account.status !== "active") {
     return undefined;
   }
 

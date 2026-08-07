@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { SignOutButton } from "@clerk/nextjs";
 
-import { signOutAction } from "@/app/auth-actions";
 import { CurrentPageSignInLink } from "@/components/auth/current-page-sign-in-link";
 import {
   currentAuthenticatedUser,
@@ -37,11 +37,11 @@ export async function AccountActions() {
       <Link href="/account" className={navigationClassName}>
         Account
       </Link>
-      <form action={signOutAction}>
-        <button type="submit" className={navigationClassName}>
+      <SignOutButton redirectUrl="/">
+        <button type="button" className={navigationClassName}>
           Sign out
         </button>
-      </form>
+      </SignOutButton>
     </div>
   );
 }

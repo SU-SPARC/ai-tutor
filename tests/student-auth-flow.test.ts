@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   resolveAuthenticatedPrincipal: vi.fn(),
   searchParams: new URLSearchParams("questionId=dice-sum-eight"),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
+  signInProps: undefined as Record<string, unknown> | undefined,
+  signUpProps: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -21,12 +21,26 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
-vi.mock("@/auth", () => ({
-  INSTITUTIONAL_PROVIDER_ID: "institutional-oidc",
-  LOCAL_TEST_PROVIDER_ID: "local-test-identity",
-  signIn: mocks.signIn,
-  signOut: mocks.signOut,
-}));
+vi.mock("@clerk/nextjs", async () => {
+  const { createElement: element } = await import("react");
+  return {
+    SignIn: (props: Record<string, unknown>) => {
+      mocks.signInProps = props;
+      return element("div", { "data-clerk-sign-in": true }, "Clerk sign in");
+    },
+    SignOutButton: ({
+      children,
+      redirectUrl,
+    }: {
+      children: ReactNode;
+      redirectUrl?: string;
+    }) => element("span", { "data-sign-out-redirect": redirectUrl }, children),
+    SignUp: (props: Record<string, unknown>) => {
+      mocks.signUpProps = props;
+      return element("div", { "data-clerk-sign-up": true }, "Clerk sign up");
+    },
+  };
+});
 
 vi.mock("@/lib/auth/principal", () => ({
   resolveAuthenticatedPrincipal: mocks.resolveAuthenticatedPrincipal,
@@ -41,22 +55,18 @@ vi.mock("@/lib/env/server", () => ({
 }));
 
 import AccountPage from "@/app/account/page";
-import { signOutAction } from "@/app/auth-actions";
 import OnboardingPage from "@/app/onboarding/page";
-import {
-  signInWithSchoolAccount,
-  signInWithTestAccount,
-} from "@/app/sign-in/actions";
-import SignInPage from "@/app/sign-in/page";
+import SignInPage from "@/app/sign-in/[[...sign-in]]/page";
+import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
 import { AccountActions } from "@/components/auth/account-actions";
 import { AnonymousImportPanel } from "@/components/auth/anonymous-import-panel";
 import { CurrentPageSignInLink } from "@/components/auth/current-page-sign-in-link";
-import { authenticationErrorMessage } from "@/lib/auth/authentication-errors";
 import {
   DEFAULT_STUDENT_RETURN_PATH,
   onboardingPath,
   safeReturnPath,
   signInPath,
+  signUpPath,
 } from "@/lib/auth/return-path";
 
 class RedirectSignal extends Error {
@@ -75,10 +85,10 @@ const student = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.signInProps = undefined;
+  mocks.signUpProps = undefined;
   mocks.getServerEnv.mockReturnValue({
-    AUTH_ENABLED: false,
-    AUTH_OIDC_ENABLED: false,
-    AUTH_TEST_MODE: false,
+    CLERK_ENABLED: false,
     LEGACY_ANONYMOUS_MIGRATION_ENABLED: false,
   });
   mocks.resolveAuthenticatedPrincipal.mockResolvedValue(undefined);
@@ -96,6 +106,9 @@ describe("safe authentication return paths", () => {
     expect(signInPath(requested)).toBe(
       "/sign-in?callbackUrl=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
     );
+    expect(signUpPath(requested)).toBe(
+      "/sign-up?callbackUrl=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
+    );
     expect(onboardingPath(requested)).toBe(
       "/onboarding?returnTo=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
     );
@@ -106,8 +119,8 @@ describe("safe authentication return paths", () => {
     "//attacker.example/steal",
     "/\\attacker.example/steal",
     "/sign-in?callbackUrl=/practice",
+    "/sign-up?callbackUrl=/practice",
     "/onboarding?returnTo=/practice",
-    "/api/auth/callback/institutional-oidc",
     "/api/student/progress",
     "/practice?access_token=secret",
     "/practice?sessionToken=secret",
@@ -119,74 +132,82 @@ describe("safe authentication return paths", () => {
   });
 });
 
-describe("student sign-in routes", () => {
-  it("renders an accessible school-account sign-in without technical details", async () => {
-    mocks.getServerEnv.mockReturnValue({
-      AUTH_ENABLED: true,
-      AUTH_OIDC_ENABLED: true,
-      AUTH_TEST_MODE: false,
-      LEGACY_ANONYMOUS_MIGRATION_ENABLED: false,
-    });
-
-    const element = await SignInPage({
+describe("student authentication routes", () => {
+  it("fails safely when Clerk is not configured", async () => {
+    const signIn = await SignInPage({
       searchParams: Promise.resolve({ callbackUrl: "/dashboard" }),
     });
-    const markup = renderToStaticMarkup(element);
-
-    expect(markup).toContain("<h1");
-    expect(markup).toContain("Sign in to save your progress");
-    expect(markup).toContain('type="submit"');
-    expect(markup).toContain("Continue with your school account");
-    expect(markup).toContain("does not collect a password");
-    expect(markup).not.toMatch(/issuer|client id|client secret|OIDC|roles/i);
-  });
-
-  it("continues successful sign-in through onboarding with a safe return", async () => {
-    await signInWithSchoolAccount("/practice?questionId=dice-sum-eight#answer");
-
-    expect(mocks.signIn).toHaveBeenCalledWith("institutional-oidc", {
-      redirectTo:
-        "/onboarding?returnTo=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
+    const signUp = await SignUpPage({
+      searchParams: Promise.resolve({ callbackUrl: "/dashboard" }),
     });
 
-    const testForm = new FormData();
-    testForm.set("identity", "student");
-    await signInWithTestAccount("https://attacker.example/steal", testForm);
-
-    expect(testForm.get("redirectTo")).toBe(
-      "/onboarding?returnTo=%2Fdashboard",
-    );
-    expect(mocks.signIn).toHaveBeenLastCalledWith(
-      "local-test-identity",
-      testForm,
-    );
+    for (const element of [signIn, signUp]) {
+      const markup = renderToStaticMarkup(element);
+      expect(markup).toContain("Account sign-in is not configured");
+      expect(markup).toContain("will not simulate a real account");
+      expect(markup).not.toContain("data-clerk-sign");
+    }
   });
 
-  it("returns instructor sign-in directly to the protected workspace", async () => {
-    await signInWithSchoolAccount("/professor?section=review");
+  it("renders Clerk sign-in with a forced sanitized return path", async () => {
+    mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
 
-    expect(mocks.signIn).toHaveBeenCalledWith("institutional-oidc", {
-      redirectTo: "/professor?section=review",
-    });
-  });
-
-  it("renders a clear, sanitized and accessible authentication error", async () => {
     const element = await SignInPage({
       searchParams: Promise.resolve({
-        callbackUrl: "/practice?questionId=dice-sum-eight",
-        error: "IdentityConflict",
+        callbackUrl: "/practice?questionId=dice-sum-eight#answer",
       }),
     });
     const markup = renderToStaticMarkup(element);
 
-    expect(markup).toContain('role="alert"');
-    expect(markup).toContain("We couldn&#x27;t sign you in.");
-    expect(markup).toContain("No accounts or progress were linked.");
-    expect(markup).not.toContain("IdentityConflict");
-    expect(markup).not.toMatch(/issuer|client secret|OIDC|application roles/i);
+    expect(markup).toContain("data-clerk-sign-in");
+    expect(mocks.signInProps).toMatchObject({
+      forceRedirectUrl:
+        "/onboarding?returnTo=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
+      path: "/sign-in",
+      routing: "path",
+      signUpForceRedirectUrl:
+        "/onboarding?returnTo=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
+      signUpUrl:
+        "/sign-up?callbackUrl=%2Fpractice%3FquestionId%3Ddice-sum-eight%23answer",
+    });
+  });
+
+  it("renders Clerk sign-up and never accepts a client-selected role", async () => {
+    mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
+
+    const element = await SignUpPage({
+      searchParams: Promise.resolve({ callbackUrl: "/dashboard" }),
+    });
+    const markup = renderToStaticMarkup(element);
+
+    expect(markup).toContain("data-clerk-sign-up");
+    expect(mocks.signUpProps).toMatchObject({
+      forceRedirectUrl: "/onboarding?returnTo=%2Fdashboard",
+      path: "/sign-up",
+      routing: "path",
+      signInForceRedirectUrl: "/onboarding?returnTo=%2Fdashboard",
+      signInUrl: "/sign-in?callbackUrl=%2Fdashboard",
+    });
+    expect(JSON.stringify(mocks.signUpProps)).not.toMatch(/role|metadata/i);
+  });
+
+  it("forces an unsafe callback to the student dashboard", async () => {
+    mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
+
+    const element = await SignInPage({
+      searchParams: Promise.resolve({
+        callbackUrl: "https://attacker.example/steal",
+      }),
+    });
+    renderToStaticMarkup(element);
+
+    expect(mocks.signInProps).toMatchObject({
+      forceRedirectUrl: "/onboarding?returnTo=%2Fdashboard",
+    });
   });
 
   it("redirects an existing session only to a normalized safe page", async () => {
+    mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
     mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
 
     await expect(
@@ -196,12 +217,6 @@ describe("student sign-in routes", () => {
         }),
       }),
     ).rejects.toMatchObject({ destination: DEFAULT_STUDENT_RETURN_PATH });
-  });
-
-  it("maps unknown authentication failures without exposing their code", () => {
-    expect(authenticationErrorMessage("InternalProviderFailure")).toBe(
-      "Sign-in could not be completed. Please try again or contact application support.",
-    );
   });
 });
 
@@ -237,9 +252,8 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain(
       "Nothing is imported until you choose an import button.",
     );
-    expect(markup).not.toMatch(
-      /application roles|identity provider|OIDC|issuer/i,
-    );
+    expect(markup).toContain("never receives or stores your password");
+    expect(markup).not.toMatch(/application roles|issuer/i);
   });
 
   it("protects the account route and does not render role details", async () => {
@@ -281,20 +295,15 @@ describe("session-aware authentication components", () => {
     );
   });
 
-  it("shows account and sign-out controls without exposing student roles", async () => {
+  it("shows account and Clerk sign-out controls without exposing roles", async () => {
     mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
     const element = await AccountActions();
     const markup = renderToStaticMarkup(element);
 
     expect(markup).toContain('href="/account"');
     expect(markup).toContain("Sign out");
+    expect(markup).toContain('data-sign-out-redirect="/"');
     expect(markup).not.toContain("Instructor tools");
     expect(markup).not.toMatch(/student|oidc|provider/i);
-  });
-
-  it("signs out through the server action and returns home", async () => {
-    await signOutAction();
-
-    expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/" });
   });
 });

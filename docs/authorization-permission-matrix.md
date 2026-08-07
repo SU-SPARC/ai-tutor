@@ -9,17 +9,17 @@ without relying on navigation or hidden UI.
 
 ## Access semantics
 
-| Access class            | Allowed caller                                                                           | Failure behavior                                                                             |
-| ----------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Public                  | Anyone                                                                                   | Only approved, public, trusted questions may be read.                                        |
-| Public Auth.js protocol | Anyone participating in sign-in, callback, session, CSRF, or sign-out                    | Auth.js validates the protocol and cookies; it does not grant an application role by itself. |
-| Public sanitized health | Anyone/monitor                                                                           | Returns coarse availability only, with no credentials, database host, query, or records.     |
-| Student or anonymous    | Active student/professor/admin account, or a valid signed anonymous pilot cookie         | `401` when no acceptable identity exists.                                                    |
-| Authenticated student   | Active student/professor/admin account                                                   | `401` without authentication; `403` if the account lacks application access.                 |
-| Owned student resource  | Student or signed anonymous caller whose server-resolved owner matches the tutor session | Always `404` for missing identity, missing session, or wrong owner to prevent enumeration.   |
-| Professor review        | Active professor or admin                                                                | `401` without authentication; `403` for a student.                                           |
-| Professor analytics     | Active professor or admin                                                                | Aggregate course data only; same `401`/`403` behavior.                                       |
-| Administrator           | Active admin                                                                             | `401` without authentication; `403` for students and professors.                             |
+| Access class            | Allowed caller                                                                           | Failure behavior                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Public                  | Anyone                                                                                   | Only approved, public, trusted questions may be read.                                      |
+| Public Clerk protocol   | Anyone participating in Clerk sign-up, sign-in, verification, reset, or sign-out         | Clerk validates identity and cookies; it does not grant an application role by itself.     |
+| Public sanitized health | Anyone/monitor                                                                           | Returns coarse availability only, with no credentials, database host, query, or records.   |
+| Student or anonymous    | Active student/professor/admin account, or a valid signed anonymous pilot cookie         | `401` when no acceptable identity exists.                                                  |
+| Authenticated student   | Active student/professor/admin account                                                   | `401` without authentication; `403` if the account lacks application access.               |
+| Owned student resource  | Student or signed anonymous caller whose server-resolved owner matches the tutor session | Always `404` for missing identity, missing session, or wrong owner to prevent enumeration. |
+| Professor review        | Active professor or admin                                                                | `401` without authentication; `403` for a student.                                         |
+| Professor analytics     | Active professor or admin                                                                | Aggregate course data only; same `401`/`403` behavior.                                     |
+| Administrator           | Active admin                                                                             | `401` without authentication; `403` for students and professors.                           |
 
 Professor/admin roles are read from the database at the protected boundary.
 Browser fields, email domains, shared secrets, request headers, and UI state
@@ -30,7 +30,7 @@ cannot grant access.
 | Route/layout                                                            | Access                      | Server enforcement and data rule                                                                                                     |
 | ----------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `/`, `/topics`, `/topics/[slug]`, `/practice`, `/practice/[questionId]` | Public                      | Data-store reads filter through approved/public/trusted publication policy. Dynamic question metadata uses the same approved lookup. |
-| `/sign-in`, `/forbidden`                                                | Public                      | No protected application data. Return locations are normalized and auth/API destinations are rejected.                               |
+| `/sign-in`, `/sign-up`, `/forbidden`                                    | Public                      | No protected application data. Return locations are normalized and auth/API destinations are rejected.                               |
 | `/dashboard`                                                            | Student or anonymous        | The page is a data-free shell; `/api/student/progress` resolves the owner and returns only that owner’s aggregates.                  |
 | `/account`, `/onboarding`                                               | Authenticated student       | `requireStudent` runs in the Server Component. Profile output is a minimal name/email DTO.                                           |
 | `/professor` and its layout                                             | Professor/admin             | `requireProfessor` runs in both the layout and page before the protected client workspace loads.                                     |
@@ -50,7 +50,6 @@ Route Handlers, and repositories above repeat policy close to their data.
 | ----------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/questions`                            | Public                  | Approved/public/trusted summaries only; answers and solutions omitted.                                                                                      |
 | `GET /api/questions/[id]`                       | Public                  | Approved/public/trusted detail only; drafts and private records return `404`.                                                                               |
-| `GET`, `POST /api/auth/[...nextauth]`           | Public Auth.js protocol | Auth.js lifecycle endpoints only.                                                                                                                           |
 | `GET /api/health/database`                      | Public sanitized health | Coarse status/category/latency only with `no-store`.                                                                                                        |
 | `POST /api/account/claim-anonymous`             | Authenticated student   | Explicitly claims the signed browser identity into the current user.                                                                                        |
 | `POST /api/account/discard-anonymous`           | Authenticated student   | Clears the browser identity without linking it.                                                                                                             |
@@ -78,18 +77,11 @@ administrator-only, and any future export must be added to the executable
 matrix, call that requirement, minimize fields, and add direct `401`/`403`
 tests before release.
 
-## Server Actions
-
-| Server Action             | Access                   | Rule                                                                                                                      |
-| ------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `signInWithSchoolAccount` | Public Auth.js lifecycle | Starts only the configured institutional provider and uses a normalized local return path.                                |
-| `signInWithTestAccount`   | Public Auth.js lifecycle | Auth.js exposes it only when local test mode is enabled; deployed configuration rejects test mode.                        |
-| `signOutAction`           | Public Auth.js lifecycle | Auth.js validates the session/CSRF flow, clears the cookie, and invalidates the application session version when present. |
-
-These public lifecycle actions do not read or mutate course/student records.
-Any future application mutation implemented as a Server Action must be added to
-the executable matrix and call the same centralized requirement used by Route
-Handlers before it touches data.
+Clerk's prebuilt components own authentication lifecycle requests. The
+application exposes no custom password, role-selection, or authentication
+Server Action. Any future application mutation implemented as a Server Action
+must be added to the executable matrix and call the same centralized
+requirement used by Route Handlers before it touches data.
 
 ## Cross-boundary invariants
 

@@ -12,8 +12,7 @@ import {
 } from "@/lib/auth/anonymous-claims";
 import {
   IdentityConflictError,
-  invalidateApplicationSessionOnLogout,
-  upsertOidcAccount,
+  upsertClerkAccount,
 } from "@/lib/auth/account-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { createMemoryTutorSessionRepository } from "@/lib/data/tutor-session-repository";
@@ -35,60 +34,41 @@ describe("authentication configuration", () => {
   it("is explicitly unconfigured in local development without credentials", () => {
     const env = parseServerEnv({ NODE_ENV: "development" });
 
-    expect(env.AUTH_ENABLED).toBe(false);
-    expect(env.AUTH_OIDC_ENABLED).toBe(false);
-    expect(env.AUTH_TEST_MODE).toBe(false);
+    expect(env.CLERK_ENABLED).toBe(false);
   });
 
-  it("rejects partial OIDC configuration", () => {
+  it("rejects partial Clerk configuration", () => {
     expect(() =>
       parseServerEnv({
         NODE_ENV: "development",
-        AUTH_ISSUER_URL: "https://identity.example.edu",
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey("publishable", "test"),
       }),
     ).toThrowError(
       expect.objectContaining({
-        issues: expect.arrayContaining([
-          "AUTH_CLIENT_ID is required.",
-          "AUTH_CLIENT_SECRET is required.",
-          "AUTH_SESSION_SECRET is required.",
-        ]),
+        issues: expect.arrayContaining(["CLERK_SECRET_KEY is required."]),
       }),
     );
   });
 
-  it("preserves the institution-supplied issuer exactly", () => {
+  it("enables Clerk only when both server and browser keys are configured", () => {
     const env = parseServerEnv({
       NODE_ENV: "development",
-      AUTH_CLIENT_ID: "local-client",
-      AUTH_CLIENT_SECRET: "local-client-secret",
-      AUTH_ISSUER_URL: "https://identity.example.edu/tenant/",
-      AUTH_SESSION_SECRET: "local-session-secret-at-least-32-characters",
+      CLERK_SECRET_KEY: clerkKey("secret", "test"),
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey("publishable", "test"),
     });
 
-    expect(env.AUTH_ISSUER_URL).toBe("https://identity.example.edu/tenant/");
-    expect(env.AUTH_OIDC_ENABLED).toBe(true);
+    expect(env.CLERK_ENABLED).toBe(true);
   });
 
-  it("permits fixed local test identities only with a strong session secret", () => {
-    const env = parseServerEnv({
-      NODE_ENV: "test",
-      AUTH_TEST_MODE: "true",
-      AUTH_SESSION_SECRET: "local-test-session-secret-at-least-32-characters",
-    });
-
-    expect(env.AUTH_ENABLED).toBe(true);
-    expect(env.AUTH_TEST_MODE).toBe(true);
-
+  it("rejects the removed local identity selector in deployed environments", () => {
     expect(() =>
       parseServerEnv({
         APP_ENV: "preview",
         APP_URL: "https://preview.example.edu",
         ANONYMOUS_PILOT_ENABLED: "false",
         AUTH_TEST_MODE: "true",
-        AUTH_SESSION_SECRET: "local-test-session-secret-at-least-32-characters",
       }),
-    ).toThrowError(/AUTH_TEST_MODE must not be enabled/);
+    ).toThrowError(/AUTH_TEST_MODE is no longer supported/);
   });
 
   it("rejects legacy admin secrets in deployed environments", () => {
@@ -109,21 +89,18 @@ describe("authentication configuration", () => {
     });
 
     expect(env).not.toHaveProperty("ADMIN_SECRET");
-    expect(env.AUTH_ENABLED).toBe(false);
+    expect(env.CLERK_ENABLED).toBe(false);
   });
 
-  it("rejects an insecure issuer in a deployed preview", () => {
-    expect(() =>
-      parseServerEnv({
-        APP_ENV: "preview",
-        APP_URL: "https://preview.example.edu",
-        ANONYMOUS_PILOT_ENABLED: "false",
-        AUTH_CLIENT_ID: "preview-client",
-        AUTH_CLIENT_SECRET: "preview-client-secret",
-        AUTH_ISSUER_URL: "http://identity.example.edu",
-        AUTH_SESSION_SECRET: "preview-session-secret-at-least-32-characters",
-      }),
-    ).toThrowError(/AUTH_ISSUER_URL must use https/);
+  it("does not enable authentication from legacy OIDC variables", () => {
+    const env = parseServerEnv({
+      AUTH_CLIENT_ID: "unused",
+      AUTH_CLIENT_SECRET: "unused",
+      AUTH_ISSUER_URL: "https://identity.example.edu",
+      NODE_ENV: "development",
+    });
+
+    expect(env.CLERK_ENABLED).toBe(false);
   });
 });
 
@@ -144,68 +121,7 @@ describe("session authorization", () => {
     expect(inheritedProfessor.ok).toBe(true);
   });
 
-  it("invalidates logout sessions transactionally and audits only once", async () => {
-    const database = new PGlite();
-    await database.exec(`
-      create table users (
-        id text primary key,
-        user_type text not null,
-        status text not null,
-        session_version integer not null default 1,
-        updated_at timestamptz not null default now()
-      );
-      create table audit_events (
-        id bigserial primary key,
-        actor_user_id text,
-        actor_subject text not null,
-        action text not null,
-        entity_type text not null,
-        entity_id text,
-        metadata_json jsonb not null
-      );
-      insert into users (id, user_type, status)
-      values ('user:logout', 'human', 'active');
-    `);
-    const query: DatabaseQueryExecutor = async (sql, params = []) => {
-      const result = await database.query<Record<string, unknown>>(sql, params);
-      return result.rows;
-    };
-
-    const first = await invalidateApplicationSessionOnLogout(
-      { sessionVersion: 1, userId: "user:logout" },
-      query,
-    );
-    const repeated = await invalidateApplicationSessionOnLogout(
-      { sessionVersion: 1, userId: "user:logout" },
-      query,
-    );
-    const user = await database.query<{ session_version: number }>(
-      "select session_version from users where id = 'user:logout'",
-    );
-    const audits = await database.query<{
-      action: string;
-      actor_user_id: string;
-      count: number;
-    }>(`
-      select
-        min(action) as action,
-        min(actor_user_id) as actor_user_id,
-        count(*)::int as count
-      from audit_events
-    `);
-
-    expect(first).toEqual({ invalidated: true, sessionVersion: 2 });
-    expect(repeated).toEqual({ invalidated: false });
-    expect(user.rows[0].session_version).toBe(2);
-    expect(audits.rows[0]).toEqual({
-      action: "auth.session_logged_out",
-      actor_user_id: "user:logout",
-      count: 1,
-    });
-    await database.close();
-  });
-
-  it("never links different OIDC subjects by matching email", async () => {
+  it("never links different Clerk users by matching email", async () => {
     const database = new PGlite();
     await database.exec(`
       create table users (
@@ -245,29 +161,54 @@ describe("session authorization", () => {
       return result.rows;
     };
 
-    const first = await upsertOidcAccount(
+    const first = await upsertClerkAccount(
       {
+        clerkUserId: "user_clerk_subject_a",
         displayName: "First Identity",
         email: "duplicate@example.edu",
-        issuer: "https://identity.example.edu",
-        subject: "subject-a",
+      },
+      query,
+    );
+    const repeated = await upsertClerkAccount(
+      {
+        clerkUserId: "user_clerk_subject_a",
+        displayName: "First Identity Updated",
+        email: "duplicate@example.edu",
       },
       query,
     );
 
     await expect(
-      upsertOidcAccount(
+      upsertClerkAccount(
         {
+          clerkUserId: "user_clerk_subject_b",
           displayName: "Second Identity",
           email: "duplicate@example.edu",
-          issuer: "https://identity.example.edu",
-          subject: "subject-b",
         },
         query,
       ),
     ).rejects.toBeInstanceOf(IdentityConflictError);
 
     expect(first.roles).toEqual(["student"]);
+    expect(repeated).toMatchObject({
+      displayName: "First Identity Updated",
+      id: first.id,
+      roles: ["student"],
+    });
+    const stored = await database.query<{
+      external_subject: string;
+      identity_provider: string;
+    }>("select identity_provider, external_subject from users where id = $1", [
+      first.id,
+    ]);
+    expect(stored.rows[0]).toEqual({
+      external_subject: "user_clerk_subject_a",
+      identity_provider: "clerk",
+    });
+    const accountCreatedAudits = await database.query<{ count: number }>(
+      "select count(*)::int as count from audit_events where action = 'auth.account_created'",
+    );
+    expect(accountCreatedAudits.rows[0].count).toBe(1);
     await database.close();
   });
 });
@@ -402,3 +343,11 @@ describe("anonymous ownership", () => {
     await database.close();
   });
 });
+
+function clerkKey(
+  kind: "publishable" | "secret",
+  environment: "live" | "test",
+) {
+  const prefix = kind === "publishable" ? `${"p"}k` : `${"s"}k`;
+  return `${prefix}_${environment}_${"unit-test".repeat(4)}`;
+}

@@ -73,7 +73,18 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page("/professor", "src/app/professor/page.tsx", "professor-or-admin", [
     "requireProfessor",
   ]),
-  page("/sign-in", "src/app/sign-in/page.tsx", "public", ["safeReturnPath"]),
+  page(
+    "/sign-in/[[...sign-in]]",
+    "src/app/sign-in/[[...sign-in]]/page.tsx",
+    "public-auth-protocol",
+    ["safeReturnPath", "SignIn"],
+  ),
+  page(
+    "/sign-up/[[...sign-up]]",
+    "src/app/sign-up/[[...sign-up]]/page.tsx",
+    "public-auth-protocol",
+    ["safeReturnPath", "SignUp"],
+  ),
   page("/topics", "src/app/topics/page.tsx", "public", ["getQuestionCounts"]),
   page("/topics/[slug]", "src/app/topics/[slug]/page.tsx", "public", [
     "listQuestionsByTopic",
@@ -135,20 +146,6 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/admin/upload/route.ts",
     "administrator",
     ["requireAdministrator"],
-  ),
-  route(
-    "GET",
-    "/api/auth/[...nextauth]",
-    "src/app/api/auth/[...nextauth]/route.ts",
-    "public-auth-protocol",
-    ["handlers"],
-  ),
-  route(
-    "POST",
-    "/api/auth/[...nextauth]",
-    "src/app/api/auth/[...nextauth]/route.ts",
-    "public-auth-protocol",
-    ["handlers"],
   ),
   route(
     "GET",
@@ -269,22 +266,6 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "owned-student-resource",
     ["authorizeStudentResourceApi", "toStudentTutorSessionDto"],
   ),
-
-  action("signOutAction", "src/app/auth-actions.ts", "public-auth-protocol", [
-    "signOut",
-  ]),
-  action(
-    "signInWithSchoolAccount",
-    "src/app/sign-in/actions.ts",
-    "public-auth-protocol",
-    ["signIn", "postSignInPath"],
-  ),
-  action(
-    "signInWithTestAccount",
-    "src/app/sign-in/actions.ts",
-    "public-auth-protocol",
-    ["signIn", "postSignInPath"],
-  ),
 ] as const satisfies readonly ServerBoundaryPolicy[];
 
 function page(
@@ -336,28 +317,12 @@ function route(
   };
 }
 
-function action(
-  name: string,
-  file: string,
-  access: ServerBoundaryAccess,
-  enforcementMarkers: readonly string[],
-): ServerBoundaryPolicy {
-  return {
-    access,
-    boundary: `ACTION ${name}`,
-    dataPolicy: dataPolicyFor(access),
-    enforcementMarkers,
-    file,
-    kind: "server-action",
-  };
-}
-
 function dataPolicyFor(access: ServerBoundaryAccess) {
   switch (access) {
     case "public":
       return "Approved public content only; no drafts or private retrieval content.";
     case "public-auth-protocol":
-      return "Auth.js session lifecycle only; no application data authorization.";
+      return "Clerk-managed authentication UI only; no application data authorization.";
     case "public-sanitized-health":
       return "Coarse status only; no credentials, host details, or records.";
     case "student-or-anonymous":

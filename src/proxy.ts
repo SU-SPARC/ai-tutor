@@ -1,32 +1,65 @@
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/auth";
 import { safeReturnPath, signInPath } from "@/lib/auth/return-path";
+import { getServerEnv } from "@/lib/env/server";
 
-export default auth((request) => {
+const configuredClerkProxy = clerkMiddleware(async (auth, request) => {
   const pathname = request.nextUrl.pathname;
+  if (!isCoarselyProtectedPath(pathname)) {
+    return NextResponse.next();
+  }
+
   const requestedPath = safeReturnPath(
     `${pathname}${request.nextUrl.search}`,
     "/",
   );
-  const sessionUser = request.auth?.user;
+  const session = await auth();
 
-  if (!sessionUser?.appUserId) {
+  if (!session.isAuthenticated || !session.userId) {
     return NextResponse.redirect(
       new URL(signInPath(requestedPath), request.nextUrl),
     );
   }
 
-  if (pathname.startsWith("/professor") || pathname.startsWith("/admin")) {
-    const roles = sessionUser.roles ?? [];
-    if (!roles.includes("professor") && !roles.includes("admin")) {
-      return NextResponse.redirect(new URL("/forbidden", request.nextUrl));
-    }
-  }
-
   return NextResponse.next();
 });
 
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  const env = getServerEnv();
+  if (env.CLERK_ENABLED) {
+    return configuredClerkProxy(request, event);
+  }
+
+  if (!isCoarselyProtectedPath(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  const requestedPath = safeReturnPath(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    "/",
+  );
+  return NextResponse.redirect(
+    new URL(signInPath(requestedPath), request.nextUrl),
+  );
+}
+
+function isCoarselyProtectedPath(pathname: string) {
+  return (
+    pathname === "/account" ||
+    pathname === "/onboarding" ||
+    pathname === "/professor" ||
+    pathname.startsWith("/professor/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/")
+  );
+}
+
 export const config = {
-  matcher: ["/account", "/onboarding", "/professor/:path*", "/admin/:path*"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+    "/__clerk/(.*)",
+  ],
 };

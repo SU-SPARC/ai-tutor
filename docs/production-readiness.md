@@ -70,8 +70,9 @@ Audit baseline: `e310048`
 
 ### Identity And Operations
 
-- Auth.js provides provider-neutral OIDC sessions and application roles. An
-  approved institutional provider and credentials are still required.
+- Clerk provides managed email/password authentication while application roles
+  remain in PostgreSQL. Approved Clerk Dashboard configuration and Production
+  keys are still required; institutional SSO is deferred.
 - Optional anonymous practice uses a signed, HTTP-only server cookie and
   ownership-aware repository queries; it remains continuity, not affiliation.
 - Local demo mode uses committed fixtures and in-memory state. Deployed
@@ -248,17 +249,21 @@ Production acceptance requires evidence for every item below.
       a production build.
 - [ ] Deployment includes health checks, migration status, staged promotion,
       smoke tests, rollback instructions, and security headers.
+- [ ] Resolve the current Production dependency audit findings in Next.js,
+      PostCSS, and Sharp; npm reports that the available fix requires a
+      separately tested Next.js upgrade outside the current pinned version.
 
 ### Authentication And Authorization
 
-- [ ] University IT has approved and provisioned the institutional OIDC provider.
-- [x] Auth.js provides secure server-side sessions without application passwords.
-- [x] Authentication sessions use host-only secure/HTTP-only/SameSite cookies,
-      an absolute eight-hour expiry, continuous account/version checks, audited
-      logout invalidation, and token-safe redirects and logging.
+- [ ] The service/privacy owners have approved and provisioned the Clerk
+      Production instance, domains, email verification, and recovery settings.
+- [x] Clerk manages authentication credentials; the application stores no
+      passwords or password hashes.
+- [ ] Production Clerk cookie/session policy and operator session-revocation
+      procedures are configured and verified in the deployed environment.
 - [x] Server-side authorization denies access by default.
 - [x] The [server authorization permission matrix](authorization-permission-matrix.md)
-      inventories every page, Route Handler method, and Server Action; direct
+      inventories every page and Route Handler method; direct
       handler tests cover anonymous and lower-role denial.
 - [x] Students can read and mutate only their own sessions and progress.
 - [x] Professor/admin pages, reads, writes, analytics, uploads, retrieval, and

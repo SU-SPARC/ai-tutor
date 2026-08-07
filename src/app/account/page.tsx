@@ -15,6 +15,7 @@ import { getServerEnv } from "@/lib/env/server";
 export const metadata: Metadata = {
   title: "Account | Suffolk Probability Tutor",
 };
+export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   const authorization = await requirePageAccess(requireStudent, "/account");
@@ -29,7 +30,7 @@ export default async function AccountPage() {
         <CardHeader>
           <h1 className="text-3xl font-semibold">Your account</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            These are the only profile details kept from your school account.
+            These are the only profile details copied from your Clerk account.
           </p>
         </CardHeader>
         <CardContent>
@@ -40,14 +41,14 @@ export default async function AccountPage() {
             </div>
             <div>
               <dt className="font-medium text-muted-foreground">
-                School email
+                Verified email
               </dt>
               <dd className="mt-1 break-all">{user.email}</dd>
             </div>
           </dl>
           <p className="mt-4 text-sm leading-6 text-muted-foreground">
-            Password and multi-factor authentication recovery are handled by
-            your school. Contact application support for account-status issues.
+            Password reset and email verification are handled by Clerk. Contact
+            application support for account-status or role issues.
           </p>
 
           <AnonymousImportPanel

@@ -22,32 +22,23 @@ export type ApplicationUserAccess = {
   status: "active" | "deleted" | "disabled" | "invited";
 };
 
-export type OidcAccountInput = {
+export const CLERK_IDENTITY_PROVIDER = "clerk";
+
+export type ClerkAccountInput = {
+  clerkUserId: string;
   displayName: string;
   email: string;
-  issuer: string;
-  subject: string;
-};
-
-export type LogoutSessionInvalidationInput = {
-  sessionVersion: number;
-  userId: string;
-};
-
-export type LogoutSessionInvalidationResult = {
-  invalidated: boolean;
-  sessionVersion?: number;
 };
 
 export class IdentityConflictError extends Error {
   constructor() {
-    super("The institutional identity conflicts with an existing account.");
+    super("The authenticated identity conflicts with an existing account.");
     this.name = "IdentityConflictError";
   }
 }
 
-export async function upsertOidcAccount(
-  input: OidcAccountInput,
+export async function upsertClerkAccount(
+  input: ClerkAccountInput,
   query: DatabaseQueryExecutor = queryPostgres,
 ): Promise<ApplicationUserAccess> {
   return runDatabaseTransaction(query, async (transactionQuery) => {
@@ -61,36 +52,14 @@ export async function upsertOidcAccount(
         limit 1
         for update
       `,
-      [input.issuer, input.subject],
+      [CLERK_IDENTITY_PROVIDER, input.clerkUserId],
     );
     const existing = existingRows[0];
 
     if (existing) {
-      if (
-        await findConflictingEmail(
-          transactionQuery,
-          input.email,
-          String(existing.id),
-        )
-      ) {
-        throw new IdentityConflictError();
-      }
-
-      await transactionQuery(
-        `
-          update users
-          set email = $2,
-              display_name = $3,
-              status = case when status = 'invited' then 'active' else status end,
-              last_login_at = now(),
-              updated_at = now()
-          where id = $1
-        `,
-        [String(existing.id), input.email, input.displayName],
-      );
-
-      return requireApplicationUserAccess(
+      return refreshExistingAccount(
         String(existing.id),
+        input,
         transactionQuery,
       );
     }
@@ -100,7 +69,7 @@ export async function upsertOidcAccount(
     }
 
     const userId = `user:${randomUUID()}`;
-    await transactionQuery(
+    const insertedRows = await transactionQuery(
       `
         insert into users (
           id,
@@ -113,9 +82,40 @@ export async function upsertOidcAccount(
           last_login_at
         )
         values ($1, $2, $3, $4, $5, 'human', 'active', now())
+        on conflict (identity_provider, external_subject) do nothing
+        returning id
       `,
-      [userId, input.issuer, input.subject, input.email, input.displayName],
+      [
+        userId,
+        CLERK_IDENTITY_PROVIDER,
+        input.clerkUserId,
+        input.email,
+        input.displayName,
+      ],
     );
+    if (!insertedRows[0]?.id) {
+      const concurrentRows = await readDatabaseRows(
+        transactionQuery,
+        `
+          select id
+          from users
+          where identity_provider = $1
+            and external_subject = $2
+          limit 1
+          for update
+        `,
+        [CLERK_IDENTITY_PROVIDER, input.clerkUserId],
+      );
+      const concurrentUserId = concurrentRows[0]?.id;
+      if (!concurrentUserId) {
+        throw new Error("The authenticated Clerk account could not be linked.");
+      }
+      return refreshExistingAccount(
+        String(concurrentUserId),
+        input,
+        transactionQuery,
+      );
+    }
     await transactionQuery(
       `
         insert into user_roles (user_id, role_id, granted_by_user_id)
@@ -135,11 +135,39 @@ export async function upsertOidcAccount(
         )
         values ($1, $1, 'auth.account_created', 'user', $1, $2::jsonb)
       `,
-      [userId, JSON.stringify({ initialRole: "student" })],
+      [
+        userId,
+        JSON.stringify({
+          identityProvider: CLERK_IDENTITY_PROVIDER,
+          initialRole: "student",
+        }),
+      ],
     );
 
     return requireApplicationUserAccess(userId, transactionQuery);
   });
+}
+
+export async function getApplicationUserAccessByExternalIdentity(
+  identityProvider: string,
+  externalSubject: string,
+  query: DatabaseQueryExecutor = queryPostgres,
+): Promise<ApplicationUserAccess | undefined> {
+  const rows = await readDatabaseRows(
+    query,
+    `
+      select id
+      from users
+      where identity_provider = $1
+        and external_subject = $2
+        and user_type = 'human'
+      limit 1
+    `,
+    [identityProvider, externalSubject],
+  );
+  const userId = rows[0]?.id;
+
+  return userId ? getApplicationUserAccess(String(userId), query) : undefined;
 }
 
 export async function getApplicationUserAccess(
@@ -188,58 +216,6 @@ export async function getApplicationUserAccess(
   };
 }
 
-export async function invalidateApplicationSessionOnLogout(
-  input: LogoutSessionInvalidationInput,
-  query: DatabaseQueryExecutor = queryPostgres,
-): Promise<LogoutSessionInvalidationResult> {
-  return runDatabaseTransaction(query, async (transactionQuery) => {
-    const rows = await transactionQuery(
-      `
-        update users
-        set session_version = session_version + 1,
-            updated_at = now()
-        where id = $1
-          and user_type = 'human'
-          and status <> 'deleted'
-          and session_version = $2
-        returning session_version
-      `,
-      [input.userId, input.sessionVersion],
-    );
-    const nextSessionVersion = Number(rows[0]?.session_version);
-
-    if (!Number.isInteger(nextSessionVersion)) {
-      return { invalidated: false };
-    }
-
-    await transactionQuery(
-      `
-        insert into audit_events (
-          actor_user_id,
-          actor_subject,
-          action,
-          entity_type,
-          entity_id,
-          metadata_json
-        )
-        values ($1, $1, 'auth.session_logged_out', 'user', $1, $2::jsonb)
-      `,
-      [
-        input.userId,
-        JSON.stringify({
-          previousSessionVersion: input.sessionVersion,
-          sessionVersion: nextSessionVersion,
-        }),
-      ],
-    );
-
-    return {
-      invalidated: true,
-      sessionVersion: nextSessionVersion,
-    };
-  });
-}
-
 async function requireApplicationUserAccess(
   userId: string,
   query: DatabaseQueryExecutor,
@@ -251,6 +227,31 @@ async function requireApplicationUserAccess(
   }
 
   return access;
+}
+
+async function refreshExistingAccount(
+  userId: string,
+  input: ClerkAccountInput,
+  query: DatabaseQueryExecutor,
+) {
+  if (await findConflictingEmail(query, input.email, userId)) {
+    throw new IdentityConflictError();
+  }
+
+  await query(
+    `
+      update users
+      set email = $2,
+          display_name = $3,
+          status = case when status = 'invited' then 'active' else status end,
+          last_login_at = now(),
+          updated_at = now()
+      where id = $1
+    `,
+    [userId, input.email, input.displayName],
+  );
+
+  return requireApplicationUserAccess(userId, query);
 }
 
 async function findConflictingEmail(

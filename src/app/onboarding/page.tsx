@@ -15,6 +15,7 @@ import { getServerEnv } from "@/lib/env/server";
 export const metadata: Metadata = {
   title: "Your account | Suffolk Probability Tutor",
 };
+export const dynamic = "force-dynamic";
 
 type OnboardingPageProps = {
   searchParams: Promise<{ returnTo?: string }>;
@@ -41,9 +42,9 @@ export default async function OnboardingPage({
           <div>
             <h1 className="text-3xl font-semibold">Your account is ready</h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Your student profile was created or matched using your school
-              account. Review the minimal details below, then choose whether to
-              bring in practice saved in this browser.
+              Your student profile was created or matched using your verified
+              Clerk account. Review the minimal details below, then choose
+              whether to bring in practice saved in this browser.
             </p>
           </div>
         </CardHeader>
@@ -55,14 +56,14 @@ export default async function OnboardingPage({
             </div>
             <div>
               <dt className="font-medium text-muted-foreground">
-                School email
+                Verified email
               </dt>
               <dd className="mt-1 break-all">{user.email}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            The tutor does not ask for a password, profile photo, phone number,
-            course enrollment, or directory access.
+            Clerk manages your password and email verification. The tutor never
+            receives or stores your password or password hash.
           </p>
 
           <AnonymousImportPanel

@@ -80,7 +80,7 @@ must resolve to reviewed metadata; the Production importer accepts only the
 minimal pattern fields required by approved generated questions.
 
 `009_authentication_authorization.sql` adds application-session versioning and
-the hashed, one-account-only ledger used for anonymous progress claims. Auth.js
+the hashed, one-account-only ledger used for anonymous progress claims. Clerk
 provider tokens are not stored in the database.
 
 Deletion behavior is explicit:

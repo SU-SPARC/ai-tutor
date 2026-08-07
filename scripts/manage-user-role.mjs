@@ -28,14 +28,13 @@ if (
     "grant",
     "revoke",
     "bootstrap-admin",
-    "invalidate",
     "disable",
     "enable",
-    "rebind-subject",
+    "rebind-clerk",
   ].includes(command)
 ) {
   fail(
-    "Usage: npm run auth:role -- <grant|revoke|bootstrap-admin|invalidate|disable|enable|rebind-subject> --user USER_ID --operator OPERATOR_ID --ticket CHANGE_TICKET [--role professor|admin] [--issuer HTTPS_URL --subject OIDC_SUBJECT] [--confirm-production PRODUCTION]",
+    "Usage: npm run auth:role -- <grant|revoke|bootstrap-admin|disable|enable|rebind-clerk> --user USER_ID --operator OPERATOR_ID --ticket CHANGE_TICKET [--role professor|admin] [--clerk-user-id CLERK_USER_ID] [--confirm-production PRODUCTION]",
   );
 }
 if (!args.user || !args.operator || !args.ticket) {
@@ -56,20 +55,11 @@ if (
 if (command === "bootstrap-admin" && args.role && args.role !== "admin") {
   fail("bootstrap-admin only grants the admin role.");
 }
-if (command === "rebind-subject") {
-  if (!args.issuer || !args.subject) {
+if (command === "rebind-clerk") {
+  if (!args["clerk-user-id"]?.startsWith("user_")) {
     fail(
-      "rebind-subject requires --issuer and --subject after documented IT verification.",
+      "rebind-clerk requires --clerk-user-id after documented account-owner verification.",
     );
-  }
-  let issuer;
-  try {
-    issuer = new URL(args.issuer);
-  } catch {
-    fail("--issuer must be a valid HTTPS URL.");
-  }
-  if (issuer.protocol !== "https:") {
-    fail("--issuer must be a valid HTTPS URL.");
   }
 }
 
@@ -111,7 +101,7 @@ try {
     }
 
     if (
-      ["grant", "revoke", "invalidate", "disable"].includes(command) &&
+      ["grant", "revoke", "disable"].includes(command) &&
       target.status !== "active"
     ) {
       fail(`${command} requires an active target user.`);
@@ -148,16 +138,16 @@ try {
         `update users set status = 'active', disabled_at = null where id = $1`,
         [args.user],
       );
-    } else if (command === "rebind-subject") {
+    } else if (command === "rebind-clerk") {
       await client.query(
         `
           update users
-          set identity_provider = $2,
-              external_subject = $3,
+          set identity_provider = 'clerk',
+              external_subject = $2,
               updated_at = now()
           where id = $1
         `,
-        [args.user, args.issuer, args.subject],
+        [args.user, args["clerk-user-id"]],
       );
     }
   }
@@ -185,14 +175,14 @@ try {
       args.user,
       JSON.stringify({
         ...(args.role ? { role: args.role } : {}),
-        ...(command === "rebind-subject" ? { issuer: args.issuer } : {}),
+        ...(command === "rebind-clerk" ? { identityProvider: "clerk" } : {}),
         ticket: args.ticket,
       }),
     ],
   );
   await client.query("commit");
   process.stdout.write(
-    `${command} completed for ${args.user}; application sessions invalidated.\n`,
+    `${command} completed for ${args.user}; application authorization was updated. Use the Clerk Dashboard when Clerk-session revocation is also required.\n`,
   );
 } catch (error) {
   await client.query("rollback");
