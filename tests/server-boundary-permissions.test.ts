@@ -17,6 +17,8 @@ import {
 import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
 import { POST as transitionAdminQuestion } from "@/app/api/professor/questions/[id]/transitions/route";
 import { POST as createAdminQuestionVersion } from "@/app/api/professor/questions/[id]/versions/route";
+import { POST as batchAdminQuestions } from "@/app/api/professor/questions/batch/route";
+import { POST as inspectAdminQuestion } from "@/app/api/professor/questions/inspections/route";
 import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
 import { GET as getProfessorAnalytics } from "@/app/api/professor/analytics/route";
@@ -287,6 +289,27 @@ describe("direct professor content API authorization", () => {
             {},
           ),
           routeContext("question:test", "id"),
+        ),
+    ],
+    [
+      "POST /api/professor/questions/batch",
+      () =>
+        batchAdminQuestions(
+          jsonRequest("http://test/api/professor/questions/batch", {
+            action: "publish",
+            items: [],
+          }),
+        ),
+    ],
+    [
+      "POST /api/professor/questions/inspections",
+      () =>
+        inspectAdminQuestion(
+          jsonRequest("http://test/api/professor/questions/inspections", {
+            expectedState: "needs_review",
+            questionId: "question:test",
+            versionId: 1,
+          }),
         ),
     ],
     [

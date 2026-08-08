@@ -14,8 +14,10 @@ import {
   type CreateQuestionInput,
   type CreateQuestionRevisionInput,
   type CreateQuestionVersionInput,
+  type QuestionLifecycleBatchTransitionInput,
   type QuestionLifecycleFilters,
   type QuestionLifecycleTransitionInput,
+  type RecordQuestionVersionInspectionInput,
   type RegenerateQuestionVersionInput,
 } from "@/lib/data/question-lifecycle-repository";
 import {
@@ -325,15 +327,18 @@ export async function getQuestionLifecycleDashboard(
       ),
       readOnly: true,
       readOnlyReason: "Demo lifecycle data is intentionally read-only.",
+      inspections: [],
       topics: dashboard.topics,
     };
   }
 
-  const [questions, topics] = await Promise.all([
+  const [questions, topics, inspections] = await Promise.all([
     listQuestionLifecycles(authorization),
     listTopics(),
+    listQuestionLifecycleInspections(authorization),
   ]);
   return {
+    inspections,
     mode: "database",
     questions,
     readOnly: false,
@@ -449,6 +454,35 @@ export async function transitionQuestionLifecycle(
   assertAuthorization(authorization, "professor");
   return writeStrictDatabaseLifecycle((repository) =>
     repository.transition(authorization, input),
+  );
+}
+
+export async function recordQuestionVersionInspection(
+  authorization: ProfessorReviewAuthorization,
+  input: RecordQuestionVersionInspectionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.recordInspection(authorization, input),
+  );
+}
+
+async function listQuestionLifecycleInspections(
+  authorization: ProfessorReviewAuthorization,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.listInspections(authorization),
+  );
+}
+
+export async function batchTransitionQuestionLifecycle(
+  authorization: ProfessorReviewAuthorization,
+  input: QuestionLifecycleBatchTransitionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.batchTransition(authorization, input),
   );
 }
 

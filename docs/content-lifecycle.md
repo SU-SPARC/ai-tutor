@@ -42,6 +42,22 @@ execute generation and submit a validated draft, but cannot approve, publish,
 reject, unpublish, roll back, archive, or restore. Database guards reject direct
 state or pointer updates.
 
+## Safe batch review
+
+Batch operations are intentionally limited to `request_revision`, `reject`,
+and `publish`; there is no batch approval action. Before selection, the acting
+professor must open the complete public-safe working aggregate and record an
+inspection of that exact immutable version. Inspections are professor- and
+version-specific, timestamped, and append-only.
+
+Batch requests contain 2–25 distinct working versions, expected states, a
+request id, and an idempotency key. The server locks questions in a stable
+order and preflights every item for current version/state, active record,
+current-professor inspection, permitted action, and—when publishing—schema,
+content, validation status, and active topic. Any failure returns an itemized
+report and changes nothing. Only a fully valid batch executes its attributed
+lifecycle transitions and publication pointer changes in one transaction.
+
 ## Versions, generation, and rollback
 
 `question_versions` contains the authoritative aggregate, parent lineage,
@@ -100,6 +116,10 @@ student DTOs contain neither identities nor review notes.
   idempotent transition.
 - `POST /api/professor/questions/:id/regenerate` creates a version under the
   same question.
+- `POST /api/professor/questions/inspections` records deliberate inspection of
+  the current immutable review version for the signed-in professor.
+- `POST /api/professor/questions/batch` atomically requests revision, rejects,
+  or publishes 2–25 already-inspected versions. It never accepts `approve`.
 - `GET /api/professor/review` returns canonical syllabus topics and aggregate
   lifecycle counts without question content. Supplying one `topicId` returns
   only that topic's `needs_review` working versions through a narrow,
@@ -126,6 +146,8 @@ and professor operations use version pointers after migration.
 Migration `012_professor_question_revisions.sql` preserves explicit `manual`
 creation attribution when professors revise generated content while retaining
 legacy generated-snapshot classification when no creation method is supplied.
+Migration `013_safe_batch_review_operations.sql` adds append-only,
+professor-specific version inspections used by batch preflight.
 
 Before promotion, verify that every published lifecycle row has one matching
 question pointer, no question has more than one published version, session and

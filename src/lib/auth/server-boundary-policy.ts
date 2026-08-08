@@ -166,6 +166,20 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "POST",
+    "/api/professor/questions/batch",
+    "src/app/api/professor/questions/batch/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "batchTransitionQuestionLifecycle"],
+  ),
+  route(
+    "POST",
+    "/api/professor/questions/inspections",
+    "src/app/api/professor/questions/inspections/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "recordQuestionVersionInspection"],
+  ),
+  route(
+    "POST",
     "/api/professor/content-preview",
     "src/app/api/professor/content-preview/route.ts",
     "professor",

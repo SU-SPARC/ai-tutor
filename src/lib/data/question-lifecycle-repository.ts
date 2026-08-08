@@ -18,6 +18,10 @@ import type {
   ProfessorReviewTopicSummaryDto,
   QuestionContent,
   QuestionCreationMethod,
+  QuestionLifecycleBatchAction,
+  QuestionLifecycleBatchFailure,
+  QuestionLifecycleBatchItem,
+  QuestionLifecycleBatchResult,
   QuestionLifecycleAction,
   QuestionLifecycleDto,
   QuestionLifecycleEventAction,
@@ -27,6 +31,7 @@ import type {
   QuestionRevisionMethod,
   QuestionValidationStatus,
   QuestionVersionDto,
+  QuestionVersionInspectionDto,
   QuestionVersionState,
   SourceMetadata,
   SourceType,
@@ -76,6 +81,22 @@ export type QuestionLifecycleTransitionInput = {
   reasonCode?: string;
   requestId?: string;
   revisionMethod?: QuestionRevisionMethod;
+  versionId: number;
+};
+
+export type QuestionLifecycleBatchTransitionInput = {
+  action: QuestionLifecycleBatchAction;
+  idempotencyKey: string;
+  items: QuestionLifecycleBatchItem[];
+  note?: string;
+  reasonCode?: string;
+  requestId?: string;
+  revisionMethod?: QuestionRevisionMethod;
+};
+
+export type RecordQuestionVersionInspectionInput = {
+  expectedState: QuestionVersionState;
+  questionId: string;
   versionId: number;
 };
 
@@ -172,6 +193,7 @@ const MAX_MISCONCEPTIONS = 12;
 const MAX_SOLUTION_STEPS = 20;
 const MAX_LONG_TEXT_LENGTH = 8_000;
 const MAX_SHORT_TEXT_LENGTH = 500;
+const MAX_BATCH_ITEMS = 25;
 
 export function createDatabaseQuestionLifecycleRepository(
   query: DatabaseQueryExecutor,
@@ -480,6 +502,212 @@ export function createDatabaseQuestionLifecycleRepository(
       });
     },
 
+    async listInspections(
+      authorization: ProfessorReviewAuthorization,
+    ): Promise<QuestionVersionInspectionDto[]> {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+      const rows = await readDatabaseRows(
+        query,
+        `select
+           qvi.question_id,
+           qvi.question_version_id,
+           qvi.professor_user_id,
+           u.display_name as professor_display_name,
+           qvi.inspected_at
+         from question_version_inspections qvi
+         join questions q
+           on q.id = qvi.question_id
+          and q.working_version_id = qvi.question_version_id
+          and q.record_state = 'active'
+         join users u on u.id = qvi.professor_user_id
+         where qvi.professor_user_id = $1
+         order by qvi.inspected_at desc, qvi.question_version_id desc`,
+        [reviewer.userId],
+      );
+      return rows.map(mapQuestionVersionInspection);
+    },
+
+    async recordInspection(
+      authorization: ProfessorReviewAuthorization,
+      input: RecordQuestionVersionInspectionInput,
+    ): Promise<QuestionVersionInspectionDto> {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `select q.working_version_id, q.record_state, qvl.state
+             from questions q
+             join question_version_lifecycle qvl
+               on qvl.question_version_id = q.working_version_id
+             where q.id = $1
+             for update of q, qvl`,
+            [input.questionId],
+          );
+          const current = rows[0];
+          if (!current) {
+            throw new QuestionLifecycleNotFoundError(
+              "Question was not found.",
+            );
+          }
+          if (
+            current.record_state !== "active" ||
+            Number(current.working_version_id) !== input.versionId ||
+            current.state !== input.expectedState ||
+            !["needs_review", "approved", "unpublished"].includes(
+              String(current.state),
+            )
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "Only the current active review version can be marked inspected.",
+            );
+          }
+
+          const recorded = await transactionQuery(
+            `select app_record_question_version_inspection(
+               $1, $2, $3
+             ) as inspected_at`,
+            [input.questionId, input.versionId, reviewer.userId],
+          );
+          return {
+            inspectedAt: toIsoString(
+              recorded[0]?.inspected_at as Date | string,
+            )!,
+            professorDisplayName: reviewer.displayName,
+            professorUserId: reviewer.userId,
+            questionId: input.questionId,
+            versionId: input.versionId,
+          };
+        },
+        { retryOnConflict: true },
+      );
+    },
+
+    async batchTransition(
+      authorization: ProfessorReviewAuthorization,
+      input: QuestionLifecycleBatchTransitionInput,
+    ): Promise<QuestionLifecycleBatchResult> {
+      assertAuthorization(authorization, "professor");
+      validateBatchTransitionInput(input);
+      const reviewer = reviewerAttribution(authorization);
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const sortedQuestionIds = input.items
+            .map((item) => item.questionId)
+            .sort();
+          await transactionQuery(
+            `select q.id
+             from questions q
+             where q.id = any($1::text[])
+             order by q.id
+             for update of q`,
+            [sortedQuestionIds],
+          );
+
+          const idempotency = await batchIdempotencyStatus(
+            transactionQuery,
+            input,
+          );
+          if (idempotency === "complete") {
+            return {
+              action: input.action,
+              applied: true,
+              failures: [],
+              idempotent: true,
+              questions: await selectBatchQuestionLifecycles(
+                transactionQuery,
+                input.items,
+              ),
+            };
+          }
+          if (idempotency === "conflict") {
+            return {
+              action: input.action,
+              applied: false,
+              failures: input.items.map((item) => ({
+                ...item,
+                code: "idempotency_conflict",
+                message:
+                  "The batch idempotency key conflicts with earlier lifecycle evidence.",
+              })),
+              idempotent: false,
+              questions: [],
+            };
+          }
+
+          const failures: QuestionLifecycleBatchFailure[] = [];
+          for (const item of input.items) {
+            const failure = await preflightBatchItem(
+              transactionQuery,
+              reviewer.userId,
+              input.action,
+              item,
+            );
+            if (failure) failures.push(failure);
+          }
+          if (failures.length > 0) {
+            return {
+              action: input.action,
+              applied: false,
+              failures,
+              idempotent: false,
+              questions: [],
+            };
+          }
+
+          for (const item of [...input.items].sort((left, right) =>
+            left.questionId.localeCompare(right.questionId),
+          )) {
+            await applyTransition(transactionQuery, authorization, {
+              action: input.action,
+              expectedState: item.expectedState,
+              idempotencyKey: batchItemIdempotencyKey(
+                input.idempotencyKey,
+                item.versionId,
+              ),
+              metadata: {
+                batchAction: input.action,
+                batchIdempotencyKey: input.idempotencyKey,
+                batchSize: input.items.length,
+              },
+              note: input.note,
+              questionId: item.questionId,
+              reasonCode: input.reasonCode,
+              requestId: input.requestId,
+              revisionMethod: input.revisionMethod,
+              versionId: item.versionId,
+            });
+          }
+
+          const timestamp = await transactionQuery(
+            "select current_timestamp as occurred_at",
+          );
+          return {
+            action: input.action,
+            applied: true,
+            failures: [],
+            idempotent: false,
+            questions: await selectBatchQuestionLifecycles(
+              transactionQuery,
+              input.items,
+            ),
+            reviewedBy: {
+              displayName: reviewer.displayName,
+              occurredAt: toIsoString(
+                timestamp[0]?.occurred_at as Date | string,
+              )!,
+              userId: reviewer.userId,
+            },
+          };
+        },
+        { retryOnConflict: true },
+      );
+    },
+
     async listReviewTopicSummaries(
       authorization: ProfessorReviewAuthorization,
     ) {
@@ -665,6 +893,242 @@ export function createDatabaseQuestionLifecycleRepository(
       );
     },
   };
+}
+
+function validateBatchTransitionInput(
+  input: QuestionLifecycleBatchTransitionInput,
+) {
+  if (
+    !["request_revision", "reject", "publish"].includes(input.action) ||
+    input.items.length < 2 ||
+    input.items.length > MAX_BATCH_ITEMS
+  ) {
+    throw new QuestionLifecycleValidationError(
+      `Batch review requires 2 to ${MAX_BATCH_ITEMS} items and a supported non-approval action.`,
+    );
+  }
+  if (
+    !input.idempotencyKey.trim() ||
+    input.idempotencyKey.length > 160 ||
+    (input.reasonCode !== undefined && input.reasonCode.length > 80) ||
+    (input.note !== undefined && input.note.length > 1_000)
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "Batch review contains an invalid idempotency key, reason, or note.",
+    );
+  }
+  if (
+    (input.action === "request_revision" || input.action === "reject") &&
+    !input.reasonCode?.trim()
+  ) {
+    throw new QuestionLifecycleValidationError(
+      `${input.action} requires a reason code.`,
+    );
+  }
+  if (input.action === "request_revision" && !input.revisionMethod) {
+    throw new QuestionLifecycleValidationError(
+      "Batch request revision requires a manual or regeneration revision method.",
+    );
+  }
+  const questionIds = new Set<string>();
+  const versionIds = new Set<number>();
+  for (const item of input.items) {
+    if (
+      !item.questionId.trim() ||
+      !Number.isSafeInteger(item.versionId) ||
+      item.versionId <= 0 ||
+      questionIds.has(item.questionId) ||
+      versionIds.has(item.versionId)
+    ) {
+      throw new QuestionLifecycleValidationError(
+        "Batch items must identify distinct questions and positive immutable versions.",
+      );
+    }
+    questionIds.add(item.questionId);
+    versionIds.add(item.versionId);
+  }
+}
+
+async function batchIdempotencyStatus(
+  query: DatabaseQueryExecutor,
+  input: QuestionLifecycleBatchTransitionInput,
+) {
+  const rows = await readDatabaseRows(
+    query,
+    `select question_id, question_version_id, action
+     from question_lifecycle_events
+     where metadata_json ->> 'batchIdempotencyKey' = $1`,
+    [input.idempotencyKey],
+  );
+  if (rows.length === 0) return "fresh" as const;
+  if (rows.length !== input.items.length) return "conflict" as const;
+  const requested = new Map(
+    input.items.map((item) => [item.questionId, item.versionId]),
+  );
+  return rows.every(
+    (row) =>
+      row.action === input.action &&
+      requested.get(String(row.question_id)) ===
+        Number(row.question_version_id),
+  )
+    ? ("complete" as const)
+    : ("conflict" as const);
+}
+
+function batchItemIdempotencyKey(batchKey: string, versionId: number) {
+  return `batch:${batchKey}:${versionId}`;
+}
+
+async function preflightBatchItem(
+  query: DatabaseQueryExecutor,
+  professorUserId: string,
+  action: QuestionLifecycleBatchAction,
+  item: QuestionLifecycleBatchItem,
+): Promise<QuestionLifecycleBatchFailure | undefined> {
+  const lifecycle = await selectQuestionLifecycle(query, item.questionId);
+  if (!lifecycle) {
+    return batchFailure(item, "not_found", "Question was not found.");
+  }
+  const selectedVersion = lifecycle.versions.find(
+    (version) => version.versionId === item.versionId,
+  );
+  const detail = {
+    title: lifecycle.workingVersion.title,
+    topicId: lifecycle.workingVersion.topicId,
+  };
+  if (lifecycle.recordState !== "active") {
+    return batchFailure(
+      item,
+      "archived",
+      "Archived questions cannot participate in batch review.",
+      detail,
+    );
+  }
+  if (!selectedVersion) {
+    return batchFailure(
+      item,
+      "not_found",
+      "The selected version was not found on this question.",
+      detail,
+    );
+  }
+  if (lifecycle.workingVersion.versionId !== item.versionId) {
+    return batchFailure(
+      item,
+      "stale_version",
+      "The selected version is no longer the working version.",
+      {
+        ...detail,
+        actualState: selectedVersion.state,
+      },
+    );
+  }
+  if (selectedVersion.state !== item.expectedState) {
+    return batchFailure(
+      item,
+      "stale_state",
+      `Expected ${item.expectedState}, but the version is ${selectedVersion.state}.`,
+      {
+        ...detail,
+        actualState: selectedVersion.state,
+      },
+    );
+  }
+
+  const inspections = await readDatabaseRows(
+    query,
+    `select inspected_at
+     from question_version_inspections
+     where question_version_id = $1
+       and question_id = $2
+       and professor_user_id = $3
+     limit 1`,
+    [item.versionId, item.questionId, professorUserId],
+  );
+  if (!inspections[0]) {
+    return batchFailure(
+      item,
+      "not_inspected",
+      "The signed-in professor has not inspected this exact version.",
+      detail,
+    );
+  }
+  if (!selectedVersion.allowedActions.includes(action)) {
+    return batchFailure(
+      item,
+      "invalid_state",
+      `The version cannot ${action} from ${selectedVersion.state}.`,
+      {
+        ...detail,
+        actualState: selectedVersion.state,
+      },
+    );
+  }
+
+  if (action === "publish") {
+    if (
+      selectedVersion.validationStatus !== "valid" ||
+      selectedVersion.schemaVersion !== 2
+    ) {
+      return batchFailure(
+        item,
+        "validation_failed",
+        "The version does not pass current schema and lifecycle validation.",
+        detail,
+      );
+    }
+    try {
+      validateQuestionVersionContent(selectedVersion, item.questionId);
+    } catch (error) {
+      return batchFailure(
+        item,
+        "validation_failed",
+        error instanceof Error
+          ? error.message
+          : "Question content validation failed.",
+        detail,
+      );
+    }
+    const topics = await readDatabaseRows(
+      query,
+      "select id from topics where id = $1 and is_active = true limit 1",
+      [selectedVersion.topicId],
+    );
+    if (!topics[0]) {
+      return batchFailure(
+        item,
+        "validation_failed",
+        "The question topic is unavailable under the current publication policy.",
+        detail,
+      );
+    }
+  }
+}
+
+function batchFailure(
+  item: QuestionLifecycleBatchItem,
+  code: QuestionLifecycleBatchFailure["code"],
+  message: string,
+  detail: Partial<
+    Pick<
+      QuestionLifecycleBatchFailure,
+      "actualState" | "title" | "topicId"
+    >
+  > = {},
+): QuestionLifecycleBatchFailure {
+  return { ...item, ...detail, code, message };
+}
+
+async function selectBatchQuestionLifecycles(
+  query: DatabaseQueryExecutor,
+  items: QuestionLifecycleBatchItem[],
+) {
+  const questions: QuestionLifecycleDto[] = [];
+  for (const item of items) {
+    const question = await selectQuestionLifecycle(query, item.questionId);
+    if (question) questions.push(question);
+  }
+  return questions;
 }
 
 async function applyTransition(
@@ -1116,6 +1580,18 @@ function mapQuestionVersion(row: QuestionVersionRow): QuestionVersionDto {
     validationStatus: row.validation_status,
     versionId: Number(row.question_version_id),
     versionNumber: Number(row.version_number),
+  };
+}
+
+function mapQuestionVersionInspection(
+  row: Record<string, unknown>,
+): QuestionVersionInspectionDto {
+  return {
+    inspectedAt: toIsoString(row.inspected_at as Date | string)!,
+    professorDisplayName: String(row.professor_display_name),
+    professorUserId: String(row.professor_user_id),
+    questionId: String(row.question_id),
+    versionId: Number(row.question_version_id),
   };
 }
 

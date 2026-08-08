@@ -1,8 +1,16 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, Eye, Loader2, Pencil, RotateCcw } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  Loader2,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
 
+import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
 import {
   canEditGeneratedDraft,
   ProfessorQuestionRevisionEditor,
@@ -20,6 +28,8 @@ import {
 } from "@/components/ui/table";
 import type {
   QuestionLifecycleAction,
+  QuestionLifecycleBatchAction,
+  QuestionLifecycleBatchResult,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
   QuestionVersionDto,
@@ -67,6 +77,8 @@ export function ProfessorQuestionLifecyclePanel({
   initialDashboard: QuestionLifecycleDashboard;
 }) {
   const [activeKey, setActiveKey] = useState<string>();
+  const [batchAction, setBatchAction] =
+    useState<QuestionLifecycleBatchAction>();
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [expandedId, setExpandedId] = useState<string>();
   const [editingId, setEditingId] = useState<string>();
@@ -75,6 +87,7 @@ export function ProfessorQuestionLifecyclePanel({
   const [reasonCode, setReasonCode] = useState("");
   const [publicationPreview, setPublicationPreview] =
     useState<PublicationPreviewState>();
+  const [selectedVersionIds, setSelectedVersionIds] = useState<number[]>([]);
   const [revisionMethod, setRevisionMethod] = useState<
     "manual" | "regeneration"
   >("manual");
@@ -90,6 +103,23 @@ export function ProfessorQuestionLifecyclePanel({
         );
       }),
     [dashboard.questions, filter],
+  );
+  const inspectionByVersionId = useMemo(
+    () =>
+      new Map(
+        dashboard.inspections.map((inspection) => [
+          inspection.versionId,
+          inspection,
+        ]),
+      ),
+    [dashboard.inspections],
+  );
+  const selectedQuestions = useMemo(
+    () =>
+      dashboard.questions.filter((question) =>
+        selectedVersionIds.includes(question.workingVersion.versionId),
+      ),
+    [dashboard.questions, selectedVersionIds],
   );
 
   async function transition(
@@ -142,6 +172,9 @@ export function ProfessorQuestionLifecyclePanel({
         ),
       }));
       setReasonCode("");
+      setSelectedVersionIds((current) =>
+        current.filter((candidate) => candidate !== versionId),
+      );
       setMessage(`${ACTION_LABELS[action]} completed.`);
       return true;
     } catch {
@@ -197,12 +230,120 @@ export function ProfessorQuestionLifecyclePanel({
             : candidate,
         ),
       }));
+      setSelectedVersionIds((current) =>
+        current.filter(
+          (versionId) => versionId !== question.workingVersion.versionId,
+        ),
+      );
       setMessage("A regenerated version was submitted for review.");
     } catch {
       setMessage("Regeneration failed.");
     } finally {
       setActiveKey(undefined);
     }
+  }
+
+  async function markInspected(question: QuestionLifecycleDto) {
+    const version = question.workingVersion;
+    const key = `${question.questionId}:${version.versionId}:inspect`;
+    setActiveKey(key);
+    setMessage(undefined);
+    try {
+      const response = await fetch("/api/professor/questions/inspections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedState: version.state,
+          questionId: question.questionId,
+          versionId: version.versionId,
+        }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        inspection?: QuestionLifecycleDashboard["inspections"][number];
+      };
+      if (!response.ok || !payload.inspection) {
+        setMessage(payload.error ?? "Inspection could not be recorded.");
+        return;
+      }
+      setDashboard((current) => ({
+        ...current,
+        inspections: [
+          ...current.inspections.filter(
+            (inspection) =>
+              inspection.versionId !== payload.inspection?.versionId,
+          ),
+          payload.inspection!,
+        ],
+      }));
+      setMessage(
+        "Inspection recorded for this exact immutable version. It can now be selected for a supported batch action.",
+      );
+    } catch {
+      setMessage("Inspection could not be recorded.");
+    } finally {
+      setActiveKey(undefined);
+    }
+  }
+
+  function openBatchConfirmation(action: QuestionLifecycleBatchAction) {
+    if (selectedQuestions.length < 2) {
+      setMessage("Select at least two inspected versions for a batch action.");
+      return;
+    }
+    if (
+      !selectedQuestions.every(
+        (question) =>
+          question.workingVersion.allowedActions.includes(action) &&
+          (action !== "publish" ||
+            question.workingVersion.validationStatus === "valid"),
+      )
+    ) {
+      setMessage(
+        `Every selected version must be eligible to ${ACTION_LABELS[action].toLowerCase()}.`,
+      );
+      return;
+    }
+    if (action !== "publish" && !reasonCode.trim()) {
+      setMessage(`${ACTION_LABELS[action]} requires a reason code.`);
+      return;
+    }
+    setMessage(undefined);
+    setBatchAction(action);
+  }
+
+  function toggleBatchSelection(versionId: number, selected: boolean) {
+    if (
+      selected &&
+      !selectedVersionIds.includes(versionId) &&
+      selectedVersionIds.length >= 25
+    ) {
+      setMessage("A batch can contain at most 25 inspected versions.");
+      return;
+    }
+    setSelectedVersionIds((current) =>
+      selected
+        ? [...current, versionId]
+        : current.filter((candidate) => candidate !== versionId),
+    );
+  }
+
+  function completeBatch(result: QuestionLifecycleBatchResult) {
+    const updatedById = new Map(
+      result.questions.map((question) => [question.questionId, question]),
+    );
+    setDashboard((current) => ({
+      ...current,
+      questions: current.questions.map(
+        (question) => updatedById.get(question.questionId) ?? question,
+      ),
+    }));
+    setBatchAction(undefined);
+    setSelectedVersionIds([]);
+    setReasonCode("");
+    setMessage(
+      `${ACTION_LABELS[result.action]} completed for ${result.questions.length} questions${result.reviewedBy ? ` by ${result.reviewedBy.displayName} at ${result.reviewedBy.occurredAt}` : ""}.`,
+    );
   }
 
   return (
@@ -266,6 +407,85 @@ export function ProfessorQuestionLifecyclePanel({
         </p>
       ) : null}
 
+      <section
+        aria-label="Inspected question batch actions"
+        className="space-y-2 border border-border bg-muted/20 p-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">
+              {selectedQuestions.length} inspected versions selected
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Open a question and record inspection of its exact working
+              version before selecting it. Batch approval is intentionally not
+              available.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={
+                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
+              }
+              onClick={() => openBatchConfirmation("request_revision")}
+            >
+              Batch request revision
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={
+                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
+              }
+              onClick={() => openBatchConfirmation("reject")}
+            >
+              Batch reject
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={
+                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
+              }
+              onClick={() => openBatchConfirmation("publish")}
+            >
+              Review batch publication
+            </Button>
+            {selectedQuestions.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={Boolean(batchAction)}
+                onClick={() => setSelectedVersionIds([])}
+              >
+                Clear selection
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {batchAction ? (
+        <ProfessorQuestionBatchConfirmation
+          action={batchAction}
+          disabled={dashboard.readOnly || Boolean(activeKey)}
+          inspections={dashboard.inspections.filter((inspection) =>
+            selectedVersionIds.includes(inspection.versionId),
+          )}
+          questions={selectedQuestions}
+          reasonCode={reasonCode}
+          revisionMethod={revisionMethod}
+          topics={dashboard.topics}
+          onCancel={() => setBatchAction(undefined)}
+          onCompleted={completeBatch}
+        />
+      ) : null}
+
       {publicationPreview ? (
         <PublicationPreview
           active={Boolean(activeKey)}
@@ -286,6 +506,7 @@ export function ProfessorQuestionLifecyclePanel({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Batch</TableHead>
             <TableHead>Question</TableHead>
             <TableHead>Working</TableHead>
             <TableHead>Published</TableHead>
@@ -297,16 +518,40 @@ export function ProfessorQuestionLifecyclePanel({
         <TableBody>
           {questions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground">
+              <TableCell colSpan={7} className="text-muted-foreground">
                 No questions match this lifecycle view.
               </TableCell>
             </TableRow>
           ) : (
             questions.map((question) => {
               const working = question.workingVersion;
+              const inspection = inspectionByVersionId.get(working.versionId);
+              const canSelect =
+                Boolean(inspection) && isBatchSelectableQuestion(question);
               return (
                 <Fragment key={question.questionId}>
                   <TableRow>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select inspected version of ${working.title}`}
+                        checked={selectedVersionIds.includes(working.versionId)}
+                        disabled={
+                          !canSelect || dashboard.readOnly || Boolean(batchAction)
+                        }
+                        title={
+                          canSelect
+                            ? "Select this inspected immutable version"
+                            : "Inspect an eligible working version before selection"
+                        }
+                        onChange={(event) =>
+                          toggleBatchSelection(
+                            working.versionId,
+                            event.target.checked,
+                          )
+                        }
+                      />
+                    </TableCell>
                     <TableCell>
                       <button
                         type="button"
@@ -380,7 +625,9 @@ export function ProfessorQuestionLifecyclePanel({
                                   : "outline"
                               }
                               disabled={
-                                dashboard.readOnly || Boolean(activeKey)
+                                dashboard.readOnly ||
+                                Boolean(activeKey) ||
+                                Boolean(batchAction)
                               }
                               onClick={() => {
                                 if (action === "publish") {
@@ -412,7 +659,11 @@ export function ProfessorQuestionLifecyclePanel({
                             type="button"
                             size="sm"
                             variant="outline"
-                            disabled={dashboard.readOnly || Boolean(activeKey)}
+                            disabled={
+                              dashboard.readOnly ||
+                              Boolean(activeKey) ||
+                              Boolean(batchAction)
+                            }
                             onClick={() => regenerate(question)}
                           >
                             {activeKey ===
@@ -429,13 +680,35 @@ export function ProfessorQuestionLifecyclePanel({
                   </TableRow>
                   {expandedId === question.questionId ? (
                     <TableRow>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
+                        <WorkingVersionInspection
+                          active={
+                            activeKey ===
+                            `${question.questionId}:${working.versionId}:inspect`
+                          }
+                          disabled={
+                            dashboard.readOnly ||
+                            Boolean(activeKey) ||
+                            Boolean(batchAction) ||
+                            !isBatchSelectableQuestion(question)
+                          }
+                          inspection={inspection}
+                          question={question}
+                          topicTitle={
+                            dashboard.topics.find(
+                              (topic) => topic.id === working.topicId,
+                            )?.title
+                          }
+                          onInspect={() => void markInspected(question)}
+                        />
                         {canEditGeneratedDraft(question) ? (
                           editingId === question.questionId ? (
                             <ProfessorQuestionRevisionEditor
                               key={question.workingVersion.versionId}
                               disabled={
-                                dashboard.readOnly || Boolean(activeKey)
+                                dashboard.readOnly ||
+                                Boolean(activeKey) ||
+                                Boolean(batchAction)
                               }
                               question={question}
                               topics={dashboard.topics}
@@ -452,6 +725,12 @@ export function ProfessorQuestionLifecyclePanel({
                                   ),
                                 }));
                                 setEditingId(undefined);
+                                setSelectedVersionIds((current) =>
+                                  current.filter(
+                                    (versionId) =>
+                                      versionId !== working.versionId,
+                                  ),
+                                );
                                 setMessage(
                                   "Revision saved as a new draft. Submit it for review when ready.",
                                 );
@@ -464,7 +743,9 @@ export function ProfessorQuestionLifecyclePanel({
                               variant="outline"
                               className="mb-4"
                               disabled={
-                                dashboard.readOnly || Boolean(activeKey)
+                                dashboard.readOnly ||
+                                Boolean(activeKey) ||
+                                Boolean(batchAction)
                               }
                               onClick={() => setEditingId(question.questionId)}
                             >
@@ -475,7 +756,9 @@ export function ProfessorQuestionLifecyclePanel({
                         ) : null}
                         <VersionHistory
                           activeKey={activeKey}
-                          dashboardReadOnly={dashboard.readOnly}
+                          dashboardReadOnly={
+                            dashboard.readOnly || Boolean(batchAction)
+                          }
                           question={question}
                           onTransition={(action, versionId, expectedState) => {
                             if (action === "rollback") {
@@ -505,6 +788,106 @@ export function ProfessorQuestionLifecyclePanel({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function WorkingVersionInspection({
+  active,
+  disabled,
+  inspection,
+  onInspect,
+  question,
+  topicTitle,
+}: {
+  active: boolean;
+  disabled: boolean;
+  inspection?: QuestionLifecycleDashboard["inspections"][number];
+  onInspect: () => void;
+  question: QuestionLifecycleDto;
+  topicTitle?: string;
+}) {
+  const version = question.workingVersion;
+  return (
+    <section
+      aria-label={"Inspect working version " + version.versionNumber}
+      className="mb-4 space-y-3 border border-border bg-background p-4"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium">Working-version inspection</h3>
+          <p className="text-sm text-muted-foreground">
+            Review this complete public-safe aggregate before recording
+            inspection. The record applies only to immutable version{" "}
+            {version.versionNumber}.
+          </p>
+        </div>
+        {inspection ? (
+          <Badge variant="success">
+            <CheckCircle2 className="h-4 w-4" />
+            Inspected
+          </Badge>
+        ) : (
+          <Badge variant="outline">Not inspected</Badge>
+        )}
+      </div>
+      <dl className="grid gap-2 text-sm md:grid-cols-[10rem_1fr]">
+        <dt className="font-medium">Topic</dt>
+        <dd>{topicTitle ?? version.topicId}</dd>
+        <dt className="font-medium">Difficulty</dt>
+        <dd>{version.difficulty}</dd>
+        <dt className="font-medium">Wording</dt>
+        <dd>{version.prompt}</dd>
+        <dt className="font-medium">Accepted answers</dt>
+        <dd>{version.answer.acceptedAnswers.join(", ")}</dd>
+        <dt className="font-medium">Answer explanation</dt>
+        <dd>{version.answer.explanation}</dd>
+        <dt className="font-medium">Solution steps</dt>
+        <dd>
+          <ol className="list-decimal space-y-1 pl-5">
+            {version.solutionSteps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </dd>
+        <dt className="font-medium">Hints</dt>
+        <dd>{version.hints.join(" · ") || "None"}</dd>
+        <dt className="font-medium">Misconception notes</dt>
+        <dd>
+          {version.misconceptions.map((item) => item.feedback).join(" · ") ||
+            "None"}
+        </dd>
+      </dl>
+      {inspection ? (
+        <p className="text-sm text-muted-foreground">
+          Recorded for {inspection.professorDisplayName} at{" "}
+          {inspection.inspectedAt}.
+        </p>
+      ) : isBatchSelectableQuestion(question) ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={onInspect}
+        >
+          {active ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Mark this version inspected
+        </Button>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          This lifecycle state is not eligible for batch review selection.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function isBatchSelectableQuestion(question: QuestionLifecycleDto) {
+  return (
+    question.recordState === "active" &&
+    ["needs_review", "approved", "unpublished"].includes(
+      question.workingVersion.state,
+    )
   );
 }
 

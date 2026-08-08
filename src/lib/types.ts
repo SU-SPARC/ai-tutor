@@ -59,6 +59,52 @@ export type QuestionLifecycleAction =
   | "archive"
   | "restore";
 
+export type QuestionLifecycleBatchAction =
+  | "request_revision"
+  | "reject"
+  | "publish";
+
+export type QuestionLifecycleBatchItem = {
+  expectedState: QuestionVersionState;
+  questionId: string;
+  versionId: number;
+};
+
+export type QuestionLifecycleBatchFailureCode =
+  | "archived"
+  | "idempotency_conflict"
+  | "invalid_state"
+  | "not_found"
+  | "not_inspected"
+  | "stale_state"
+  | "stale_version"
+  | "validation_failed";
+
+export type QuestionLifecycleBatchFailure = QuestionLifecycleBatchItem & {
+  actualState?: QuestionVersionState;
+  code: QuestionLifecycleBatchFailureCode;
+  message: string;
+  title?: string;
+  topicId?: string;
+};
+
+export type QuestionVersionInspectionDto = {
+  inspectedAt: string;
+  professorDisplayName: string;
+  professorUserId: string;
+  questionId: string;
+  versionId: number;
+};
+
+export type QuestionLifecycleBatchResult = {
+  action: QuestionLifecycleBatchAction;
+  applied: boolean;
+  failures: QuestionLifecycleBatchFailure[];
+  idempotent: boolean;
+  questions: QuestionLifecycleDto[];
+  reviewedBy?: QuestionVersionAttribution;
+};
+
 export type QuestionLifecycleEventAction =
   | QuestionLifecycleAction
   | "create_version"
@@ -304,6 +350,7 @@ export type QuestionLifecycleDto = {
 };
 
 export type QuestionLifecycleDashboard = {
+  inspections: QuestionVersionInspectionDto[];
   mode: "database" | "demo";
   questions: QuestionLifecycleDto[];
   readOnly: boolean;

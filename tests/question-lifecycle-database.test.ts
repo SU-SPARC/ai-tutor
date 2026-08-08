@@ -384,6 +384,271 @@ describe("question lifecycle database", () => {
       occurred_at: expect.anything(),
     });
   });
+
+  it("keeps partial batch publication failures invisible and commits only after every item passes", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const items = versions.slice(0, 2).map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+
+    await repository.recordInspection(authorization, items[0]);
+    const missingInspection = await repository.batchTransition(
+      authorization,
+      {
+        action: "publish",
+        idempotencyKey: "batch-publish-missing-inspection",
+        items,
+        requestId: "batch-request-missing-inspection",
+      },
+    );
+    expect(missingInspection).toMatchObject({
+      applied: false,
+      failures: [
+        {
+          code: "not_inspected",
+          questionId: items[1].questionId,
+          title: "Batch question 2",
+          topicId: "batch-topic-two",
+        },
+      ],
+    });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 0,
+      publishedPointerCount: 0,
+    });
+
+    await repository.recordInspection(authorization, items[1]);
+    await database.exec(
+      "update topics set is_active = false where id = 'batch-topic-two'",
+    );
+    const invalidTopic = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-invalid-topic",
+      items,
+      requestId: "batch-request-invalid-topic",
+    });
+    expect(invalidTopic).toMatchObject({
+      applied: false,
+      failures: [
+        {
+          code: "validation_failed",
+          questionId: items[1].questionId,
+          topicId: "batch-topic-two",
+        },
+      ],
+    });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 0,
+      publishedPointerCount: 0,
+    });
+
+    await database.exec(
+      "update topics set is_active = true where id = 'batch-topic-two'",
+    );
+    await database.exec(`
+      create function app_test_fail_second_batch_publish()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        if new.action = 'publish'
+          and new.question_id = 'batch-question-2'
+          and new.metadata_json ->> 'batchAction' = 'publish'
+        then
+          raise exception 'forced second-item publication failure';
+        end if;
+        return new;
+      end;
+      $$;
+
+      create trigger test_fail_second_batch_publish
+      before insert on question_lifecycle_events
+      for each row execute function app_test_fail_second_batch_publish();
+    `);
+    await expect(
+      repository.batchTransition(authorization, {
+        action: "publish",
+        idempotencyKey: "batch-publish-forced-rollback",
+        items,
+        requestId: "batch-request-forced-rollback",
+      }),
+    ).rejects.toThrow(/forced second-item publication failure/i);
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 0,
+      publishedPointerCount: 0,
+    });
+    await database.exec(`
+      drop trigger test_fail_second_batch_publish
+        on question_lifecycle_events;
+      drop function app_test_fail_second_batch_publish();
+    `);
+
+    const published = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-success",
+      items,
+      requestId: "batch-request-success",
+    });
+    expect(published).toMatchObject({
+      action: "publish",
+      applied: true,
+      failures: [],
+      idempotent: false,
+      reviewedBy: {
+        displayName: "Lifecycle Professor",
+        occurredAt: expect.anything(),
+        userId: "user:lifecycle-professor",
+      },
+    });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 2,
+      publishedPointerCount: 2,
+    });
+    const evidence = await database.query<{
+      actor_user_id: string;
+      event_count: number;
+      timestamp_count: number;
+    }>(`
+      select
+        min(actor_user_id) as actor_user_id,
+        count(*)::int as event_count,
+        count(distinct occurred_at)::int as timestamp_count
+      from question_lifecycle_events
+      where request_id = 'batch-request-success'
+        and action = 'publish'
+    `);
+    expect(evidence.rows[0]).toEqual({
+      actor_user_id: "user:lifecycle-professor",
+      event_count: 2,
+      timestamp_count: 1,
+    });
+
+    const retry = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-success",
+      items,
+      requestId: "batch-request-success-retry",
+    });
+    expect(retry).toMatchObject({ applied: true, idempotent: true });
+    expect(
+      (
+        await database.query<{ count: number }>(`
+          select count(*)::int as count
+          from question_lifecycle_events
+          where request_id = 'batch-request-success'
+            and action = 'publish'
+        `)
+      ).rows[0].count,
+    ).toBe(2);
+  });
+
+  it("applies inspected batch revision requests and rejections without batch approval", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    for (const version of versions) {
+      await repository.recordInspection(authorization, {
+        expectedState: "approved",
+        questionId: version.questionId,
+        versionId: version.versionId,
+      });
+    }
+
+    const revisionItems = versions.slice(0, 2).map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+    const rejectionItems = versions.slice(2, 4).map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+    const revised = await repository.batchTransition(authorization, {
+      action: "request_revision",
+      idempotencyKey: "batch-request-revision",
+      items: revisionItems,
+      reasonCode: "clarify_wording",
+      requestId: "batch-revision-request",
+      revisionMethod: "manual",
+    });
+    const rejected = await repository.batchTransition(authorization, {
+      action: "reject",
+      idempotencyKey: "batch-reject",
+      items: rejectionItems,
+      reasonCode: "incorrect_structure",
+      requestId: "batch-reject-request",
+    });
+
+    expect(revised).toMatchObject({ applied: true, failures: [] });
+    expect(rejected).toMatchObject({ applied: true, failures: [] });
+    const states = await database.query<{
+      question_id: string;
+      state: string;
+    }>(`
+      select qvl.question_id, qvl.state
+      from question_version_lifecycle qvl
+      where qvl.question_id like 'batch-question-%'
+      order by qvl.question_id
+    `);
+    expect(states.rows).toEqual([
+      { question_id: "batch-question-1", state: "revision_requested" },
+      { question_id: "batch-question-2", state: "revision_requested" },
+      { question_id: "batch-question-3", state: "rejected" },
+      { question_id: "batch-question-4", state: "rejected" },
+    ]);
+    const attribution = await database.query<{
+      action: string;
+      actor_user_id: string;
+      event_count: number;
+      reason_code: string;
+      timestamp_count: number;
+    }>(`
+      select
+        action,
+        min(actor_user_id) as actor_user_id,
+        count(*)::int as event_count,
+        min(reason_code) as reason_code,
+        count(distinct occurred_at)::int as timestamp_count
+      from question_lifecycle_events
+      where request_id in ('batch-revision-request', 'batch-reject-request')
+      group by action
+      order by action
+    `);
+    expect(attribution.rows).toEqual([
+      {
+        action: "reject",
+        actor_user_id: "user:lifecycle-professor",
+        event_count: 2,
+        reason_code: "incorrect_structure",
+        timestamp_count: 1,
+      },
+      {
+        action: "request_revision",
+        actor_user_id: "user:lifecycle-professor",
+        event_count: 2,
+        reason_code: "clarify_wording",
+        timestamp_count: 1,
+      },
+    ]);
+    await expect(
+      database.exec(
+        "update question_version_inspections set inspected_at = now()",
+      ),
+    ).rejects.toThrow(/append-only/i);
+  });
 });
 
 async function migratedDatabase() {
@@ -563,6 +828,143 @@ async function seedGeneratedWorkingDraft(database: PGlite) {
     ],
   );
   return { draftVersionId, publishedVersionId };
+}
+
+async function seedBatchReviewQuestions(database: PGlite) {
+  await database.exec(`
+    insert into topics (
+      id, title, description, sort_order, week_number, module_ref, is_active
+    ) values
+      (
+        'batch-topic-one', 'Batch topic one', '', 43, 1,
+        'module-batch-1', true
+      ),
+      (
+        'batch-topic-two', 'Batch topic two', '', 44, 1,
+        'module-batch-2', true
+      );
+
+    select set_config('app.current_user_id', 'system:schema-migration', false);
+    select set_config('app.current_creation_method', 'generated', false);
+    select set_config('app.suppress_question_version', 'true', false);
+
+    insert into questions (
+      id, topic_id, title, prompt, difficulty,
+      accepted_answers_json, numeric_value, tolerance, answer_explanation,
+      source_type, trust_level, review_status, visibility,
+      originality_note, reviewed_by, reviewed_by_user_id
+    )
+    select
+      'batch-question-' || item,
+      case when item % 2 = 1 then 'batch-topic-one' else 'batch-topic-two' end,
+      'Batch question ' || item,
+      'What is ' || item || ' divided by 4?',
+      'foundational',
+      jsonb_build_array((item::numeric / 4)::text),
+      item::double precision / 4,
+      0.001,
+      'Divide the numerator by four.',
+      'generated_original',
+      'generated_unverified',
+      'needs_review',
+      'public',
+      'Original generated batch review item.',
+      'Question generation system',
+      'system:question-generator'
+    from generate_series(1, 4) as item;
+
+    insert into solution_steps (question_id, step_order, body)
+    select
+      'batch-question-' || item,
+      1,
+      'Compute ' || item || ' / 4.'
+    from generate_series(1, 4) as item;
+
+    select set_config('app.suppress_question_version', 'false', false);
+    select app_record_question_version('batch-question-' || item)
+    from generate_series(1, 4) as item;
+
+    do $$
+    declare
+      candidate record;
+    begin
+      for candidate in
+        select qv.question_id, qv.id
+        from question_versions qv
+        where qv.question_id like 'batch-question-%'
+        order by qv.question_id
+      loop
+        perform app_transition_question_version(
+          candidate.question_id,
+          candidate.id,
+          'submit',
+          'user:lifecycle-professor',
+          'Lifecycle Professor',
+          'draft'
+        );
+        perform app_transition_question_version(
+          candidate.question_id,
+          candidate.id,
+          'approve',
+          'user:lifecycle-professor',
+          'Lifecycle Professor',
+          'needs_review'
+        );
+      end loop;
+    end;
+    $$;
+  `);
+  const versions = await database.query<{
+    question_id: string;
+    version_id: number;
+  }>(`
+    select q.id as question_id, q.working_version_id as version_id
+    from questions q
+    where q.id like 'batch-question-%'
+    order by q.id
+  `);
+  return versions.rows.map((row) => ({
+    questionId: row.question_id,
+    versionId: Number(row.version_id),
+  }));
+}
+
+async function professorAuthorization() {
+  mockPrincipal({
+    displayName: "Lifecycle Professor",
+    email: "professor@lifecycle.invalid",
+    kind: "user",
+    role: "professor",
+    roles: ["student", "professor"],
+    userId: "user:lifecycle-professor",
+  });
+  return requireProfessorReview();
+}
+
+async function batchPublicationState(
+  database: PGlite,
+  items: Array<{ questionId: string }>,
+) {
+  const questionIds = items.map((item) => item.questionId);
+  const result = await database.query<{
+    public_count: number;
+    published_pointer_count: number;
+  }>(`
+    select
+      (
+        select count(*)::int
+        from app_public_questions public_question
+        where public_question.id = any($1::text[])
+      ) as public_count,
+      count(*) filter (where q.published_version_id is not null)::int
+        as published_pointer_count
+    from questions q
+    where q.id = any($1::text[])
+  `, [questionIds]);
+  return {
+    publicCount: result.rows[0].public_count,
+    publishedPointerCount: result.rows[0].published_pointer_count,
+  };
 }
 
 function pgliteQuery(database: PGlite | Transaction): DatabaseQueryExecutor {

@@ -104,6 +104,11 @@ attribution for professor-edited generated versions. Revision drafts retain
 their generated provenance, while the immutable version and lifecycle event
 record the professor editor and timestamp.
 
+`013_safe_batch_review_operations.sql` adds append-only professor inspection
+evidence for exact immutable question versions. Batch lifecycle operations use
+these records as a server-side precondition and execute only after every
+selected item passes preflight inside one transaction.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
