@@ -574,6 +574,12 @@ async function applyImportPlan(
         : "generated_unverified"
 
     await client.query(
+      `select
+         set_config('app.current_creation_method', 'imported', true),
+         set_config('app.suppress_question_version', 'true', true)`,
+    )
+
+    await client.query(
       `
         insert into questions (
           id,
@@ -659,6 +665,14 @@ async function applyImportPlan(
     }
 
     await client.query(
+      "select set_config('app.suppress_question_version', 'false', true)",
+    )
+    await client.query("select app_record_question_version($1)", [question.id])
+    await client.query(
+      "select set_config('app.suppress_question_version', 'true', true)",
+    )
+
+    await client.query(
       `
         update questions
         set trust_level = 'professor_approved',
@@ -669,6 +683,10 @@ async function applyImportPlan(
         where id = $1
       `,
       [question.id, signer, signedAt],
+    )
+
+    await client.query(
+      "select set_config('app.suppress_question_version', 'false', true)",
     )
   }
 

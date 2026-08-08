@@ -30,7 +30,7 @@ describe("safe database migration workflow", () => {
     const migrations = await loadMigrations(migrationsDirectory);
 
     expect(migrations.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
     ]);
     expect(
       migrations.every((migration) =>
@@ -44,6 +44,7 @@ describe("safe database migration workflow", () => {
       destructive: true,
       destructiveDirective: true,
     });
+    expect(migrations[10].destructive).toBe(false);
     expect(SUPPORTED_MIGRATION_COMMANDS).toEqual(["status", "check", "up"]);
 
     expect(() =>
@@ -74,7 +75,7 @@ describe("safe database migration workflow", () => {
       issues: [],
       ledgerExists: false,
       state: "pending",
-      total: 10,
+      total: 11,
     });
     expect(status.pending.map((migration) => migration.filename)).toEqual(
       migrations.map((migration) => migration.filename),
@@ -104,16 +105,16 @@ describe("safe database migration workflow", () => {
       target: "test",
     });
 
-    expect(firstRun.applied).toHaveLength(10);
+    expect(firstRun.applied).toHaveLength(11);
     expect(firstRun.status.state).toBe("current");
     expect(deploymentCheckExitCode(firstRun.status)).toBe(0);
     expect(statements[0]).toContain("pg_advisory_lock");
     expect(
       statements.filter((statement) => statement === "begin"),
-    ).toHaveLength(10);
+    ).toHaveLength(11);
     expect(
       statements.filter((statement) => statement === "commit"),
-    ).toHaveLength(10);
+    ).toHaveLength(11);
     expect(statements.at(-1)).toContain("pg_advisory_unlock");
 
     const ledger = await database.query<{
@@ -136,7 +137,7 @@ describe("safe database migration workflow", () => {
       from schema_migrations
       order by version
     `);
-    expect(ledger.rows).toHaveLength(10);
+    expect(ledger.rows).toHaveLength(11);
     expect(ledger.rows[0]).toMatchObject({
       actor: "ci:migration-test",
       deployment_sha: "0123456789abcdef",

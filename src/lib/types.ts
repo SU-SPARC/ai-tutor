@@ -23,6 +23,50 @@ export type ReviewStatus =
   | "needs_edit"
   | "needs_regeneration";
 
+/**
+ * The editorial state of one immutable question version. Publication is a
+ * version-level decision: a question may keep one version published while a
+ * newer working version moves through review.
+ */
+export type QuestionVersionState =
+  | "draft"
+  | "needs_review"
+  | "revision_requested"
+  | "approved"
+  | "published"
+  | "unpublished"
+  | "rejected";
+
+export type QuestionRecordState = "active" | "archived";
+
+export type QuestionCreationMethod =
+  | "manual"
+  | "imported"
+  | "generated"
+  | "regenerated"
+  | "rollback_clone";
+
+export type QuestionRevisionMethod = "manual" | "regeneration";
+
+export type QuestionLifecycleAction =
+  | "submit"
+  | "request_revision"
+  | "approve"
+  | "reject"
+  | "publish"
+  | "unpublish"
+  | "rollback"
+  | "archive"
+  | "restore";
+
+export type QuestionLifecycleEventAction =
+  | QuestionLifecycleAction
+  | "create_version"
+  | "regenerate"
+  | "migrate";
+
+export type QuestionValidationStatus = "pending" | "valid" | "invalid";
+
 export type ReviewPriority = "normal" | "priority";
 
 export const SOURCE_TYPES = [
@@ -209,6 +253,110 @@ export type AdminQuestion = TutorQuestion & {
   topicTitle?: string;
 };
 
+export type QuestionVersionAttribution = {
+  displayName: string;
+  occurredAt: string;
+  userId: string;
+};
+
+export type QuestionVersionDto = QuestionContent & {
+  allowedActions: QuestionLifecycleAction[];
+  contentHash: string;
+  createdAt: string;
+  createdBy: QuestionVersionAttribution;
+  creationMethod: QuestionCreationMethod;
+  generationMetadata: Record<string, unknown>;
+  parentVersionId?: number;
+  schemaVersion: number;
+  source: SourceMetadata;
+  state: QuestionVersionState;
+  validationStatus: QuestionValidationStatus;
+  versionId: number;
+  versionNumber: number;
+};
+
+export type QuestionLifecycleEventDto = {
+  action: QuestionLifecycleEventAction;
+  actor: QuestionVersionAttribution;
+  actorRole: "professor" | "system";
+  executedBy?: QuestionVersionAttribution;
+  fromState?: QuestionVersionState;
+  id: number;
+  note?: string;
+  reasonCode?: string;
+  requestId?: string;
+  requestedBy?: QuestionVersionAttribution;
+  toState?: QuestionVersionState;
+  versionId: number;
+};
+
+export type QuestionLifecycleDto = {
+  allowedActions: QuestionLifecycleAction[];
+  events: QuestionLifecycleEventDto[];
+  publishedVersion?: QuestionVersionDto;
+  questionId: string;
+  recordState: QuestionRecordState;
+  regenerationAllowed: boolean;
+  versions: QuestionVersionDto[];
+  workingVersion: QuestionVersionDto;
+};
+
+export type QuestionLifecycleDashboard = {
+  mode: "database" | "demo";
+  questions: QuestionLifecycleDto[];
+  readOnly: boolean;
+  readOnlyReason?: string;
+};
+
+export type ProfessorReviewTopicSummaryDto = {
+  approved: number;
+  needsReview: number;
+  order: number;
+  rejectedOrRevisionRequested: number;
+  remaining: number;
+  title: string;
+  topicId: string;
+  total: number;
+};
+
+/**
+ * A deliberately narrow review-queue projection. It contains the complete
+ * public-safe working-version aggregate needed for a review decision, but no
+ * version history, lifecycle notes, private pattern controls, or source
+ * locators.
+ */
+export type ProfessorQuestionReviewCandidateDto = Omit<
+  QuestionContent,
+  "misconceptions"
+> & {
+  allowedActions: QuestionLifecycleAction[];
+  createdAt: string;
+  createdBy: Pick<QuestionVersionAttribution, "displayName" | "occurredAt">;
+  creationMethod: QuestionCreationMethod;
+  id: string;
+  misconceptions: Array<Pick<Misconception, "feedback" | "id">>;
+  publishedVersionId?: number;
+  questionId: string;
+  review: {
+    reviewPriority: ReviewPriority;
+    status: "needs_review";
+  };
+  source: Pick<SourceMetadata, "originalityNote" | "sourceType" | "trustLevel">;
+  state: "needs_review";
+  validationStatus: QuestionValidationStatus;
+  versionId: number;
+  versionNumber: number;
+};
+
+export type ProfessorQuestionReviewDashboard = {
+  candidates: ProfessorQuestionReviewCandidateDto[];
+  mode: "database" | "demo";
+  readOnly: boolean;
+  readOnlyReason?: string;
+  selectedTopicId?: string;
+  topics: ProfessorReviewTopicSummaryDto[];
+};
+
 export type AdminQuestionSection =
   | "approved_student_facing"
   | "generated_original"
@@ -388,14 +536,24 @@ export type TutorSessionAttempt = {
   verdict?: TutorVerdict;
 };
 
+export type TutorSessionStatus =
+  | "active"
+  | "completed"
+  | "expired"
+  | "content_unpublished";
+
 export type TutorSessionRecord = {
   attempts: TutorSessionAttempt[];
   createdAt: string;
   id: string;
   lastSeenAt: string;
   questionId: string;
+  questionTitle?: string;
+  questionVersionId?: number;
   revealedHints: number;
   revealedSteps: number;
+  status?: TutorSessionStatus;
+  topicId?: string;
 };
 
 export type StudentProgressDashboard = {

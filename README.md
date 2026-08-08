@@ -26,3 +26,6 @@ handling rules. See
 database-failure behavior. Provider registration, callback URLs, roles, local
 test identities, recovery, and privacy decisions are documented in
 [`docs/authentication-authorization.md`](docs/authentication-authorization.md).
+Professor review, immutable question versions, publication, takedown,
+regeneration, rollback, and audit are specified in
+[`docs/content-lifecycle.md`](docs/content-lifecycle.md).

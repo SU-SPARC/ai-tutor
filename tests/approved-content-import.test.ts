@@ -410,8 +410,11 @@ describe("approved-content Production importer", () => {
       insert into user_roles (user_id, role_id, granted_by_user_id)
       values ('user:test-student', 'student', 'system:schema-migration');
 
-      insert into tutor_sessions (id, anonymous_user_id)
-      values ('demo-session', 'anonymous-demo');
+      insert into audit_events (
+        actor_subject, action, entity_type, entity_id, outcome
+      ) values (
+        'test-bootstrap', 'test.bootstrap', 'database', 'production', 'success'
+      );
     `)
     const validated = {
       ...validateApprovedContentManifest(signedManifest()),

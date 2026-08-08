@@ -383,8 +383,12 @@ function createFakeTutorSessionRows() {
         id: string;
         last_seen_at: string;
         question_id: string;
+        question_title: string;
+        question_version_id: number;
         revealed_hints: number;
         revealed_steps: number;
+        status: "active";
+        topic_id: string;
         user_id: string | null;
       }
     | undefined;
@@ -411,8 +415,12 @@ function createFakeTutorSessionRows() {
           id: String(params[0]),
           last_seen_at: "2026-07-06T00:00:00.000Z",
           question_id: String(params[3]),
+          question_title: "Two fair dice",
+          question_version_id: 1,
           revealed_hints: 0,
           revealed_steps: 0,
+          status: "active",
+          topic_id: "sample-spaces-events",
           user_id: params[2] === null ? null : String(params[2]),
         };
         return [session];
@@ -428,6 +436,12 @@ function createFakeTutorSessionRows() {
         return session &&
           session.id === params[0] &&
           session.anonymous_user_id === params[2]
+          ? [session]
+          : [];
+      }
+
+      if (normalizedSql.startsWith("select s.*,")) {
+        return session && session.anonymous_user_id === params[1]
           ? [session]
           : [];
       }

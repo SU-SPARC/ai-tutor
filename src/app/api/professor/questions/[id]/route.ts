@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { isValidDifficulty } from "@/lib/api/question-serialization";
-import { updateAdminQuestionDetailStrict } from "@/lib/data/data-store";
+import {
+  getQuestionLifecycle,
+  updateAdminQuestionDetailStrict,
+} from "@/lib/data/data-store";
 import type {
   AdminQuestionDetailAction,
   AdminQuestionDetailUpdate,
@@ -9,6 +12,7 @@ import type {
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import { isValidReviewStatus } from "@/lib/tutor/professor-tools";
 import { TRUST_LEVELS, type TrustLevel } from "@/lib/types";
+import { lifecycleApiErrorResponse } from "@/lib/api/question-lifecycle";
 
 const MAX_BODY_BYTES = 32_768;
 const MAX_REVIEW_NOTE_LENGTH = 1_000;
@@ -87,6 +91,39 @@ const actionAliases: Record<string, AdminQuestionDetailAction> = {
 type ParseResult =
   | { update: AdminQuestionDetailUpdate }
   | { error: string; status: 400 | 413 };
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const access = await authorizeApi(requireProfessorReview);
+  if (!access.ok) {
+    return access.response;
+  }
+  const { id } = await params;
+  const questionId = id?.trim();
+  if (!questionId) {
+    return NextResponse.json(
+      { error: "A question id is required." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const question = await getQuestionLifecycle(
+      access.authorization,
+      questionId,
+    );
+    return question
+      ? NextResponse.json({ question })
+      : NextResponse.json(
+          { error: "Question was not found." },
+          { status: 404 },
+        );
+  } catch (error) {
+    return lifecycleApiErrorResponse(error);
+  }
+}
 
 export async function PATCH(
   request: Request,

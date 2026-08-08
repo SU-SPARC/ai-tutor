@@ -142,6 +142,9 @@ function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
 
 function seedQuestionSql(question) {
   const lines = [
+    "select set_config('app.current_user_id', 'system:schema-migration', true);",
+    "select set_config('app.current_creation_method', 'imported', true);",
+    "select set_config('app.suppress_question_version', 'true', true);",
     `insert into questions (id, topic_id, pattern_id, title, prompt, difficulty, accepted_answers_json, numeric_value, tolerance, answer_explanation, source_type, trust_level, visibility, review_status, originality_note, reviewed_by, reviewed_by_user_id, reviewed_at) values (${sqlString(
     question.id,
   )}, ${sqlString(question.topicId)}, ${sqlString(question.patternId)}, ${sqlString(
@@ -184,6 +187,12 @@ function seedQuestionSql(question) {
       )}) on conflict (question_id, id) do update set feedback = excluded.feedback, match_terms_json = excluded.match_terms_json;`,
     )
   })
+
+  lines.push(
+    "select set_config('app.suppress_question_version', 'false', true);",
+    `select app_record_question_version(${sqlString(question.id)});`,
+    `insert into question_approval_history (question_id, question_version_id, decision, reviewer_user_id, reviewer_label, decided_at) select q.id, q.working_version_id, 'approved', 'system:schema-migration', 'development seed', q.reviewed_at from questions q where q.id = ${sqlString(question.id)} and not exists (select 1 from question_approval_history qah where qah.question_id = q.id and qah.question_version_id = q.working_version_id and qah.decision = 'approved');`,
+  )
 
   return lines
 }

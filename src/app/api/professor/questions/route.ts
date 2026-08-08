@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
+  createQuestionLifecycle,
   getAdminQuestionDashboard,
+  listQuestionLifecycles,
   updateAdminQuestionsStrict,
 } from "@/lib/data/data-store";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
@@ -13,6 +15,14 @@ import { isValidSourceType } from "@/lib/api/question-serialization";
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import { isValidReviewStatus } from "@/lib/tutor/professor-tools";
 import type { ReviewStatus, SourceType } from "@/lib/types";
+import {
+  enumValue,
+  isRecord,
+  lifecycleApiErrorResponse,
+  parseQuestionVersionContent,
+  QUESTION_CREATION_METHODS,
+  QUESTION_VERSION_STATES,
+} from "@/lib/api/question-lifecycle";
 
 const ADMIN_QUESTION_ACTIONS = [
   "approve",
@@ -27,7 +37,37 @@ export async function GET(request: Request) {
     return access.response;
   }
 
-  const parsed = parseFilters(new URL(request.url).searchParams);
+  const searchParams = new URL(request.url).searchParams;
+
+  if (searchParams.get("view") === "lifecycle") {
+    const stateValue = searchParams.get("state") ?? undefined;
+    const state = stateValue
+      ? enumValue(stateValue, QUESTION_VERSION_STATES)
+      : undefined;
+    if (stateValue && !state) {
+      return NextResponse.json(
+        { error: `Invalid lifecycle state: ${stateValue}` },
+        { status: 400 },
+      );
+    }
+    try {
+      const questions = await listQuestionLifecycles(access.authorization, {
+        recordState:
+          searchParams.get("recordState") === "archived"
+            ? "archived"
+            : searchParams.get("recordState") === "active"
+              ? "active"
+              : undefined,
+        state,
+        topicId: searchParams.get("topicId")?.trim() || undefined,
+      });
+      return NextResponse.json({ questions });
+    } catch (error) {
+      return lifecycleApiErrorResponse(error);
+    }
+  }
+
+  const parsed = parseFilters(searchParams);
 
   if ("error" in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -41,6 +81,63 @@ export async function GET(request: Request) {
     return NextResponse.json({ dashboard });
   } catch {
     return dataServiceUnavailableResponse();
+  }
+}
+
+export async function POST(request: Request) {
+  const access = await authorizeApi(requireProfessorReview);
+  if (!access.ok) {
+    return access.response;
+  }
+
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (declaredLength > 65_536) {
+    return NextResponse.json(
+      { error: "Question creation requests must be smaller than 64KB." },
+      { status: 413 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Request body must be valid JSON." },
+      { status: 400 },
+    );
+  }
+  if (!isRecord(body)) {
+    return NextResponse.json(
+      { error: "Request body must be a JSON object." },
+      { status: 400 },
+    );
+  }
+
+  const content = parseQuestionVersionContent(body.content);
+  const creationMethod = enumValue(
+    body.creationMethod,
+    QUESTION_CREATION_METHODS,
+  );
+  if (!content || !creationMethod) {
+    return NextResponse.json(
+      {
+        error:
+          "A valid public-safe question content object and creationMethod are required.",
+      },
+      { status: 422 },
+    );
+  }
+
+  try {
+    const question = await createQuestionLifecycle(access.authorization, {
+      content,
+      creationMethod,
+      submit: body.submit === true,
+    });
+    return NextResponse.json({ question }, { status: 201 });
+  } catch (error) {
+    return lifecycleApiErrorResponse(error);
   }
 }
 

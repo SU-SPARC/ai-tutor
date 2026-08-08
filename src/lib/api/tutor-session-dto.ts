@@ -28,8 +28,11 @@ export function toTutorSessionDto(
  * sessions that reference drafts without deleting their audit history.
  */
 export async function toStudentTutorSessionDto(
-  session: Pick<TutorSessionRecord, "id" | "questionId">,
+  session: Pick<TutorSessionRecord, "id" | "questionId" | "status">,
 ) {
+  if (session.status === "content_unpublished") {
+    return undefined;
+  }
   const question = await getApprovedQuestionById(session.questionId);
   return question ? toTutorSessionDto(session) : undefined;
 }

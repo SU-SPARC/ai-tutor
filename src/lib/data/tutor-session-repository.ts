@@ -30,8 +30,12 @@ type TutorSessionRow = {
   id: string;
   last_seen_at: Date | string;
   question_id: string;
+  question_title?: string | null;
+  question_version_id: number | string;
   revealed_hints: number;
   revealed_steps: number;
+  status: "active" | "completed" | "expired" | "content_unpublished";
+  topic_id?: string | null;
   user_id: string | null;
 };
 
@@ -239,6 +243,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         questionId: input.questionId,
         revealedHints: 0,
         revealedSteps: 0,
+        status: "active",
       };
 
       sessions.set(session.id, {
@@ -389,14 +394,18 @@ export function createDatabaseTutorSessionRepository(
       const rows = (await readDatabaseRows(
         query,
         `
-          select *
-          from tutor_sessions
+          select
+            s.*,
+            qv.snapshot_json ->> 'title' as question_title,
+            qv.snapshot_json ->> 'topicId' as topic_id
+          from tutor_sessions s
+          join question_versions qv on qv.id = s.question_version_id
           where (
-            ($1 = 'user' and user_id = $2 and anonymous_user_id is null)
+            ($1 = 'user' and s.user_id = $2 and s.anonymous_user_id is null)
             or
-            ($1 = 'anonymous' and anonymous_user_id = $2 and user_id is null)
+            ($1 = 'anonymous' and s.anonymous_user_id = $2 and s.user_id is null)
           )
-          order by last_seen_at desc, created_at desc
+          order by s.last_seen_at desc, s.created_at desc
         `,
         [owner.kind, ownerIdentifier(owner)],
       )) as TutorSessionRow[];
@@ -712,6 +721,7 @@ async function readDatabaseSession(
       select *
       from tutor_sessions
       where id = $1
+        and status = 'active'
         and (
           ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
           or
@@ -758,8 +768,12 @@ function mapTutorSession(
     id: String(sessionRow.id),
     lastSeenAt: toIsoString(sessionRow.last_seen_at),
     questionId: String(sessionRow.question_id),
+    questionTitle: sessionRow.question_title ?? undefined,
+    questionVersionId: Number(sessionRow.question_version_id),
     revealedHints: Number(sessionRow.revealed_hints ?? 0),
     revealedSteps: Number(sessionRow.revealed_steps ?? 0),
+    status: sessionRow.status,
+    topicId: sessionRow.topic_id ?? undefined,
   };
 }
 
@@ -796,6 +810,7 @@ async function lockDatabaseSession(
       select *
       from tutor_sessions
       where id = $1
+        and status = 'active'
         and (
           ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
           or
@@ -820,6 +835,7 @@ async function touchDatabaseSession(
       update tutor_sessions
       set last_seen_at = now()
       where id = $1
+        and status = 'active'
         and (
           ($2 = 'user' and user_id = $3 and anonymous_user_id is null)
           or

@@ -11,20 +11,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { listTopics } from "@/lib/data/data-store";
+import { getProfessorQuestionReviewDashboard } from "@/lib/data/data-store";
 import {
   requirePageAccess,
   requireProfessorReview,
 } from "@/lib/auth/authorization";
-import { safeTopics } from "@/lib/tutor/professor-tools";
 
 export default async function ProfessorReviewPage() {
-  await requirePageAccess(requireProfessorReview, "/professor/review");
-  const topics = safeTopics(await listTopics());
+  const authorization = await requirePageAccess(
+    requireProfessorReview,
+    "/professor/review",
+  );
+  const dashboard = await getProfessorQuestionReviewDashboard(authorization);
 
   return (
     <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
+      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
         <div className="flex flex-col gap-4 border-b pb-6 md:flex-row md:items-end md:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="mb-3 px-0">
@@ -37,11 +39,12 @@ export default async function ProfessorReviewPage() {
               Professor review
             </Badge>
             <h1 className="text-3xl font-semibold tracking-normal">
-              Lightweight question review
+              Review by syllabus topic
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Review one generated draft at a time with only the essentials.
-              Private course files and technical audit details stay hidden.
+              Choose one topic before loading any question details. Approval
+              records an editorial decision; publishing remains a separate
+              lifecycle action.
             </p>
           </div>
           <Badge variant="outline" className="h-10 gap-2 px-4">
@@ -52,13 +55,15 @@ export default async function ProfessorReviewPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Review queue</CardTitle>
+            <CardTitle>Review and publication queue</CardTitle>
             <CardDescription>
-              Your professor role authorizes review actions.
+              Topics follow the canonical syllabus order. Questions are shown
+              one at a time and only server-authorized review actions are
+              available.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfessorFriendlyReviewPanel topics={topics} />
+            <ProfessorFriendlyReviewPanel initialDashboard={dashboard} />
           </CardContent>
         </Card>
       </section>

@@ -3,9 +3,8 @@ import { NextResponse } from "next/server";
 import { toProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import {
-  getProfessorTopicReviewProgress,
+  getProfessorQuestionReviewDashboard,
   getReviewQueue,
-  listTopics,
   updateReviewCandidates,
 } from "@/lib/data/data-store";
 import type {
@@ -18,7 +17,6 @@ import {
   isValidReviewDifficulty,
   isValidReviewPriority,
   isValidReviewStatus,
-  safeTopics,
 } from "@/lib/tutor/professor-tools";
 import type { Difficulty, ReviewPriority } from "@/lib/types";
 
@@ -43,23 +41,42 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [candidates, topics, topicProgress] = await Promise.all([
-      getReviewQueue(access.authorization, parsed.filters),
-      listTopics(),
-      parsed.filters.topicId
-        ? getProfessorTopicReviewProgress(
-            access.authorization,
-            parsed.filters.topicId,
-          )
-        : Promise.resolve(undefined),
-    ]);
+    const dashboard = await getProfessorQuestionReviewDashboard(
+      access.authorization,
+      parsed.filters.topicId,
+    );
+    const selectedTopic = parsed.filters.topicId
+      ? dashboard.topics.find(
+          (topic) => topic.topicId === parsed.filters.topicId,
+        )
+      : undefined;
+
+    if (parsed.filters.topicId && !selectedTopic) {
+      return NextResponse.json(
+        { error: "The selected syllabus topic was not found." },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({
-      candidates: candidates.map(toProfessorReviewCandidateDto),
-      count: candidates.length,
+      candidates: dashboard.candidates,
+      count: dashboard.candidates.length,
+      dashboard,
       filters: parsed.filters,
-      topicProgress,
-      topics: safeTopics(topics),
+      topicProgress: selectedTopic
+        ? {
+            approved: selectedTopic.approved,
+            needsReview: selectedTopic.needsReview,
+            rejected: selectedTopic.rejectedOrRevisionRequested,
+            remaining: selectedTopic.remaining,
+            topicId: selectedTopic.topicId,
+            totalDrafts: selectedTopic.total,
+          }
+        : undefined,
+      topics: dashboard.topics.map(({ title, topicId }) => ({
+        id: topicId,
+        title,
+      })),
     });
   } catch {
     return dataServiceUnavailableResponse();

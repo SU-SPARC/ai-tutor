@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe("production data integrity", () => {
-  it("runs all ten checks in a repeatable-read, read-only audit and formats a human report", async () => {
+  it("runs all eleven checks in a repeatable-read, read-only audit and formats a human report", async () => {
     const database = await integrityDatabase("test");
     const report = await runReadOnlyIntegrityAudit(clientFor(database), {
       target: "test",
@@ -41,8 +41,8 @@ describe("production data integrity", () => {
       summary: {
         failedChecks: 0,
         findings: 0,
-        passedChecks: 10,
-        totalChecks: 10,
+        passedChecks: 11,
+        totalChecks: 11,
       },
       target: "test",
     });
@@ -114,6 +114,31 @@ describe("production data integrity", () => {
       "Repair: report-only; owner decision required",
     );
     expect(await snapshotCorruptData(database)).toEqual(before);
+  });
+
+  it("detects lifecycle pointer and published-state drift", async () => {
+    const database = await integrityDatabase("test");
+    await database.exec(`
+      insert into topics (id, sort_order) values ('lifecycle-topic', 1);
+      insert into questions (
+        id, topic_id, title, source_type, trust_level, review_status,
+        visibility, record_state, working_version_id, published_version_id
+      ) values (
+        'lifecycle-pointer-drift', 'lifecycle-topic', 'Lifecycle pointer drift',
+        'professor_provided', 'public_original', 'needs_review', 'private',
+        'active', 1, 1
+      );
+      insert into question_version_lifecycle (
+        question_version_id, question_id, state
+      ) values (1, 'lifecycle-pointer-drift', 'approved');
+    `);
+
+    const report = await auditDatabaseIntegrity(clientFor(database), {
+      target: "test",
+    });
+    expect(
+      check(report, "invalid_question_lifecycle_pointers").sampleIds,
+    ).toEqual(["lifecycle-pointer-drift"]);
   });
 
   it("binds the requested target to the immutable migration ledger", async () => {
@@ -458,6 +483,9 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       reviewed_by_user_id text,
       reviewed_at timestamptz,
       archived_at timestamptz,
+      record_state text default 'active',
+      working_version_id bigint,
+      published_version_id bigint,
       review_notes text,
       updated_at timestamptz default now()
     );
@@ -476,6 +504,11 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       decision text,
       reviewer_user_id text,
       decided_at timestamptz
+    );
+    create table question_version_lifecycle (
+      question_version_id bigint,
+      question_id text,
+      state text
     );
     create table retrieval_chunks (
       id text,

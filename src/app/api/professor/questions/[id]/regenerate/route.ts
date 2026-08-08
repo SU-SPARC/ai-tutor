@@ -1,12 +1,18 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
+import {
+  lifecycleApiErrorResponse,
+  stringValue,
+} from "@/lib/api/question-lifecycle";
 import { regenerateAdminQuestionStrict } from "@/lib/data/data-store";
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 
 const MAX_BODY_BYTES = 4_096;
 
 type ParseResult =
-  | { keepPattern: boolean }
+  | { keepPattern: boolean; supersedeReason?: string }
   | { error: string; status: 400 | 413 };
 
 export async function POST(
@@ -40,9 +46,16 @@ export async function POST(
 
   try {
     const result = await regenerateAdminQuestionStrict(access.authorization, {
+      idempotencyKey: stringValue(
+        request.headers.get("idempotency-key"),
+      )?.slice(0, 200),
       keepPattern: parsed.keepPattern,
       mode: "deterministic",
       questionId,
+      requestId:
+        stringValue(request.headers.get("x-request-id"))?.slice(0, 200) ??
+        randomUUID(),
+      supersedeReason: parsed.supersedeReason,
     });
 
     if (!result) {
@@ -53,14 +66,8 @@ export async function POST(
     }
 
     return NextResponse.json(result);
-  } catch {
-    return NextResponse.json(
-      {
-        error:
-          "Question regeneration requires a configured database and public-safe generated question record.",
-      },
-      { status: 503 },
-    );
+  } catch (error) {
+    return lifecycleApiErrorResponse(error);
   }
 }
 
@@ -95,7 +102,10 @@ async function parseRegenerationRequest(
   }
 
   const unsupportedField = Object.keys(body).find(
-    (field) => field !== "keepPattern" && field !== "mode",
+    (field) =>
+      field !== "keepPattern" &&
+      field !== "mode" &&
+      field !== "supersedeReason",
   );
 
   if (unsupportedField) {
@@ -116,7 +126,26 @@ async function parseRegenerationRequest(
     return { error: "keepPattern must be true or false.", status: 400 };
   }
 
-  return { keepPattern: body.keepPattern ?? true };
+  if (
+    body.supersedeReason !== undefined &&
+    (typeof body.supersedeReason !== "string" ||
+      !body.supersedeReason.trim() ||
+      body.supersedeReason.length > 1_000)
+  ) {
+    return {
+      error:
+        "supersedeReason must be a non-empty string of at most 1000 characters.",
+      status: 400,
+    };
+  }
+
+  return {
+    keepPattern: body.keepPattern ?? true,
+    supersedeReason:
+      typeof body.supersedeReason === "string"
+        ? body.supersedeReason.trim()
+        : undefined,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

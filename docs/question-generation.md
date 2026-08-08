@@ -3,7 +3,9 @@
 This workflow turns private course references into original practice-question
 drafts without copying course or book problems. Private material is used only to
 identify topics, formulas, misconceptions, and abstract problem patterns. Any
-generated question starts as `needs_review` and `generated_unverified`.
+runtime-generated question starts as an immutable lifecycle `draft` with
+generated-unverified provenance and is then submitted to `needs_review` after
+validation. See [Production Question Content Lifecycle](content-lifecycle.md).
 
 ## Safety Model
 
@@ -211,9 +213,11 @@ Promotion reads `data/private/generated/review-queue.json` and writes
 `needs_review`, `rejected`, and `needs_edit` items, and refuses copied-source or
 textbook-looking content.
 
-Student-facing loaders must exclude generated-unverified drafts. A generated
-question becomes student-facing only after the review status and trust level
-show professor approval.
+The file promotion commands prepare public-safe import material; they do not
+publish runtime content. Production imports create or preserve immutable
+versions, and a generated question becomes student-facing only through a
+separate professor `publish` transition that sets `published_version_id`.
+Approval alone does not create visibility.
 
 ## Development Examples
 

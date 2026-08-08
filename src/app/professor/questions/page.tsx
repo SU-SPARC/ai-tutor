@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-import { ProfessorQuestionReviewPanel } from "@/components/professor/professor-question-review-panel";
+import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getAdminQuestionDashboard } from "@/lib/data/data-store";
+import { getQuestionLifecycleDashboard } from "@/lib/data/data-store";
 import {
   requireProfessorReview,
   requirePageAccess,
@@ -22,7 +22,7 @@ export default async function ProfessorQuestionsPage() {
     requireProfessorReview,
     "/professor/questions",
   );
-  const initialDashboard = await getAdminQuestionDashboard(authorization);
+  const initialDashboard = await getQuestionLifecycleDashboard(authorization);
 
   return (
     <main className="min-h-svh bg-background">
@@ -42,8 +42,8 @@ export default async function ProfessorQuestionsPage() {
               Question review
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Review public-safe question records by source, status, topic, and
-              difficulty. Access and mutations require the professor role.
+              Operate immutable question versions from draft through review,
+              approval, publication, rollback, and archival.
             </p>
           </div>
           <Badge variant="outline" className="h-10 gap-2 px-4">
@@ -56,12 +56,14 @@ export default async function ProfessorQuestionsPage() {
           <CardHeader>
             <CardTitle>Professor question queue</CardTitle>
             <CardDescription>
-              Demo mode is read-only. Database-backed review can approve,
-              reject, mark needs review, or request regeneration.
+              Demo mode is read-only. Production changes use explicit,
+              attributed lifecycle transitions.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfessorQuestionReviewPanel initialDashboard={initialDashboard} />
+            <ProfessorQuestionLifecyclePanel
+              initialDashboard={initialDashboard}
+            />
           </CardContent>
         </Card>
       </section>

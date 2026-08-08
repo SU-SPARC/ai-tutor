@@ -349,11 +349,14 @@ async function createTutorSchema(database: PGlite) {
       anonymous_user_id text,
       user_id text,
       question_id text not null,
+      question_version_id bigint not null default 1,
+      status text not null default 'active',
       expires_at timestamptz,
       revealed_hints integer not null default 0,
       revealed_steps integer not null default 0,
       created_at timestamptz not null default now(),
-      last_seen_at timestamptz not null default now()
+      last_seen_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
     );
 
     create table attempts (

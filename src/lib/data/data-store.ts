@@ -10,6 +10,14 @@ import {
 } from "@/lib/auth/authorization";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import {
+  createDatabaseQuestionLifecycleRepository,
+  type CreateQuestionInput,
+  type CreateQuestionVersionInput,
+  type QuestionLifecycleFilters,
+  type QuestionLifecycleTransitionInput,
+  type RegenerateQuestionVersionInput,
+} from "@/lib/data/question-lifecycle-repository";
+import {
   demoContentRepository,
   resetDemoReviewQueueForTests,
 } from "@/lib/data/demo-repository";
@@ -26,7 +34,17 @@ import type {
   ReviewQueueFilters,
   ReviewAction,
 } from "@/lib/data/repository";
-import type { AdminQuestionDashboard, ReviewCandidate } from "@/lib/types";
+import type {
+  AdminQuestion,
+  AdminQuestionDashboard,
+  ProfessorQuestionReviewCandidateDto,
+  ProfessorQuestionReviewDashboard,
+  ProfessorReviewTopicSummaryDto,
+  QuestionLifecycleDashboard,
+  QuestionLifecycleDto,
+  QuestionVersionDto,
+  ReviewCandidate,
+} from "@/lib/types";
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
 import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode";
@@ -149,9 +167,34 @@ export async function regenerateAdminQuestionStrict(
     );
   }
 
-  return writeStrictDatabase((repository) =>
-    repository.regenerateAdminQuestion(authorization, input),
-  );
+  return writeStrictDatabaseLifecycle(async (repository) => {
+    const current = await repository.getQuestion(
+      authorization,
+      input.questionId,
+    );
+    if (!current) {
+      return undefined;
+    }
+    const base = current.workingVersion;
+    const updated = await repository.regenerate(authorization, {
+      baseVersionId: base.versionId,
+      expectedWorkingVersionId: base.versionId,
+      idempotencyKey: input.idempotencyKey,
+      keepPattern: input.keepPattern,
+      questionId: input.questionId,
+      requestId: input.requestId,
+      supersedeReason: input.supersedeReason,
+    });
+    if (!updated) {
+      return undefined;
+    }
+    return {
+      mode: "deterministic" as const,
+      original: lifecycleVersionToAdminQuestion(base),
+      preservedOriginal: true,
+      regenerated: lifecycleVersionToAdminQuestion(updated.workingVersion),
+    };
+  });
 }
 
 export async function getQuestionById(questionId: string) {
@@ -254,6 +297,151 @@ export async function updateReviewCandidateStatus(
   assertAuthorization(authorization, "professor");
   return writeWithConfiguredRepository((repository) =>
     repository.updateReviewCandidateStatus(authorization, candidateId, action),
+  );
+}
+
+export async function listQuestionLifecycles(
+  authorization: ProfessorReviewAuthorization,
+  filters?: QuestionLifecycleFilters,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.listQuestions(authorization, filters),
+  );
+}
+
+export async function getQuestionLifecycleDashboard(
+  authorization: ProfessorReviewAuthorization,
+): Promise<QuestionLifecycleDashboard> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+  if (policy.repositorySource === "demo") {
+    const dashboard = await getAdminQuestionDashboard(authorization);
+    return {
+      mode: "demo",
+      questions: dashboard.questions.map((question, index) =>
+        demoQuestionLifecycle(question, index + 1),
+      ),
+      readOnly: true,
+      readOnlyReason: "Demo lifecycle data is intentionally read-only.",
+    };
+  }
+
+  return {
+    mode: "database",
+    questions: await listQuestionLifecycles(authorization),
+    readOnly: false,
+  };
+}
+
+export async function getProfessorQuestionReviewDashboard(
+  authorization: ProfessorReviewAuthorization,
+  selectedTopicId?: string,
+): Promise<ProfessorQuestionReviewDashboard> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+
+  if (contentRepositoryOverride) {
+    return legacyProfessorReviewDashboard(
+      contentRepositoryOverride,
+      authorization,
+      selectedTopicId,
+      true,
+      "The injected review repository does not support lifecycle mutations.",
+    );
+  }
+
+  if (policy.repositorySource === "demo") {
+    return legacyProfessorReviewDashboard(
+      demoContentRepository,
+      authorization,
+      selectedTopicId,
+      true,
+      "This operating mode uses read-only demo content.",
+    );
+  }
+
+  const env = getServerEnv();
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    const repository = createDatabaseQuestionLifecycleRepository(queryPostgres);
+    const [topics, candidates] = await Promise.all([
+      repository.listReviewTopicSummaries(authorization),
+      selectedTopicId
+        ? repository.listReviewCandidates(authorization, selectedTopicId)
+        : Promise.resolve([]),
+    ]);
+    return {
+      candidates,
+      mode: "database",
+      readOnly: false,
+      selectedTopicId,
+      topics,
+    };
+  } catch (cause) {
+    if (policy.allowDemoFallback) {
+      return legacyProfessorReviewDashboard(
+        demoContentRepository,
+        authorization,
+        selectedTopicId,
+        true,
+        "The local database is unavailable, so the documented read-only demo fallback is active.",
+      );
+    }
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+export async function getQuestionLifecycle(
+  authorization: ProfessorReviewAuthorization,
+  questionId: string,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.getQuestion(authorization, questionId),
+  );
+}
+
+export async function createQuestionLifecycle(
+  authorization: ProfessorReviewAuthorization,
+  input: CreateQuestionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.createQuestion(authorization, input),
+  );
+}
+
+export async function createQuestionLifecycleVersion(
+  authorization: ProfessorReviewAuthorization,
+  input: CreateQuestionVersionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.createVersion(authorization, input),
+  );
+}
+
+export async function transitionQuestionLifecycle(
+  authorization: ProfessorReviewAuthorization,
+  input: QuestionLifecycleTransitionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.transition(authorization, input),
+  );
+}
+
+export async function regenerateQuestionLifecycleVersion(
+  authorization: ProfessorReviewAuthorization,
+  input: RegenerateQuestionVersionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.regenerate(authorization, input),
   );
 }
 
@@ -405,6 +593,262 @@ async function writeStrictDatabase<T>(
   } catch (cause) {
     throw new DataServiceUnavailableError("content", { cause });
   }
+}
+
+async function writeStrictDatabaseLifecycle<T>(
+  write: (
+    repository: ReturnType<typeof createDatabaseQuestionLifecycleRepository>,
+  ) => Promise<T>,
+) {
+  const env = getServerEnv();
+
+  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    return await write(
+      createDatabaseQuestionLifecycleRepository(queryPostgres),
+    );
+  } catch (cause) {
+    if (
+      cause instanceof Error &&
+      (cause.name === "QuestionLifecycleConflictError" ||
+        cause.name === "QuestionLifecycleNotFoundError" ||
+        cause.name === "QuestionLifecycleValidationError")
+    ) {
+      throw cause;
+    }
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+function lifecycleVersionToAdminQuestion(
+  version: import("@/lib/types").QuestionVersionDto,
+): import("@/lib/types").AdminQuestion {
+  return {
+    answer: {
+      ...version.answer,
+      acceptedAnswers: [...version.answer.acceptedAnswers],
+    },
+    difficulty: version.difficulty,
+    hints: [...version.hints],
+    id: version.id,
+    misconceptions: version.misconceptions.map((misconception) => ({
+      ...misconception,
+      matchTerms: [...misconception.matchTerms],
+    })),
+    patternSource: version.source.patternIds?.[0] ?? version.source.sourceType,
+    prompt: version.prompt,
+    review: {
+      status:
+        version.state === "rejected"
+          ? "rejected"
+          : version.state === "approved" || version.state === "published"
+            ? "approved"
+            : version.state === "revision_requested"
+              ? "needs_edit"
+              : "needs_review",
+    },
+    solutionSteps: [...version.solutionSteps],
+    source: { ...version.source },
+    title: version.title,
+    topicId: version.topicId,
+  };
+}
+
+function demoQuestionLifecycle(
+  question: AdminQuestion,
+  versionId: number,
+): QuestionLifecycleDto {
+  const state = isPublishedContent(question)
+    ? "published"
+    : question.review.status === "rejected"
+      ? "rejected"
+      : question.review.status === "needs_edit" ||
+          question.review.status === "needs_regeneration"
+        ? "revision_requested"
+        : "needs_review";
+  const occurredAt = question.review.reviewedAt ?? new Date(0).toISOString();
+  const version: QuestionVersionDto = {
+    allowedActions: [],
+    answer: {
+      ...question.answer,
+      acceptedAnswers: [...question.answer.acceptedAnswers],
+    },
+    contentHash: `demo-${question.id}`,
+    createdAt: occurredAt,
+    createdBy: {
+      displayName: question.review.reviewedBy ?? "Demo fixture",
+      occurredAt,
+      userId: "system:demo-fixture",
+    },
+    creationMethod:
+      question.source.sourceType === "generated_original" ||
+      question.source.sourceType === "pattern_derived_original"
+        ? "generated"
+        : "imported",
+    difficulty: question.difficulty,
+    hints: [...question.hints],
+    generationMetadata: {},
+    id: question.id,
+    misconceptions: question.misconceptions.map((misconception) => ({
+      ...misconception,
+      matchTerms: [...misconception.matchTerms],
+    })),
+    prompt: question.prompt,
+    schemaVersion: 1,
+    solutionSteps: [...question.solutionSteps],
+    source: { ...question.source },
+    state,
+    title: question.title,
+    topicId: question.topicId,
+    validationStatus: "valid",
+    versionId,
+    versionNumber: 1,
+  };
+  return {
+    allowedActions: [],
+    events: [],
+    publishedVersion: state === "published" ? version : undefined,
+    questionId: question.id,
+    recordState: "active",
+    regenerationAllowed: false,
+    versions: [version],
+    workingVersion: version,
+  };
+}
+
+async function legacyProfessorReviewDashboard(
+  repository: ContentRepository,
+  authorization: ProfessorReviewAuthorization,
+  selectedTopicId: string | undefined,
+  readOnly: boolean,
+  readOnlyReason?: string,
+): Promise<ProfessorQuestionReviewDashboard> {
+  const [topics, questions] = await Promise.all([
+    repository.listTopics(),
+    repository.getAdminQuestions(authorization),
+  ]);
+  const activeTopics = topics
+    .filter((topic) => topic.active)
+    .sort(
+      (left, right) =>
+        left.order - right.order ||
+        left.title.localeCompare(right.title) ||
+        left.id.localeCompare(right.id),
+    );
+  const topicSummaries = activeTopics.map((topic) =>
+    legacyProfessorReviewTopicSummary(
+      topic.id,
+      topic.title,
+      topic.order,
+      questions.filter((question) => question.topicId === topic.id),
+    ),
+  );
+  const candidates = selectedTopicId
+    ? questions
+        .filter(
+          (question) =>
+            question.topicId === selectedTopicId &&
+            question.review.status === "needs_review",
+        )
+        .sort(
+          (left, right) =>
+            Number((right.review.reviewPriority ?? "normal") === "priority") -
+              Number((left.review.reviewPriority ?? "normal") === "priority") ||
+            left.title.localeCompare(right.title) ||
+            left.id.localeCompare(right.id),
+        )
+        .map((question, index) =>
+          legacyProfessorReviewCandidate(question, index + 1, readOnly),
+        )
+    : [];
+
+  return {
+    candidates,
+    mode: "demo",
+    readOnly,
+    readOnlyReason,
+    selectedTopicId,
+    topics: topicSummaries,
+  };
+}
+
+function legacyProfessorReviewTopicSummary(
+  topicId: string,
+  title: string,
+  order: number,
+  questions: AdminQuestion[],
+): ProfessorReviewTopicSummaryDto {
+  const count = (statuses: AdminQuestion["review"]["status"][]) =>
+    questions.filter((question) => statuses.includes(question.review.status))
+      .length;
+
+  return {
+    approved: count(["approved"]),
+    needsReview: count(["needs_review"]),
+    order,
+    rejectedOrRevisionRequested: count([
+      "rejected",
+      "needs_edit",
+      "needs_regeneration",
+    ]),
+    remaining: count(["needs_review", "needs_edit", "needs_regeneration"]),
+    title,
+    topicId,
+    total: questions.length,
+  };
+}
+
+function legacyProfessorReviewCandidate(
+  question: AdminQuestion,
+  versionId: number,
+  readOnly: boolean,
+): ProfessorQuestionReviewCandidateDto {
+  const occurredAt = question.review.reviewedAt ?? new Date(0).toISOString();
+  return {
+    allowedActions: readOnly ? [] : ["request_revision", "approve", "reject"],
+    answer: {
+      ...question.answer,
+      acceptedAnswers: [...question.answer.acceptedAnswers],
+    },
+    createdAt: occurredAt,
+    createdBy: {
+      displayName: question.review.reviewedBy ?? "Demo fixture",
+      occurredAt,
+    },
+    creationMethod:
+      question.source.sourceType === "generated_original" ||
+      question.source.sourceType === "pattern_derived_original"
+        ? "generated"
+        : "imported",
+    difficulty: question.difficulty,
+    hints: [...question.hints],
+    id: question.id,
+    misconceptions: question.misconceptions.map(({ feedback, id }) => ({
+      feedback,
+      id,
+    })),
+    prompt: question.prompt,
+    questionId: question.id,
+    review: {
+      reviewPriority: question.review.reviewPriority ?? "normal",
+      status: "needs_review",
+    },
+    solutionSteps: [...question.solutionSteps],
+    source: {
+      originalityNote: question.source.originalityNote,
+      sourceType: question.source.sourceType,
+      trustLevel: question.source.trustLevel,
+    },
+    state: "needs_review",
+    title: question.title,
+    topicId: question.topicId,
+    validationStatus: "valid",
+    versionId,
+    versionNumber: 1,
+  };
 }
 
 async function demoAdminQuestionDashboard(

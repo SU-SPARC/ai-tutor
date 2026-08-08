@@ -43,26 +43,35 @@ describe("professor admin APIs", () => {
     vi.unstubAllEnvs();
   });
 
-  it("protects review queue reads and returns generated drafts only after auth", async () => {
+  it("protects review summaries and does not return draft details before topic selection", async () => {
     mockPrincipal(undefined);
     const unauthenticated = await getReviewQueue(
-      new Request("http://test/api/professor/review"),
+      new Request(
+        "http://test/api/professor/review?topicId=introduction-probability-venn-diagrams",
+      ),
+    );
+    mockPrincipal(TEST_STUDENT);
+    const student = await getReviewQueue(
+      new Request(
+        "http://test/api/professor/review?topicId=introduction-probability-venn-diagrams",
+      ),
     );
     mockPrincipal(TEST_PROFESSOR);
     const authenticated = await getReviewQueue(authedRequest());
     const payload = (await authenticated.json()) as {
       candidates: ReviewCandidate[];
+      dashboard: {
+        topics: Array<{ needsReview: number; topicId: string }>;
+      };
     };
 
     expect(unauthenticated.status).toBe(401);
+    expect(student.status).toBe(403);
     expect(authenticated.status).toBe(200);
-    expect(payload.candidates.length).toBeGreaterThan(0);
+    expect(payload.candidates).toEqual([]);
+    expect(payload.dashboard.topics.length).toBe(topicData.length);
     expect(
-      payload.candidates.every(
-        (candidate) =>
-          candidate.review.status === "needs_review" &&
-          candidate.source.trustLevel === "generated_unverified",
-      ),
+      payload.dashboard.topics.some((topic) => topic.needsReview > 0),
     ).toBe(true);
     expect(JSON.stringify(payload)).not.toMatch(
       /sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|source page/i,
@@ -87,6 +96,9 @@ describe("professor admin APIs", () => {
       topicData.map(({ id, title }) => ({ id, title })),
     );
     expect(payload.candidates).toHaveLength(20);
+    expect(JSON.stringify(payload.candidates)).not.toMatch(
+      /generationMetadata|patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText|locator/i,
+    );
     expect(
       payload.candidates.every(
         (candidate) =>
@@ -99,12 +111,25 @@ describe("professor admin APIs", () => {
       ),
     ).toBe(true);
     expect(payload.topicProgress).toEqual({
-      approved: 0,
+      approved: 1,
       needsReview: 20,
       rejected: 0,
       remaining: 20,
       topicId,
-      totalDrafts: 20,
+      totalDrafts: 21,
+    });
+  });
+
+  it("returns not found for a topic outside the canonical syllabus", async () => {
+    const response = await getReviewQueue(
+      new Request(
+        "http://test/api/professor/review?status=needs_review&topicId=not-a-syllabus-topic",
+      ),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "The selected syllabus topic was not found.",
     });
   });
 
@@ -139,12 +164,12 @@ describe("professor admin APIs", () => {
       ),
     ).toBe(true);
     expect(updated.topicProgress).toEqual({
-      approved: 1,
+      approved: 2,
       needsReview: 18,
       rejected: 1,
       remaining: 18,
       topicId,
-      totalDrafts: 20,
+      totalDrafts: 21,
     });
   });
 
@@ -194,7 +219,11 @@ describe("professor admin APIs", () => {
     );
 
     mockPrincipal(TEST_PROFESSOR);
-    const unchangedResponse = await getReviewQueue(authedRequest());
+    const unchangedResponse = await getReviewQueue(
+      new Request(
+        "http://test/api/professor/review?status=needs_review&topicId=introduction-probability-venn-diagrams",
+      ),
+    );
     const unchangedPayload = (await unchangedResponse.json()) as {
       candidates: ReviewCandidate[];
     };
@@ -219,19 +248,9 @@ describe("professor admin APIs", () => {
     const expectedIds = new Set(
       nextSyllabusCandidates.map((candidate) => candidate.id),
     );
-    const response = await getReviewQueue(authedRequest());
-    const payload = (await response.json()) as {
-      candidates: ReviewCandidate[];
-    };
-    const returnedIds = new Set(
-      payload.candidates.map((candidate) => candidate.id),
-    );
-
-    expect(response.status).toBe(200);
-    expect(
-      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
-    ).toBe(true);
     expect(expectedIds.size).toBe(60);
+
+    const returnedIds = new Set<string>();
 
     for (const topicId of [
       "conditional-probability",
@@ -253,31 +272,26 @@ describe("professor admin APIs", () => {
       );
 
       expect(filtered.status).toBe(200);
+      filteredPayload.candidates.forEach((candidate) =>
+        returnedIds.add(candidate.id),
+      );
       expect(
         filteredPayload.candidates.filter((candidate) =>
           expectedTopicIds.has(candidate.id),
         ),
       ).toHaveLength(20);
     }
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true);
   });
 
   it("makes all 60 following-syllabus drafts available only in the protected review workflow", async () => {
     const expectedIds = new Set(
       followingSyllabusCandidates.map((candidate) => candidate.id),
     );
-    const response = await getReviewQueue(authedRequest());
-    const payload = (await response.json()) as {
-      candidates: ReviewCandidate[];
-    };
-    const returnedIds = new Set(
-      payload.candidates.map((candidate) => candidate.id),
-    );
-
-    expect(response.status).toBe(200);
     expect(expectedIds.size).toBe(60);
-    expect(
-      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
-    ).toBe(true);
+    const returnedIds = new Set<string>();
 
     for (const topicId of [
       "continuous-random-variables",
@@ -299,31 +313,26 @@ describe("professor admin APIs", () => {
       );
 
       expect(filtered.status).toBe(200);
+      filteredPayload.candidates.forEach((candidate) =>
+        returnedIds.add(candidate.id),
+      );
       expect(
         filteredPayload.candidates.filter((candidate) =>
           expectedTopicIds.has(candidate.id),
         ),
       ).toHaveLength(20);
     }
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true);
   });
 
   it("makes all 60 next-uncovered drafts available only in the protected review workflow", async () => {
     const expectedIds = new Set(
       nextUncoveredSyllabusCandidates.map((candidate) => candidate.id),
     );
-    const response = await getReviewQueue(authedRequest());
-    const payload = (await response.json()) as {
-      candidates: ReviewCandidate[];
-    };
-    const returnedIds = new Set(
-      payload.candidates.map((candidate) => candidate.id),
-    );
-
-    expect(response.status).toBe(200);
     expect(expectedIds.size).toBe(60);
-    expect(
-      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
-    ).toBe(true);
+    const returnedIds = new Set<string>();
 
     for (const topicId of [
       "independent-random-variables-sums-correlation",
@@ -345,12 +354,18 @@ describe("professor admin APIs", () => {
       );
 
       expect(filtered.status).toBe(200);
+      filteredPayload.candidates.forEach((candidate) =>
+        returnedIds.add(candidate.id),
+      );
       expect(
         filteredPayload.candidates.filter((candidate) =>
           expectedTopicIds.has(candidate.id),
         ),
       ).toHaveLength(20);
     }
+    expect(
+      [...expectedIds].every((candidateId) => returnedIds.has(candidateId)),
+    ).toBe(true);
   });
 
   it("requires priority before approving selected generated drafts", async () => {
@@ -531,7 +546,11 @@ describe("professor admin APIs", () => {
 });
 
 async function firstCandidates(count: number) {
-  const response = await getReviewQueue(authedRequest());
+  const response = await getReviewQueue(
+    new Request(
+      "http://test/api/professor/review?status=needs_review&topicId=introduction-probability-venn-diagrams",
+    ),
+  );
   const payload = (await response.json()) as {
     candidates: ReviewCandidate[];
   };

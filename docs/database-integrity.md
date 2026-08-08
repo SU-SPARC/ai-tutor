@@ -18,6 +18,7 @@ database as Test to bypass the Production confirmation gate.
 | Missing solution steps                      | An active, approved public question has no nonblank, positive-order solution step                                                                                                  | Quarantine is available                                           |
 | Duplicate question IDs                      | More than one question row has the same ID, including after primary-key drift                                                                                                      | None; preserve evidence and investigate constraint loss           |
 | Invalid publication states                  | Review identity/time, visibility, approval, trust, archive state, or generated-content state disagree                                                                              | Quarantine is available                                           |
+| Invalid lifecycle pointers                  | Working/published pointers do not match version lifecycle rows, multiple versions are published, or an archived question retains publication                                       | None; use a reviewed forward fix                                  |
 | Approved questions without reviewer history | No immutable approval event matches the question's reviewer and review timestamp                                                                                                   | Quarantine is available; history is never fabricated              |
 | Generated drafts student-visible            | An unapproved/untrusted generated question or retrieval chunk is actually returned by a student-facing view                                                                        | None; treat as view/schema drift and forward-fix it               |
 | Topic-order conflicts                       | `sort_order` is negative or shared by multiple topics                                                                                                                              | None; a professor must choose syllabus order                      |
@@ -160,7 +161,7 @@ approved backup/recovery process and a forward migration where required.
 ## Test Evidence
 
 `tests/database-integrity.test.ts` uses isolated embedded PostgreSQL databases
-to prove all ten finding classes, bounded human reporting, read-only behavior,
+to prove all eleven finding classes, bounded human reporting, read-only behavior,
 target binding, CLI and library confirmation gates, selected repairs, audit-event
 evidence, rollback when evidence recording fails, and compatibility with the
 complete migration chain and its immutable review/version triggers.

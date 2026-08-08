@@ -17,6 +17,10 @@ See [Approved Content Production Import](approved-content-import.md) for the
 professor-attested manifest contract, dry-run/apply commands, exact-content
 duplicate rules, transactional behavior, and validation report.
 
+See [Production Question Content Lifecycle](content-lifecycle.md) for immutable
+question aggregates, publication pointers, professor operations, regeneration,
+rollback, student takedown, and audit behavior.
+
 ## Initial Schema
 
 `001_initial_schema.sql` creates these public-safe tutoring tables:
@@ -53,7 +57,7 @@ production integrity layer without deleting existing rows:
 
 | Area                         | Production invariant                                                                                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Institutional identity       | `users` maps Clerk subjects; `roles` and `user_roles` hold the Clerk-synchronized student/professor integrity projection required for review decisions             |
+| Institutional identity       | `users` maps Clerk subjects; `roles` and `user_roles` hold the Clerk-synchronized student/professor integrity projection required for review decisions              |
 | Topics                       | IDs/titles are nonblank and `sort_order` is globally unique, nonnegative, and indexed with stable title/ID tie-breakers                                             |
 | Questions                    | Content fields and answer JSON are validated; approved public rows require an immutable reviewer user ID, timestamp, approved trust level, and no archive timestamp |
 | Versions and approvals       | Every question/content-child mutation snapshots the full question into append-only `question_versions`; review transitions append to `question_approval_history`    |
@@ -70,9 +74,10 @@ reviewer labels into professor accounts. New non-pending review decisions must
 use an active `professor` user ID; the legacy `reviewed_by` label is
 retained only for compatibility and display.
 
-Question-version `content_hash` values are deterministic internal MD5
-fingerprints used to suppress duplicate snapshots. They are not signatures and
-do not replace the signed manifest's SHA-256 file/content hashes.
+Legacy question-version `content_hash` values remain deterministic internal MD5
+fingerprints for referential compatibility. Lifecycle versions also carry a
+SHA-256 `content_sha256` over content-only fields. Neither is a signature or a
+replacement for the signed import manifest.
 
 `008_approved_content_import.sql` adds public-safe `question_patterns` and the
 append-only `approved_content_imports` release ledger. New pattern references
@@ -87,6 +92,13 @@ provider tokens are not stored in the database.
 administrator role. Clerk `publicMetadata.role` is authoritative; the remaining
 student/professor rows are synchronized projections for database constraints.
 
+`011_question_content_lifecycle.sql` adds version-level workflow state, stable
+working/published pointers, SHA-256 content hashes, parent lineage, generation
+attribution, the append-only lifecycle ledger, and pinned version IDs for
+sessions, retrieval chunks, and response cache. It maps legacy approved public
+trusted content to publication without deleting earlier evidence. Student views
+resolve only the published pointer; approval by itself is no longer visibility.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
@@ -99,7 +111,7 @@ Deletion behavior is explicit:
 - reviewer identities referenced by immutable academic history cannot be
   physically deleted and must instead be disabled or soft-deleted.
 
-`tests/production-schema-migration.test.ts` executes migrations `001`–`009`
+`tests/production-schema-migration.test.ts` executes migrations `001`–`011`
 against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
 with legacy content/activity, the development seed, publication and role
 constraints, append-only history, snapshot completeness, and deletion rules.

@@ -50,7 +50,9 @@ describe("production schema hardening migration", () => {
         "hints",
         "misconceptions",
         "question_approval_history",
+        "question_lifecycle_events",
         "question_patterns",
+        "question_version_lifecycle",
         "question_versions",
         "questions",
         "roles",
@@ -77,6 +79,7 @@ describe("production schema hardening migration", () => {
     expect(constraintNames).toEqual(
       expect.arrayContaining([
         "ai_llm_reservations_session_fkey",
+        "ai_response_cache_question_version_fkey",
         "ai_usage_counts_nonnegative",
         "attempts_question_topic_fkey",
         "attempts_question_version_fkey",
@@ -85,7 +88,9 @@ describe("production schema hardening migration", () => {
         "hints_order_positive",
         "misconceptions_metadata_object",
         "question_approval_history_version_fkey",
+        "question_lifecycle_events_version_fkey",
         "question_patterns_no_private_source_signals",
+        "question_version_lifecycle_version_fkey",
         "questions_pattern_id_fkey",
         "questions_publication_state_check",
         "solution_steps_order_positive",
@@ -112,6 +117,7 @@ describe("production schema hardening migration", () => {
     expect(indexNames).toEqual(
       expect.arrayContaining([
         "ai_usage_reporting_idx",
+        "ai_response_cache_question_version_idx",
         "anonymous_identity_claims_user_idx",
         "attempts_question_activity_idx",
         "attempts_session_timeline_idx",
@@ -121,7 +127,9 @@ describe("production schema hardening migration", () => {
         "hints_question_idx",
         "misconceptions_question_idx",
         "question_approval_history_question_idx",
+        "question_lifecycle_events_question_idx",
         "question_patterns_topic_idx",
+        "question_version_lifecycle_queue_idx",
         "question_versions_question_created_idx",
         "questions_professor_queue_idx",
         "questions_professor_catalog_idx",
@@ -131,6 +139,7 @@ describe("production schema hardening migration", () => {
         "student_progress_student_topic_idx",
         "tutor_sessions_user_activity_idx",
         "tutor_sessions_anonymous_activity_idx",
+        "tutor_sessions_question_version_idx",
         "user_roles_active_role_idx",
         "users_active_email_unique_idx",
       ]),
@@ -250,11 +259,10 @@ describe("production schema hardening migration", () => {
     });
 
     const latestVersion = await database.query<{ snapshot_json: unknown }>(`
-      select snapshot_json
-      from question_versions
-      where question_id = 'demo-basic-probability-colored-tickets'
-      order by version_number desc
-      limit 1
+      select qv.snapshot_json
+      from questions q
+      join question_versions qv on qv.id = q.published_version_id
+      where q.id = 'demo-basic-probability-colored-tickets'
     `);
     const snapshot = latestVersion.rows[0]?.snapshot_json as {
       hints: Array<{ body: string; order: number }>;
@@ -484,6 +492,7 @@ describe("production schema hardening migration", () => {
       values ('probability', 'Probability', 'Production topic', 1);
 
       set app.current_user_id = 'professor-1';
+      set app.current_creation_method = 'manual';
 
       insert into questions (
         id,
@@ -516,6 +525,34 @@ describe("production schema hardening migration", () => {
         'Professor One',
         'professor-1',
         now()
+      );
+
+      insert into solution_steps (question_id, step_order, body)
+      values ('approved-question', 1, 'Compute one divided by two.');
+
+      select * from app_transition_question_version(
+        'approved-question',
+        (select working_version_id from questions where id = 'approved-question'),
+        'submit',
+        'professor-1',
+        'Professor One',
+        'draft'
+      );
+      select * from app_transition_question_version(
+        'approved-question',
+        (select working_version_id from questions where id = 'approved-question'),
+        'approve',
+        'professor-1',
+        'Professor One',
+        'needs_review'
+      );
+      select * from app_transition_question_version(
+        'approved-question',
+        (select working_version_id from questions where id = 'approved-question'),
+        'publish',
+        'professor-1',
+        'Professor One',
+        'approved'
       );
     `);
 

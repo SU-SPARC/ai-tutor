@@ -83,9 +83,12 @@ export type AdminQuestionDetailUpdate = {
 };
 
 export type AdminQuestionRegenerationInput = {
+  idempotencyKey?: string;
   keepPattern?: boolean;
   mode?: "deterministic";
   questionId: string;
+  requestId?: string;
+  supersedeReason?: string;
 };
 
 export type AdminQuestionRegenerationResult = {

@@ -5,18 +5,24 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import topicData from "../data/demo/topics.json";
-import { ProfessorFriendlyReviewPanel } from "@/components/professor/professor-friendly-review-panel";
+import {
+  ProfessorFriendlyReviewPanel,
+  professorReviewEmptyStateText,
+} from "@/components/professor/professor-friendly-review-panel";
+import type { ProfessorQuestionReviewDashboard } from "@/lib/types";
 
 describe("professor-friendly review panel", () => {
   it("renders syllabus topic choices in fixture order before enabling queue load", () => {
-    const topics = topicData.map(({ id, title }) => ({ id, title }));
+    const dashboard = reviewDashboard();
     const markup = renderToStaticMarkup(
-      createElement(ProfessorFriendlyReviewPanel, { topics }),
+      createElement(ProfessorFriendlyReviewPanel, {
+        initialDashboard: dashboard,
+      }),
     );
 
     let previousIndex = -1;
-    for (const topic of topics) {
-      const topicIndex = markup.indexOf(`value="${topic.id}"`);
+    for (const topic of dashboard.topics) {
+      const topicIndex = markup.indexOf(`value="${topic.topicId}"`);
       expect(topicIndex).toBeGreaterThan(previousIndex);
       previousIndex = topicIndex;
     }
@@ -28,6 +34,11 @@ describe("professor-friendly review panel", () => {
     expect(markup).toContain(
       "Select one syllabus topic, then load its review queue.",
     );
+    expect(markup).toContain("Needs review");
+    expect(markup).toContain("Approved");
+    expect(markup).toContain("Rejected / revision");
+    expect(markup).toContain("Remaining");
+    expect(markup).not.toContain("Question details must load later");
   });
 
   it("keeps one-question-at-a-time review without browser secret state", () => {
@@ -56,11 +67,56 @@ describe("professor-friendly review panel", () => {
       ),
     ].join("\n");
 
-    expect(reviewPanelSource).toContain("const current = candidates[0]");
-    expect(reviewPanelSource).toContain("candidateId: current.id");
-    expect(reviewPanelSource).toContain("items.slice(1)");
+    expect(reviewPanelSource).toContain(
+      "const current = dashboard.candidates[0]",
+    );
+    expect(reviewPanelSource).toContain("versionId: current.versionId");
+    expect(reviewPanelSource).toContain("requestTopicDashboard(loadedTopicId)");
+    expect(reviewPanelSource).toContain('action: "approve"');
+    expect(reviewPanelSource).not.toContain('action: "publish"');
     expect(browserReviewSources).not.toMatch(
       /ADMIN_SECRET|x-professor-token|sessionStorage|localStorage|admin secret|review secret/i,
     );
   });
+
+  it("distinguishes empty, completed, and revision-pending topics", () => {
+    const topic = reviewDashboard().topics[0];
+
+    expect(
+      professorReviewEmptyStateText({
+        loaded: true,
+        selectedTopic: { ...topic, remaining: 0, total: 0 },
+      }),
+    ).toContain("has no question records");
+    expect(
+      professorReviewEmptyStateText({
+        loaded: true,
+        selectedTopic: { ...topic, remaining: 0, total: 4 },
+      }),
+    ).toContain("Review complete");
+    expect(
+      professorReviewEmptyStateText({
+        loaded: true,
+        selectedTopic: { ...topic, remaining: 2, total: 4 },
+      }),
+    ).toContain("2 draft or revision item(s) remain");
+  });
 });
+
+function reviewDashboard(): ProfessorQuestionReviewDashboard {
+  return {
+    candidates: [],
+    mode: "database",
+    readOnly: false,
+    topics: topicData.map(({ id, title }, order) => ({
+      approved: order,
+      needsReview: order + 1,
+      order,
+      rejectedOrRevisionRequested: order + 2,
+      remaining: order + 3,
+      title,
+      topicId: id,
+      total: order + 6,
+    })),
+  };
+}

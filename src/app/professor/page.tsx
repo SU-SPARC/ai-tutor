@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck, Gauge, LockKeyhole } from "lucide-react";
 
-import { ProfessorReviewPanel } from "@/components/tutor/professor-review-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,14 +94,17 @@ export default async function ProfessorPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Review queue</CardTitle>
+            <CardTitle>Topic-based review queue</CardTitle>
             <CardDescription>
-              Approve and reject actions are recorded under your authenticated
-              application account.
+              Select a syllabus topic before loading question details. Review
+              decisions are recorded under your authenticated application
+              account and do not publish content automatically.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfessorReviewPanel />
+            <Button asChild>
+              <Link href="/professor/review">Open review queue</Link>
+            </Button>
           </CardContent>
         </Card>
       </section>

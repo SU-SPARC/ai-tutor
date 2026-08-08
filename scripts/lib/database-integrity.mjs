@@ -156,6 +156,58 @@ const AUDIT_CHECKS = Object.freeze([
   },
   {
     description:
+      "Every lifecycle question must have a valid working pointer and at most one matching published pointer/state.",
+    id: "invalid_question_lifecycle_pointers",
+    repairAction: null,
+    severity: "critical",
+    title: "Invalid question lifecycle pointers",
+    violationsSql: `
+      select q.id::text as record_id
+      from questions q
+      where (
+          q.working_version_id is not null
+          or q.published_version_id is not null
+          or exists (
+            select 1 from question_version_lifecycle qvl
+            where qvl.question_id = q.id
+          )
+        )
+        and (
+          q.working_version_id is null
+          or not exists (
+            select 1 from question_version_lifecycle working
+            where working.question_id = q.id
+              and working.question_version_id = q.working_version_id
+          )
+          or (
+            q.published_version_id is null
+            and exists (
+              select 1 from question_version_lifecycle published
+              where published.question_id = q.id
+                and published.state = 'published'
+            )
+          )
+          or (
+            q.published_version_id is not null
+            and not exists (
+              select 1 from question_version_lifecycle published
+              where published.question_id = q.id
+                and published.question_version_id = q.published_version_id
+                and published.state = 'published'
+            )
+          )
+          or (
+            select count(*)
+            from question_version_lifecycle published
+            where published.question_id = q.id
+              and published.state = 'published'
+          ) > 1
+          or (q.record_state = 'archived' and q.published_version_id is not null)
+        )
+    `,
+  },
+  {
+    description:
       "Generated drafts and unverified generated retrieval chunks must never appear in student-facing views.",
     id: "generated_drafts_student_visible",
     repairAction: null,

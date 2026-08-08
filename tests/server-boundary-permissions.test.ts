@@ -8,9 +8,15 @@ import { POST as discardAnonymous } from "@/app/api/account/discard-anonymous/ro
 import {
   GET as getAdminQuestions,
   PATCH as patchAdminQuestions,
+  POST as postAdminQuestion,
 } from "@/app/api/professor/questions/route";
-import { PATCH as patchAdminQuestion } from "@/app/api/professor/questions/[id]/route";
+import {
+  GET as getAdminQuestion,
+  PATCH as patchAdminQuestion,
+} from "@/app/api/professor/questions/[id]/route";
 import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
+import { POST as transitionAdminQuestion } from "@/app/api/professor/questions/[id]/transitions/route";
+import { POST as createAdminQuestionVersion } from "@/app/api/professor/questions/[id]/versions/route";
 import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
 import { GET as getProfessorAnalytics } from "@/app/api/professor/analytics/route";
@@ -224,6 +230,21 @@ describe("direct professor content API authorization", () => {
         ),
     ],
     [
+      "POST /api/professor/questions",
+      () =>
+        postAdminQuestion(
+          jsonRequest("http://test/api/professor/questions", {}),
+        ),
+    ],
+    [
+      "GET /api/professor/questions/[id]",
+      () =>
+        getAdminQuestion(
+          new Request("http://test/api/professor/questions/question:test"),
+          routeContext("question:test", "id"),
+        ),
+    ],
+    [
       "PATCH /api/professor/questions/[id]",
       () =>
         patchAdminQuestion(
@@ -242,6 +263,28 @@ describe("direct professor content API authorization", () => {
           jsonRequest(
             "http://test/api/professor/questions/question:test/regenerate",
             { keepPattern: true },
+          ),
+          routeContext("question:test", "id"),
+        ),
+    ],
+    [
+      "POST /api/professor/questions/[id]/transitions",
+      () =>
+        transitionAdminQuestion(
+          jsonRequest(
+            "http://test/api/professor/questions/question:test/transitions",
+            { action: "submit", versionId: 1 },
+          ),
+          routeContext("question:test", "id"),
+        ),
+    ],
+    [
+      "POST /api/professor/questions/[id]/versions",
+      () =>
+        createAdminQuestionVersion(
+          jsonRequest(
+            "http://test/api/professor/questions/question:test/versions",
+            {},
           ),
           routeContext("question:test", "id"),
         ),

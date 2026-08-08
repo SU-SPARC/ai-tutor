@@ -33,16 +33,17 @@ export async function getStudentProgress(
 
   for (const session of activeSessions) {
     const question = questionsById.get(session.questionId);
+    const topicId = question?.topicId ?? session.topicId;
 
-    if (!question) {
+    if (!topicId) {
       continue;
     }
 
     if (session.attempts.length > 0) {
-      attemptedQuestionIds.add(question.id);
+      attemptedQuestionIds.add(session.questionId);
     }
 
-    practicedTopicIds.add(question.topicId);
+    practicedTopicIds.add(topicId);
     correctAttempts += session.attempts.filter(
       (attempt) => attempt.verdict === "correct",
     ).length;
@@ -55,9 +56,10 @@ export async function getStudentProgress(
     recentSessions: activeSessions
       .flatMap((session) => {
         const question = questionsById.get(session.questionId);
-        const topic = question ? topicsById.get(question.topicId) : undefined;
+        const topicId = question?.topicId ?? session.topicId;
+        const topic = topicId ? topicsById.get(topicId) : undefined;
 
-        if (!question || !topic) {
+        if (!topic) {
           return [];
         }
 
@@ -69,8 +71,11 @@ export async function getStudentProgress(
             ).length,
             hintsUsed: session.revealedHints,
             lastSeenAt: session.lastSeenAt,
-            questionId: question.id,
-            questionTitle: question.title,
+            questionId: session.questionId,
+            questionTitle:
+              session.status === "content_unpublished"
+                ? "Unavailable question"
+                : (question?.title ?? session.questionTitle ?? "Question"),
             stepsRevealed: session.revealedSteps,
             topicId: topic.id,
             topicTitle: topic.title,
