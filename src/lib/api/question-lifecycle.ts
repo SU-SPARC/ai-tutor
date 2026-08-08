@@ -5,6 +5,7 @@ import type {
   Difficulty,
   QuestionCreationMethod,
   QuestionLifecycleAction,
+  QuestionRevisionContentInput,
   QuestionVersionState,
   SourceType,
 } from "@/lib/types";
@@ -56,6 +57,26 @@ const SOURCE_TYPES = [
   "generated_original",
   "pattern_derived_original",
 ] as const satisfies readonly SourceType[];
+
+const REVISION_FIELDS = new Set([
+  "answer",
+  "difficulty",
+  "hints",
+  "misconceptions",
+  "prompt",
+  "solutionSteps",
+  "title",
+  "topicId",
+]);
+const ANSWER_FIELDS = new Set([
+  "acceptedAnswers",
+  "explanation",
+  "numericValue",
+  "tolerance",
+]);
+const MISCONCEPTION_FIELDS = new Set(["feedback", "id", "matchTerms"]);
+const PRIVATE_SOURCE_SIGNAL =
+  /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only|course pdf|private phrase|source number/i;
 
 export function lifecycleApiErrorResponse(error: unknown) {
   if (error instanceof QuestionLifecycleNotFoundError) {
@@ -154,6 +175,173 @@ export function parseQuestionVersionContent(
   };
 }
 
+export function parseQuestionRevisionContent(
+  value: unknown,
+): { revision: QuestionRevisionContentInput } | { error: string } {
+  const input = recordValue(value);
+  if (!input) return { error: "revision must be a JSON object." };
+  const unsupportedField = Object.keys(input).find(
+    (field) => !REVISION_FIELDS.has(field),
+  );
+  if (unsupportedField) {
+    return {
+      error: `Unsupported revision field: ${unsupportedField}. Source and provenance fields are server-controlled.`,
+    };
+  }
+
+  const answer = recordValue(input.answer);
+  if (!answer) return { error: "revision.answer must be a JSON object." };
+  const unsupportedAnswerField = Object.keys(answer).find(
+    (field) => !ANSWER_FIELDS.has(field),
+  );
+  if (unsupportedAnswerField) {
+    return { error: `Unsupported answer field: ${unsupportedAnswerField}.` };
+  }
+
+  const title = stringValue(input.title);
+  const topicId = stringValue(input.topicId);
+  const prompt = stringValue(input.prompt);
+  const explanation = stringValue(answer.explanation);
+  const difficulty = enumValue(input.difficulty, DIFFICULTIES);
+  const acceptedAnswers = strictStringArray(answer.acceptedAnswers, false);
+  const hints = strictStringArray(input.hints, true);
+  const solutionSteps = strictStringArray(input.solutionSteps, false);
+  if (
+    !title ||
+    !topicId ||
+    !prompt ||
+    !explanation ||
+    !difficulty ||
+    !acceptedAnswers ||
+    !hints ||
+    !solutionSteps
+  ) {
+    return {
+      error:
+        "Revision requires a title, syllabus topic, wording, difficulty, final answer, explanation, and at least one solution step.",
+    };
+  }
+
+  const numericValue = optionalFiniteNumber(answer.numericValue);
+  const tolerance = optionalFiniteNumber(answer.tolerance);
+  if (numericValue === null || tolerance === null) {
+    return { error: "Numeric answer and tolerance must be finite numbers." };
+  }
+  if (
+    tolerance !== undefined &&
+    (numericValue === undefined || tolerance < 0)
+  ) {
+    return {
+      error:
+        "Answer tolerance requires a numeric answer and cannot be negative.",
+    };
+  }
+  if (
+    numericValue !== undefined &&
+    !acceptedAnswers.some((candidate) =>
+      numericAnswerMatches(candidate, numericValue, tolerance ?? 1e-9),
+    )
+  ) {
+    return {
+      error:
+        "At least one accepted answer must match the numeric answer within tolerance.",
+    };
+  }
+
+  if (!Array.isArray(input.misconceptions)) {
+    return { error: "misconceptions must be an array." };
+  }
+  const misconceptions = input.misconceptions.flatMap((value) => {
+    const item = recordValue(value);
+    if (
+      !item ||
+      Object.keys(item).some((key) => !MISCONCEPTION_FIELDS.has(key))
+    ) {
+      return [];
+    }
+    const id = stringValue(item.id);
+    const feedback = stringValue(item.feedback);
+    const matchTerms = strictStringArray(item.matchTerms, true);
+    return id && feedback && matchTerms ? [{ feedback, id, matchTerms }] : [];
+  });
+  if (misconceptions.length !== input.misconceptions.length) {
+    return {
+      error:
+        "Each misconception requires an id, feedback note, and string matchTerms array.",
+    };
+  }
+  if (
+    new Set(misconceptions.map((item) => item.id)).size !==
+    misconceptions.length
+  ) {
+    return { error: "Misconception identifiers must be unique." };
+  }
+  if (
+    acceptedAnswers.length > 20 ||
+    hints.length > 12 ||
+    solutionSteps.length > 20 ||
+    misconceptions.length > 12
+  ) {
+    return {
+      error:
+        "Revision exceeds the supported answer, hint, step, or misconception limits.",
+    };
+  }
+  const longText = [
+    prompt,
+    explanation,
+    ...hints,
+    ...solutionSteps,
+    ...misconceptions.map((item) => item.feedback),
+  ];
+  const shortText = [
+    title,
+    topicId,
+    ...acceptedAnswers,
+    ...misconceptions.flatMap((item) => [item.id, ...item.matchTerms]),
+  ];
+  if (
+    longText.some((text) => text.length > 8_000) ||
+    shortText.some((text) => text.length > 500)
+  ) {
+    return { error: "Revision contains an oversized content field." };
+  }
+
+  const searchable = [
+    title,
+    prompt,
+    explanation,
+    ...acceptedAnswers,
+    ...hints,
+    ...solutionSteps,
+    ...misconceptions.flatMap((item) => [item.feedback, ...item.matchTerms]),
+  ].join(" ");
+  if (PRIVATE_SOURCE_SIGNAL.test(searchable)) {
+    return {
+      error:
+        "Revision contains private-source wording that cannot be stored in question content.",
+    };
+  }
+
+  return {
+    revision: {
+      answer: {
+        acceptedAnswers,
+        explanation,
+        numericValue,
+        tolerance,
+      },
+      difficulty,
+      hints,
+      misconceptions,
+      prompt,
+      solutionSteps,
+      title,
+      topicId,
+    },
+  };
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -206,6 +394,41 @@ function finiteNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function optionalFiniteNumber(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function strictStringArray(value: unknown, allowEmpty: boolean) {
+  if (!Array.isArray(value)) return undefined;
+  const values = value.map(stringValue);
+  if (values.some((item) => !item)) return undefined;
+  const strings = values as string[];
+  return strings.length > 0 || allowEmpty ? strings : undefined;
+}
+
+function numericAnswerMatches(
+  rawAnswer: string,
+  numericValue: number,
+  tolerance: number,
+) {
+  const answer = rawAnswer.trim().replaceAll(",", "").replace(/^\$/, "");
+  let parsed: number;
+  if (/^[-+]?\d+(?:\.\d+)?%$/.test(answer)) {
+    parsed = Number(answer.slice(0, -1)) / 100;
+  } else if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(answer)) {
+    const [numerator, denominator] = answer.split("/").map(Number);
+    if (!denominator) return false;
+    parsed = numerator / denominator;
+  } else {
+    parsed = Number(answer);
+  }
+  return (
+    Number.isFinite(parsed) &&
+    Math.abs(parsed - numericValue) <= Math.max(tolerance, 1e-9)
+  );
 }
 
 function stringArray(value: unknown) {

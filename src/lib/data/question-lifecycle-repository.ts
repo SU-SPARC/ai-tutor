@@ -23,6 +23,7 @@ import type {
   QuestionLifecycleEventAction,
   QuestionLifecycleEventDto,
   QuestionRecordState,
+  QuestionRevisionContentInput,
   QuestionRevisionMethod,
   QuestionValidationStatus,
   QuestionVersionDto,
@@ -56,6 +57,13 @@ export type CreateQuestionVersionInput = CreateQuestionInput & {
   generationMetadata?: Record<string, unknown>;
   questionId: string;
   supersedeReason?: string;
+};
+
+export type CreateQuestionRevisionInput = {
+  baseVersionId: number;
+  expectedWorkingVersionId: number;
+  questionId: string;
+  revision: QuestionRevisionContentInput;
 };
 
 export type QuestionLifecycleTransitionInput = {
@@ -158,6 +166,12 @@ type ProfessorReviewTopicSummaryRow = {
 const PRIVATE_SOURCE_SIGNAL =
   /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only|course pdf|private phrase|source number/i;
 const QUESTION_GENERATOR_USER_ID = "system:question-generator";
+const MAX_ACCEPTED_ANSWERS = 20;
+const MAX_HINTS = 12;
+const MAX_MISCONCEPTIONS = 12;
+const MAX_SOLUTION_STEPS = 20;
+const MAX_LONG_TEXT_LENGTH = 8_000;
+const MAX_SHORT_TEXT_LENGTH = 500;
 
 export function createDatabaseQuestionLifecycleRepository(
   query: DatabaseQueryExecutor,
@@ -307,6 +321,130 @@ export function createDatabaseQuestionLifecycleRepository(
               versionId,
             });
           }
+
+          return requireQuestionLifecycle(transactionQuery, input.questionId);
+        },
+        { retryOnConflict: true },
+      );
+    },
+
+    async createRevision(
+      authorization: ProfessorReviewAuthorization,
+      input: CreateQuestionRevisionInput,
+    ) {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `
+              select q.record_state, q.working_version_id
+              from questions q
+              where q.id = $1
+              for update of q
+            `,
+            [input.questionId],
+          );
+          const current = rows[0];
+          if (!current) return undefined;
+          if (current.record_state !== "active") {
+            throw new QuestionLifecycleConflictError(
+              "Archived questions must be restored before revision.",
+            );
+          }
+          if (
+            Number(current.working_version_id) !==
+              input.expectedWorkingVersionId ||
+            input.baseVersionId !== input.expectedWorkingVersionId
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "The working question version changed. Refresh before revising.",
+            );
+          }
+
+          const baseLifecycle = await transactionQuery(
+            `select qvl.state
+             from question_version_lifecycle qvl
+             where qvl.question_version_id = $1
+               and qvl.question_id = $2
+             limit 1`,
+            [input.baseVersionId, input.questionId],
+          );
+          if (!baseLifecycle[0]) {
+            throw new QuestionLifecycleConflictError(
+              "The selected base version does not belong to this question.",
+            );
+          }
+          if (
+            !["draft", "needs_review", "revision_requested"].includes(
+              String(baseLifecycle[0].state),
+            )
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "Only a generated draft awaiting approval can be revised in this workflow.",
+            );
+          }
+
+          const baseRows = await selectQuestionVersionRows(
+            transactionQuery,
+            input.questionId,
+          );
+          const baseRow = baseRows.find(
+            (row) => Number(row.question_version_id) === input.baseVersionId,
+          );
+          if (!baseRow) {
+            throw new QuestionLifecycleConflictError(
+              "The selected base version does not belong to this question.",
+            );
+          }
+          const base = mapQuestionVersion(baseRow);
+          if (
+            base.source.sourceType !== "generated_original" &&
+            base.source.sourceType !== "pattern_derived_original"
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "Only generated or pattern-derived drafts can be revised here.",
+            );
+          }
+
+          const content: QuestionVersionContentInput = {
+            ...input.revision,
+            answer: {
+              ...input.revision.answer,
+              acceptedAnswers: [...input.revision.answer.acceptedAnswers],
+            },
+            hints: [...input.revision.hints],
+            id: input.questionId,
+            misconceptions: input.revision.misconceptions.map((item) => ({
+              ...item,
+              matchTerms: [...item.matchTerms],
+            })),
+            solutionSteps: [...input.revision.solutionSteps],
+            source: {
+              ...base.source,
+              patternIds: base.source.patternIds
+                ? [...base.source.patternIds]
+                : undefined,
+              trustLevel: "generated_unverified",
+              visibility: "public",
+            },
+          };
+          validateQuestionVersionContent(content, input.questionId);
+          await requireActiveTopic(transactionQuery, content.topicId);
+
+          await setLifecycleActorContext(transactionQuery, {
+            creationMethod: "manual",
+            suppressVersions: false,
+            userId: reviewer.userId,
+          });
+          await insertQuestionVersion(transactionQuery, {
+            content,
+            creationMethod: "manual",
+            createdByUserId: reviewer.userId,
+            parentVersionId: input.baseVersionId,
+          });
 
           return requireQuestionLifecycle(transactionQuery, input.questionId);
         },
@@ -1196,6 +1334,79 @@ function validateQuestionVersionContent(
       "Question versions require at least one solution step.",
     );
   }
+  if (
+    content.answer.acceptedAnswers.length > MAX_ACCEPTED_ANSWERS ||
+    content.hints.length > MAX_HINTS ||
+    content.misconceptions.length > MAX_MISCONCEPTIONS ||
+    content.solutionSteps.length > MAX_SOLUTION_STEPS
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "Question content exceeds the supported answer, hint, step, or misconception limits.",
+    );
+  }
+  const longText = [
+    content.prompt,
+    content.answer.explanation,
+    ...content.hints,
+    ...content.solutionSteps,
+    ...content.misconceptions.map((item) => item.feedback),
+  ];
+  const shortText = [
+    content.title,
+    content.topicId,
+    ...content.answer.acceptedAnswers,
+    ...content.misconceptions.flatMap((item) => [item.id, ...item.matchTerms]),
+  ];
+  if (
+    longText.some(
+      (value) => !value.trim() || value.length > MAX_LONG_TEXT_LENGTH,
+    ) ||
+    shortText.some(
+      (value) => !value.trim() || value.length > MAX_SHORT_TEXT_LENGTH,
+    )
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "Question content contains an empty or oversized text field.",
+    );
+  }
+  const misconceptionIds = content.misconceptions.map((item) => item.id);
+  if (new Set(misconceptionIds).size !== misconceptionIds.length) {
+    throw new QuestionLifecycleValidationError(
+      "Misconception identifiers must be unique within a question version.",
+    );
+  }
+  if (
+    content.answer.numericValue !== undefined &&
+    !Number.isFinite(content.answer.numericValue)
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "The numeric answer must be finite.",
+    );
+  }
+  if (
+    content.answer.tolerance !== undefined &&
+    (content.answer.numericValue === undefined ||
+      !Number.isFinite(content.answer.tolerance) ||
+      content.answer.tolerance < 0)
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "Answer tolerance requires a numeric answer and cannot be negative.",
+    );
+  }
+  if (
+    content.answer.numericValue !== undefined &&
+    !content.answer.acceptedAnswers.some((answer) =>
+      numericAnswerMatches(
+        answer,
+        content.answer.numericValue!,
+        content.answer.tolerance ?? 1e-9,
+      ),
+    )
+  ) {
+    throw new QuestionLifecycleValidationError(
+      "At least one accepted answer must match the numeric answer within tolerance.",
+    );
+  }
   if (content.source.visibility !== "public") {
     throw new QuestionLifecycleValidationError(
       "Professor question versions must contain public-safe content.",
@@ -1217,6 +1428,43 @@ function validateQuestionVersionContent(
       "Question content contains private-source wording that cannot be versioned.",
     );
   }
+}
+
+async function requireActiveTopic(
+  query: DatabaseQueryExecutor,
+  topicId: string,
+) {
+  const rows = await query(
+    "select id from topics where id = $1 and is_active = true limit 1",
+    [topicId],
+  );
+  if (!rows[0]) {
+    throw new QuestionLifecycleValidationError(
+      "The selected syllabus topic is unavailable.",
+    );
+  }
+}
+
+function numericAnswerMatches(
+  rawAnswer: string,
+  numericValue: number,
+  tolerance: number,
+) {
+  const answer = rawAnswer.trim().replaceAll(",", "").replace(/^\$/, "");
+  let parsed: number;
+  if (/^[-+]?\d+(?:\.\d+)?%$/.test(answer)) {
+    parsed = Number(answer.slice(0, -1)) / 100;
+  } else if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(answer)) {
+    const [numerator, denominator] = answer.split("/").map(Number);
+    if (!denominator) return false;
+    parsed = numerator / denominator;
+  } else {
+    parsed = Number(answer);
+  }
+  return (
+    Number.isFinite(parsed) &&
+    Math.abs(parsed - numericValue) <= Math.max(tolerance, 1e-9)
+  );
 }
 
 function versionToAdminQuestion(version: QuestionVersionDto): AdminQuestion {

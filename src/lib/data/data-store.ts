@@ -12,6 +12,7 @@ import { createDatabaseContentRepository } from "@/lib/data/database-repository"
 import {
   createDatabaseQuestionLifecycleRepository,
   type CreateQuestionInput,
+  type CreateQuestionRevisionInput,
   type CreateQuestionVersionInput,
   type QuestionLifecycleFilters,
   type QuestionLifecycleTransitionInput,
@@ -324,13 +325,19 @@ export async function getQuestionLifecycleDashboard(
       ),
       readOnly: true,
       readOnlyReason: "Demo lifecycle data is intentionally read-only.",
+      topics: dashboard.topics,
     };
   }
 
+  const [questions, topics] = await Promise.all([
+    listQuestionLifecycles(authorization),
+    listTopics(),
+  ]);
   return {
     mode: "database",
-    questions: await listQuestionLifecycles(authorization),
+    questions,
     readOnly: false,
+    topics: safeTopicOptions(topics),
   };
 }
 
@@ -422,6 +429,16 @@ export async function createQuestionLifecycleVersion(
   assertAuthorization(authorization, "professor");
   return writeStrictDatabaseLifecycle((repository) =>
     repository.createVersion(authorization, input),
+  );
+}
+
+export async function createQuestionLifecycleRevision(
+  authorization: ProfessorReviewAuthorization,
+  input: CreateQuestionRevisionInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.createRevision(authorization, input),
   );
 }
 

@@ -175,6 +175,8 @@ export type QuestionContent = {
   topicId: string;
 };
 
+export type QuestionRevisionContentInput = Omit<QuestionContent, "id">;
+
 export type TutorQuestion = QuestionContent & {
   review: ReviewMetadata;
   source: SourceMetadata;
@@ -306,6 +308,10 @@ export type QuestionLifecycleDashboard = {
   questions: QuestionLifecycleDto[];
   readOnly: boolean;
   readOnlyReason?: string;
+  topics: Array<{
+    id: string;
+    title: string;
+  }>;
 };
 
 export type ProfessorReviewTopicSummaryDto = {

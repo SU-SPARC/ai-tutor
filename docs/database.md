@@ -99,6 +99,11 @@ sessions, retrieval chunks, and response cache. It maps legacy approved public
 trusted content to publication without deleting earlier evidence. Student views
 resolve only the published pointer; approval by itself is no longer visibility.
 
+`012_professor_question_revisions.sql` preserves explicit manual creation
+attribution for professor-edited generated versions. Revision drafts retain
+their generated provenance, while the immutable version and lifecycle event
+record the professor editor and timestamp.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
@@ -111,7 +116,7 @@ Deletion behavior is explicit:
 - reviewer identities referenced by immutable academic history cannot be
   physically deleted and must instead be disabled or soft-deleted.
 
-`tests/production-schema-migration.test.ts` executes migrations `001`–`011`
+`tests/production-schema-migration.test.ts` executes all checked-in migrations
 against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
 with legacy content/activity, the development seed, publication and role
 constraints, append-only history, snapshot completeness, and deletion rules.

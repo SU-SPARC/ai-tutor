@@ -49,6 +49,17 @@ creation method, schema version, legacy MD5 fingerprint, and a SHA-256 content
 hash that excludes workflow fields. Material edits and regeneration create a
 new version; lifecycle transitions do not.
 
+Professors may revise generated or pattern-derived working versions while they
+are `draft`, `needs_review`, or `revision_requested`. The revision endpoint
+accepts only wording, difficulty, answer structure, solution steps, hints,
+misconception notes, and topic mapping. Source type, trust, visibility,
+generation provenance, and stable question ID are derived from the base
+version on the server. Each edit creates a new `manual` draft with the
+professor and timestamp recorded; the source version remains immutable.
+Numeric answers and tolerances, required solution structure, bounded field
+counts, active topic mapping, and private-source wording are validated before
+the draft is stored.
+
 Regeneration is limited to generated or pattern-derived questions. It uses the
 same stable question ID, records professor requestor and system executor, and
 creates a submitted version without changing the published pointer. An
@@ -82,7 +93,9 @@ student DTOs contain neither identities nor review notes.
 - `GET /api/professor/questions/:id` returns versions, timeline, attribution,
   validation, and server-derived actions.
 - `POST /api/professor/questions/:id/versions` creates an immutable draft from a
-  selected base version with optimistic working-version concurrency.
+  selected base version with optimistic working-version concurrency. A
+  professor `revision` request accepts only editable content and never accepts
+  client-controlled provenance.
 - `POST /api/professor/questions/:id/transitions` performs one attributed,
   idempotent transition.
 - `POST /api/professor/questions/:id/regenerate` creates a version under the
@@ -99,6 +112,8 @@ unavailable records return `404`; authentication and authorization retain
 The professor review page requires topic selection before loading version
 content, preserves a one-question-at-a-time decision flow, and submits review
 decisions through lifecycle transitions. Approval never publishes content.
+The question catalog offers generated-draft editing and requires a side-by-side
+change summary and explicit confirmation before publish or rollback actions.
 
 ## Rollout and verification
 
@@ -108,6 +123,9 @@ history, attempts, and sessions; pins sessions from their earliest attempt when
 possible; maps legacy states; and publishes only formerly approved, public,
 trusted content. Student queries, retrieval, response cache, sessions, attempts,
 and professor operations use version pointers after migration.
+Migration `012_professor_question_revisions.sql` preserves explicit `manual`
+creation attribution when professors revise generated content while retaining
+legacy generated-snapshot classification when no creation method is supplied.
 
 Before promotion, verify that every published lifecycle row has one matching
 question pointer, no question has more than one published version, session and

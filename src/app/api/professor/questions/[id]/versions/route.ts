@@ -5,13 +5,17 @@ import {
   enumValue,
   isRecord,
   lifecycleApiErrorResponse,
+  parseQuestionRevisionContent,
   parseQuestionVersionContent,
   positiveInteger,
   QUESTION_CREATION_METHODS,
   safeGenerationMetadata,
 } from "@/lib/api/question-lifecycle";
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
-import { createQuestionLifecycleVersion } from "@/lib/data/data-store";
+import {
+  createQuestionLifecycleRevision,
+  createQuestionLifecycleVersion,
+} from "@/lib/data/data-store";
 
 const MAX_BODY_BYTES = 65_536;
 
@@ -54,6 +58,14 @@ export async function POST(
     );
   }
 
+  if (body.revision !== undefined) {
+    return createProfessorRevision({
+      authorization: access.authorization,
+      body,
+      questionId,
+    });
+  }
+
   const baseVersionId = positiveInteger(body.baseVersionId);
   const expectedWorkingVersionId = positiveInteger(
     body.expectedWorkingVersionId,
@@ -92,6 +104,64 @@ export async function POST(
         supersedeReason: boundedNote(body.supersedeReason),
       },
     );
+    return question
+      ? NextResponse.json({ question }, { status: 201 })
+      : NextResponse.json(
+          { error: "Question was not found." },
+          { status: 404 },
+        );
+  } catch (error) {
+    return lifecycleApiErrorResponse(error);
+  }
+}
+
+async function createProfessorRevision({
+  authorization,
+  body,
+  questionId,
+}: {
+  authorization: Awaited<ReturnType<typeof requireProfessorReview>>;
+  body: Record<string, unknown>;
+  questionId: string;
+}) {
+  const unsupportedField = Object.keys(body).find(
+    (field) =>
+      field !== "baseVersionId" &&
+      field !== "expectedWorkingVersionId" &&
+      field !== "revision",
+  );
+  if (unsupportedField) {
+    return NextResponse.json(
+      { error: `Unsupported professor revision field: ${unsupportedField}.` },
+      { status: 422 },
+    );
+  }
+
+  const baseVersionId = positiveInteger(body.baseVersionId);
+  const expectedWorkingVersionId = positiveInteger(
+    body.expectedWorkingVersionId,
+  );
+  const parsedRevision = parseQuestionRevisionContent(body.revision);
+  if (!baseVersionId || !expectedWorkingVersionId) {
+    return NextResponse.json(
+      {
+        error:
+          "Professor revision requires a base version and expected working version.",
+      },
+      { status: 422 },
+    );
+  }
+  if ("error" in parsedRevision) {
+    return NextResponse.json({ error: parsedRevision.error }, { status: 422 });
+  }
+
+  try {
+    const question = await createQuestionLifecycleRevision(authorization, {
+      baseVersionId,
+      expectedWorkingVersionId,
+      questionId,
+      revision: parsedRevision.revision,
+    });
     return question
       ? NextResponse.json({ question }, { status: 201 })
       : NextResponse.json(

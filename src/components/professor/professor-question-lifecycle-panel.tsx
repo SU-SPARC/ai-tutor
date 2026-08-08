@@ -1,8 +1,12 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, Loader2, RotateCcw } from "lucide-react";
+import { ChevronDown, Eye, Loader2, Pencil, RotateCcw } from "lucide-react";
 
+import {
+  canEditGeneratedDraft,
+  ProfessorQuestionRevisionEditor,
+} from "@/components/professor/professor-question-revision-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,8 +26,16 @@ import type {
   QuestionVersionState,
 } from "@/lib/types";
 import { lifecycleActionRequiresReason } from "@/lib/tutor/question-lifecycle";
+import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 
 type LifecycleFilter = QuestionVersionState | "all" | "archived";
+
+type PublicationPreviewState = {
+  action: "publish" | "rollback";
+  expectedState: QuestionVersionState;
+  question: QuestionLifecycleDto;
+  versionId: number;
+};
 
 const FILTERS: Array<{ label: string; value: LifecycleFilter }> = [
   { label: "All", value: "all" },
@@ -57,9 +69,12 @@ export function ProfessorQuestionLifecyclePanel({
   const [activeKey, setActiveKey] = useState<string>();
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [expandedId, setExpandedId] = useState<string>();
+  const [editingId, setEditingId] = useState<string>();
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [message, setMessage] = useState<string>();
   const [reasonCode, setReasonCode] = useState("");
+  const [publicationPreview, setPublicationPreview] =
+    useState<PublicationPreviewState>();
   const [revisionMethod, setRevisionMethod] = useState<
     "manual" | "regeneration"
   >("manual");
@@ -85,7 +100,7 @@ export function ProfessorQuestionLifecyclePanel({
   ) {
     if (lifecycleActionRequiresReason(action) && !reasonCode.trim()) {
       setMessage(`${ACTION_LABELS[action]} requires a reason code.`);
-      return;
+      return false;
     }
 
     const key = `${question.questionId}:${versionId}:${action}`;
@@ -116,7 +131,7 @@ export function ProfessorQuestionLifecyclePanel({
       };
       if (!response.ok || !payload.question) {
         setMessage(payload.error ?? "Lifecycle transition failed.");
-        return;
+        return false;
       }
       setDashboard((current) => ({
         ...current,
@@ -128,8 +143,10 @@ export function ProfessorQuestionLifecyclePanel({
       }));
       setReasonCode("");
       setMessage(`${ACTION_LABELS[action]} completed.`);
+      return true;
     } catch {
       setMessage("Lifecycle transition failed.");
+      return false;
     } finally {
       setActiveKey(undefined);
     }
@@ -249,6 +266,23 @@ export function ProfessorQuestionLifecyclePanel({
         </p>
       ) : null}
 
+      {publicationPreview ? (
+        <PublicationPreview
+          active={Boolean(activeKey)}
+          preview={publicationPreview}
+          onCancel={() => setPublicationPreview(undefined)}
+          onConfirm={async () => {
+            const completed = await transition(
+              publicationPreview.question,
+              publicationPreview.action,
+              publicationPreview.versionId,
+              publicationPreview.expectedState,
+            );
+            if (completed) setPublicationPreview(undefined);
+          }}
+        />
+      ) : null}
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -348,12 +382,28 @@ export function ProfessorQuestionLifecyclePanel({
                               disabled={
                                 dashboard.readOnly || Boolean(activeKey)
                               }
-                              onClick={() => transition(question, action)}
+                              onClick={() => {
+                                if (action === "publish") {
+                                  setPublicationPreview({
+                                    action,
+                                    expectedState: working.state,
+                                    question,
+                                    versionId: working.versionId,
+                                  });
+                                  return;
+                                }
+                                void transition(question, action);
+                              }}
                             >
                               {activeKey === key ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : null}
-                              {ACTION_LABELS[action]}
+                              {action === "publish" ? (
+                                <Eye className="h-4 w-4" />
+                              ) : null}
+                              {action === "publish"
+                                ? "Review & publish"
+                                : ACTION_LABELS[action]}
                             </Button>
                           );
                         })}
@@ -380,11 +430,70 @@ export function ProfessorQuestionLifecyclePanel({
                   {expandedId === question.questionId ? (
                     <TableRow>
                       <TableCell colSpan={6}>
+                        {canEditGeneratedDraft(question) ? (
+                          editingId === question.questionId ? (
+                            <ProfessorQuestionRevisionEditor
+                              key={question.workingVersion.versionId}
+                              disabled={
+                                dashboard.readOnly || Boolean(activeKey)
+                              }
+                              question={question}
+                              topics={dashboard.topics}
+                              onCancel={() => setEditingId(undefined)}
+                              onSaved={(updated) => {
+                                setDashboard((current) => ({
+                                  ...current,
+                                  questions: current.questions.map(
+                                    (candidate) =>
+                                      candidate.questionId ===
+                                      updated.questionId
+                                        ? updated
+                                        : candidate,
+                                  ),
+                                }));
+                                setEditingId(undefined);
+                                setMessage(
+                                  "Revision saved as a new draft. Submit it for review when ready.",
+                                );
+                              }}
+                            />
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="mb-4"
+                              disabled={
+                                dashboard.readOnly || Boolean(activeKey)
+                              }
+                              onClick={() => setEditingId(question.questionId)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit generated draft
+                            </Button>
+                          )
+                        ) : null}
                         <VersionHistory
                           activeKey={activeKey}
                           dashboardReadOnly={dashboard.readOnly}
                           question={question}
-                          onRollback={transition}
+                          onTransition={(action, versionId, expectedState) => {
+                            if (action === "rollback") {
+                              setPublicationPreview({
+                                action,
+                                expectedState,
+                                question,
+                                versionId,
+                              });
+                              return;
+                            }
+                            void transition(
+                              question,
+                              action,
+                              versionId,
+                              expectedState,
+                            );
+                          }}
                         />
                       </TableCell>
                     </TableRow>
@@ -399,19 +508,134 @@ export function ProfessorQuestionLifecyclePanel({
   );
 }
 
+function PublicationPreview({
+  active,
+  onCancel,
+  onConfirm,
+  preview,
+}: {
+  active: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+  preview: PublicationPreviewState;
+}) {
+  const target = preview.question.versions.find(
+    (version) => version.versionId === preview.versionId,
+  );
+  if (!target) return null;
+  const base =
+    preview.question.publishedVersion?.versionId !== target.versionId
+      ? preview.question.publishedVersion
+      : preview.question.versions.find(
+          (version) => version.versionId === target.parentVersionId,
+        );
+  const changed = base
+    ? changedQuestionVersionFields(base, target)
+    : ["Initial publication"];
+
+  return (
+    <section
+      aria-label="Publication change summary"
+      className="space-y-4 border-2 border-primary/40 bg-muted/20 p-4"
+    >
+      <div>
+        <h2 className="text-lg font-semibold">Review before publishing</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          This is the exact immutable version students will receive. Confirm
+          only after reviewing the change summary.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <PublicationSummary
+          label={
+            base
+              ? `Current/base version ${base.versionNumber}`
+              : "No current publication"
+          }
+          version={base}
+        />
+        <PublicationSummary
+          label={`Target version ${target.versionNumber}`}
+          version={target}
+        />
+      </div>
+      <div className="rounded-md border border-border bg-background p-3 text-sm">
+        <p className="font-medium">Changed fields</p>
+        <p className="mt-1 text-muted-foreground">{changed.join(", ")}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={active}
+          onClick={() => void onConfirm()}
+        >
+          {active ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {preview.action === "rollback"
+            ? "Confirm rollback publication"
+            : "Confirm publication"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={active}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function PublicationSummary({
+  label,
+  version,
+}: {
+  label: string;
+  version?: QuestionVersionDto;
+}) {
+  if (!version) {
+    return (
+      <div className="border border-border bg-background p-3 text-sm">
+        <p className="font-medium">{label}</p>
+        <p className="mt-2 text-muted-foreground">Nothing is published.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 border border-border bg-background p-3 text-sm">
+      <p className="font-medium">{label}</p>
+      <p>{version.title}</p>
+      <p className="text-muted-foreground">{version.prompt}</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt>Topic</dt>
+        <dd>{version.topicId}</dd>
+        <dt>Difficulty</dt>
+        <dd>{version.difficulty}</dd>
+        <dt>Final answer</dt>
+        <dd>{version.answer.acceptedAnswers.join(", ")}</dd>
+        <dt>Structure</dt>
+        <dd>
+          {version.solutionSteps.length} steps, {version.hints.length} hints,{" "}
+          {version.misconceptions.length} misconception notes
+        </dd>
+      </dl>
+    </div>
+  );
+}
+
 function VersionHistory({
   activeKey,
   dashboardReadOnly,
-  onRollback,
+  onTransition,
   question,
 }: {
   activeKey?: string;
   dashboardReadOnly: boolean;
-  onRollback: (
-    question: QuestionLifecycleDto,
-    action: QuestionLifecycleAction,
-    versionId?: number,
-    expectedState?: QuestionVersionState,
+  onTransition: (
+    action: "rollback" | "unpublish",
+    versionId: number,
+    expectedState: QuestionVersionState,
   ) => void;
   question: QuestionLifecycleDto;
 }) {
@@ -463,12 +687,7 @@ function VersionHistory({
                         className="mt-3"
                         disabled={dashboardReadOnly || Boolean(activeKey)}
                         onClick={() =>
-                          onRollback(
-                            question,
-                            action,
-                            version.versionId,
-                            version.state,
-                          )
+                          onTransition(action, version.versionId, version.state)
                         }
                       >
                         {action === "rollback" ? (
@@ -531,18 +750,7 @@ function VersionDiff({
       <p className="mt-2 text-xs text-muted-foreground">Initial version</p>
     );
   }
-  const changed = [
-    ["title", version.title, base.title],
-    ["prompt", version.prompt, base.prompt],
-    ["topic", version.topicId, base.topicId],
-    ["difficulty", version.difficulty, base.difficulty],
-    ["answer", version.answer, base.answer],
-    ["hints", version.hints, base.hints],
-    ["solution", version.solutionSteps, base.solutionSteps],
-    ["misconceptions", version.misconceptions, base.misconceptions],
-  ].flatMap(([label, current, previous]) =>
-    JSON.stringify(current) === JSON.stringify(previous) ? [] : [String(label)],
-  );
+  const changed = changedQuestionVersionFields(base, version);
 
   return (
     <p className="mt-2 text-xs text-muted-foreground">
