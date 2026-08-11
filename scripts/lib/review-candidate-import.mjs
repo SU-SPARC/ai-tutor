@@ -32,6 +32,13 @@ export class ReviewCandidateImportValidationError extends Error {
   }
 }
 
+export function resolveReviewCandidateDatabaseUrl(environment = process.env) {
+  return (
+    optionalEnvironmentValue(environment.DATABASE_URL) ??
+    optionalEnvironmentValue(environment.POSTGRES_URL)
+  );
+}
+
 export async function loadPublicReviewCandidateFixtures(repositoryRoot) {
   const topics = await readJson(path.join(repositoryRoot, TOPICS_FILE));
   const candidateGroups = await Promise.all(
@@ -729,6 +736,10 @@ function canonicalJson(value) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function optionalEnvironmentValue(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 async function rollbackQuietly(client) {

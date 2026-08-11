@@ -9,6 +9,7 @@ import {
   ReviewCandidateImportValidationError,
   importPublicReviewCandidates,
   loadPublicReviewCandidateFixtures,
+  resolveReviewCandidateDatabaseUrl,
   validatePublicReviewCandidateFixtures,
   type ImportClient,
   type PublicReviewCandidateFixtures,
@@ -50,6 +51,22 @@ afterEach(async () => {
 });
 
 describe("public review-candidate fixture validation", () => {
+  it("uses DATABASE_URL first and falls back to managed POSTGRES_URL", () => {
+    expect(
+      resolveReviewCandidateDatabaseUrl({
+        DATABASE_URL: "postgresql://explicit.example/database",
+        POSTGRES_URL: "postgresql://managed.example/database",
+      }),
+    ).toBe("postgresql://explicit.example/database");
+    expect(
+      resolveReviewCandidateDatabaseUrl({
+        DATABASE_URL: "   ",
+        POSTGRES_URL: " postgresql://managed.example/database ",
+      }),
+    ).toBe("postgresql://managed.example/database");
+    expect(resolveReviewCandidateDatabaseUrl({})).toBeUndefined();
+  });
+
   it("loads all canonical topics and more than 200 unique public-safe drafts", async () => {
     const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
 

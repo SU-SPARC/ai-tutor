@@ -28,13 +28,14 @@ operator-supplied paths.
   operation.
 - Apply is one transaction under an advisory lock. Any error rolls everything
   back.
-- The command requires `DATABASE_URL` but prints only the explicit target label
-  and aggregate counts, never the URL or credentials.
+- The command prefers `DATABASE_URL` and falls back to the managed Supabase
+  integration's `POSTGRES_URL`. It prints only the explicit target label and
+  aggregate counts, never the URL or credentials.
 
 ## Check first
 
-Run this in a shell where the intended database's `DATABASE_URL` is already
-loaded from the environment or secret store:
+Run this in a shell where the intended database's `DATABASE_URL` or managed
+`POSTGRES_URL` is already loaded from the environment or secret store:
 
 ```bash
 npm run db:import:review-candidates -- --target production --check

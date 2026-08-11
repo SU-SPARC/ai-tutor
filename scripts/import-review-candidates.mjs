@@ -10,6 +10,7 @@ import {
   ReviewCandidateImportValidationError,
   importPublicReviewCandidates,
   loadPublicReviewCandidateFixtures,
+  resolveReviewCandidateDatabaseUrl,
 } from "./lib/review-candidate-import.mjs";
 import {
   getMigrationStatus,
@@ -36,9 +37,11 @@ async function main() {
     }
   }
 
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = resolveReviewCandidateDatabaseUrl();
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required for review-candidate import.");
+    throw new Error(
+      "DATABASE_URL or POSTGRES_URL is required for review-candidate import.",
+    );
   }
   const connectionString = normalizeDatabaseUrl(databaseUrl);
   const fixtures = await loadPublicReviewCandidateFixtures(repositoryRoot);
@@ -177,7 +180,8 @@ Options:
   --confirm-production  Required with --target production --apply
   --target              Required target environment label
 
-DATABASE_URL is required. The command never prints it or any credentials.`);
+DATABASE_URL or the managed-integration POSTGRES_URL is required. The command
+never prints it or any credentials.`);
 }
 
 function redactError(error) {

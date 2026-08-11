@@ -42,6 +42,11 @@ export class ReviewCandidateImportValidationError extends Error {
 export const REVIEW_CANDIDATE_IMPORT_LOCK_ID: number;
 export const REVIEW_CANDIDATE_FILES: readonly string[];
 
+export function resolveReviewCandidateDatabaseUrl(environment?: {
+  DATABASE_URL?: string;
+  POSTGRES_URL?: string;
+}): string | undefined;
+
 export function loadPublicReviewCandidateFixtures(
   repositoryRoot: string,
 ): Promise<PublicReviewCandidateFixtures>;
