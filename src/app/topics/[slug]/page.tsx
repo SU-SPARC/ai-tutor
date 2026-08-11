@@ -20,6 +20,8 @@ import {
   sourceLabel,
 } from "@/lib/labels"
 
+export const dynamic = "force-dynamic"
+
 type TopicPageProps = {
   params: Promise<{ slug: string }>
 }

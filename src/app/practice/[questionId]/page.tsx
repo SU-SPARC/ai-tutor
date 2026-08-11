@@ -8,6 +8,8 @@ import {
   getTopics,
 } from "@/lib/data/data-store"
 
+export const dynamic = "force-dynamic"
+
 type PracticeQuestionPageProps = {
   params: Promise<{ questionId: string }>
 }

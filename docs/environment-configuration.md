@@ -43,7 +43,8 @@ server must explicitly set `APP_ENV=production`.
 | `APP_ENV`                               | Runtime          | No      | Recommended everywhere; required to identify Staging and non-Vercel Production explicitly.                                                                                                                                                                  |
 | `APP_URL`                               | Application URL  | No      | Exact application origin only: no credentials, path, query, or fragment. Required in Preview unless derived from `VERCEL_URL`; required in Staging and Production. Every deployed URL must use HTTPS. Development/Test defaults to `http://localhost:3000`. |
 | `APP_DEMO_MODE`                         | Runtime/data     | No      | Defaults to `true` outside strict environments. Must be explicitly `false` in Staging and Production.                                                                                                                                                       |
-| `DATABASE_URL`                          | Database         | **Yes** | Required in Staging and Production. Must be a `postgres://` or `postgresql://` URL. Optional for local demo/test/preview.                                                                                                                                   |
+| `DATABASE_URL`                          | Database         | **Yes** | Required in Staging and Production unless the managed Supabase integration provides `POSTGRES_URL`. Must be a `postgres://` or `postgresql://` URL. Optional for local demo/test/preview.                                                                  |
+| `POSTGRES_URL`                          | Database         | **Yes** | Managed-integration fallback used only when `DATABASE_URL` is absent. Supabase can own and rotate this value in Vercel without manually duplicating the credential.                                                                                         |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`     | Authentication   | No      | Clerk instance publishable key. Required with `CLERK_SECRET_KEY` in Staging and Production; optional only as a complete pair outside strict environments.                                                                                                   |
 | `CLERK_SECRET_KEY`                      | Authentication   | **Yes** | Clerk instance secret key. Required with the publishable key in Staging and Production and server-only. Production rejects development-instance keys.                                                                                                       |
 | `ANONYMOUS_PILOT_ENABLED`               | Student identity | No      | Defaults to `true` locally. Must be explicit in deployed environments. When false, unauthenticated practice is rejected.                                                                                                                                    |
@@ -57,7 +58,7 @@ server must explicitly set `APP_ENV=production`.
 | `AI_MODEL`                              | AI               | No      | Required when AI is enabled in Staging or Production. A demo model default is available only outside strict environments.                                                                                                                                   |
 | `MAX_LLM_OUTPUT_TOKENS`                 | AI/cost          | No      | Required positive integer when AI is enabled in Staging or Production. Defaults to `400` only outside strict environments.                                                                                                                                  |
 | `LOG_LEVEL`                             | Logging          | No      | Required in Staging and Production. Allowed values: `debug`, `info`, `warn`, `error`, `silent`.                                                                                                                                                             |
-| `ERROR_TRACKING_DSN`                    | Error tracking   | **Yes** | Required in Staging and Production and must use HTTPS. The provider remains an institutional decision. Server-only.                                                                                                                                         |
+| `ERROR_TRACKING_DSN`                    | Error tracking   | **Yes** | Optional. When supplied in Staging or Production, it must use HTTPS. The provider remains an institutional decision. Server-only.                                                                                                                           |
 | `RATE_LIMIT_MAX_REQUESTS`               | Abuse controls   | No      | Required positive integer in Staging and Production. Defaults to `20` only outside strict environments.                                                                                                                                                     |
 | `RATE_LIMIT_WINDOW_SECONDS`             | Abuse controls   | No      | Required positive integer in Staging and Production. Defaults to `60` only outside strict environments.                                                                                                                                                     |
 | `NODE_ENV`                              | Framework        | No      | Set by Node/Next.js; used to recognize automated tests and a running production server. Do not use it to represent Staging.                                                                                                                                 |
@@ -90,6 +91,7 @@ Client Components. Validation also rejects these browser-exposed aliases:
 - `NEXT_PUBLIC_DATABASE_URL`
 - `NEXT_PUBLIC_ERROR_TRACKING_DSN`
 - `NEXT_PUBLIC_OPENROUTER_API_KEY`
+- `NEXT_PUBLIC_POSTGRES_URL`
 
 Keep secrets in `.env.local`, an environment-specific `.local` file, or the
 hosting platform's encrypted environment-variable store. Scope Vercel
@@ -115,9 +117,10 @@ Development instance. With neither key, the public local demo continues to run
 but account sign-in remains unavailable. Automated role tests inject principals
 directly; there is no browser role selector or simulated professor login.
 
-A Staging or Production server must provide all strict variables. AI may be
-disabled, but `AI_ENABLED=false` must be explicit; when it is enabled, provider,
-key, model, and token limit become required.
+A Staging or Production server must provide all strict variables except the
+optional `ERROR_TRACKING_DSN`. AI may be disabled, but `AI_ENABLED=false` must
+be explicit; when it is enabled, provider, key, model, and token limit become
+required.
 
 Validation errors contain variable names and corrective requirements but never
 include configured secret values.

@@ -72,6 +72,7 @@ const SERVER_SECRET_NAMES = [
   "DATABASE_URL",
   "ERROR_TRACKING_DSN",
   "OPENROUTER_API_KEY",
+  "POSTGRES_URL",
 ] as const;
 
 export class ServerEnvironmentValidationError extends Error {
@@ -113,7 +114,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     required: true,
   });
   const DATABASE_URL = parsePostgresUrl(
-    optionalString(input.DATABASE_URL),
+    optionalString(input.DATABASE_URL) ?? optionalString(input.POSTGRES_URL),
     issues,
     strict,
   );
@@ -187,7 +188,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     issues,
     {
       requireHttps: strict,
-      required: strict,
+      required: false,
     },
   );
   const APP_DEMO_MODE = parseBoolean(

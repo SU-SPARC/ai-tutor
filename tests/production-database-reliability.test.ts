@@ -11,6 +11,7 @@ import {
   DatabaseOperationError,
   POSTGRES_RUNTIME_DEFAULTS,
   classifyPostgresError,
+  normalizePostgresRuntimeUrl,
   queryPostgres,
   retrySafePostgresOperation,
   setPostgresPoolForTests,
@@ -40,6 +41,17 @@ describe("production database reliability", () => {
       queryTimeoutMs: 8_000,
       statementTimeoutMs: 7_000,
     });
+  });
+
+  it("uses libpq SSL semantics for managed require-mode connections", () => {
+    const managedUrl =
+      "postgresql://postgres:secret@pooler.supabase.com:6543/postgres?sslmode=require";
+    const normalized = new URL(normalizePostgresRuntimeUrl(managedUrl));
+
+    expect(normalized.searchParams.get("sslmode")).toBe("require");
+    expect(normalized.searchParams.get("uselibpqcompat")).toBe("true");
+    expect(normalized.hostname).toBe("pooler.supabase.com");
+    expect(normalized.password).toBe("secret");
   });
 
   it("classifies failed connections without retaining SQL or credentials", () => {

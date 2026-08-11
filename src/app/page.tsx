@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getQuestionCounts, getTopics } from "@/lib/data/data-store"
 
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const [topics, counts] = await Promise.all([getTopics(), getQuestionCounts()])
 

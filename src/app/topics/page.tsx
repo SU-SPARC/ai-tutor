@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card"
 import { getQuestionCounts, getTopics } from "@/lib/data/data-store"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Topics · Suffolk Probability & Statistics Tutor",
   description:

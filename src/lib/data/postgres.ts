@@ -66,6 +66,15 @@ type PostgresErrorShape = {
   name?: unknown
 }
 
+type PostgresFailureKind =
+  | "authentication"
+  | "network"
+  | "prepared-statement"
+  | "startup-parameter"
+  | "timeout"
+  | "tls"
+  | "unknown"
+
 type PostgresGlobal = typeof globalThis & {
   __aiTutorPostgresPool?: Pool
 }
@@ -83,7 +92,7 @@ export function getPostgresPool() {
     const nextPool = new Pool({
       allowExitOnIdle: true,
       application_name: "ai-tutor-runtime",
-      connectionString: databaseUrl,
+      connectionString: normalizePostgresRuntimeUrl(databaseUrl),
       connectionTimeoutMillis: POSTGRES_RUNTIME_DEFAULTS.connectionTimeoutMs,
       idleTimeoutMillis: POSTGRES_RUNTIME_DEFAULTS.idleTimeoutMs,
       idle_in_transaction_session_timeout:
@@ -103,6 +112,23 @@ export function getPostgresPool() {
   }
 
   return postgresGlobal.__aiTutorPostgresPool
+}
+
+export function normalizePostgresRuntimeUrl(databaseUrl: string) {
+  const parsed = new URL(databaseUrl)
+
+  // Supabase's managed connection strings use libpq's sslmode=require
+  // semantics: encryption is mandatory, while its self-signed CA is not in
+  // Vercel's trust store. pg 8 treats require as verify-full unless this
+  // compatibility flag is explicit, which rejects the managed certificate.
+  if (
+    parsed.searchParams.get("sslmode") === "require" &&
+    !parsed.searchParams.has("uselibpqcompat")
+  ) {
+    parsed.searchParams.set("uselibpqcompat", "true")
+  }
+
+  return parsed.toString()
 }
 
 export function setPostgresPoolForTests(nextPool: Pool | undefined) {
@@ -149,10 +175,9 @@ export async function checkPostgresHealth(): Promise<DatabaseHealth> {
     await client.query(
       `set local statement_timeout = '${POSTGRES_RUNTIME_DEFAULTS.healthTimeoutMs}ms'`,
     )
-    await client.query({
-      name: "runtime-database-health",
-      text: "select 1 as healthy",
-    })
+    // Supabase's transaction pooler does not preserve prepared statements
+    // between transactions. Keep the health probe as an unnamed query.
+    await client.query("select 1 as healthy")
     await client.query("rollback")
 
     return {
@@ -160,6 +185,7 @@ export async function checkPostgresHealth(): Promise<DatabaseHealth> {
       status: "healthy",
     }
   } catch (cause) {
+    logPostgresHealthFailure(cause)
     const error = classifyPostgresError(cause)
 
     if (client) {
@@ -181,6 +207,52 @@ export async function checkPostgresHealth(): Promise<DatabaseHealth> {
   } finally {
     client?.release(destroyClient)
   }
+}
+
+function logPostgresHealthFailure(cause: unknown) {
+  const error = isPostgresErrorShape(cause) ? cause : {}
+  const code = typeof error.code === "string" ? error.code : undefined
+  const name = typeof error.name === "string" ? error.name : undefined
+
+  console.error("Postgres health check failed.", {
+    code,
+    kind: classifyPostgresFailureKind(error.message),
+    name,
+  })
+}
+
+function classifyPostgresFailureKind(message: unknown): PostgresFailureKind {
+  if (typeof message !== "string") {
+    return "unknown"
+  }
+
+  const normalized = message.toLowerCase()
+
+  if (/password authentication|tenant or user|sasl|authentication/.test(normalized)) {
+    return "authentication"
+  }
+
+  if (/certificate|self signed|tls|ssl|unable to verify/.test(normalized)) {
+    return "tls"
+  }
+
+  if (/prepared statement/.test(normalized)) {
+    return "prepared-statement"
+  }
+
+  if (/startup parameter|unsupported parameter/.test(normalized)) {
+    return "startup-parameter"
+  }
+
+  if (/timeout|timed out/.test(normalized)) {
+    return "timeout"
+  }
+
+  if (/getaddrinfo|enotfound|econn|network/.test(normalized)) {
+    return "network"
+  }
+
+  return "unknown"
 }
 
 export function classifyPostgresError(cause: unknown) {

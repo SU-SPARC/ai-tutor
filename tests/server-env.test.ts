@@ -112,6 +112,27 @@ describe("typed server environment", () => {
     expect(env.AI_MODEL).toBeUndefined();
   });
 
+  it("accepts production without optional external error tracking", () => {
+    const env = parseServerEnv({
+      ...strictEnvironment("production"),
+      ERROR_TRACKING_DSN: undefined,
+    });
+
+    expect(env.ERROR_TRACKING_DSN).toBeUndefined();
+  });
+
+  it("accepts the managed Supabase POSTGRES_URL as DATABASE_URL", () => {
+    const managedUrl =
+      "postgresql://user:password@pooler.example.supabase.com/postgres";
+    const env = parseServerEnv({
+      ...strictEnvironment("production"),
+      DATABASE_URL: undefined,
+      POSTGRES_URL: managedUrl,
+    });
+
+    expect(env.DATABASE_URL).toBe(managedUrl);
+  });
+
   it("reports every missing production boundary in one clear error", () => {
     expect(() =>
       parseServerEnv({
@@ -130,7 +151,6 @@ describe("typed server environment", () => {
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is required",
       );
       expect(String(error)).toContain("CLERK_SECRET_KEY is required");
-      expect(String(error)).toContain("ERROR_TRACKING_DSN is required");
       expect(String(error)).toContain("APP_DEMO_MODE must be explicitly set");
       expect(String(error)).toContain("AI_ENABLED must be explicitly set");
       expect(String(error)).toContain("LOG_LEVEL is required");
@@ -265,6 +285,7 @@ describe("typed server environment", () => {
         NEXT_PUBLIC_CLERK_SECRET_KEY: exposedValue,
         NEXT_PUBLIC_DATABASE_URL: exposedValue,
         NEXT_PUBLIC_OPENROUTER_API_KEY: exposedValue,
+        NEXT_PUBLIC_POSTGRES_URL: exposedValue,
       });
       throw new Error("Expected public secret validation to fail.");
     } catch (error) {
@@ -273,6 +294,7 @@ describe("typed server environment", () => {
       expect(String(error)).toContain("NEXT_PUBLIC_CLERK_SECRET_KEY");
       expect(String(error)).toContain("NEXT_PUBLIC_DATABASE_URL");
       expect(String(error)).toContain("NEXT_PUBLIC_OPENROUTER_API_KEY");
+      expect(String(error)).toContain("NEXT_PUBLIC_POSTGRES_URL");
       expect(String(error)).not.toContain(exposedValue);
     }
   });

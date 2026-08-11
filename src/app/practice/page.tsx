@@ -1,6 +1,8 @@
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace"
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store"
 
+export const dynamic = "force-dynamic"
+
 type PracticePageProps = {
   searchParams: Promise<{
     questionId?: string | string[]
