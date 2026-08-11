@@ -387,6 +387,13 @@ export function createDatabaseContentRepository(
       return runDatabaseTransaction(query, async (transactionQuery) => {
         const imported: ReviewCandidate[] = [];
 
+        await transactionQuery(
+          `select
+             set_config('app.current_user_id', $1, true),
+             set_config('app.current_creation_method', 'imported', true)`,
+          [authorization.principal.userId],
+        );
+
         for (const candidate of candidates) {
           const topicRows = await transactionQuery(
             `
@@ -404,6 +411,10 @@ export function createDatabaseContentRepository(
               "Review candidate references an unavailable topic.",
             );
           }
+
+          await transactionQuery(
+            "select set_config('app.suppress_question_version', 'true', true)",
+          );
 
           const rows = await transactionQuery(
             `
@@ -445,32 +456,13 @@ export function createDatabaseContentRepository(
               $13,
               $14
             )
-            on conflict (id) do update set
-              topic_id = excluded.topic_id,
-              pattern_id = excluded.pattern_id,
-              title = excluded.title,
-              prompt = excluded.prompt,
-              difficulty = excluded.difficulty,
-              accepted_answers_json = excluded.accepted_answers_json,
-              numeric_value = excluded.numeric_value,
-              tolerance = excluded.tolerance,
-              answer_explanation = excluded.answer_explanation,
-              source_type = excluded.source_type,
-              trust_level = excluded.trust_level,
-              visibility = excluded.visibility,
-              review_status = excluded.review_status,
-              originality_note = excluded.originality_note,
-              review_priority = excluded.review_priority,
-              review_notes = excluded.review_notes,
-              updated_at = now()
-            where questions.trust_level = 'generated_unverified'
-              and questions.review_status in ('needs_review', 'needs_edit', 'needs_regeneration')
+            on conflict (id) do nothing
             returning *
           `,
             [
               candidate.id,
               candidate.topicId,
-              candidate.source.patternIds?.[0] ?? candidate.patternSource,
+              null,
               candidate.title,
               candidate.prompt,
               candidate.difficulty,
@@ -486,10 +478,48 @@ export function createDatabaseContentRepository(
           );
 
           if (!rows[0]) {
+            await transactionQuery(
+              "select set_config('app.suppress_question_version', 'false', true)",
+            );
             continue;
           }
 
           await replaceQuestionChildren(transactionQuery, candidate);
+          await transactionQuery(
+            "select set_config('app.suppress_question_version', 'false', true)",
+          );
+          const versionRows = await transactionQuery(
+            "select app_record_question_version($1) as version_id",
+            [candidate.id],
+          );
+          const versionId = Number(versionRows[0]?.version_id);
+          if (!Number.isSafeInteger(versionId) || versionId < 1) {
+            throw new Error(
+              "Imported review candidate could not be versioned.",
+            );
+          }
+          await transactionQuery(
+            `select *
+             from app_transition_question_version(
+               $1,
+               $2,
+               'submit',
+               $3,
+               $4,
+               'draft',
+               null,
+               'Imported through the authenticated professor upload API.',
+               null,
+               null,
+               '{}'::jsonb
+             )`,
+            [
+              candidate.id,
+              versionId,
+              authorization.principal.userId,
+              authorization.principal.displayName,
+            ],
+          );
           imported.push(candidate);
         }
 

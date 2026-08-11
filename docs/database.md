@@ -17,6 +17,10 @@ See [Approved Content Production Import](approved-content-import.md) for the
 professor-attested manifest contract, dry-run/apply commands, exact-content
 duplicate rules, transactional behavior, and validation report.
 
+See [Production Review-Candidate Import](review-candidate-import.md) for the
+separate topic-first command that loads committed public-safe generated drafts
+as an unpublished professor review queue.
+
 See [Production Question Content Lifecycle](content-lifecycle.md) for immutable
 question aggregates, publication pointers, professor operations, regeneration,
 rollback, student takedown, and audit behavior.
