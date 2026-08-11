@@ -91,6 +91,10 @@ export async function resolveAuthenticatedPrincipal(): Promise<
     return undefined;
   }
 
+  // Read the authoritative Backend User on every server boundary instead of
+  // trusting a potentially stale custom session claim. A Dashboard role
+  // change is therefore visible on the next server request without requiring
+  // the user to sign out and back in.
   const role = applicationRoleFromPublicMetadata(clerkUser.publicMetadata);
   await syncClerkRoleProjection(account.id, role);
   const roles: ApplicationRole[] =

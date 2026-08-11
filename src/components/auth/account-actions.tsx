@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { SignOutButton } from "@clerk/nextjs";
+import { GraduationCap } from "lucide-react";
 
 import { CurrentPageSignInLink } from "@/components/auth/current-page-sign-in-link";
 import {
@@ -25,13 +26,17 @@ export async function AccountActions() {
     return <SignInNavigation />;
   }
 
-  const canAccessInstructorTools = hasPermission(principal, "professor");
+  const canAccessProfessorPanel = hasPermission(principal, "professor");
 
   return (
     <div className="flex items-center gap-3">
-      {canAccessInstructorTools ? (
-        <Link href="/professor" className={navigationClassName}>
-          Instructor tools
+      {canAccessProfessorPanel ? (
+        <Link
+          href="/professor"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <GraduationCap className="h-4 w-4" aria-hidden="true" />
+          Professor Panel
         </Link>
       ) : null}
       <Link href="/account" className={navigationClassName}>

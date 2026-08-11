@@ -70,12 +70,23 @@ then uses the correct Clerk environment:
    }
    ```
 
-5. Save, then have the professor reload or navigate to `/professor`.
+5. Save, then have the professor reload `/professor` (or open it in a new
+   navigation).
 
 A sign-out/sign-in cycle is not required by this implementation because the
 server reads the current Backend `User` rather than a possibly stale custom JWT
-claim. If Clerk Dashboard still shows the old value or the application request
-was already in flight, reload once after the save.
+claim. The application's role decision therefore does not require a session or
+token refresh: the next server request reads the saved `publicMetadata.role`
+directly. If Clerk Dashboard still shows the old value or the application
+request was already in flight, reload once after the save.
+
+Clerk session-token claims have separate refresh behavior. If a future client
+feature copies the role into a custom claim, Clerk refreshes short-lived tokens
+automatically, and that feature must force a fresh token with
+`getToken({ skipCache: true })` or reload the Clerk `User` with `user.reload()`
+when immediate consistency is required. The current Professor Panel navigation
+and every authorization boundary intentionally avoid that stale-claim window by
+using the Backend `User`.
 
 To return an account to student access, remove `role` or set it to `"student"`.
 The next protected request synchronizes the projection and denies professor

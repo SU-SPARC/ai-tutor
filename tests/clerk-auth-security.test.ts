@@ -108,6 +108,28 @@ describe("Clerk identity boundary", () => {
     });
   });
 
+  it("sees a Dashboard role change on the next server request without a new session token", async () => {
+    mocks.currentUser
+      .mockResolvedValueOnce(clerkUser())
+      .mockResolvedValueOnce(
+        clerkUser({ publicMetadata: { role: "professor" } }),
+      );
+
+    const beforeRefresh = await resolveAuthenticatedPrincipal();
+    const afterRefresh = await resolveAuthenticatedPrincipal();
+
+    expect(beforeRefresh).toMatchObject({
+      role: "student",
+      roles: ["student"],
+    });
+    expect(afterRefresh).toMatchObject({
+      role: "professor",
+      roles: ["student", "professor"],
+    });
+    expect(mocks.auth).toHaveBeenCalledTimes(2);
+    expect(mocks.currentUser).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     undefined,
     null,

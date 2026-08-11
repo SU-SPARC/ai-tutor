@@ -21,8 +21,10 @@ export default function ForbiddenPage() {
             <h1 className="text-3xl font-semibold">Access denied</h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               This signed-in account does not have access to instructor tools.
-              If access was recently granted, sign out and sign in again. For
-              help, contact the application support team.
+              If professor access was recently granted in Clerk, reload this
+              page after the metadata change is saved. Signing out and back in
+              is not normally required. For help, contact the application
+              support team.
             </p>
           </div>
         </CardHeader>

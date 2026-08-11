@@ -60,6 +60,8 @@ describe("professor page authorization", () => {
 
     const markup = renderToStaticMarkup(createElement(ForbiddenPage));
     expect(markup).toContain("does not have access to instructor tools");
+    expect(markup).toContain("reload this page");
+    expect(markup).not.toContain("sign out and sign in again");
     expect(markup).toContain('href="/dashboard"');
     expect(markup).toContain('href="/account"');
     expect(markup).not.toContain("required application role");
@@ -141,16 +143,21 @@ describe("professor sign-in and navigation", () => {
     );
   });
 
-  it("shows instructor navigation and a clear sign-out action only after access", async () => {
+  it("shows the Professor Panel only for professor accounts", async () => {
+    mockPrincipal(undefined);
+    const anonymousMarkup = renderToStaticMarkup(await AccountActions());
+
     mockPrincipal(TEST_STUDENT);
     const studentMarkup = renderToStaticMarkup(await AccountActions());
 
     mockPrincipal(TEST_PROFESSOR);
     const professorMarkup = renderToStaticMarkup(await AccountActions());
 
-    expect(studentMarkup).not.toContain("Instructor tools");
+    expect(anonymousMarkup).not.toContain("Professor Panel");
+    expect(studentMarkup).not.toContain("Professor Panel");
     expect(professorMarkup).toContain('href="/professor"');
-    expect(professorMarkup).toContain("Instructor tools");
+    expect(professorMarkup).toContain("Professor Panel");
+    expect(professorMarkup).toContain("Account");
     expect(professorMarkup).toContain("Sign out");
   });
 });
