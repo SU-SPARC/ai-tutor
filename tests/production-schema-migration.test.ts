@@ -24,6 +24,69 @@ afterEach(async () => {
 });
 
 describe("production schema hardening migration", () => {
+  it("keeps protected views out of Supabase Data API roles", async () => {
+    const database = await databaseThrough(
+      "013_safe_batch_review_operations.sql",
+    );
+
+    await database.exec(`
+      create role anon;
+      create role authenticated;
+      grant all privileges on schema public to anon, authenticated;
+      grant all privileges on all tables in schema public to anon, authenticated;
+      grant all privileges on all sequences in schema public to anon, authenticated;
+      grant all privileges on all functions in schema public to anon, authenticated;
+    `);
+    await applyMigration(database, "014_lock_down_data_api.sql");
+
+    const grants = await database.query<{
+      anon_review_select: boolean;
+      anon_schema_usage: boolean;
+      authenticated_private_select: boolean;
+      authenticated_schema_usage: boolean;
+    }>(`
+      select
+        has_schema_privilege('anon', 'public', 'usage') as anon_schema_usage,
+        has_schema_privilege('authenticated', 'public', 'usage')
+          as authenticated_schema_usage,
+        has_table_privilege(
+          'anon', 'public.app_review_queue_questions', 'select'
+        ) as anon_review_select,
+        has_table_privilege(
+          'authenticated', 'public.app_admin_retrieval_chunks', 'select'
+        ) as authenticated_private_select
+    `);
+    expect(grants.rows[0]).toEqual({
+      anon_review_select: false,
+      anon_schema_usage: false,
+      authenticated_private_select: false,
+      authenticated_schema_usage: false,
+    });
+
+    const views = await database.query<{
+      relname: string;
+      security_invoker: boolean;
+    }>(`
+      select
+        c.relname,
+        coalesce(c.reloptions @> array['security_invoker=true'], false)
+          as security_invoker
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = any(array[
+          'app_admin_retrieval_chunks',
+          'app_public_questions',
+          'app_question_version_content',
+          'app_review_queue_questions',
+          'app_student_retrieval_chunks'
+        ])
+      order by c.relname
+    `);
+    expect(views.rows).toHaveLength(5);
+    expect(views.rows.every((view) => view.security_invoker)).toBe(true);
+  });
+
   it("applies the complete migration chain to an empty Postgres database", async () => {
     const database = await migratedDatabase();
 

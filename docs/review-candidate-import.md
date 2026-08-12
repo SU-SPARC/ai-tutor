@@ -18,6 +18,9 @@ operator-supplied paths.
   and `public`, then submitted into the immutable lifecycle review queue.
 - Imported questions have no published version, so student views, question
   counts, practice, tutor APIs, and retrieval cannot see them.
+- Migration `014_lock_down_data_api.sql` must be current before import. It
+  removes Supabase `anon`/`authenticated` access to owner-executed review and
+  private-content views, so PostgREST cannot bypass the application boundary.
 - The 11 active syllabus topics remain visible to students with zero question
   counts until questions in them are both approved and published.
 - Existing question IDs are never updated. Exact prior imports are skipped;

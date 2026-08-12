@@ -113,6 +113,15 @@ evidence for exact immutable question versions. Batch lifecycle operations use
 these records as a server-side precondition and execute only after every
 selected item passes preflight inside one transaction.
 
+`014_lock_down_data_api.sql` keeps the public schema behind the Next.js server
+boundary. All application views use PostgreSQL `security_invoker`, and ambient
+`PUBLIC`, Supabase `anon`, and Supabase `authenticated` grants are removed from
+the schema, its existing objects, and the current owner's default privileges.
+The application does not use Supabase's browser Data API; its server-only
+PostgreSQL owner connection retains access. This prevents review drafts,
+question versions, and private retrieval rows from bypassing Clerk professor
+authorization through an owner-executed PostgREST view.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval
@@ -128,7 +137,8 @@ Deletion behavior is explicit:
 `tests/production-schema-migration.test.ts` executes all checked-in migrations
 against an embedded PostgreSQL runtime. It covers a fresh database, an upgrade
 with legacy content/activity, the development seed, publication and role
-constraints, append-only history, snapshot completeness, and deletion rules.
+constraints, Data API isolation, append-only history, snapshot completeness,
+and deletion rules.
 
 Tutor sessions store exactly one authenticated `user_id` or opaque
 `anonymous_user_id`. Attempts belong to that owner through their `session_id` foreign
