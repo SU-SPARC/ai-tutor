@@ -10,6 +10,7 @@ import {
   importPublicReviewCandidates,
   loadPublicReviewCandidateFixtures,
   resolveReviewCandidateDatabaseUrl,
+  sameStoredReviewCandidateSnapshot,
   validatePublicReviewCandidateFixtures,
   type ImportClient,
   type PublicReviewCandidateFixtures,
@@ -132,6 +133,7 @@ describe("production-safe review-candidate database import", () => {
       fixtures,
       target: "test",
     });
+
     const second = await importPublicReviewCandidates({
       client,
       dryRun: false,
@@ -224,6 +226,43 @@ describe("production-safe review-candidate database import", () => {
       published_count: 0,
     });
   }, 30_000);
+
+  it("treats only database float serialization noise as an exact snapshot", () => {
+    const expected = {
+      numericValue: 0.5714285714285714,
+      prompt: "A public-safe probability question",
+      tolerance: 0.00000000000000014,
+    };
+
+    expect(
+      sameStoredReviewCandidateSnapshot(
+        {
+          ...expected,
+          numericValue: 0.571428571428571,
+          tolerance: 0.00000000000000013999999999999999,
+        },
+        expected,
+      ),
+    ).toBe(true);
+    expect(
+      sameStoredReviewCandidateSnapshot(
+        { ...expected, numericValue: 1.36666666666667 },
+        { ...expected, numericValue: 1.3666666666666667 },
+      ),
+    ).toBe(true);
+    expect(
+      sameStoredReviewCandidateSnapshot(
+        { ...expected, numericValue: 0.5714 },
+        expected,
+      ),
+    ).toBe(false);
+    expect(
+      sameStoredReviewCandidateSnapshot(
+        { ...expected, prompt: "Professor-edited prompt" },
+        expected,
+      ),
+    ).toBe(false);
+  });
 
   it("preserves approved, rejected, and materially edited existing questions", async () => {
     const database = await migratedDatabase();

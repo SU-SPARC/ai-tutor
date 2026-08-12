@@ -55,6 +55,11 @@ export function validatePublicReviewCandidateFixtures(
   fixtures: PublicReviewCandidateFixtures,
 ): PublicReviewCandidateFixtures;
 
+export function sameStoredReviewCandidateSnapshot(
+  stored: unknown,
+  expected: unknown,
+): boolean;
+
 export function importPublicReviewCandidates(options: {
   client: ImportClient;
   dryRun: boolean;

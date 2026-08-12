@@ -442,9 +442,48 @@ function sameUnreviewedCandidate(row, candidate) {
     row.record_state === "active" &&
     row.published_version_id === null &&
     row.lifecycle_state === "needs_review" &&
-    canonicalJson(row.snapshot_json) ===
-      canonicalJson(expectedSnapshot(candidate))
+    sameStoredReviewCandidateSnapshot(
+      row.snapshot_json,
+      expectedSnapshot(candidate),
+    )
   );
+}
+
+export function sameStoredReviewCandidateSnapshot(stored, expected) {
+  if (
+    !stored ||
+    typeof stored !== "object" ||
+    Array.isArray(stored) ||
+    !expected ||
+    typeof expected !== "object" ||
+    Array.isArray(expected)
+  ) {
+    return false;
+  }
+
+  const storedContent = { ...stored };
+  const expectedContent = { ...expected };
+  for (const field of ["numericValue", "tolerance"]) {
+    if (!sameStoredDouble(storedContent[field], expectedContent[field])) {
+      return false;
+    }
+    delete storedContent[field];
+    delete expectedContent[field];
+  }
+
+  return canonicalJson(storedContent) === canonicalJson(expectedContent);
+}
+
+function sameStoredDouble(stored, expected) {
+  if (stored === null || expected === null) {
+    return stored === expected;
+  }
+  if (typeof stored !== "number" || typeof expected !== "number") {
+    return false;
+  }
+
+  const scale = Math.max(1, Math.abs(stored), Math.abs(expected));
+  return Math.abs(stored - expected) <= Number.EPSILON * 32 * scale;
 }
 
 function expectedSnapshot(candidate) {
