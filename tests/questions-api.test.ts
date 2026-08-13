@@ -135,6 +135,44 @@ describe("questions API", () => {
     expect(payload.question.answer).toBeTruthy()
   })
 
+  it("does not expose version or lifecycle audit metadata to students", async () => {
+    const [listResponse, detailResponse] = await Promise.all([
+      listQuestionsRoute(request("http://test/api/questions")),
+      getQuestion(request("http://test/api/questions/x"), {
+        params: Promise.resolve({ id: "exam-z-score" }),
+      }),
+    ])
+    const listPayload = (await listResponse.json()) as {
+      questions: Array<Record<string, unknown>>
+    }
+    const detailPayload = (await detailResponse.json()) as {
+      question: Record<string, unknown>
+    }
+    const internalFields = [
+      "contentHash",
+      "createdBy",
+      "events",
+      "generationMetadata",
+      "lifecycleState",
+      "note",
+      "parentVersionId",
+      "publishedVersionId",
+      "reasonCode",
+      "reviewedBy",
+      "versionId",
+      "versionNumber",
+      "workingVersionId",
+    ]
+
+    expect(listResponse.status).toBe(200)
+    expect(detailResponse.status).toBe(200)
+    for (const question of [...listPayload.questions, detailPayload.question]) {
+      for (const field of internalFields) {
+        expect(question).not.toHaveProperty(field)
+      }
+    }
+  })
+
   it("returns 404 for unknown ids", async () => {
     const response = await getQuestion(request("http://test/api/questions/x"), {
       params: Promise.resolve({ id: "does-not-exist" }),

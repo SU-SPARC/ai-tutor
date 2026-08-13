@@ -90,7 +90,10 @@ describe("professor question revision API", () => {
 
   it("accepts a structurally valid revision before enforcing read-only demo storage", async () => {
     mockPrincipal(TEST_PROFESSOR);
-    const response = await postRevision(validRevisionRequest());
+    const response = await postRevision({
+      ...validRevisionRequest(),
+      comment: "Clarify the wording while preserving the live version.",
+    });
 
     expect(response.status).toBe(503);
   });

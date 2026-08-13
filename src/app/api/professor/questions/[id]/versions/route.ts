@@ -127,6 +127,7 @@ async function createProfessorRevision({
   const unsupportedField = Object.keys(body).find(
     (field) =>
       field !== "baseVersionId" &&
+      field !== "comment" &&
       field !== "expectedWorkingVersionId" &&
       field !== "revision",
   );
@@ -158,6 +159,7 @@ async function createProfessorRevision({
   try {
     const question = await createQuestionLifecycleRevision(authorization, {
       baseVersionId,
+      comment: boundedNote(body.comment),
       expectedWorkingVersionId,
       questionId,
       revision: parsedRevision.revision,

@@ -99,7 +99,9 @@ describe("tutor session API", () => {
         hintedPayload,
         steppedPayload,
       }),
-    ).not.toMatch(/answerPreview|attempts|revealedHints|revealedSteps/);
+    ).not.toMatch(
+      /answerPreview|attempts|questionVersionId|revealedHints|revealedSteps/,
+    );
   });
 
   it("validates required session route inputs", async () => {

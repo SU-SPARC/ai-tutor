@@ -65,16 +65,18 @@ creation method, schema version, legacy MD5 fingerprint, and a SHA-256 content
 hash that excludes workflow fields. Material edits and regeneration create a
 new version; lifecycle transitions do not.
 
-Professors may revise generated or pattern-derived working versions while they
-are `draft`, `needs_review`, or `revision_requested`. The revision endpoint
-accepts only wording, difficulty, answer structure, solution steps, hints,
-misconception notes, and topic mapping. Source type, trust, visibility,
-generation provenance, and stable question ID are derived from the base
-version on the server. Each edit creates a new `manual` draft with the
-professor and timestamp recorded; the source version remains immutable.
-Numeric answers and tolerances, required solution structure, bounded field
-counts, active topic mapping, and private-source wording are validated before
-the draft is stored.
+Professors may revise any active, public-safe working version, including a
+currently published version. The revision endpoint accepts only wording,
+difficulty, answer structure, solution steps, hints, misconception notes, topic
+mapping, and an optional bounded history comment. Source type, trust,
+visibility, generation provenance, and stable question ID are derived from the
+base version on the server. Each edit creates a new `manual` draft with parent
+lineage, professor identity, timestamp, and comment recorded; the source
+version remains immutable. Editing a published version leaves its publication
+pointer and all pinned sessions unchanged until the new draft is separately
+reviewed and published. Numeric answers and tolerances, required solution
+structure, bounded field counts, active topic mapping, and private-source
+wording are validated before the draft is stored.
 
 Regeneration is limited to generated or pattern-derived questions. It uses the
 same stable question ID, records professor requestor and system executor, and
@@ -132,8 +134,12 @@ unavailable records return `404`; authentication and authorization retain
 The professor review page requires topic selection before loading version
 content, preserves a one-question-at-a-time decision flow, and submits review
 decisions through lifecycle transitions. Approval never publishes content.
-The question catalog offers generated-draft editing and requires a side-by-side
-change summary and explicit confirmation before publish or rollback actions.
+The question catalog offers immutable revision editing and a professor-only
+history inspector with full version content, parent/regeneration lineage,
+working and published pointers, hashes, actors, timestamps, lifecycle reasons,
+and comments. It requires a side-by-side change summary and explicit
+confirmation before publish or rollback actions. Student DTOs never contain
+these audit fields.
 
 ## Rollout and verification
 

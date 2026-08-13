@@ -5,9 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  canEditGeneratedDraft,
+  canEditQuestionVersion,
   ProfessorQuestionRevisionEditor,
+  revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
+import { ProfessorQuestionVersionHistory } from "@/components/professor/professor-question-lifecycle-panel";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
 
@@ -36,6 +38,7 @@ describe("professor question revision panel", () => {
       "Hints",
       "Misconception notes",
       "Syllabus topic",
+      "Version comment",
     ]) {
       expect(markup).toContain(label);
     }
@@ -46,32 +49,48 @@ describe("professor question revision panel", () => {
     expect(markup).not.toContain("private-pattern-secret");
   });
 
-  it("offers editing only for generated drafts before approval", () => {
+  it("offers immutable revision editing for every active public-safe working version", () => {
     const question = lifecycleFixture();
-    expect(canEditGeneratedDraft(question)).toBe(true);
+    expect(canEditQuestionVersion(question)).toBe(true);
     expect(
-      canEditGeneratedDraft({
+      canEditQuestionVersion({
         ...question,
         workingVersion: {
           ...question.workingVersion,
-          state: "revision_requested",
+          state: "published",
+          source: {
+            ...question.workingVersion.source,
+            sourceType: "professor_provided",
+            trustLevel: "professor_approved",
+          },
         },
       }),
     ).toBe(true);
     expect(
-      canEditGeneratedDraft({
+      revisionActionLabel({
         ...question,
-        workingVersion: { ...question.workingVersion, state: "approved" },
+        workingVersion: {
+          ...question.workingVersion,
+          state: "published",
+        },
+      }),
+    ).toBe("Edit published question");
+    expect(
+      canEditQuestionVersion({
+        ...question,
+        recordState: "archived",
       }),
     ).toBe(false);
     expect(
-      canEditGeneratedDraft({
+      canEditQuestionVersion({
         ...question,
         workingVersion: {
           ...question.workingVersion,
           source: {
             ...question.workingVersion.source,
-            sourceType: "professor_provided",
+            sourceType: "private_reference_pattern",
+            trustLevel: "private_reference",
+            visibility: "private",
           },
         },
       }),
@@ -115,10 +134,83 @@ describe("professor question revision panel", () => {
       source.indexOf("}),", source.indexOf("body: JSON.stringify")) + 3,
     );
 
+    expect(requestBody).toContain("comment");
     expect(requestBody).toContain("revision");
     expect(requestBody).not.toMatch(
       /sourceType|trustLevel|visibility|patternIds|originalityNote|private/i,
     );
+  });
+
+  it("shows professors immutable content, lineage, actors, timestamps, and lifecycle comments", () => {
+    const original = {
+      ...versionFixture(),
+      state: "published" as const,
+      versionId: 11,
+      versionNumber: 1,
+    };
+    const revision = {
+      ...versionFixture(),
+      contentHash: "b".repeat(64),
+      createdAt: "2026-08-09T14:30:00.000Z",
+      createdBy: {
+        displayName: "Lifecycle Professor",
+        occurredAt: "2026-08-09T14:30:00.000Z",
+        userId: "user:lifecycle-professor",
+      },
+      creationMethod: "manual" as const,
+      parentVersionId: original.versionId,
+      prompt: "Two of four outcomes are favorable. Find the probability.",
+      state: "draft" as const,
+      title: "Professor revision",
+      versionId: 12,
+      versionNumber: 2,
+    };
+    const question: QuestionLifecycleDto = {
+      ...lifecycleFixture(),
+      events: [
+        {
+          action: "create_version",
+          actor: revision.createdBy,
+          actorRole: "professor",
+          id: 2,
+          note: "Clarify the ambiguous wording.",
+          reasonCode: "working_version_superseded",
+          toState: "draft",
+          versionId: revision.versionId,
+        },
+        {
+          action: "publish",
+          actor: original.createdBy,
+          actorRole: "system",
+          id: 1,
+          toState: "published",
+          versionId: original.versionId,
+        },
+      ],
+      publishedVersion: original,
+      versions: [revision, original],
+      workingVersion: revision,
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionVersionHistory, {
+        dashboardReadOnly: false,
+        onTransition: vi.fn(),
+        question,
+        topics: [{ id: "basic-probability", title: "Basic probability" }],
+      }),
+    );
+
+    expect(markup).toContain("Original generated draft");
+    expect(markup).toContain("Professor edit from v1");
+    expect(markup).toContain("Working version");
+    expect(markup).toContain("Published version");
+    expect(markup).toContain("Inspect immutable content");
+    expect(markup).toContain("Two of four outcomes are favorable");
+    expect(markup).toContain("Lifecycle Professor");
+    expect(markup).toContain("2026-08-09T14:30:00.000Z");
+    expect(markup).toContain("Clarify the ambiguous wording.");
+    expect(markup).toContain("working version superseded");
+    expect(markup).not.toContain("private-pattern-secret");
   });
 });
 

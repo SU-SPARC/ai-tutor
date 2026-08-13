@@ -52,6 +52,7 @@ export function ProfessorQuestionRevisionEditor({
   const [form, setForm] = useState<RevisionForm>(() =>
     revisionFormFromQuestion(question),
   );
+  const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string>();
   const revision = useMemo(
@@ -93,6 +94,7 @@ export function ProfessorQuestionRevisionEditor({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             baseVersionId: version.versionId,
+            comment: comment.trim() || undefined,
             expectedWorkingVersionId: version.versionId,
             revision,
           }),
@@ -121,7 +123,7 @@ export function ProfessorQuestionRevisionEditor({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-medium">Edit generated draft</h3>
+          <h3 className="font-medium">{revisionHeading(question)}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Saving creates a new attributed draft from version{" "}
             {version.versionNumber}. The original version and any published
@@ -243,6 +245,16 @@ export function ProfessorQuestionRevisionEditor({
         />
       </RevisionField>
 
+      <RevisionField label="Version comment (optional)">
+        <Textarea
+          value={comment}
+          className="min-h-20"
+          maxLength={1000}
+          placeholder="Explain why this version is being created. Professors can see this in the lifecycle history."
+          onChange={(event) => setComment(event.target.value)}
+        />
+      </RevisionField>
+
       <div className="rounded-md border border-border bg-background p-3 text-sm">
         <p className="font-medium">Revision summary</p>
         <p className="mt-1 text-muted-foreground">
@@ -285,16 +297,30 @@ export function ProfessorQuestionRevisionEditor({
   );
 }
 
-export function canEditGeneratedDraft(question: QuestionLifecycleDto) {
+export function canEditQuestionVersion(question: QuestionLifecycleDto) {
   return (
     question.recordState === "active" &&
-    ["draft", "needs_review", "revision_requested"].includes(
-      question.workingVersion.state,
-    ) &&
-    ["generated_original", "pattern_derived_original"].includes(
-      question.workingVersion.source.sourceType,
-    )
+    question.workingVersion.source.visibility === "public" &&
+    question.workingVersion.source.sourceType !== "private_reference_pattern" &&
+    question.workingVersion.source.trustLevel !== "private_reference"
   );
+}
+
+export function revisionActionLabel(question: QuestionLifecycleDto) {
+  if (question.workingVersion.state === "published") {
+    return "Edit published question";
+  }
+  return ["generated_original", "pattern_derived_original"].includes(
+    question.workingVersion.source.sourceType,
+  )
+    ? "Edit generated draft"
+    : "Create revision draft";
+}
+
+function revisionHeading(question: QuestionLifecycleDto) {
+  return question.workingVersion.state === "published"
+    ? "Edit published question as a new draft"
+    : revisionActionLabel(question);
 }
 
 function revisionFormFromQuestion(

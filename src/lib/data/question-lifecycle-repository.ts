@@ -66,6 +66,7 @@ export type CreateQuestionVersionInput = CreateQuestionInput & {
 
 export type CreateQuestionRevisionInput = {
   baseVersionId: number;
+  comment?: string;
   expectedWorkingVersionId: number;
   questionId: string;
   revision: QuestionRevisionContentInput;
@@ -399,16 +400,6 @@ export function createDatabaseQuestionLifecycleRepository(
               "The selected base version does not belong to this question.",
             );
           }
-          if (
-            !["draft", "needs_review", "revision_requested"].includes(
-              String(baseLifecycle[0].state),
-            )
-          ) {
-            throw new QuestionLifecycleConflictError(
-              "Only a generated draft awaiting approval can be revised in this workflow.",
-            );
-          }
-
           const baseRows = await selectQuestionVersionRows(
             transactionQuery,
             input.questionId,
@@ -423,11 +414,12 @@ export function createDatabaseQuestionLifecycleRepository(
           }
           const base = mapQuestionVersion(baseRow);
           if (
-            base.source.sourceType !== "generated_original" &&
-            base.source.sourceType !== "pattern_derived_original"
+            base.source.visibility !== "public" ||
+            base.source.sourceType === "private_reference_pattern" ||
+            base.source.trustLevel === "private_reference"
           ) {
             throw new QuestionLifecycleConflictError(
-              "Only generated or pattern-derived drafts can be revised here.",
+              "Private reference content cannot be copied into a professor revision.",
             );
           }
 
@@ -449,7 +441,7 @@ export function createDatabaseQuestionLifecycleRepository(
               patternIds: base.source.patternIds
                 ? [...base.source.patternIds]
                 : undefined,
-              trustLevel: "generated_unverified",
+              trustLevel: revisionTrustLevel(base.source),
               visibility: "public",
             },
           };
@@ -466,6 +458,7 @@ export function createDatabaseQuestionLifecycleRepository(
             creationMethod: "manual",
             createdByUserId: reviewer.userId,
             parentVersionId: input.baseVersionId,
+            supersedeReason: input.comment,
           });
 
           return requireQuestionLifecycle(transactionQuery, input.questionId);
@@ -1777,6 +1770,13 @@ function safeGenerationMetadataForProfessor(value: unknown) {
     }
   }
   return safe;
+}
+
+function revisionTrustLevel(source: SourceMetadata): TrustLevel {
+  return source.sourceType === "generated_original" ||
+    source.sourceType === "pattern_derived_original"
+    ? "generated_unverified"
+    : source.trustLevel;
 }
 
 function validateQuestionVersionContent(

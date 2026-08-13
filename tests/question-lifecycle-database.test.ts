@@ -222,16 +222,30 @@ describe("question lifecycle database", () => {
     const draftVersionId = Number(draft.rows[0].id);
     const attribution = await database.query<{
       actor_role: string;
+      creation_method: string;
       executed_by_user_id: string;
+      occurred_at: string;
+      parent_version_id: number;
       requested_by_user_id: string;
     }>(`
-      select actor_role, requested_by_user_id, executed_by_user_id
-      from question_lifecycle_events
-      where question_version_id = ${draftVersionId} and action = 'regenerate'
+      select
+        qle.actor_role,
+        qle.requested_by_user_id,
+        qle.executed_by_user_id,
+        qle.occurred_at,
+        qv.creation_method,
+        qv.parent_version_id
+      from question_lifecycle_events qle
+      join question_versions qv on qv.id = qle.question_version_id
+      where qle.question_version_id = ${draftVersionId}
+        and qle.action = 'regenerate'
     `);
-    expect(attribution.rows[0]).toEqual({
+    expect(attribution.rows[0]).toMatchObject({
       actor_role: "system",
+      creation_method: "regenerated",
       executed_by_user_id: "system:question-generator",
+      occurred_at: expect.anything(),
+      parent_version_id: firstVersionId,
       requested_by_user_id: "user:lifecycle-professor",
     });
 
@@ -383,6 +397,203 @@ describe("question lifecycle database", () => {
       actor_user_id: "user:lifecycle-professor",
       occurred_at: expect.anything(),
     });
+  });
+
+  it("edits a published question as a new version while sessions and attempts stay pinned", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const initial = await lifecycleState(database);
+    const publishedVersionId = Number(initial.published_version_id);
+    const originalBefore = await database.query<{
+      content_sha256: string;
+      snapshot: string;
+    }>(`
+      select content_sha256, snapshot_json::text as snapshot
+      from question_versions
+      where id = ${publishedVersionId}
+    `);
+
+    await database.exec(`
+      insert into tutor_sessions (id, user_id, question_id)
+      values (
+        'published-edit-session-v1',
+        'user:lifecycle-student',
+        'lifecycle-question'
+      );
+      insert into attempts (
+        session_id, mode, answer_preview, source, verdict
+      ) values (
+        'published-edit-session-v1', 'check', '0.5', 'rule', 'correct'
+      );
+    `);
+
+    const revised = await repository.createRevision(authorization, {
+      baseVersionId: publishedVersionId,
+      comment: "Clarify the denominator without changing the live question.",
+      expectedWorkingVersionId: publishedVersionId,
+      questionId: "lifecycle-question",
+      revision: {
+        answer: {
+          acceptedAnswers: ["0.5", "1/2"],
+          explanation: "Divide one favorable pair by the two possible pairs.",
+        },
+        difficulty: "intermediate",
+        hints: ["Identify the favorable pair and all possible pairs."],
+        misconceptions: [
+          {
+            feedback: "Count pairs rather than individual outcomes.",
+            id: "counting-individuals",
+            matchTerms: ["4"],
+          },
+        ],
+        prompt:
+          "One of two equally likely pairs is favorable. What is the probability?",
+        solutionSteps: ["Compute 1 / 2 = 0.5."],
+        title: "Lifecycle question clarified",
+        topicId: "lifecycle-topic",
+      },
+    });
+    const revisionVersionId = revised?.workingVersion.versionId;
+
+    expect(revisionVersionId).toEqual(expect.any(Number));
+    if (!revisionVersionId) {
+      throw new Error("The published edit did not create a revision version.");
+    }
+    expect(revised?.publishedVersion?.versionId).toBe(publishedVersionId);
+    expect(revised?.workingVersion).toMatchObject({
+      createdBy: {
+        displayName: "Lifecycle Professor",
+        userId: "user:lifecycle-professor",
+      },
+      creationMethod: "manual",
+      parentVersionId: publishedVersionId,
+      state: "draft",
+      title: "Lifecycle question clarified",
+    });
+    const originalAfter = await database.query<{
+      content_sha256: string;
+      snapshot: string;
+    }>(`
+      select content_sha256, snapshot_json::text as snapshot
+      from question_versions
+      where id = ${publishedVersionId}
+    `);
+    expect(originalAfter.rows[0]).toEqual(originalBefore.rows[0]);
+
+    const publicDuringEdit = await database.query<{
+      prompt: string;
+      question_version_id: number;
+    }>(`
+      select prompt, question_version_id
+      from app_public_questions
+      where id = 'lifecycle-question'
+    `);
+    expect(publicDuringEdit.rows[0]).toEqual({
+      prompt: "Original immutable prompt",
+      question_version_id: publishedVersionId,
+    });
+
+    await database.exec(`
+      insert into attempts (
+        session_id, mode, answer_preview, source, verdict
+      ) values (
+        'published-edit-session-v1', 'check', '1/2', 'rule', 'correct'
+      );
+    `);
+    const pinnedHistory = await database.query<{
+      attempt_version_id: number;
+      session_version_id: number;
+    }>(`
+      select
+        a.question_version_id as attempt_version_id,
+        s.question_version_id as session_version_id
+      from attempts a
+      join tutor_sessions s on s.id = a.session_id
+      where s.id = 'published-edit-session-v1'
+      order by a.id
+    `);
+    expect(pinnedHistory.rows).toHaveLength(2);
+    expect(
+      pinnedHistory.rows.every(
+        (row) =>
+          Number(row.attempt_version_id) === publishedVersionId &&
+          Number(row.session_version_id) === publishedVersionId,
+      ),
+    ).toBe(true);
+
+    const event = await database.query<{
+      actor_user_id: string;
+      note: string;
+      occurred_at: string;
+      reason_code: string;
+    }>(`
+      select actor_user_id, note, occurred_at, reason_code
+      from question_lifecycle_events
+      where question_version_id = ${revisionVersionId}
+        and action = 'create_version'
+    `);
+    expect(event.rows[0]).toMatchObject({
+      actor_user_id: "user:lifecycle-professor",
+      note: "Clarify the denominator without changing the live question.",
+      occurred_at: expect.anything(),
+      reason_code: "working_version_superseded",
+    });
+
+    await repository.transition(authorization, {
+      action: "submit",
+      expectedState: "draft",
+      questionId: "lifecycle-question",
+      versionId: revisionVersionId,
+    });
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: "lifecycle-question",
+      versionId: revisionVersionId,
+    });
+    await repository.transition(authorization, {
+      action: "publish",
+      expectedState: "approved",
+      questionId: "lifecycle-question",
+      versionId: revisionVersionId,
+    });
+
+    const replaced = await database.query<{
+      prompt: string;
+      question_version_id: number;
+    }>(`select prompt, question_version_id from app_public_questions`);
+    expect(replaced.rows[0]).toEqual({
+      prompt:
+        "One of two equally likely pairs is favorable. What is the probability?",
+      question_version_id: revisionVersionId,
+    });
+    const displacedSession = await database.query<{ status: string }>(`
+      select status
+      from tutor_sessions
+      where id = 'published-edit-session-v1'
+    `);
+    expect(displacedSession.rows[0].status).toBe("content_unpublished");
+
+    await database.exec(`
+      insert into tutor_sessions (id, user_id, question_id)
+      values (
+        'published-edit-session-v2',
+        'user:lifecycle-student',
+        'lifecycle-question'
+      );
+    `);
+    const newSession = await database.query<{ question_version_id: number }>(`
+      select question_version_id
+      from tutor_sessions
+      where id = 'published-edit-session-v2'
+    `);
+    expect(Number(newSession.rows[0].question_version_id)).toBe(
+      revisionVersionId,
+    );
   });
 
   it("keeps partial batch publication failures invisible and commits only after every item passes", async () => {

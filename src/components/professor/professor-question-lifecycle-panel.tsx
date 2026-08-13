@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ChevronDown,
@@ -12,8 +12,9 @@ import {
 
 import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
 import {
-  canEditGeneratedDraft,
+  canEditQuestionVersion,
   ProfessorQuestionRevisionEditor,
+  revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ import type {
   QuestionLifecycleBatchResult,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
+  QuestionLifecycleEventAction,
+  QuestionLifecycleEventDto,
   QuestionVersionDto,
   QuestionVersionState,
 } from "@/lib/types";
@@ -69,6 +72,13 @@ const ACTION_LABELS: Record<QuestionLifecycleAction, string> = {
   rollback: "Roll back",
   submit: "Submit for review",
   unpublish: "Unpublish",
+};
+
+const EVENT_LABELS: Record<QuestionLifecycleEventAction, string> = {
+  ...ACTION_LABELS,
+  create_version: "Version created",
+  migrate: "History migrated",
+  regenerate: "Version regenerated",
 };
 
 export function ProfessorQuestionLifecyclePanel({
@@ -701,7 +711,7 @@ export function ProfessorQuestionLifecyclePanel({
                           }
                           onInspect={() => void markInspected(question)}
                         />
-                        {canEditGeneratedDraft(question) ? (
+                        {canEditQuestionVersion(question) ? (
                           editingId === question.questionId ? (
                             <ProfessorQuestionRevisionEditor
                               key={question.workingVersion.versionId}
@@ -750,16 +760,17 @@ export function ProfessorQuestionLifecyclePanel({
                               onClick={() => setEditingId(question.questionId)}
                             >
                               <Pencil className="h-4 w-4" />
-                              Edit generated draft
+                              {revisionActionLabel(question)}
                             </Button>
                           )
                         ) : null}
-                        <VersionHistory
+                        <ProfessorQuestionVersionHistory
                           activeKey={activeKey}
                           dashboardReadOnly={
                             dashboard.readOnly || Boolean(batchAction)
                           }
                           question={question}
+                          topics={dashboard.topics}
                           onTransition={(action, versionId, expectedState) => {
                             if (action === "rollback") {
                               setPublicationPreview({
@@ -1007,11 +1018,12 @@ function PublicationSummary({
   );
 }
 
-function VersionHistory({
+export function ProfessorQuestionVersionHistory({
   activeKey,
   dashboardReadOnly,
   onTransition,
   question,
+  topics,
 }: {
   activeKey?: string;
   dashboardReadOnly: boolean;
@@ -1021,7 +1033,13 @@ function VersionHistory({
     expectedState: QuestionVersionState,
   ) => void;
   question: QuestionLifecycleDto;
+  topics: QuestionLifecycleDashboard["topics"];
 }) {
+  const versionsById = new Map(
+    question.versions.map((version) => [version.versionId, version]),
+  );
+  const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
+
   return (
     <div className="grid gap-5 py-3 lg:grid-cols-2">
       <section>
@@ -1035,24 +1053,61 @@ function VersionHistory({
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">v{version.versionNumber}</Badge>
                 <LifecycleBadge state={version.state} />
-                <span>{version.creationMethod}</span>
-                {version.parentVersionId ? (
-                  <span className="text-muted-foreground">
-                    from #{version.parentVersionId}
-                  </span>
+                {version.versionId === question.workingVersion.versionId ? (
+                  <Badge variant="secondary">Working version</Badge>
+                ) : null}
+                {version.versionId === question.publishedVersion?.versionId ? (
+                  <Badge variant="success">Published version</Badge>
                 ) : null}
               </div>
               <p className="mt-2 font-medium">{version.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {versionLineageLabel(version, versionsById)}
+              </p>
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                <dt>Created by</dt>
+                <dd>
+                  {version.createdBy.displayName} · {version.createdAt}
+                </dd>
+                <dt>Creation</dt>
+                <dd>{version.creationMethod.replaceAll("_", " ")}</dd>
+                <dt>Topic</dt>
+                <dd>
+                  {topicTitles.get(version.topicId) ?? version.topicId}
+                  {topicTitles.has(version.topicId)
+                    ? ` (${version.topicId})`
+                    : ""}
+                </dd>
+                <dt>Difficulty</dt>
+                <dd>{version.difficulty}</dd>
+                <dt>Validation</dt>
+                <dd>{version.validationStatus}</dd>
+                <dt>Source</dt>
+                <dd>{version.source.sourceType.replaceAll("_", " ")}</dd>
+                {version.source.originalityNote ? (
+                  <>
+                    <dt>Originality</dt>
+                    <dd>{version.source.originalityNote}</dd>
+                  </>
+                ) : null}
+              </dl>
               <p className="mt-1 font-mono text-xs text-muted-foreground">
-                {version.contentHash}
+                Content SHA-256: {version.contentHash}
               </p>
               <VersionDiff
-                base={question.versions.find(
-                  (candidate) =>
-                    candidate.versionId === version.parentVersionId,
-                )}
+                base={
+                  version.parentVersionId
+                    ? versionsById.get(version.parentVersionId)
+                    : undefined
+                }
                 version={version}
               />
+              <details className="mt-3 border-t border-border pt-3">
+                <summary className="cursor-pointer font-medium">
+                  Inspect immutable content
+                </summary>
+                <VersionContent version={version} />
+              </details>
               {version.versionId !== question.workingVersion.versionId
                 ? version.allowedActions
                     .filter(
@@ -1090,35 +1145,149 @@ function VersionHistory({
         <h3 className="mb-2 text-sm font-medium">Lifecycle timeline</h3>
         <ol className="space-y-2">
           {question.events.map((event) => (
-            <li
+            <LifecycleTimelineEvent
               key={event.id}
-              className="border-l-2 border-border pl-3 text-sm"
-            >
-              <p>
-                <span className="font-medium">{event.action}</span>
-                {event.fromState || event.toState
-                  ? `: ${event.fromState ?? "new"} → ${event.toState ?? "unchanged"}`
-                  : ""}
-              </p>
-              <p className="text-muted-foreground">
-                {event.actor.displayName} ({event.actorRole}) ·{" "}
-                {event.actor.occurredAt}
-              </p>
-              {event.requestedBy &&
-              event.executedBy &&
-              event.requestedBy.userId !== event.executedBy.userId ? (
-                <p className="text-muted-foreground">
-                  Requested by {event.requestedBy.displayName}; executed by{" "}
-                  {event.executedBy.displayName}
-                </p>
-              ) : null}
-              {event.reasonCode ? <p>Reason: {event.reasonCode}</p> : null}
-            </li>
+              event={event}
+              version={versionsById.get(event.versionId)}
+            />
           ))}
         </ol>
       </section>
     </div>
   );
+}
+
+function VersionContent({ version }: { version: QuestionVersionDto }) {
+  return (
+    <div className="mt-3 space-y-3 text-xs">
+      <HistoryContentBlock label="Question wording">
+        <p>{version.prompt}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Accepted answers">
+        <p>{version.answer.acceptedAnswers.join(", ")}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Numeric grading">
+        <p>
+          {version.answer.numericValue === undefined
+            ? "No numeric value recorded."
+            : `Value ${version.answer.numericValue}; tolerance ${version.answer.tolerance ?? 0}.`}
+        </p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Answer explanation">
+        <p>{version.answer.explanation}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Solution steps">
+        <HistoryList items={version.solutionSteps} />
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Hints">
+        <HistoryList items={version.hints} />
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Misconceptions">
+        {version.misconceptions.length > 0 ? (
+          <ol className="list-decimal space-y-2 pl-5">
+            {version.misconceptions.map((item) => (
+              <li key={item.id}>
+                <p>{item.feedback}</p>
+                <p>
+                  Match terms: {item.matchTerms.join(", ") || "none recorded"}
+                </p>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p>None recorded.</p>
+        )}
+      </HistoryContentBlock>
+    </div>
+  );
+}
+
+function HistoryContentBlock({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <div>
+      <p className="font-medium">{label}</p>
+      <div className="mt-1 text-muted-foreground">{children}</div>
+    </div>
+  );
+}
+
+function HistoryList({ items }: { items: string[] }) {
+  return items.length > 0 ? (
+    <ol className="list-decimal space-y-1 pl-5">
+      {items.map((item, index) => (
+        <li key={`${index}:${item}`}>{item}</li>
+      ))}
+    </ol>
+  ) : (
+    <p>None recorded.</p>
+  );
+}
+
+function LifecycleTimelineEvent({
+  event,
+  version,
+}: {
+  event: QuestionLifecycleEventDto;
+  version?: QuestionVersionDto;
+}) {
+  return (
+    <li className="border-l-2 border-border pl-3 text-sm">
+      <p>
+        <span className="font-medium">{EVENT_LABELS[event.action]}</span>
+        {version ? ` · v${version.versionNumber}` : ""}
+        {event.fromState || event.toState
+          ? `: ${event.fromState ?? "new"} → ${event.toState ?? "unchanged"}`
+          : ""}
+      </p>
+      <p className="text-muted-foreground">
+        {event.actor.displayName} ({event.actorRole}) · {event.actor.occurredAt}
+      </p>
+      {event.requestedBy &&
+      event.executedBy &&
+      event.requestedBy.userId !== event.executedBy.userId ? (
+        <p className="text-muted-foreground">
+          Requested by {event.requestedBy.displayName}; executed by{" "}
+          {event.executedBy.displayName}
+        </p>
+      ) : null}
+      {event.reasonCode ? (
+        <p>Reason code: {event.reasonCode.replaceAll("_", " ")}</p>
+      ) : null}
+      {event.note ? <p>Comment: {event.note}</p> : null}
+    </li>
+  );
+}
+
+function versionLineageLabel(
+  version: QuestionVersionDto,
+  versionsById: Map<number, QuestionVersionDto>,
+) {
+  const parent = version.parentVersionId
+    ? versionsById.get(version.parentVersionId)
+    : undefined;
+  if (!parent) {
+    if (version.creationMethod === "generated") {
+      return "Original generated draft";
+    }
+    if (version.creationMethod === "imported") return "Original import";
+    return "Original version";
+  }
+
+  const relationship =
+    version.creationMethod === "regenerated"
+      ? "Regenerated"
+      : version.creationMethod === "rollback_clone"
+        ? "Rollback clone"
+        : version.creationMethod === "manual"
+          ? "Professor edit"
+          : "Derived version";
+  return `${relationship} from v${parent.versionNumber}`;
 }
 
 function VersionDiff({
