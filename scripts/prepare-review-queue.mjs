@@ -71,6 +71,7 @@ function buildReviewQueue(questions) {
     originalityNote: question.originalityNote,
     reviewStatus: question.reviewStatus,
     topic: question.topic,
+    topicId: question.topicId,
     difficulty: question.difficulty,
   }))
 }
@@ -104,6 +105,7 @@ function validateReviewQueuePayload(payload) {
       "originalityNote",
       "reviewStatus",
       "topic",
+      "topicId",
       "difficulty",
     ]) {
       if (typeof item[field] !== "string" || item[field].trim() === "") {
@@ -122,7 +124,11 @@ function validateReviewQueuePayload(payload) {
 
     requireStringArray(item.solutionSteps, `${label}.solutionSteps`, errors)
     requireStringArray(item.hints, `${label}.hints`, errors)
-    validateMisconceptions(item.misconceptions, `${label}.misconceptions`, errors)
+    validateMisconceptions(
+      item.misconceptions,
+      `${label}.misconceptions`,
+      errors,
+    )
   }
 
   return errors
@@ -176,9 +182,13 @@ function assertPrivateOrTempOutput(targetPath) {
   }
 
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

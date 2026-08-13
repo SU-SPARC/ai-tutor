@@ -47,6 +47,7 @@ export function ProfessorQuestionBatchConfirmation({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>();
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
+  const topicOrders = new Map(topics.map((topic, index) => [topic.id, index]));
   const inspectionTimes = new Map(
     inspections.map((inspection) => [
       inspection.versionId,
@@ -123,11 +124,18 @@ export function ProfessorQuestionBatchConfirmation({
       </div>
 
       <div className="flex flex-wrap gap-2" aria-label="Selected topic summary">
-        {[...selectedTopics].map(([topicId, count]) => (
-          <Badge key={topicId} variant="outline">
-            {topicTitles.get(topicId) ?? topicId}: {count}
-          </Badge>
-        ))}
+        {[...selectedTopics]
+          .sort(
+            ([leftId], [rightId]) =>
+              (topicOrders.get(leftId) ?? Number.MAX_SAFE_INTEGER) -
+                (topicOrders.get(rightId) ?? Number.MAX_SAFE_INTEGER) ||
+              leftId.localeCompare(rightId),
+          )
+          .map(([topicId, count]) => (
+            <Badge key={topicId} variant="outline">
+              {topicTitles.get(topicId) ?? topicId}: {count}
+            </Badge>
+          ))}
       </div>
 
       <div className="overflow-x-auto border border-border bg-background">
@@ -144,7 +152,10 @@ export function ProfessorQuestionBatchConfirmation({
             {questions.map((question) => {
               const version = question.workingVersion;
               return (
-                <tr key={question.questionId} className="border-b border-border">
+                <tr
+                  key={question.questionId}
+                  className="border-b border-border"
+                >
                   <td className="p-2">{version.title}</td>
                   <td className="p-2">
                     {topicTitles.get(version.topicId) ?? version.topicId}
@@ -173,9 +184,7 @@ export function ProfessorQuestionBatchConfirmation({
       ) : (
         <p className="text-sm">
           Reason: <span className="font-medium">{reasonCode}</span>
-          {action === "request_revision"
-            ? ` · Method: ${revisionMethod}`
-            : ""}
+          {action === "request_revision" ? ` · Method: ${revisionMethod}` : ""}
         </p>
       )}
 

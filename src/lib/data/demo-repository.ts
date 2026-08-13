@@ -12,6 +12,7 @@ import {
   retrievalChunks,
   reviewCandidates,
 } from "@/lib/data/demo-data";
+import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
 import {
   type AdminQuestionFilters,
   reviewStatusForAction,
@@ -310,7 +311,9 @@ function getDemoProfessorPracticeAnalytics() {
       ),
       totalTutorSessions: 26,
     },
-    topics: [...byTopic.values()],
+    topics: [...byTopic.values()].sort((left, right) =>
+      compareCanonicalTopicIds(left.topicId, right.topicId),
+    ),
   };
 }
 

@@ -16,7 +16,7 @@ describe("question retrieval chunks", () => {
     const chunks = chunkQuestion({
       id: "approved-demo-question",
       topic: "basic probability",
-      topicId: "basic-probability",
+      topicId: "introduction-probability-venn-diagrams",
       title: "Basic probability",
       difficulty: "foundational",
       questionText: "A tray has 3 blue slips and 2 red slips. What is P(blue)?",
@@ -44,12 +44,14 @@ describe("question retrieval chunks", () => {
       "hint",
       "misconception",
     ])
-    expect(chunks.every((chunk) => chunk.questionId === "approved-demo-question")).toBe(
-      true,
-    )
-    expect(chunks.every((chunk) => chunk.body.length <= QUESTION_CHUNK_MAX_BODY_CHARACTERS)).toBe(
-      true,
-    )
+    expect(
+      chunks.every((chunk) => chunk.questionId === "approved-demo-question"),
+    ).toBe(true)
+    expect(
+      chunks.every(
+        (chunk) => chunk.body.length <= QUESTION_CHUNK_MAX_BODY_CHARACTERS,
+      ),
+    ).toBe(true)
     expect(validateQuestionChunks(chunks, { visibility: "public" })).toEqual([])
   })
 
@@ -73,8 +75,10 @@ describe("question retrieval chunks", () => {
           {
             id: "demo-safe",
             topic: "basic probability",
+            topicId: "introduction-probability-venn-diagrams",
             difficulty: "foundational",
-            questionText: "A basket has 1 marked card and 3 plain cards. What is P(marked)?",
+            questionText:
+              "A basket has 1 marked card and 3 plain cards. What is P(marked)?",
             finalAnswer: "1/4",
             solutionSteps: ["Use 1 marked card out of 4 total cards."],
             hints: ["Count the total cards."],
@@ -106,8 +110,10 @@ describe("question retrieval chunks", () => {
             {
               id: "approved-generated-safe",
               topic: "counting",
+              topicId: "axioms-probability-counting-methods",
               difficulty: "foundational",
-              questionText: "Choose 2 labels from 5 labels. How many groups are possible?",
+              questionText:
+                "Choose 2 labels from 5 labels. How many groups are possible?",
               finalAnswer: "10",
               solutionSteps: ["Compute C(5,2) = 10."],
               hints: ["Order does not matter."],
@@ -141,8 +147,10 @@ describe("question retrieval chunks", () => {
             {
               id: "review-generated-safe",
               topic: "binomial models",
+              topicId: "binomial-models",
               difficulty: "intermediate",
-              question: "A tool runs 4 independent checks. What is P(exactly 1 success)?",
+              question:
+                "A tool runs 4 independent checks. What is P(exactly 1 success)?",
               answer: "C(4,1)p(1-p)^3",
               solutionSteps: ["Use the binomial exact-count formula."],
               hints: ["Identify n and k."],
@@ -170,7 +178,8 @@ describe("question retrieval chunks", () => {
             topicId: "conditional-probability",
             topic: "conditional probability",
             title: "Conditional draft",
-            prompt: "Given a selected item is tagged, what fraction are urgent?",
+            prompt:
+              "Given a selected item is tagged, what fraction are urgent?",
             difficulty: "foundational",
             answer: {
               acceptedAnswers: ["2/7"],
@@ -227,6 +236,20 @@ describe("question retrieval chunks", () => {
     expect(privatePayload.safety.callsOpenAI).toBe(false)
     expect(publicPayload.chunks).toHaveLength(10)
     expect(privatePayload.chunks).toHaveLength(10)
+    expect([
+      ...new Set(
+        publicPayload.chunks.map(
+          (chunk: { questionId: string }) => chunk.questionId,
+        ),
+      ),
+    ]).toEqual(["demo-safe", "approved-generated-safe"])
+    expect([
+      ...new Set(
+        privatePayload.chunks.map(
+          (chunk: { questionId: string }) => chunk.questionId,
+        ),
+      ),
+    ]).toEqual(["candidate-generated-safe", "review-generated-safe"])
     expect(
       publicPayload.chunks.every(
         (chunk: { reviewStatus: string; trustLevel: string }) =>
@@ -236,7 +259,11 @@ describe("question retrieval chunks", () => {
     ).toBe(true)
     expect(
       privatePayload.chunks.every(
-        (chunk: { reviewStatus: string; trustLevel: string; visibility: string }) =>
+        (chunk: {
+          reviewStatus: string
+          trustLevel: string
+          visibility: string
+        }) =>
           chunk.reviewStatus === "needs_review" &&
           chunk.trustLevel === "generated_unverified" &&
           chunk.visibility === "private",

@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  CANONICAL_SYLLABUS_TOPICS_FILE,
+  loadCanonicalSyllabusTopics,
+} from "./canonical-syllabus-topics.mjs";
 
 export const REVIEW_CANDIDATE_IMPORT_LOCK_ID = 7_241_903_207;
 
@@ -12,7 +16,6 @@ export const REVIEW_CANDIDATE_FILES = Object.freeze([
 ]);
 const REVIEW_CANDIDATE_FILE_SET = new Set(REVIEW_CANDIDATE_FILES);
 
-const TOPICS_FILE = "data/demo/topics.json";
 const DIFFICULTIES = new Set(["foundational", "intermediate", "challenge"]);
 const SOURCE_TYPES = new Set([
   "generated_original",
@@ -40,7 +43,7 @@ export function resolveReviewCandidateDatabaseUrl(environment = process.env) {
 }
 
 export async function loadPublicReviewCandidateFixtures(repositoryRoot) {
-  const topics = await readJson(path.join(repositoryRoot, TOPICS_FILE));
+  const topics = await loadCanonicalSyllabusTopics(repositoryRoot);
   const candidateGroups = await Promise.all(
     REVIEW_CANDIDATE_FILES.map(async (sourceFile) => ({
       candidates: await readJson(path.join(repositoryRoot, sourceFile)),
@@ -550,7 +553,9 @@ function reportFromPlan(plan, { dryRun, target }) {
 
 function validateTopics(topics, issues) {
   if (!Array.isArray(topics) || topics.length === 0) {
-    issues.push(`${TOPICS_FILE} must contain a non-empty JSON array.`);
+    issues.push(
+      `${CANONICAL_SYLLABUS_TOPICS_FILE} must contain a non-empty JSON array.`,
+    );
     return new Set();
   }
 
@@ -559,7 +564,7 @@ function validateTopics(topics, issues) {
   const orders = new Set();
   let previousOrder = 0;
   for (const [index, topic] of topics.entries()) {
-    const label = `${TOPICS_FILE}[${index}]`;
+    const label = `${CANONICAL_SYLLABUS_TOPICS_FILE}[${index}]`;
     requireString(topic?.id, `${label}.id`, issues);
     requireString(topic?.title, `${label}.title`, issues);
     requireString(topic?.description, `${label}.description`, issues);
@@ -576,7 +581,9 @@ function validateTopics(topics, issues) {
       issues.push(`${label}.order must be unique.`);
     }
     if (Number.isInteger(topic?.order) && topic.order <= previousOrder) {
-      issues.push(`${TOPICS_FILE} must be in strictly increasing order.`);
+      issues.push(
+        `${CANONICAL_SYLLABUS_TOPICS_FILE} must be in strictly increasing order.`,
+      );
     }
     if (Number.isInteger(topic?.order)) {
       previousOrder = topic.order;

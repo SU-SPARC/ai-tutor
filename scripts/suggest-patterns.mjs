@@ -5,12 +5,19 @@ import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  canonicalTopicMap,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 )
-const defaultInputPath = path.join(repoRoot, "data/processed/course-outline.json")
+const defaultInputPath = path.join(
+  repoRoot,
+  "data/processed/course-outline.json",
+)
 const defaultPrivateTextDir = path.join(repoRoot, "data/private/extracted")
 const defaultOutputPath = path.join(
   repoRoot,
@@ -23,14 +30,17 @@ const privateTextDir = path.resolve(
   repoRoot,
   args.privateTextDir ?? defaultPrivateTextDir,
 )
+const canonicalTopics = canonicalTopicMap(
+  await loadCanonicalSyllabusTopics(repoRoot),
+)
 
 const patternCatalog = [
   {
-    topicId: "basic-probability",
+    topicId: "introduction-probability-venn-diagrams",
     triggerTerms: ["basic probability", "sample space", "event", "complement"],
     pattern: {
       id: "suggested-basic-probability-complement",
-      topicId: "basic-probability",
+      topicId: "introduction-probability-venn-diagrams",
       title: "Complement probability pattern",
       abstractTemplate:
         "A finite sample space has a target event and its complement. Compute the probability of the complement from counts or probabilities.",
@@ -64,11 +74,11 @@ const patternCatalog = [
     },
   },
   {
-    topicId: "counting",
+    topicId: "axioms-probability-counting-methods",
     triggerTerms: ["counting", "permutation", "combination", "factorial"],
     pattern: {
       id: "suggested-counting-order-decision",
-      topicId: "counting",
+      topicId: "axioms-probability-counting-methods",
       title: "Order matters decision pattern",
       abstractTemplate:
         "A selection task asks for either an ordered arrangement or an unordered group. Decide whether to use a permutation or combination before computing.",
@@ -140,15 +150,19 @@ const patternCatalog = [
     },
   },
   {
-    topicId: "expected-value",
+    topicId: "random-variables",
     triggerTerms: ["expected value", "expectation", "weighted average", "e(x)"],
     pattern: {
       id: "suggested-expected-value-weighted-average",
-      topicId: "expected-value",
+      topicId: "random-variables",
       title: "Discrete weighted-average pattern",
       abstractTemplate:
         "A discrete random variable has several values and probabilities. Compute its expected value as a probability-weighted average.",
-      conceptTags: ["expected value", "weighted average", "discrete distribution"],
+      conceptTags: [
+        "expected value",
+        "weighted average",
+        "discrete distribution",
+      ],
       formulaRefs: ["E(X) = sum x p(x)"],
       variables: [
         {
@@ -307,6 +321,17 @@ const patternCatalog = [
   },
 ]
 
+for (const entry of patternCatalog) {
+  if (
+    !canonicalTopics.has(entry.topicId) ||
+    entry.pattern.topicId !== entry.topicId
+  ) {
+    throw new Error(
+      `Suggested pattern ${entry.pattern.id} has a stale topic mapping.`,
+    )
+  }
+}
+
 async function main() {
   if (!assertPrivateOrTempOutput(outputPath)) {
     process.exitCode = 1
@@ -315,7 +340,10 @@ async function main() {
 
   const outlineResult = await readJsonIfExists(inputPath)
   const privateSignals = await collectPrivateTextSignals(privateTextDir)
-  const suggestedPatterns = suggestPatterns(outlineResult.payload, privateSignals)
+  const suggestedPatterns = suggestPatterns(
+    outlineResult.payload,
+    privateSignals,
+  )
   const payload = {
     schemaVersion: 1,
     visibility: "private",
@@ -449,7 +477,9 @@ async function collectPrivateTextSignals(directoryPath) {
   }
 
   const textFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".txt"))
+    .filter(
+      (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".txt"),
+    )
     .map((entry) => path.join(directoryPath, entry.name))
     .sort()
   const texts = await Promise.all(
@@ -524,7 +554,9 @@ function validateSuggestedPatternPayload(payload) {
   }
 
   if (/"prompt"|"questionText"|"solutionSteps"/.test(serialized)) {
-    errors.push("payload must not include generated item prompts or worked steps.")
+    errors.push(
+      "payload must not include generated item prompts or worked steps.",
+    )
   }
 
   for (const [index, pattern] of payload.suggestedPatterns.entries()) {
@@ -575,8 +607,16 @@ function validateSuggestedPattern(pattern, index, errors) {
     `${label}.misconceptionTargets`,
     errors,
   )
-  requireStringArray(pattern.suggestedBecause, `${label}.suggestedBecause`, errors)
-  requireStringArray(pattern.humanReviewNotes, `${label}.humanReviewNotes`, errors)
+  requireStringArray(
+    pattern.suggestedBecause,
+    `${label}.suggestedBecause`,
+    errors,
+  )
+  requireStringArray(
+    pattern.humanReviewNotes,
+    `${label}.humanReviewNotes`,
+    errors,
+  )
 
   if (!Array.isArray(pattern.variables) || pattern.variables.length === 0) {
     errors.push(`${label}.variables must be a non-empty array.`)
@@ -627,9 +667,13 @@ function assertPrivateOrTempOutput(targetPath) {
   }
 
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

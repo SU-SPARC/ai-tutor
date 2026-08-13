@@ -1,5 +1,7 @@
 import "server-only"
 
+import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics"
+
 import {
   REVIEW_PRIORITIES,
   REVIEW_STATUSES,
@@ -94,7 +96,8 @@ export function buildInstructorAnalyticsDashboard(input: {
         attempts: question.attempts,
         correctAttempts: question.correctAttempts,
         missedAttempts,
-        missRate: question.attempts > 0 ? missedAttempts / question.attempts : 0,
+        missRate:
+          question.attempts > 0 ? missedAttempts / question.attempts : 0,
         questionId: question.questionId,
         questionTitle: question.questionTitle,
         topicId: question.topicId,
@@ -106,6 +109,7 @@ export function buildInstructorAnalyticsDashboard(input: {
       (left, right) =>
         right.missedAttempts - left.missedAttempts ||
         right.missRate - left.missRate ||
+        compareCanonicalTopicIds(left.topicId, right.topicId) ||
         left.questionTitle.localeCompare(right.questionTitle),
     )
     .slice(0, 8)
@@ -113,13 +117,14 @@ export function buildInstructorAnalyticsDashboard(input: {
     .sort(
       (left, right) =>
         right.attempts - left.attempts ||
-        left.topicTitle.localeCompare(right.topicTitle),
+        compareCanonicalTopicIds(left.topicId, right.topicId),
     )
     .slice(0, 8)
   const commonMisconceptions = [...input.practice.commonMisconceptions]
     .sort(
       (left, right) =>
         right.missedAttempts - left.missedAttempts ||
+        compareCanonicalTopicIds(left.topicId, right.topicId) ||
         left.feedback.localeCompare(right.feedback),
     )
     .slice(0, 8)
@@ -233,7 +238,10 @@ export function validateGeneratedReviewUpload(
   }
 
   if (items.length === 0) {
-    return { candidates: [], errors: ["Upload must include at least one item."] }
+    return {
+      candidates: [],
+      errors: ["Upload must include at least one item."],
+    }
   }
 
   if (items.length > MAX_UPLOAD_CANDIDATES) {
@@ -271,7 +279,9 @@ export function validateGeneratedReviewUpload(
 export function isValidReviewPriority(
   value: string | undefined,
 ): value is ReviewPriority {
-  return value ? (REVIEW_PRIORITIES as readonly string[]).includes(value) : false
+  return value
+    ? (REVIEW_PRIORITIES as readonly string[]).includes(value)
+    : false
 }
 
 export function isValidReviewStatus(
@@ -374,8 +384,7 @@ function candidateFromUploadItem(
 
   if (!sourceType || !generatedSourceTypes.has(sourceType)) {
     return {
-      error:
-        `Item ${index + 1} must be generated_original or pattern_derived_original.`,
+      error: `Item ${index + 1} must be generated_original or pattern_derived_original.`,
     }
   }
 
@@ -430,10 +439,11 @@ function candidateFromUploadItem(
       prompt,
       review: {
         notes: firstString(review?.notes, item.reviewNotes),
-        reviewPriority: stringEnum<ReviewPriority>(
-          firstString(review?.reviewPriority, item.reviewPriority),
-          REVIEW_PRIORITIES,
-        ) ?? "normal",
+        reviewPriority:
+          stringEnum<ReviewPriority>(
+            firstString(review?.reviewPriority, item.reviewPriority),
+            REVIEW_PRIORITIES,
+          ) ?? "normal",
         status: "needs_review",
       },
       solutionSteps,
@@ -445,8 +455,7 @@ function candidateFromUploadItem(
         visibility: "public",
       },
       title:
-        firstString(item.title) ??
-        `Generated review candidate ${index + 1}`,
+        firstString(item.title) ?? `Generated review candidate ${index + 1}`,
       topic: firstString(item.topic),
       topicId,
     },

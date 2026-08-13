@@ -48,7 +48,7 @@ const ROOT_KEYS = [
 
 export async function loadApprovedContentManifest(
   manifestPath,
-  { now = new Date(), repositoryRoot } = {},
+  { canonicalTopics, now = new Date(), repositoryRoot } = {},
 ) {
   if (!repositoryRoot) {
     throw new ContentImportValidationError([
@@ -69,8 +69,31 @@ export async function loadApprovedContentManifest(
   }
 
   const validated = validateApprovedContentManifest(raw, { now })
+  if (canonicalTopics) {
+    validateCanonicalTopicProjection(validated.manifest, canonicalTopics)
+  }
   await verifySourceFiles(validated.manifest.sourceFiles, repositoryRoot)
   return { ...validated, sourceFilesVerified: true }
+}
+
+export function validateCanonicalTopicProjection(manifest, canonicalTopics) {
+  const projected = canonicalTopics.map((topic) => ({
+    description: topic.description,
+    id: topic.id,
+    isActive: topic.active,
+    moduleRef: topic.moduleRef,
+    sortOrder: topic.order,
+    title: topic.title,
+    weekNumber: topic.weekNumber,
+  }))
+  if (canonicalJson(manifest.topics) !== canonicalJson(projected)) {
+    throw new ContentImportValidationError([
+      issue(
+        "canonical_syllabus_mismatch",
+        "Manifest topics must exactly match data/canonical/syllabus-topics.json; update the canonical syllabus first or report the change for human review.",
+      ),
+    ])
+  }
 }
 
 export function validateApprovedContentManifest(

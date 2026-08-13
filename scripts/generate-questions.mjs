@@ -5,6 +5,11 @@ import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  canonicalTopicMap,
+  compareTopics,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -26,7 +31,20 @@ async function main() {
   }
 
   const patternPayload = JSON.parse(await readFile(inputPath, "utf8"))
-  const generatedQuestions = generateQuestions(patternPayload.patterns ?? [])
+  const canonicalTopicList = await loadCanonicalSyllabusTopics(repoRoot)
+  const canonicalTopics = canonicalTopicMap(canonicalTopicList)
+  for (const pattern of patternPayload.patterns ?? []) {
+    if (!canonicalTopics.has(pattern.topicId)) {
+      throw new Error(
+        `Pattern ${pattern.id} references unknown canonical topic ${pattern.topicId}.`,
+      )
+    }
+  }
+  const generatedQuestions = generateQuestions(
+    [...(patternPayload.patterns ?? [])].sort((left, right) =>
+      compareTopics(left, right, canonicalTopicList),
+    ),
+  )
   const payload = {
     schemaVersion: 1,
     visibility: "private",
@@ -203,7 +221,11 @@ function buildConditionalProbabilityQuestion(pattern) {
         "Only students inside the given condition should be counted.",
       ),
     ],
-    check: { conditionGroupCount, favorableWithinCondition, outsideConditionCount },
+    check: {
+      conditionGroupCount,
+      favorableWithinCondition,
+      outsideConditionCount,
+    },
   })
 }
 
@@ -581,6 +603,7 @@ function generatedQuestion(pattern, draft) {
     id: draft.id,
     patternId: pattern.id,
     topic: pattern.topic,
+    topicId: pattern.topicId,
     difficulty: pattern.difficulty,
     questionText: draft.questionText,
     finalAnswer: draft.finalAnswer,
@@ -620,6 +643,7 @@ function validateGeneratedPayload(payload) {
       "id",
       "patternId",
       "topic",
+      "topicId",
       "difficulty",
       "questionText",
       "finalAnswer",
@@ -699,12 +723,11 @@ function erf(value) {
   const t = 1 / (1 + 0.3275911 * x)
   const approximation =
     1 -
-    (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t -
-      0.284496736) *
+    ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) *
       t +
       0.254829592) *
       t *
-      Math.exp(-x * x))
+      Math.exp(-x * x)
 
   return sign * approximation
 }
@@ -728,9 +751,13 @@ function assertPrivateOrTempOutput(targetPath) {
   }
 
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

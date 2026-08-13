@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -15,30 +16,19 @@ const privateDetailsPath = path.join(
   privateGeneratedDir,
   "latex-ingestion-details.json",
 )
-const publicOutputPath = path.join(repoRoot, "data/processed/latex-outline.json")
+const publicOutputPath = path.join(
+  repoRoot,
+  "data/processed/latex-outline.json",
+)
 
-const topicCatalog = [
-  {
-    label: "basic probability",
-    terms: ["probability", "sample space", "event", "outcome", "complement"],
-  },
-  {
-    label: "counting",
-    terms: ["counting", "permutation", "combination", "factorial", "choose"],
-  },
-  {
-    label: "conditional probability",
-    terms: ["conditional", "given", "independent", "bayes", "p(a|b)"],
-  },
-  {
-    label: "random variables",
-    terms: ["random variable", "distribution", "pmf", "cdf", "variance"],
-  },
-  {
-    label: "expected value",
-    terms: ["expected value", "expectation", "mean", "e(x)", "weighted"],
-  },
-]
+const topicCatalog = (await loadCanonicalSyllabusTopics(repoRoot)).map(
+  (topic) => ({
+    id: topic.id,
+    label: topic.title,
+    order: topic.order,
+    terms: topic.keywords,
+  }),
+)
 
 async function main() {
   const texFiles = await listTexFiles()
@@ -100,7 +90,9 @@ async function listTexFiles() {
   }
 
   return entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".tex"))
+    .filter(
+      (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".tex"),
+    )
     .map((entry) => path.join(inputDir, entry.name))
     .sort()
 }
@@ -116,7 +108,7 @@ function parseTexFile(filePath, source) {
     sourcePath: relativeToRepo(filePath),
     sectionTitles: sections,
     formulas,
-    topicLabels: detectTopicLabels([
+    topics: detectTopics([
       ...sections,
       ...learningObjectives,
       ...formulas.map((formula) => formula.symbolicFormula),
@@ -155,14 +147,16 @@ function buildPublicOutline(parsedFiles) {
       excludesAnswerKeys: true,
     },
     sectionTitles: uniqueStrings(
-      parsedFiles.flatMap((file) => file.sectionTitles).filter(isPublicSafeTitle),
+      parsedFiles
+        .flatMap((file) => file.sectionTitles)
+        .filter(isPublicSafeTitle),
     ),
     formulas: uniqueByFormula(
       parsedFiles
         .flatMap((file) => file.formulas)
         .filter((formula) => isPublicSafeFormula(formula.symbolicFormula)),
     ),
-    topicLabels: uniqueStrings(parsedFiles.flatMap((file) => file.topicLabels)),
+    topics: uniqueTopics(parsedFiles.flatMap((file) => file.topics)),
     learningObjectives: uniqueStrings(
       parsedFiles
         .flatMap((file) => file.learningObjectives)
@@ -268,11 +262,18 @@ function normalizeObjectiveLine(line) {
   return objectiveMatch ? objectiveMatch[1].trim() : undefined
 }
 
-function detectTopicLabels(values) {
+function detectTopics(values) {
   const text = values.join(" ").toLowerCase()
   return topicCatalog
     .filter((topic) => topic.terms.some((term) => text.includes(term)))
-    .map((topic) => topic.label)
+    .map(({ id, label, order }) => ({ id, label, order }))
+}
+
+function uniqueTopics(topics) {
+  return [...new Map(topics.map((topic) => [topic.id, topic])).values()].sort(
+    (left, right) =>
+      left.order - right.order || left.id.localeCompare(right.id),
+  )
 }
 
 function isPublicSafeTitle(title) {
@@ -387,9 +388,13 @@ function wordCount(value) {
 
 function assertIgnored(label, targetPath) {
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

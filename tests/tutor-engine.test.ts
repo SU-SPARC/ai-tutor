@@ -1447,16 +1447,16 @@ describe("problem-pattern generation pipeline", () => {
     const questions = payload.questions as GeneratedQuestionDraft[];
     const expectedTopics = [
       "basic probability",
+      "combinations",
       "counting",
+      "permutations",
+      "Bayes rule",
       "conditional probability",
       "independence",
       "expected value",
-      "permutations",
-      "combinations",
-      "Bayes rule",
+      "variance",
       "binomial distribution",
       "hypergeometric distribution",
-      "variance",
       "normal approximation",
     ];
 
@@ -1967,6 +1967,7 @@ function reviewQueueFixture(
     originalityNote: "Original synthetic fixture.",
     reviewStatus,
     topic: "basic probability",
+    topicId: "introduction-probability-venn-diagrams",
     difficulty: "foundational",
   };
 }

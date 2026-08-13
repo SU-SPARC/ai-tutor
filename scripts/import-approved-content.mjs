@@ -17,6 +17,7 @@ import {
   getMigrationStatus,
   loadMigrations,
 } from "./lib/database-migrations.mjs"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const { Pool } = pg
 const repositoryRoot = path.resolve(
@@ -33,7 +34,9 @@ async function main() {
 
   const manifestPath = path.resolve(repositoryRoot, options.manifest)
   await assertApprovedManifestPath(manifestPath)
+  const canonicalTopics = await loadCanonicalSyllabusTopics(repositoryRoot)
   const validatedManifest = await loadApprovedContentManifest(manifestPath, {
+    canonicalTopics,
     repositoryRoot,
   })
   assertGitTrackedReleaseFiles(

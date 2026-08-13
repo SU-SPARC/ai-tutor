@@ -3,12 +3,12 @@
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 )
-const topicsPath = path.join(repoRoot, "data/demo/topics.json")
 const previousBatchPaths = [
   path.join(repoRoot, "data/demo/syllabus-review-candidates.json"),
   path.join(repoRoot, "data/demo/next-syllabus-review-candidates.json"),
@@ -19,12 +19,13 @@ const outputPath = path.join(
 )
 const checkOnly = process.argv.includes("--check")
 
-const PREVIOUS_FINAL_TOPIC_ID = "binomial-models"
-const EXPECTED_TOPIC_IDS = [
-  "continuous-random-variables",
-  "normal-standardization",
-  "moment-generating-functions-joint-distributions",
-]
+const canonicalTopics = await loadCanonicalSyllabusTopics(repoRoot)
+const PREVIOUS_FINAL_TOPIC_ID = canonicalTopics.find(
+  ({ order }) => order === 5,
+)?.id
+const EXPECTED_TOPIC_IDS = canonicalTopics
+  .filter(({ order }) => [8, 9, 10].includes(order))
+  .map(({ id }) => id)
 const ORIGINALITY_NOTE =
   "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
 
@@ -1410,7 +1411,7 @@ function validateCandidates(candidates, topicMap, previousBatches) {
 
 async function main() {
   const [topics, ...previousBatches] = await Promise.all([
-    readFile(topicsPath, "utf8").then(JSON.parse),
+    Promise.resolve(canonicalTopics),
     ...previousBatchPaths.map((batchPath) =>
       readFile(batchPath, "utf8").then(JSON.parse),
     ),

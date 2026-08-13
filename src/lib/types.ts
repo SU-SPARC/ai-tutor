@@ -170,6 +170,7 @@ export type Topic = {
   active: boolean;
   description: string;
   id: string;
+  keywords?: string[];
   moduleRef: string;
   order: number;
   title: string;
@@ -511,6 +512,7 @@ export type GeneratedQuestionDraft = {
   solutionSteps: string[];
   sourceType: "generated_original";
   topic: string;
+  topicId: string;
   trustLevel: "generated_unverified";
 };
 
@@ -526,6 +528,7 @@ export type GeneratedQuestionReviewItem = {
   reviewStatus: ReviewStatus;
   solutionSteps: string[];
   topic: string;
+  topicId: string;
 };
 
 export type ApprovedGeneratedQuestion = {
@@ -545,6 +548,7 @@ export type ApprovedGeneratedQuestion = {
     visibility: "public";
   };
   topic: string;
+  topicId: string;
   trustLevel: "professor_approved";
 };
 

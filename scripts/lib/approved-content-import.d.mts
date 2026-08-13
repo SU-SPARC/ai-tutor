@@ -124,8 +124,32 @@ export function validateApprovedContentManifest(
 ): ValidatedApprovedContentManifest
 export function loadApprovedContentManifest(
   manifestPath: string,
-  options: { now?: Date; repositoryRoot: string },
+  options: {
+    canonicalTopics?: Array<{
+      active: boolean
+      description: string
+      id: string
+      moduleRef: string
+      order: number
+      title: string
+      weekNumber: number
+    }>
+    now?: Date
+    repositoryRoot: string
+  },
 ): Promise<ValidatedApprovedContentManifest>
+export function validateCanonicalTopicProjection(
+  manifest: ApprovedContentManifest,
+  canonicalTopics: Array<{
+    active: boolean
+    description: string
+    id: string
+    moduleRef: string
+    order: number
+    title: string
+    weekNumber: number
+  }>,
+): void
 export function importApprovedContent(options: {
   actor?: string
   changeTicket?: string

@@ -3,23 +3,22 @@
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 )
-const topicsPath = path.join(repoRoot, "data/demo/topics.json")
 const outputPath = path.join(
   repoRoot,
   "data/demo/next-syllabus-review-candidates.json",
 )
 const checkOnly = process.argv.includes("--check")
 
-const EXPECTED_TOPIC_IDS = [
-  "conditional-probability",
-  "random-variables",
-  "binomial-models",
-]
+const canonicalTopics = await loadCanonicalSyllabusTopics(repoRoot)
+const EXPECTED_TOPIC_IDS = canonicalTopics
+  .filter(({ order }) => [3, 4, 5].includes(order))
+  .map(({ id }) => id)
 const ORIGINALITY_NOTE =
   "Original practice draft generated from an abstract probability pattern."
 
@@ -1170,7 +1169,7 @@ function validateCandidates(candidates, topicMap) {
 }
 
 async function main() {
-  const topics = JSON.parse(await readFile(topicsPath, "utf8"))
+  const topics = canonicalTopics
   const topicMap = validateTopicSequence(topics)
   const candidates = buildCandidates(topicMap)
   validateCandidates(candidates, topicMap)

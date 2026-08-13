@@ -18,6 +18,7 @@ import {
   importApprovedContent,
   loadApprovedContentManifest,
   sha256,
+  validateCanonicalTopicProjection,
   validateApprovedContentManifest,
   type ApprovedContentManifest,
   type ContentImportClient,
@@ -40,6 +41,35 @@ afterEach(async () => {
 })
 
 describe("approved-content Production importer", () => {
+  it("requires production manifests to match the canonical syllabus projection", () => {
+    const manifest = validateApprovedContentManifest(signedManifest()).manifest
+    const canonicalTopics = manifest.topics.map((topic) => ({
+      active: topic.isActive,
+      description: topic.description,
+      id: topic.id,
+      moduleRef: topic.moduleRef,
+      order: topic.sortOrder,
+      title: topic.title,
+      weekNumber: topic.weekNumber,
+    }))
+
+    expect(() =>
+      validateCanonicalTopicProjection(manifest, canonicalTopics),
+    ).not.toThrow()
+    expect(() =>
+      validateCanonicalTopicProjection(manifest, [
+        { ...canonicalTopics[0], order: canonicalTopics[0].order + 100 },
+        ...canonicalTopics.slice(1),
+      ]),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({ code: "canonical_syllabus_mismatch" }),
+        ]),
+      }),
+    )
+  })
+
   it("validates exact approved content, hashes, IDs, and syllabus order", () => {
     const manifest = signedManifest()
     const validated = validateApprovedContentManifest(manifest, {
@@ -278,7 +308,11 @@ describe("approved-content Production importer", () => {
 
     const second = await runImport(database, validated)
     expect(second.status).toBe("no-op")
-    expect(second.summary.questions).toEqual({ inserted: 0, noOp: 2, total: 2 })
+    expect(second.summary.questions).toEqual({
+      inserted: 0,
+      noOp: 2,
+      total: 2,
+    })
     expect(await contentCounts(database)).toEqual({
       approvals: 2,
       imports: 1,

@@ -79,7 +79,8 @@ describe("professor content preview API", () => {
         uploadKind: "tex",
       },
     });
-    expect(serialized).toContain("Conditional probability");
+    expect(serialized).toContain("Conditional Probability");
+    expect(serialized).toContain('"topicId":"conditional-probability"');
     expect(payload.preview.formulas[0]?.symbolicFormula).toContain(
       "P(A\\mid B)",
     );
@@ -109,7 +110,7 @@ describe("professor content preview API", () => {
       },
     });
     expect(serialized).toContain("PDFs are private reference material only");
-    expect(serialized).toContain("Conditional probability");
+    expect(serialized).toContain("Conditional Probability");
     expect(serialized).not.toContain("What is the answer");
     expect(serialized).not.toMatch(/rawText|extractedText|sourcePage/i);
   });

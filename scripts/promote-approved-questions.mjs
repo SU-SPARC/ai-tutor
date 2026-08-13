@@ -94,6 +94,7 @@ function promoteApprovedQuestions(queueItems) {
     questions.push({
       id,
       topic: item.topic,
+      topicId: item.topicId,
       difficulty: item.difficulty,
       questionText: item.question,
       finalAnswer: item.answer,
@@ -125,6 +126,7 @@ function validatePromotableItem(item, label) {
     "patternId",
     "originalityNote",
     "topic",
+    "topicId",
     "difficulty",
   ]) {
     if (typeof item[field] !== "string" || item[field].trim() === "") {

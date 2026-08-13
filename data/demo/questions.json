@@ -83,28 +83,38 @@
     "trustLevel": "original_demo"
   },
   {
-    "id": "demo-random-variable-bulb-sample",
-    "topicId": "random-variables",
-    "topic": "random variables",
-    "title": "Working Bulb Distribution",
-    "difficulty": "intermediate",
-    "questionText": "A bin has 3 working bulbs and 2 burned-out bulbs. Two bulbs are selected without replacement. Let X be the number of working bulbs selected. What is the probability distribution of X?",
-    "finalAnswer": "P(X = 0) = 1/10, P(X = 1) = 6/10, P(X = 2) = 3/10",
+    "id": "dice-sum-eight",
+    "topicId": "conditional-probability",
+    "topic": "conditional probability",
+    "title": "Dice Sum Condition",
+    "difficulty": "foundational",
+    "questionText": "Two fair dice are rolled. Given that the sum is 8, what is the probability that at least one die shows 3?",
+    "finalAnswer": "2/5",
+    "acceptedAnswers": ["2/5", "0.4", "40%"],
+    "numericValue": 0.4,
+    "tolerance": 0.005,
+    "answerExplanation": "There are five equally likely ordered outcomes with sum 8, and two include a 3.",
     "solutionSteps": [
-      "There are C(5,2) = 10 equally likely pairs of bulbs.",
-      "For X = 0, choose 2 burned-out bulbs: C(2,2) = 1, so P(X = 0) = 1/10.",
-      "For X = 1, choose 1 working and 1 burned-out bulb: C(3,1)C(2,1) = 6, so P(X = 1) = 6/10.",
-      "For X = 2, choose 2 working bulbs: C(3,2) = 3, so P(X = 2) = 3/10."
+      "Condition on the sum being 8: (2,6), (3,5), (4,4), (5,3), and (6,2).",
+      "The favorable outcomes are (3,5) and (5,3).",
+      "The probability is 2 out of 5, so P(at least one 3 | sum 8) = 2/5 = 0.4."
     ],
     "hints": [
-      "List the possible values of X.",
-      "Use combinations because the two selected bulbs are an unordered sample.",
-      "Check that the probabilities add to 1."
+      "List only the ordered outcomes whose sum is 8.",
+      "After conditioning, the denominator is not 36 anymore.",
+      "Count the conditioned outcomes that include a 3."
+    ],
+    "misconceptions": [
+      {
+        "id": "uses-full-sample-space",
+        "matchTerms": ["36", "1/18", "2/36"],
+        "feedback": "You appear to be counting from all 36 dice outcomes. Conditional probability first restricts the sample space to outcomes with sum 8."
+      }
     ],
     "sourceMetadata": {
       "sourceType": "original_demo",
       "visibility": "public",
-      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
+      "originalityNote": "Original synthetic demo item; no private source text used.",
       "privateMaterialUsed": false
     },
     "reviewStatus": "approved",
@@ -139,38 +149,28 @@
     "trustLevel": "original_demo"
   },
   {
-    "id": "dice-sum-eight",
-    "topicId": "conditional-probability",
-    "topic": "conditional probability",
-    "title": "Dice Sum Condition",
-    "difficulty": "foundational",
-    "questionText": "Two fair dice are rolled. Given that the sum is 8, what is the probability that at least one die shows 3?",
-    "finalAnswer": "2/5",
-    "acceptedAnswers": ["2/5", "0.4", "40%"],
-    "numericValue": 0.4,
-    "tolerance": 0.005,
-    "answerExplanation": "There are five equally likely ordered outcomes with sum 8, and two include a 3.",
+    "id": "demo-random-variable-bulb-sample",
+    "topicId": "random-variables",
+    "topic": "random variables",
+    "title": "Working Bulb Distribution",
+    "difficulty": "intermediate",
+    "questionText": "A bin has 3 working bulbs and 2 burned-out bulbs. Two bulbs are selected without replacement. Let X be the number of working bulbs selected. What is the probability distribution of X?",
+    "finalAnswer": "P(X = 0) = 1/10, P(X = 1) = 6/10, P(X = 2) = 3/10",
     "solutionSteps": [
-      "Condition on the sum being 8: (2,6), (3,5), (4,4), (5,3), and (6,2).",
-      "The favorable outcomes are (3,5) and (5,3).",
-      "The probability is 2 out of 5, so P(at least one 3 | sum 8) = 2/5 = 0.4."
+      "There are C(5,2) = 10 equally likely pairs of bulbs.",
+      "For X = 0, choose 2 burned-out bulbs: C(2,2) = 1, so P(X = 0) = 1/10.",
+      "For X = 1, choose 1 working and 1 burned-out bulb: C(3,1)C(2,1) = 6, so P(X = 1) = 6/10.",
+      "For X = 2, choose 2 working bulbs: C(3,2) = 3, so P(X = 2) = 3/10."
     ],
     "hints": [
-      "List only the ordered outcomes whose sum is 8.",
-      "After conditioning, the denominator is not 36 anymore.",
-      "Count the conditioned outcomes that include a 3."
-    ],
-    "misconceptions": [
-      {
-        "id": "uses-full-sample-space",
-        "matchTerms": ["36", "1/18", "2/36"],
-        "feedback": "You appear to be counting from all 36 dice outcomes. Conditional probability first restricts the sample space to outcomes with sum 8."
-      }
+      "List the possible values of X.",
+      "Use combinations because the two selected bulbs are an unordered sample.",
+      "Check that the probabilities add to 1."
     ],
     "sourceMetadata": {
       "sourceType": "original_demo",
       "visibility": "public",
-      "originalityNote": "Original synthetic demo item; no private source text used.",
+      "originalityNote": "Original synthetic demo question; no private course or textbook text used.",
       "privateMaterialUsed": false
     },
     "reviewStatus": "approved",

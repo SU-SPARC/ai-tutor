@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import topicData from "../data/demo/topics.json";
+import topicData from "../data/canonical/syllabus-topics.json";
 import {
   ProfessorFriendlyReviewPanel,
   professorReviewEmptyStateText,

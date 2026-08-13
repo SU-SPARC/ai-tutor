@@ -167,7 +167,10 @@ export async function searchLocalKeywordRetrieval(
     )
     .filter((result) => result.score > 0)
 
-  return limitResultContext(sortAndLimitResults(results, options.maxResults), options)
+  return limitResultContext(
+    sortAndLimitResults(results, options.maxResults),
+    options,
+  )
 }
 
 export async function loadLocalRetrievalChunks(
@@ -359,9 +362,10 @@ function normalizeChunk(
         : "original_demo",
   )
   const topic = stringValue(chunk.topic)
-  const topicId =
-    stringValue(chunk.topicId) ||
-    (topic ? slug(topic) : source.label.replace(/_/g, "-"))
+  const topicId = stringValue(chunk.topicId)
+  if (!topicId) {
+    return undefined
+  }
 
   return {
     chunkId: stringValue(chunk.id) || path.relative(repoRoot, source.path),
@@ -412,7 +416,9 @@ function isChunkAllowedForAudience(
   )
 }
 
-function isServerOnlyChunk(chunk: Pick<NormalizedLocalChunk, "visibility" | "sourceLabel">) {
+function isServerOnlyChunk(
+  chunk: Pick<NormalizedLocalChunk, "visibility" | "sourceLabel">,
+) {
   return (
     chunk.visibility === "private" ||
     chunk.sourceLabel === "private_question_chunks" ||
@@ -611,9 +617,7 @@ function matchesFilterValue<T extends string>(
   const values = Array.isArray(filter) ? filter : [filter]
   const normalizedValue = value ? normalizeValue(value) : undefined
 
-  return values.some(
-    (item) => normalizedValue === normalizeValue(String(item)),
-  )
+  return values.some((item) => normalizedValue === normalizeValue(String(item)))
 }
 
 function truncateText(text: string, maxLength: number) {
@@ -715,13 +719,4 @@ function visibilityValue(value: unknown, fallback: Visibility) {
   return ["public", "private"].includes(String(value))
     ? (value as Visibility)
     : fallback
-}
-
-function slug(value: string) {
-  const normalized = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-
-  return normalized || "untitled"
 }

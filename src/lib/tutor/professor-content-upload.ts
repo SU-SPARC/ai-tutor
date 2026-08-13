@@ -7,6 +7,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 import type { ReviewStatus } from "@/lib/types"
+import { canonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics"
 
 export const PROFESSOR_CONTENT_UPLOAD_MAX_BYTES = 512_000
 
@@ -16,6 +17,7 @@ export type ProfessorUploadPreviewItem = {
   evidence: string[]
   label: string
   reviewStatus: ReviewStatus
+  topicId?: string
 }
 
 export type ProfessorFormulaPreviewItem = ProfessorUploadPreviewItem & {
@@ -57,43 +59,11 @@ type TopicCatalogItem = {
 const PRIVATE_EXTRACTED_PREVIEW_DIR =
   "data/private/extracted/professor-upload-previews"
 
-const topicCatalog = [
-  {
-    id: "basic-probability",
-    label: "Basic probability",
-    terms: ["probability", "sample space", "event", "outcome", "complement"],
-  },
-  {
-    id: "counting",
-    label: "Counting",
-    terms: ["counting", "permutation", "combination", "factorial", "choose"],
-  },
-  {
-    id: "conditional-probability",
-    label: "Conditional probability",
-    terms: ["conditional", "given", "independent", "bayes", "p(a|b)", "p(a | b)"],
-  },
-  {
-    id: "random-variables",
-    label: "Random variables",
-    terms: ["random variable", "distribution", "pmf", "cdf", "variance"],
-  },
-  {
-    id: "expected-value",
-    label: "Expected value",
-    terms: ["expected value", "expectation", "mean", "e(x)", "weighted"],
-  },
-  {
-    id: "binomial-models",
-    label: "Binomial models",
-    terms: ["binomial", "bernoulli", "success", "failure", "trials"],
-  },
-  {
-    id: "normal-standardization",
-    label: "Normal standardization",
-    terms: ["normal", "z-score", "standardize", "standard deviation"],
-  },
-] satisfies TopicCatalogItem[]
+const topicCatalog = canonicalSyllabusTopics.map((topic) => ({
+  id: topic.id,
+  label: topic.title,
+  terms: topic.keywords ?? [],
+})) satisfies TopicCatalogItem[]
 
 export async function buildProfessorContentUploadPreview(
   file: UploadedFileInput,
@@ -113,9 +83,7 @@ export async function buildProfessorContentUploadPreview(
 
 export function validateProfessorContentUploadFile(
   file: Pick<UploadedFileInput, "bytes" | "name" | "size" | "type">,
-):
-  | { kind: ProfessorUploadKind }
-  | { error: string; status: 400 | 413 } {
+): { kind: ProfessorUploadKind } | { error: string; status: 400 | 413 } {
   if (file.size <= 0) {
     return { error: "Upload must include a non-empty file.", status: 400 }
   }
@@ -139,7 +107,10 @@ export function validateProfessorContentUploadFile(
         "text/x-tex",
       ].includes(file.type)
     ) {
-      return { error: "The .tex upload has an unsupported MIME type.", status: 400 }
+      return {
+        error: "The .tex upload has an unsupported MIME type.",
+        status: 400,
+      }
     }
 
     return { kind: "tex" }
@@ -150,12 +121,18 @@ export function validateProfessorContentUploadFile(
       file.type &&
       !["application/octet-stream", "application/pdf"].includes(file.type)
     ) {
-      return { error: "The .pdf upload has an unsupported MIME type.", status: 400 }
+      return {
+        error: "The .pdf upload has an unsupported MIME type.",
+        status: 400,
+      }
     }
 
     const header = Buffer.from(file.bytes.slice(0, 5)).toString("ascii")
     if (header !== "%PDF-") {
-      return { error: "PDF uploads must start with a valid PDF header.", status: 400 }
+      return {
+        error: "PDF uploads must start with a valid PDF header.",
+        status: 400,
+      }
     }
 
     return { kind: "pdf" }
@@ -176,13 +153,17 @@ export class ProfessorContentUploadError extends Error {
   }
 }
 
-function buildTexPreview(file: UploadedFileInput): ProfessorContentUploadPreview {
+function buildTexPreview(
+  file: UploadedFileInput,
+): ProfessorContentUploadPreview {
   const source = Buffer.from(file.bytes).toString("utf8")
   const stripped = stripTexComments(source)
   const sections = extractSectionTitles(stripped)
   const objectives = extractLearningObjectives(stripped)
   const formulas = extractLatexFormulas(stripped)
-  const topics = topicItems(detectTopics([...sections, ...objectives, ...formulaText(formulas)]))
+  const topics = topicItems(
+    detectTopics([...sections, ...objectives, ...formulaText(formulas)]),
+  )
   const patterns = patternItems(topics, sections, formulas)
   const misconceptions = misconceptionItems(topics, formulas)
 
@@ -212,7 +193,10 @@ async function buildPdfPreview(
   file: UploadedFileInput,
 ): Promise<ProfessorContentUploadPreview> {
   const extractedText = await extractPdfText(file)
-  const privateStorage = await writePrivateExtractedText(file.name, extractedText)
+  const privateStorage = await writePrivateExtractedText(
+    file.name,
+    extractedText,
+  )
   const safeText = normalizePlainText(extractedText)
   const formulas = extractPlainTextFormulas(safeText)
   const topics = topicItems(detectTopics([safeText, ...formulaText(formulas)]))
@@ -245,7 +229,9 @@ async function buildPdfPreview(
 }
 
 async function extractPdfText(file: UploadedFileInput) {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "suffolk-professor-upload-"))
+  const tempDir = await mkdtemp(
+    path.join(tmpdir(), "suffolk-professor-upload-"),
+  )
   const pdfPath = path.join(tempDir, "upload.pdf")
   const textPath = path.join(tempDir, "upload.txt")
 
@@ -259,7 +245,9 @@ async function extractPdfText(file: UploadedFileInput) {
     if (!result.error && result.status === 0) {
       const extracted = await readFile(textPath, "utf8")
       if (extracted.trim()) {
-        return [extracted, literalText].filter((value) => value.trim()).join("\n")
+        return [extracted, literalText]
+          .filter((value) => value.trim())
+          .join("\n")
       }
     }
 
@@ -288,9 +276,13 @@ async function writePrivateExtractedText(fileName: string, text: string) {
 function assertIgnoredPrivatePath(targetPath: string) {
   const repoRoot = process.cwd()
   const relativePath = path.relative(repoRoot, targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status !== 0) {
     throw new ProfessorContentUploadError(
@@ -438,7 +430,11 @@ function patternItems(
     }
   }
 
-  if (formulas.some((formula) => /\\binom|choose|binomial/i.test(formula.symbolicFormula))) {
+  if (
+    formulas.some((formula) =>
+      /\\binom|choose|binomial/i.test(formula.symbolicFormula),
+    )
+  ) {
     labels.add("Exact-count binomial probability")
   }
 
@@ -495,6 +491,7 @@ function topicItems(topics: TopicCatalogItem[]) {
     evidence: ["topic label only"],
     label: topic.label,
     reviewStatus: "needs_review" as const,
+    topicId: topic.id,
   }))
 }
 

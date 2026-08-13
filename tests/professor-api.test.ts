@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json";
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json";
 import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json";
-import topicData from "../data/demo/topics.json";
+import topicData from "../data/canonical/syllabus-topics.json";
 import { GET as getAnalytics } from "@/app/api/professor/analytics/route";
 import {
   GET as getReviewQueue,

@@ -4,86 +4,32 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 )
 const inputDir = path.join(repoRoot, "data/private/extracted")
-const publicOutputPath = path.join(repoRoot, "data/processed/course-outline.json")
+const publicOutputPath = path.join(
+  repoRoot,
+  "data/processed/course-outline.json",
+)
 const privateGeneratedDir = path.join(repoRoot, "data/private/generated")
 const privateUncertainPath = path.join(
   privateGeneratedDir,
   "course-outline-uncertain.json",
 )
 
-const topicCatalog = [
-  {
-    id: "basic-probability",
-    name: "Basic probability",
-    terms: ["probability", "sample space", "event", "outcome", "complement"],
-    learningObjectives: [
-      "Identify sample spaces, events, and complements.",
-      "Compute probabilities as favorable outcomes divided by total outcomes.",
-    ],
-    misconceptions: [
-      "Using the wrong denominator for the sample space.",
-      "Confusing an event with its complement.",
-    ],
-  },
-  {
-    id: "counting",
-    name: "Counting",
-    terms: ["counting", "permutation", "combination", "factorial", "choose"],
-    learningObjectives: [
-      "Choose between permutations, combinations, and the multiplication rule.",
-      "Count outcomes without listing every case.",
-    ],
-    misconceptions: [
-      "Counting ordered arrangements when order does not matter.",
-      "Forgetting restrictions such as no replacement or no repeated digits.",
-    ],
-  },
-  {
-    id: "conditional-probability",
-    name: "Conditional probability",
-    terms: ["conditional", "given", "independent", "bayes", "p(a|b)"],
-    learningObjectives: [
-      "Restrict the sample space after a condition is given.",
-      "Apply conditional probability and Bayes-type reasoning.",
-    ],
-    misconceptions: [
-      "Using the original sample space after conditioning.",
-      "Confusing P(A | B) with P(B | A).",
-    ],
-  },
-  {
-    id: "random-variables",
-    name: "Random variables",
-    terms: ["random variable", "distribution", "pmf", "cdf", "variance"],
-    learningObjectives: [
-      "Describe a random variable by its possible values and probabilities.",
-      "Check that a probability distribution sums to one.",
-    ],
-    misconceptions: [
-      "Listing outcomes instead of values of the random variable.",
-      "Forgetting to include all possible values in a distribution.",
-    ],
-  },
-  {
-    id: "expected-value",
-    name: "Expected value",
-    terms: ["expected value", "expectation", "mean", "e(x)", "weighted average"],
-    learningObjectives: [
-      "Compute expected value as a probability-weighted average.",
-      "Interpret expected value as a long-run average, not a guaranteed outcome.",
-    ],
-    misconceptions: [
-      "Treating expected value as the most likely outcome.",
-      "Adding outcomes without weighting by their probabilities.",
-    ],
-  },
-]
+const topicCatalog = (await loadCanonicalSyllabusTopics(repoRoot)).map(
+  (topic) => ({
+    id: topic.id,
+    name: topic.title,
+    terms: topic.keywords,
+    learningObjectives: [topic.description],
+    misconceptions: [],
+  }),
+)
 
 async function main() {
   const extractedFiles = await listExtractedTextFiles()
@@ -111,7 +57,12 @@ async function main() {
   await writeFile(publicOutputPath, `${JSON.stringify(outline, null, 2)}\n`)
 
   if (uncertainItems.length > 0) {
-    if (!assertIgnored("private uncertain extraction output", privateUncertainPath)) {
+    if (
+      !assertIgnored(
+        "private uncertain extraction output",
+        privateUncertainPath,
+      )
+    ) {
       process.exitCode = 1
       return
     }
@@ -168,7 +119,9 @@ async function listExtractedTextFiles() {
   }
 
   return entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".txt"))
+    .filter(
+      (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".txt"),
+    )
     .map((entry) => path.join(inputDir, entry.name))
     .sort()
 }
@@ -210,7 +163,9 @@ function extractSectionHeadings(text, uncertainItems) {
       .split(/\r?\n/)
       .map(normalizeWhitespace)
       .filter(isSafeSectionHeading)
-      .filter((heading) => !uncertainItems.some((item) => item.text === heading))
+      .filter(
+        (heading) => !uncertainItems.some((item) => item.text === heading),
+      )
       .map(stripHeadingNumbering),
   ).slice(0, 80)
 }
@@ -241,7 +196,12 @@ function extractFormulas(text, uncertainItems) {
   return uniqueByFormula(formulas).slice(0, 80)
 }
 
-function buildOutline({ detectedTopics, fileCount, formulas, sectionHeadings }) {
+function buildOutline({
+  detectedTopics,
+  fileCount,
+  formulas,
+  sectionHeadings,
+}) {
   return {
     schemaVersion: 1,
     visibility: "public",
@@ -340,7 +300,10 @@ function isMostlySymbolicFormula(formula) {
   }
 
   const symbolicCharacters = compact.match(/[=+\-*/^_()|,∑Σμσ√0-9]/g) ?? []
-  return symbolicCharacters.length / compact.length >= 0.25 && wordCount(formula) <= 10
+  return (
+    symbolicCharacters.length / compact.length >= 0.25 &&
+    wordCount(formula) <= 10
+  )
 }
 
 function formulaName(formula) {
@@ -402,9 +365,13 @@ function wordCount(value) {
 
 function assertIgnored(label, targetPath) {
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

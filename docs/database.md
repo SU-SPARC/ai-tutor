@@ -46,7 +46,7 @@ review status, and trusted public/course/professor trust levels.
 `006_syllabus_topic_order.sql` adds week/module metadata and active status to
 `topics`. Student reads filter to active topics and order by `sort_order` with
 stable title/id tie-breakers. The public seed reads the canonical catalog from
-`data/demo/topics.json` and validates unique, strictly increasing syllabus
+`data/canonical/syllabus-topics.json` and validates unique, strictly increasing syllabus
 positions before writing SQL.
 
 `003_retrieval_chunks.sql` adds server-side retrieval chunk storage and safe

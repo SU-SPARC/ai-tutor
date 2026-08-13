@@ -13,6 +13,7 @@
     {
       "id": "pattern-basic-probability-complement",
       "topic": "basic probability",
+      "topicId": "introduction-probability-venn-diagrams",
       "difficulty": "foundational",
       "template": "A finite collection has several labeled categories. Ask for the probability that one randomly selected item is not in one specified category.",
       "variables": [
@@ -52,8 +53,51 @@
       ]
     },
     {
+      "id": "pattern-combinations-unordered-selection",
+      "topic": "combinations",
+      "topicId": "axioms-probability-counting-methods",
+      "difficulty": "intermediate",
+      "template": "A fixed set of distinct items is available. Ask for the number of unordered groups of a specified size.",
+      "variables": [
+        {
+          "name": "totalItems",
+          "role": "number of available distinct items",
+          "type": "integer",
+          "values": [7, 8, 9, 10, 11, 12]
+        },
+        {
+          "name": "groupSize",
+          "role": "number of items in the unordered group",
+          "type": "integer",
+          "values": [2, 3, 4, 5]
+        },
+        {
+          "name": "contextNoun",
+          "role": "neutral item type for the generated context",
+          "type": "category",
+          "values": ["prompts", "routes", "samples", "topics", "stations"]
+        }
+      ],
+      "constraints": [
+        "groupSize must be less than totalItems.",
+        "Wording must make order irrelevant.",
+        "Avoid extra restrictions beyond choosing the group."
+      ],
+      "generationNotes": [
+        "Use C(n,k) as the intended formula.",
+        "Make clear that rearranging the same group does not create a new outcome.",
+        "Keep numbers small enough for manual simplification."
+      ],
+      "misconceptionHooks": [
+        "Using permutations when order does not matter.",
+        "Forgetting to divide by repeated orderings.",
+        "Treating the group size as the number left out."
+      ]
+    },
+    {
       "id": "pattern-counting-choose-committee",
       "topic": "counting",
+      "topicId": "axioms-probability-counting-methods",
       "difficulty": "intermediate",
       "template": "A group has a fixed number of distinct people or objects. Ask how many unordered selections of a specified size can be formed.",
       "variables": [
@@ -93,8 +137,93 @@
       ]
     },
     {
+      "id": "pattern-permutations-ordered-selection",
+      "topic": "permutations",
+      "topicId": "axioms-probability-counting-methods",
+      "difficulty": "intermediate",
+      "template": "A fixed set of distinct items is available. Ask for the number of ordered sequences of a specified length formed without replacement.",
+      "variables": [
+        {
+          "name": "totalItems",
+          "role": "number of available distinct items",
+          "type": "integer",
+          "values": [5, 6, 7, 8, 9]
+        },
+        {
+          "name": "orderedSlots",
+          "role": "number of ordered positions to fill",
+          "type": "integer",
+          "values": [2, 3, 4]
+        },
+        {
+          "name": "contextNoun",
+          "role": "neutral item type for the generated context",
+          "type": "category",
+          "values": ["clips", "stations", "tasks", "badges", "slides"]
+        }
+      ],
+      "constraints": [
+        "orderedSlots must be less than totalItems.",
+        "Wording must make order matter.",
+        "Use distinct items and no replacement."
+      ],
+      "generationNotes": [
+        "Use P(n,k) or an equivalent descending product.",
+        "Keep the product short enough for hand calculation.",
+        "Use a context where first, second, and later positions are meaningfully different."
+      ],
+      "misconceptionHooks": [
+        "Using combinations when order matters.",
+        "Allowing repeated items even though the selection is without replacement.",
+        "Multiplying by too many or too few descending factors."
+      ]
+    },
+    {
+      "id": "pattern-bayes-rule-alert-update",
+      "topic": "Bayes rule",
+      "topicId": "conditional-probability",
+      "difficulty": "challenge",
+      "template": "A rare or moderate-status group has one alert probability, while the complementary group has a different alert probability. Ask for the updated probability of the status given an alert.",
+      "variables": [
+        {
+          "name": "baseRate",
+          "role": "prior probability of the status of interest",
+          "type": "percent",
+          "values": [5, 8, 10, 12, 15, 20]
+        },
+        {
+          "name": "trueAlertRate",
+          "role": "probability of an alert when the status is present",
+          "type": "percent",
+          "values": [70, 75, 80, 85, 90, 95]
+        },
+        {
+          "name": "falseAlertRate",
+          "role": "probability of an alert when the status is absent",
+          "type": "percent",
+          "values": [2, 4, 5, 6, 8, 10, 12]
+        }
+      ],
+      "constraints": [
+        "baseRate must be between 1% and 20%.",
+        "trueAlertRate must be larger than falseAlertRate.",
+        "The posterior probability should be neither near zero nor near one."
+      ],
+      "generationNotes": [
+        "Use a public-safe alert or screening context with no medical diagnosis claims.",
+        "Compute the numerator and total alert probability explicitly.",
+        "Use project-owned wording for all solution steps."
+      ],
+      "misconceptionHooks": [
+        "Confusing P(status given alert) with P(alert given status).",
+        "Ignoring the base rate.",
+        "Leaving out alerts from the complementary group."
+      ]
+    },
+    {
       "id": "pattern-conditional-probability-restricted-table",
       "topic": "conditional probability",
+      "topicId": "conditional-probability",
       "difficulty": "intermediate",
       "template": "A two-way table or grouped count is given. Ask for the probability of one attribute given that the selected item is already in a restricted group.",
       "variables": [
@@ -136,6 +265,7 @@
     {
       "id": "pattern-independence-product-rule",
       "topic": "independence",
+      "topicId": "conditional-probability",
       "difficulty": "foundational",
       "template": "Two independent events have stated probabilities. Ask for the probability that both events occur.",
       "variables": [
@@ -155,7 +285,12 @@
           "name": "eventContext",
           "role": "neutral context where independence is plausible",
           "type": "category",
-          "values": ["two app notifications", "two quality checks", "two train arrivals", "two practice attempts"]
+          "values": [
+            "two app notifications",
+            "two quality checks",
+            "two train arrivals",
+            "two practice attempts"
+          ]
         }
       ],
       "constraints": [
@@ -177,6 +312,7 @@
     {
       "id": "pattern-expected-value-discrete-payoff",
       "topic": "expected value",
+      "topicId": "random-variables",
       "difficulty": "intermediate",
       "template": "A discrete random variable has a small set of values and probabilities. Ask for the expected value as a probability-weighted average.",
       "variables": [
@@ -196,7 +332,12 @@
           "name": "contextNoun",
           "role": "neutral source of the payoff or score",
           "type": "category",
-          "values": ["bonus credits", "transit credits", "reward points", "game tokens"]
+          "values": [
+            "bonus credits",
+            "transit credits",
+            "reward points",
+            "game tokens"
+          ]
         }
       ],
       "constraints": [
@@ -216,131 +357,51 @@
       ]
     },
     {
-      "id": "pattern-permutations-ordered-selection",
-      "topic": "permutations",
+      "id": "pattern-variance-discrete-random-variable",
+      "topic": "variance",
+      "topicId": "random-variables",
       "difficulty": "intermediate",
-      "template": "A fixed set of distinct items is available. Ask for the number of ordered sequences of a specified length formed without replacement.",
+      "template": "A discrete random variable has several values and probabilities. Ask for the variance using the probability-weighted spread from the mean.",
       "variables": [
         {
-          "name": "totalItems",
-          "role": "number of available distinct items",
+          "name": "outcomeValues",
+          "role": "possible numeric outcomes",
           "type": "integer",
-          "values": [5, 6, 7, 8, 9]
+          "values": [0, 1, 2, 3, 4, 5, 6, 8]
         },
         {
-          "name": "orderedSlots",
-          "role": "number of ordered positions to fill",
-          "type": "integer",
-          "values": [2, 3, 4]
+          "name": "probabilities",
+          "role": "probabilities assigned to all outcomes",
+          "type": "decimal",
+          "values": [0.1, 0.2, 0.25, 0.3, 0.4, 0.5]
         },
         {
           "name": "contextNoun",
-          "role": "neutral item type for the generated context",
+          "role": "neutral count or score being modeled",
           "type": "category",
-          "values": ["clips", "stations", "tasks", "badges", "slides"]
+          "values": ["tickets", "messages", "tasks", "points", "alerts"]
         }
       ],
       "constraints": [
-        "orderedSlots must be less than totalItems.",
-        "Wording must make order matter.",
-        "Use distinct items and no replacement."
+        "Use three or four outcomes.",
+        "Probabilities must sum to 1.",
+        "Variance should be a readable decimal."
       ],
       "generationNotes": [
-        "Use P(n,k) or an equivalent descending product.",
-        "Keep the product short enough for hand calculation.",
-        "Use a context where first, second, and later positions are meaningfully different."
+        "Compute the mean first.",
+        "Use E(X^2) - [E(X)]^2 or equivalent weighted squared deviations.",
+        "Keep values small enough for hand-checkable arithmetic."
       ],
       "misconceptionHooks": [
-        "Using combinations when order matters.",
-        "Allowing repeated items even though the selection is without replacement.",
-        "Multiplying by too many or too few descending factors."
-      ]
-    },
-    {
-      "id": "pattern-combinations-unordered-selection",
-      "topic": "combinations",
-      "difficulty": "intermediate",
-      "template": "A fixed set of distinct items is available. Ask for the number of unordered groups of a specified size.",
-      "variables": [
-        {
-          "name": "totalItems",
-          "role": "number of available distinct items",
-          "type": "integer",
-          "values": [7, 8, 9, 10, 11, 12]
-        },
-        {
-          "name": "groupSize",
-          "role": "number of items in the unordered group",
-          "type": "integer",
-          "values": [2, 3, 4, 5]
-        },
-        {
-          "name": "contextNoun",
-          "role": "neutral item type for the generated context",
-          "type": "category",
-          "values": ["prompts", "routes", "samples", "topics", "stations"]
-        }
-      ],
-      "constraints": [
-        "groupSize must be less than totalItems.",
-        "Wording must make order irrelevant.",
-        "Avoid extra restrictions beyond choosing the group."
-      ],
-      "generationNotes": [
-        "Use C(n,k) as the intended formula.",
-        "Make clear that rearranging the same group does not create a new outcome.",
-        "Keep numbers small enough for manual simplification."
-      ],
-      "misconceptionHooks": [
-        "Using permutations when order does not matter.",
-        "Forgetting to divide by repeated orderings.",
-        "Treating the group size as the number left out."
-      ]
-    },
-    {
-      "id": "pattern-bayes-rule-alert-update",
-      "topic": "Bayes rule",
-      "difficulty": "challenge",
-      "template": "A rare or moderate-status group has one alert probability, while the complementary group has a different alert probability. Ask for the updated probability of the status given an alert.",
-      "variables": [
-        {
-          "name": "baseRate",
-          "role": "prior probability of the status of interest",
-          "type": "percent",
-          "values": [5, 8, 10, 12, 15, 20]
-        },
-        {
-          "name": "trueAlertRate",
-          "role": "probability of an alert when the status is present",
-          "type": "percent",
-          "values": [70, 75, 80, 85, 90, 95]
-        },
-        {
-          "name": "falseAlertRate",
-          "role": "probability of an alert when the status is absent",
-          "type": "percent",
-          "values": [2, 4, 5, 6, 8, 10, 12]
-        }
-      ],
-      "constraints": [
-        "baseRate must be between 1% and 20%.",
-        "trueAlertRate must be larger than falseAlertRate.",
-        "The posterior probability should be neither near zero nor near one."
-      ],
-      "generationNotes": [
-        "Use a public-safe alert or screening context with no medical diagnosis claims.",
-        "Compute the numerator and total alert probability explicitly.",
-        "Use project-owned wording for all solution steps."
-      ],
-      "misconceptionHooks": [
-        "Confusing P(status given alert) with P(alert given status).",
-        "Ignoring the base rate.",
-        "Leaving out alerts from the complementary group."
+        "Reporting the mean instead of the variance.",
+        "Averaging squared deviations without probability weights.",
+        "Subtracting the mean instead of the mean squared."
       ]
     },
     {
       "id": "pattern-binomial-distribution-exact-count",
       "topic": "binomial distribution",
+      "topicId": "binomial-models",
       "difficulty": "intermediate",
       "template": "A fixed number of independent trials has the same success probability on each trial. Ask for the probability of exactly a specified number of successes.",
       "variables": [
@@ -382,6 +443,7 @@
     {
       "id": "pattern-hypergeometric-distribution-without-replacement",
       "topic": "hypergeometric distribution",
+      "topicId": "binomial-models",
       "difficulty": "challenge",
       "template": "A finite population contains two item types. A sample is drawn without replacement. Ask for the probability of exactly a specified number of one item type in the sample.",
       "variables": [
@@ -427,49 +489,9 @@
       ]
     },
     {
-      "id": "pattern-variance-discrete-random-variable",
-      "topic": "variance",
-      "difficulty": "intermediate",
-      "template": "A discrete random variable has several values and probabilities. Ask for the variance using the probability-weighted spread from the mean.",
-      "variables": [
-        {
-          "name": "outcomeValues",
-          "role": "possible numeric outcomes",
-          "type": "integer",
-          "values": [0, 1, 2, 3, 4, 5, 6, 8]
-        },
-        {
-          "name": "probabilities",
-          "role": "probabilities assigned to all outcomes",
-          "type": "decimal",
-          "values": [0.1, 0.2, 0.25, 0.3, 0.4, 0.5]
-        },
-        {
-          "name": "contextNoun",
-          "role": "neutral count or score being modeled",
-          "type": "category",
-          "values": ["tickets", "messages", "tasks", "points", "alerts"]
-        }
-      ],
-      "constraints": [
-        "Use three or four outcomes.",
-        "Probabilities must sum to 1.",
-        "Variance should be a readable decimal."
-      ],
-      "generationNotes": [
-        "Compute the mean first.",
-        "Use E(X^2) - [E(X)]^2 or equivalent weighted squared deviations.",
-        "Keep values small enough for hand-checkable arithmetic."
-      ],
-      "misconceptionHooks": [
-        "Reporting the mean instead of the variance.",
-        "Averaging squared deviations without probability weights.",
-        "Subtracting the mean instead of the mean squared."
-      ]
-    },
-    {
       "id": "pattern-normal-approximation-binomial-count",
       "topic": "normal approximation",
+      "topicId": "normal-standardization",
       "difficulty": "challenge",
       "template": "A binomial count has a moderately large number of trials and success probability. Ask for an approximate tail probability using a normal model with continuity correction.",
       "variables": [

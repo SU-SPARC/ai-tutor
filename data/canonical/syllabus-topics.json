@@ -6,6 +6,14 @@
     "order": 1,
     "weekNumber": 1,
     "moduleRef": "Week 1",
+    "keywords": [
+      "basic probability",
+      "sample space",
+      "venn diagram",
+      "complement",
+      "event",
+      "outcome"
+    ],
     "active": true
   },
   {
@@ -15,6 +23,13 @@
     "order": 2,
     "weekNumber": 2,
     "moduleRef": "Week 2",
+    "keywords": [
+      "probability axiom",
+      "counting",
+      "permutation",
+      "combination",
+      "factorial"
+    ],
     "active": true
   },
   {
@@ -24,6 +39,13 @@
     "order": 3,
     "weekNumber": 3,
     "moduleRef": "Week 3",
+    "keywords": [
+      "conditional probability",
+      "independence",
+      "bayes",
+      "given",
+      "p(a|b)"
+    ],
     "active": true
   },
   {
@@ -33,6 +55,14 @@
     "order": 4,
     "weekNumber": 4,
     "moduleRef": "Week 4",
+    "keywords": [
+      "random variable",
+      "pmf",
+      "cdf",
+      "expected value",
+      "expectation",
+      "variance"
+    ],
     "active": true
   },
   {
@@ -42,6 +72,14 @@
     "order": 5,
     "weekNumber": 5,
     "moduleRef": "Week 5",
+    "keywords": [
+      "bernoulli",
+      "binomial",
+      "geometric",
+      "poisson",
+      "hypergeometric",
+      "discrete distribution"
+    ],
     "active": true
   },
   {
@@ -51,6 +89,13 @@
     "order": 8,
     "weekNumber": 8,
     "moduleRef": "Week 8",
+    "keywords": [
+      "continuous random variable",
+      "pdf",
+      "density",
+      "uniform distribution",
+      "exponential distribution"
+    ],
     "active": true
   },
   {
@@ -60,6 +105,13 @@
     "order": 9,
     "weekNumber": 9,
     "moduleRef": "Week 9",
+    "keywords": [
+      "normal distribution",
+      "normal approximation",
+      "z-score",
+      "standardization",
+      "transformed random variable"
+    ],
     "active": true
   },
   {
@@ -69,6 +121,12 @@
     "order": 10,
     "weekNumber": 10,
     "moduleRef": "Week 10",
+    "keywords": [
+      "moment generating function",
+      "mgf",
+      "joint distribution",
+      "marginal distribution"
+    ],
     "active": true
   },
   {
@@ -78,6 +136,13 @@
     "order": 11,
     "weekNumber": 11,
     "moduleRef": "Week 11",
+    "keywords": [
+      "independent random variables",
+      "sum of random variables",
+      "conditional distribution",
+      "covariance",
+      "correlation"
+    ],
     "active": true
   },
   {
@@ -87,6 +152,7 @@
     "order": 12,
     "weekNumber": 12,
     "moduleRef": "Week 12",
+    "keywords": ["chebyshev", "law of large numbers", "probability bound"],
     "active": true
   },
   {
@@ -96,6 +162,7 @@
     "order": 13,
     "weekNumber": 13,
     "moduleRef": "Week 13",
+    "keywords": ["central limit theorem", "sample mean", "sample proportion"],
     "active": true
   }
 ]

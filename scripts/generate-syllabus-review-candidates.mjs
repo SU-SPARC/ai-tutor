@@ -3,16 +3,21 @@
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+)
 const outputPath = path.join(
   repoRoot,
   "data/demo/syllabus-review-candidates.json",
 )
 const checkOnly = process.argv.includes("--check")
 
-const INTRO_TOPIC_ID = "introduction-probability-venn-diagrams"
-const AXIOMS_TOPIC_ID = "axioms-probability-counting-methods"
+const canonicalTopics = await loadCanonicalSyllabusTopics(repoRoot)
+const INTRO_TOPIC_ID = canonicalTopics.find(({ order }) => order === 1)?.id
+const AXIOMS_TOPIC_ID = canonicalTopics.find(({ order }) => order === 2)?.id
 const ORIGINALITY_NOTE =
   "Original generated practice draft from a public-safe topic pattern; no private course text used."
 
@@ -758,7 +763,9 @@ function validateCandidates(candidates) {
       candidateItem.review.status !== "needs_review" ||
       candidateItem.source.trustLevel !== "generated_unverified"
     ) {
-      throw new Error(`Unsafe student visibility metadata on ${candidateItem.id}.`)
+      throw new Error(
+        `Unsafe student visibility metadata on ${candidateItem.id}.`,
+      )
     }
   }
 

@@ -4,16 +4,29 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  canonicalTopicMap,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 )
-const courseOutlinePath = path.join(repoRoot, "data/processed/course-outline.json")
-const latexOutlinePath = path.join(repoRoot, "data/processed/latex-outline.json")
+const courseOutlinePath = path.join(
+  repoRoot,
+  "data/processed/course-outline.json",
+)
+const latexOutlinePath = path.join(
+  repoRoot,
+  "data/processed/latex-outline.json",
+)
 const outputPath = path.join(
   repoRoot,
   "data/private/generated/question-patterns.json",
+)
+const canonicalTopics = canonicalTopicMap(
+  await loadCanonicalSyllabusTopics(repoRoot),
 )
 
 const patternCatalog = [
@@ -165,6 +178,17 @@ const patternCatalog = [
   },
 ]
 
+for (const entry of patternCatalog) {
+  if (
+    !canonicalTopics.has(entry.pattern.topicId) ||
+    entry.canonicalTopicIds.some((topicId) => !canonicalTopics.has(topicId))
+  ) {
+    throw new Error(
+      `Private pattern ${entry.pattern.id} has a stale topic mapping.`,
+    )
+  }
+}
+
 async function main() {
   if (!assertIgnored("private question pattern output", outputPath)) {
     process.exitCode = 1
@@ -254,9 +278,13 @@ function detectCanonicalTopicIds(outlines) {
 
 function assertIgnored(label, targetPath) {
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

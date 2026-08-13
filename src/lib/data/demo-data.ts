@@ -5,7 +5,6 @@ import type {
   RetrievalChunk,
   ReviewCandidate,
   SourceMetadata,
-  Topic,
   TutorQuestion,
 } from "@/lib/types"
 import followingSyllabusReviewCandidateData from "../../../data/demo/following-syllabus-review-candidates.json"
@@ -14,7 +13,10 @@ import nextSyllabusReviewCandidateData from "../../../data/demo/next-syllabus-re
 import nextUncoveredSyllabusReviewCandidateData from "../../../data/demo/next-uncovered-syllabus-review-candidates.json"
 import demoQuestionData from "../../../data/demo/questions.json"
 import syllabusReviewCandidateData from "../../../data/demo/syllabus-review-candidates.json"
-import topicData from "../../../data/demo/topics.json"
+import {
+  activeCanonicalSyllabusTopics,
+  compareCanonicalTopicIds,
+} from "@/lib/data/canonical-syllabus-topics"
 
 const approvedDemoReview: ReviewMetadata = {
   status: "approved",
@@ -29,7 +31,7 @@ function originalDemoSource(originalityNote: string): SourceMetadata {
   }
 }
 
-export const demoTopics = validateAndSortTopics(topicData as Topic[])
+export const demoTopics = activeCanonicalSyllabusTopics
 
 type DemoQuestionFixture = {
   acceptedAnswers?: string[]
@@ -84,8 +86,7 @@ export const retrievalChunks: RetrievalChunk[] = [
     topicId: "conditional-probability",
     chunkType: "pattern",
     title: "Conditional probability pattern",
-    body:
-      "For P(A | B), first restrict attention to outcomes where B occurred, then count or compute the proportion where A also occurred.",
+    body: "For P(A | B), first restrict attention to outcomes where B occurred, then count or compute the proportion where A also occurred.",
     keywords: ["conditional", "given", "sample space", "dice", "sum"],
     formulaRefs: ["P(A | B)"],
     conceptTags: ["conditional probability", "restricted sample space"],
@@ -100,8 +101,7 @@ export const retrievalChunks: RetrievalChunk[] = [
     topicId: "binomial-models",
     chunkType: "formula",
     title: "Binomial probability formula",
-    body:
-      "If X follows Binomial(n, p), then P(X = k) = C(n,k)p^k(1-p)^(n-k).",
+    body: "If X follows Binomial(n, p), then P(X = k) = C(n,k)p^k(1-p)^(n-k).",
     keywords: ["binomial", "exactly", "independent", "combination", "success"],
     formulaRefs: ["P(X = k) = C(n,k)p^k(1-p)^(n-k)"],
     conceptTags: ["binomial model", "exact count probability"],
@@ -116,9 +116,14 @@ export const retrievalChunks: RetrievalChunk[] = [
     topicId: "normal-standardization",
     chunkType: "formula",
     title: "Z-score formula",
-    body:
-      "Standardize normal observations with z = (x - mean) / standard deviation.",
-    keywords: ["normal", "z-score", "standardize", "mean", "standard deviation"],
+    body: "Standardize normal observations with z = (x - mean) / standard deviation.",
+    keywords: [
+      "normal",
+      "z-score",
+      "standardize",
+      "mean",
+      "standard deviation",
+    ],
     formulaRefs: ["z = (x - mean) / standard deviation"],
     conceptTags: ["normal standardization", "z-score"],
     priorityTier: "safe_demo",
@@ -135,40 +140,9 @@ export const reviewCandidates: ReviewCandidate[] = [
   ...(nextSyllabusReviewCandidateData as ReviewCandidate[]),
   ...(followingSyllabusReviewCandidateData as ReviewCandidate[]),
   ...(nextUncoveredSyllabusReviewCandidateData as ReviewCandidate[]),
-]
-
-function validateAndSortTopics(topics: Topic[]) {
-  const ids = new Set<string>()
-  const orders = new Set<number>()
-
-  for (const topic of topics) {
-    if (!topic.id || !topic.title || !topic.moduleRef) {
-      throw new Error("Every syllabus topic needs an id, title, and module reference.")
-    }
-
-    if (
-      !Number.isInteger(topic.order) ||
-      topic.order < 1 ||
-      !Number.isInteger(topic.weekNumber) ||
-      topic.weekNumber < 1
-    ) {
-      throw new Error(`Invalid syllabus order metadata for topic ${topic.id}.`)
-    }
-
-    if (ids.has(topic.id) || orders.has(topic.order)) {
-      throw new Error(`Duplicate syllabus topic id or order for ${topic.id}.`)
-    }
-
-    ids.add(topic.id)
-    orders.add(topic.order)
-  }
-
-  return [...topics]
-    .filter((topic) => topic.active)
-    .sort(
-      (left, right) =>
-        left.order - right.order ||
-        left.title.localeCompare(right.title) ||
-        left.id.localeCompare(right.id),
-    )
-}
+].sort(
+  (left, right) =>
+    compareCanonicalTopicIds(left.topicId, right.topicId) ||
+    left.title.localeCompare(right.title) ||
+    left.id.localeCompare(right.id),
+)

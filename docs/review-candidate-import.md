@@ -5,7 +5,7 @@ topics and 234 original, public-safe generated drafts. Production remains
 database-backed; these fixtures are copied into Postgres only by the explicit
 operator command documented here.
 
-The importer reads only `data/demo/topics.json` and the five hard-coded
+The importer reads only `data/canonical/syllabus-topics.json` and the five hard-coded
 `*-review-candidates.json` files listed in
 `scripts/lib/review-candidate-import.mjs`. It never scans or reads
 `data/private/`, extracted course material, retrieval chunks, or arbitrary

@@ -9,9 +9,12 @@ import { fileURLToPath } from "node:url"
 import {
   QUESTION_CHUNK_MAX_BODY_CHARACTERS,
   chunkQuestion,
-  slug,
   validateQuestionChunks,
 } from "../src/lib/ai/chunk-question.ts"
+import {
+  compareTopics,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -28,21 +31,27 @@ const defaults = {
     repoRoot,
     "data/private/generated/question-chunks.json",
   ),
-  publicOutput: path.join(
+  publicOutput: path.join(repoRoot, "data/processed/demo-question-chunks.json"),
+  reviewCandidates: path.join(
     repoRoot,
-    "data/processed/demo-question-chunks.json",
+    "data/demo/generated-review-candidates.json",
   ),
-  reviewCandidates: path.join(repoRoot, "data/demo/generated-review-candidates.json"),
   reviewQueue: path.join(repoRoot, "data/private/generated/review-queue.json"),
 }
 
 const args = parseArgs(process.argv.slice(2))
 const paths = {
-  approvedGenerated: resolveArgPath(args.approvedGenerated, defaults.approvedGenerated),
+  approvedGenerated: resolveArgPath(
+    args.approvedGenerated,
+    defaults.approvedGenerated,
+  ),
   demoQuestions: resolveArgPath(args.demoQuestions, defaults.demoQuestions),
   privateOutput: resolveArgPath(args.privateOutput, defaults.privateOutput),
   publicOutput: resolveArgPath(args.publicOutput, defaults.publicOutput),
-  reviewCandidates: resolveArgPath(args.reviewCandidates, defaults.reviewCandidates),
+  reviewCandidates: resolveArgPath(
+    args.reviewCandidates,
+    defaults.reviewCandidates,
+  ),
   reviewQueue: resolveArgPath(args.reviewQueue, defaults.reviewQueue),
 }
 
@@ -57,6 +66,7 @@ async function main() {
     return
   }
 
+  const canonicalTopics = await loadCanonicalSyllabusTopics(repoRoot)
   const demoQuestions = await readJson(paths.demoQuestions)
   const approvedGenerated = await readJsonOptional(paths.approvedGenerated)
   const reviewQueue = await readJsonOptional(paths.reviewQueue)
@@ -65,16 +75,20 @@ async function main() {
   const publicQuestionInputs = [
     ...arrayItems(demoQuestions).map(demoQuestionToInput),
     ...arrayItems(approvedGenerated?.questions).map(approvedGeneratedToInput),
-  ].filter((question) => question.reviewStatus === "approved")
+  ]
+    .filter((question) => question.reviewStatus === "approved")
+    .sort((left, right) => compareTopics(left, right, canonicalTopics))
 
   const privateQuestionInputs = [
     ...arrayItems(reviewQueue?.reviewQueue).map(reviewQueueItemToInput),
     ...arrayItems(reviewCandidates).map(reviewCandidateToInput),
-  ].filter(
-    (question) =>
-      question.reviewStatus === "needs_review" &&
-      question.trustLevel === "generated_unverified",
-  )
+  ]
+    .filter(
+      (question) =>
+        question.reviewStatus === "needs_review" &&
+        question.trustLevel === "generated_unverified",
+    )
+    .sort((left, right) => compareTopics(left, right, canonicalTopics))
 
   const publicChunks = publicQuestionInputs.flatMap(chunkQuestion)
   const privateChunks = privateQuestionInputs.flatMap(chunkQuestion)
@@ -143,7 +157,10 @@ async function main() {
 
   await mkdir(path.dirname(paths.publicOutput), { recursive: true })
   await mkdir(path.dirname(paths.privateOutput), { recursive: true })
-  await writeFile(paths.publicOutput, `${JSON.stringify(publicPayload, null, 2)}\n`)
+  await writeFile(
+    paths.publicOutput,
+    `${JSON.stringify(publicPayload, null, 2)}\n`,
+  )
   await writeFile(
     paths.privateOutput,
     `${JSON.stringify(privatePayload, null, 2)}\n`,
@@ -165,7 +182,7 @@ function demoQuestionToInput(question) {
   return {
     id: stringValue(question.id),
     topic: stringValue(question.topic),
-    topicId: slug(stringValue(question.topic)),
+    topicId: stringValue(question.topicId),
     title: titleCase(stringValue(question.topic)),
     difficulty: difficultyValue(question.difficulty),
     questionText: stringValue(question.questionText),
@@ -174,7 +191,10 @@ function demoQuestionToInput(question) {
     solutionSteps: stringArray(question.solutionSteps),
     hints: stringArray(question.hints),
     misconceptions: misconceptionArray(question.misconceptions),
-    sourceType: sourceTypeValue(question.sourceMetadata?.sourceType, "original_demo"),
+    sourceType: sourceTypeValue(
+      question.sourceMetadata?.sourceType,
+      "original_demo",
+    ),
     trustLevel: trustLevelValue(question.trustLevel, "public_original"),
     reviewStatus: reviewStatusValue(question.reviewStatus, "approved"),
     visibility: "public",
@@ -186,7 +206,7 @@ function approvedGeneratedToInput(question) {
   return {
     id: stringValue(question.id),
     topic: stringValue(question.topic),
-    topicId: slug(stringValue(question.topic)),
+    topicId: stringValue(question.topicId),
     title: titleCase(stringValue(question.topic)),
     difficulty: difficultyValue(question.difficulty),
     questionText: stringValue(question.questionText),
@@ -210,7 +230,7 @@ function reviewQueueItemToInput(item) {
   return {
     id: stringValue(item.id),
     topic: stringValue(item.topic),
-    topicId: slug(stringValue(item.topic)),
+    topicId: stringValue(item.topicId),
     title: titleCase(stringValue(item.topic)),
     difficulty: difficultyValue(item.difficulty),
     questionText: stringValue(item.question),
@@ -231,8 +251,9 @@ function reviewCandidateToInput(candidate) {
   return {
     id: stringValue(candidate.id),
     topic: stringValue(candidate.topic ?? candidate.topicId),
-    topicId: stringValue(candidate.topicId) || slug(stringValue(candidate.topic)),
-    title: stringValue(candidate.title) || titleCase(stringValue(candidate.topic)),
+    topicId: stringValue(candidate.topicId),
+    title:
+      stringValue(candidate.title) || titleCase(stringValue(candidate.topic)),
     difficulty: difficultyValue(candidate.difficulty),
     questionText: stringValue(candidate.prompt),
     finalAnswer: stringValue(candidate.answer?.acceptedAnswers?.[0]),
@@ -397,9 +418,13 @@ function assertPrivateOrTempOutput(targetPath) {
   }
 
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

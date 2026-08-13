@@ -204,7 +204,7 @@ export function createDatabaseContentRepository(
             where question_id is not null
             group by question_id
           ) sessions on sessions.question_id = q.id
-          order by t.title, q.title, q.id
+          order by t.sort_order, t.title, t.id, q.title, q.id
         `,
           ),
           readDatabaseRows(
@@ -241,7 +241,7 @@ export function createDatabaseContentRepository(
           join topics t on t.id = q.topic_id
           join missed on missed.question_id = q.id
           where missed.missed_attempts > 0
-          order by missed.missed_attempts desc, t.title, q.title, m.id
+          order by missed.missed_attempts desc, t.sort_order, t.title, t.id, q.title, m.id
           limit 20
         `,
           ),

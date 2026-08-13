@@ -6,6 +6,11 @@ import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  canonicalTopicMap,
+  compareTopics,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -33,6 +38,8 @@ const privateTextDir = path.resolve(
   repoRoot,
   args.privateTextDir ?? defaultPrivateTextDir,
 )
+const canonicalTopicList = await loadCanonicalSyllabusTopics(repoRoot)
+const canonicalTopics = canonicalTopicMap(canonicalTopicList)
 
 async function main() {
   if (!assertSafePublicOutput(outputPath)) {
@@ -67,11 +74,23 @@ async function main() {
         inputPath,
       )}; public candidates were not changed.`,
     )
-    console.log(`Wrote private generation audit to ${relativeToRepo(auditPath)}.`)
+    console.log(
+      `Wrote private generation audit to ${relativeToRepo(auditPath)}.`,
+    )
     return
   }
 
   const patterns = patternFile.patterns ?? []
+  for (const pattern of patterns) {
+    if (
+      pattern.mappingStatus !== "needs_topic_mapping" &&
+      !canonicalTopics.has(pattern.topicId)
+    ) {
+      throw new Error(
+        `Pattern ${pattern.id} references stale topic ${pattern.topicId}.`,
+      )
+    }
+  }
   const privateText = await readPrivateTextIfAvailable(privateTextDir)
   const candidates = []
   const familyCounts = new Map()
@@ -90,9 +109,14 @@ async function main() {
       continue
     }
 
-    const safety = checkOriginality(result.candidate, result.variables, pattern, {
-      privateText,
-    })
+    const safety = checkOriginality(
+      result.candidate,
+      result.variables,
+      pattern,
+      {
+        privateText,
+      },
+    )
 
     if (!safety.ok) {
       audit.rejected.push({
@@ -110,6 +134,9 @@ async function main() {
     })
   }
 
+  candidates.sort((left, right) =>
+    compareTopics(left, right, canonicalTopicList),
+  )
   await mkdir(path.dirname(outputPath), { recursive: true })
   await mkdir(path.dirname(auditPath), { recursive: true })
   await writeFile(outputPath, `${JSON.stringify(candidates, null, 2)}\n`)
@@ -131,7 +158,7 @@ function generateCandidate(pattern, sequence) {
   if (hasTag(pattern, ["binomial", "exact count"])) {
     return {
       ok: true,
-      candidate: buildBinomialCandidate(sequence),
+      candidate: buildBinomialCandidate(sequence, pattern.topicId),
       variables: { n: 8, k: 3, p: 0.6 },
     }
   }
@@ -139,7 +166,7 @@ function generateCandidate(pattern, sequence) {
   if (hasTag(pattern, ["bayes", "false positive"])) {
     return {
       ok: true,
-      candidate: buildBayesCandidate(sequence),
+      candidate: buildBayesCandidate(sequence, pattern.topicId),
       variables: { baseRate: 8, targetFlagRate: 92, otherFlagRate: 6 },
     }
   }
@@ -147,7 +174,7 @@ function generateCandidate(pattern, sequence) {
   if (hasTag(pattern, ["z-score", "standardization"])) {
     return {
       ok: true,
-      candidate: buildZScoreCandidate(sequence),
+      candidate: buildZScoreCandidate(sequence, pattern.topicId),
       variables: { mean: 74, standardDeviation: 6, observation: 83 },
     }
   }
@@ -171,10 +198,10 @@ function generatorFamilyKey(pattern) {
   return "unsupported"
 }
 
-function buildBayesCandidate(sequence) {
+function buildBayesCandidate(sequence, topicId) {
   return {
     id: `generated-bayes-campus-badges-${sequence}`,
-    topicId: "conditional-probability",
+    topicId,
     title: "Campus badge flag draft",
     prompt:
       "A campus event scanner flags 6% of regular badges and 92% of priority badges. If 8% of badges are priority badges, what is the probability that a flagged badge is priority?",
@@ -210,10 +237,10 @@ function buildBayesCandidate(sequence) {
   }
 }
 
-function buildBinomialCandidate(sequence) {
+function buildBinomialCandidate(sequence, topicId) {
   return {
     id: `generated-binomial-study-app-${sequence}`,
-    topicId: "binomial-models",
+    topicId,
     title: "Study app exact count draft",
     prompt:
       "A study app shows 8 independent review cards. Each card has a 60% chance of being answered correctly. What is the probability of exactly 3 correct answers?",
@@ -249,10 +276,10 @@ function buildBinomialCandidate(sequence) {
   }
 }
 
-function buildZScoreCandidate(sequence) {
+function buildZScoreCandidate(sequence, topicId) {
   return {
     id: `generated-z-score-transit-${sequence}`,
-    topicId: "normal-standardization",
+    topicId,
     title: "Transit time z-score draft",
     prompt:
       "Shuttle wait times are normally distributed with mean 74 seconds and standard deviation 6 seconds. What is the z-score for a wait time of 83 seconds?",
@@ -311,13 +338,18 @@ function checkOriginality(candidate, variables, pattern, { privateText }) {
       generatedText.toLowerCase().includes(String(storyFamily).toLowerCase()),
     )
   ) {
-    return { ok: false, reason: "Generated text reused a banned story family." }
+    return {
+      ok: false,
+      reason: "Generated text reused a banned story family.",
+    }
   }
 
   const numberTuple = Object.values(variables).map(String)
   const sourceNumberSets = forbidden.sourceNumberSets ?? []
 
-  if (sourceNumberSets.some((set) => arraysEqual(set.map(String), numberTuple))) {
+  if (
+    sourceNumberSets.some((set) => arraysEqual(set.map(String), numberTuple))
+  ) {
     return { ok: false, reason: "Generated variables matched source numbers." }
   }
 
@@ -325,7 +357,10 @@ function checkOriginality(candidate, variables, pattern, { privateText }) {
   const privatePhraseHashes = forbidden.privatePhraseHashes ?? []
 
   if (privatePhraseHashes.some((hash) => generatedHashes.has(hash))) {
-    return { ok: false, reason: "Generated text matched a private phrase hash." }
+    return {
+      ok: false,
+      reason: "Generated text matched a private phrase hash.",
+    }
   }
 
   if (privateText && hasLongNgramOverlap(generatedText, privateText)) {
@@ -449,9 +484,13 @@ function assertPrivateAuditPath(targetPath) {
   }
 
   const relativePath = relativeToRepo(targetPath)
-  const result = spawnSync("git", ["check-ignore", "--quiet", "--", relativePath], {
-    cwd: repoRoot,
-  })
+  const result = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", "--", relativePath],
+    {
+      cwd: repoRoot,
+    },
+  )
 
   if (result.status === 0) {
     return true

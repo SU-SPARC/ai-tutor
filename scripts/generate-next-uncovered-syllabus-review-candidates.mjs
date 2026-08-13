@@ -3,9 +3,12 @@
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const topicsPath = path.join(repoRoot, "data/demo/topics.json")
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+)
 const previousBatchPaths = [
   path.join(repoRoot, "data/demo/generated-review-candidates.json"),
   path.join(repoRoot, "data/demo/syllabus-review-candidates.json"),
@@ -18,13 +21,13 @@ const outputPath = path.join(
 )
 const checkOnly = process.argv.includes("--check")
 
-const PREVIOUS_FINAL_TOPIC_ID =
-  "moment-generating-functions-joint-distributions"
-const EXPECTED_TOPIC_IDS = [
-  "independent-random-variables-sums-correlation",
-  "chebyshev-law-large-numbers",
-  "central-limit-theorem",
-]
+const canonicalTopics = await loadCanonicalSyllabusTopics(repoRoot)
+const PREVIOUS_FINAL_TOPIC_ID = canonicalTopics.find(
+  ({ order }) => order === 10,
+)?.id
+const EXPECTED_TOPIC_IDS = canonicalTopics
+  .filter(({ order }) => [11, 12, 13].includes(order))
+  .map(({ id }) => id)
 const ORIGINALITY_NOTE =
   "Original practice draft generated from a project-owned abstract probability pattern with new wording, context, and numbers."
 
@@ -50,8 +53,7 @@ const sumMomentSpecs = [
   {
     id: "linear-combination-mean",
     title: "Mean of a Linear Combination",
-    prompt:
-      "Random variables X and Y have means 5 and 2. Find E[2X - 3Y].",
+    prompt: "Random variables X and Y have means 5 and 2. Find E[2X - 3Y].",
     kind: "linear-mean",
     coefficientX: 2,
     coefficientY: -3,
@@ -657,8 +659,7 @@ function buildSumMomentCandidate(topic, spec) {
       `The variance of the sum is ${formatDecimal(value)}.`,
     ]
   } else if (spec.kind === "linear-mean") {
-    value =
-      spec.coefficientX * spec.meanX + spec.coefficientY * spec.meanY
+    value = spec.coefficientX * spec.meanX + spec.coefficientY * spec.meanY
     steps = [
       "Use E[aX + bY] = aE[X] + bE[Y].",
       `Substitute (${spec.coefficientX})(${spec.meanX}) + (${spec.coefficientY})(${spec.meanY}).`,
@@ -674,8 +675,7 @@ function buildSumMomentCandidate(topic, spec) {
       `The result is ${formatDecimal(value)}.`,
     ]
   } else {
-    const variance =
-      spec.standardDeviationX ** 2 + spec.standardDeviationY ** 2
+    const variance = spec.standardDeviationX ** 2 + spec.standardDeviationY ** 2
     value = Math.sqrt(variance)
     steps = [
       "For an independent sum, add variances rather than standard deviations.",
@@ -710,8 +710,7 @@ function buildSumDistributionCandidate(topic, spec) {
 
   if (spec.kind === "poisson") {
     const lambda = spec.lambdaX + spec.lambdaY
-    value =
-      (Math.exp(-lambda) * lambda ** spec.count) / factorial(spec.count)
+    value = (Math.exp(-lambda) * lambda ** spec.count) / factorial(spec.count)
     steps = [
       `The independent Poisson sum has mean ${spec.lambdaX} + ${spec.lambdaY} = ${lambda}.`,
       `Use P(S = ${spec.count}) = exp(-${lambda})${lambda}^${spec.count}/${spec.count}!.`,
@@ -835,18 +834,14 @@ function buildCorrelationCandidate(topic, spec) {
 
   if (spec.kind === "correlation") {
     value =
-      spec.covariance /
-      (spec.standardDeviationX * spec.standardDeviationY)
+      spec.covariance / (spec.standardDeviationX * spec.standardDeviationY)
     steps = [
       "Use Corr(X,Y) = Cov(X,Y)/(SD(X)SD(Y)).",
       `Substitute ${spec.covariance}/(${spec.standardDeviationX} times ${spec.standardDeviationY}).`,
       `The correlation is ${formatDecimal(value)}.`,
     ]
   } else if (spec.kind === "covariance") {
-    value =
-      spec.correlation *
-      spec.standardDeviationX *
-      spec.standardDeviationY
+    value = spec.correlation * spec.standardDeviationX * spec.standardDeviationY
     steps = [
       "Rearrange to Cov(X,Y) = Corr(X,Y)SD(X)SD(Y).",
       `Substitute (${spec.correlation})(${spec.standardDeviationX})(${spec.standardDeviationY}).`,
@@ -867,8 +862,7 @@ function buildCorrelationCandidate(topic, spec) {
       `The variance is ${formatDecimal(value)}.`,
     ]
   } else {
-    value =
-      Math.sign(spec.coefficientX * spec.coefficientY) * spec.correlation
+    value = Math.sign(spec.coefficientX * spec.coefficientY) * spec.correlation
     steps = [
       "Additive shifts do not change correlation.",
       "Scaling both variables changes only the sign when the scale factors have opposite signs.",
@@ -905,8 +899,7 @@ function buildChebyshevLlnCandidates(topic) {
       return candidate(topic, {
         ...spec,
         answer: probabilityAnswer(value),
-        difficulty:
-          spec.variance === 1 ? "foundational" : "intermediate",
+        difficulty: spec.variance === 1 ? "foundational" : "intermediate",
         patternSource: "Chebyshev probability-bound pattern",
         hints: [
           "Chebyshev gives P(|X - mean| >= a) <= variance/a^2.",
@@ -927,8 +920,7 @@ function buildChebyshevLlnCandidates(topic) {
     }),
     ...sampleMeanChebyshevSpecs.map((spec) => {
       const value =
-        spec.populationVariance /
-        (spec.sampleSize * spec.distance ** 2)
+        spec.populationVariance / (spec.sampleSize * spec.distance ** 2)
       return candidate(topic, {
         ...spec,
         prompt:
@@ -1056,8 +1048,7 @@ function buildCltLocationCandidate(topic, spec, mode) {
 
   return candidate(topic, {
     ...spec,
-    prompt:
-      `A population has mean ${spec.mean} and standard deviation ${spec.standardDeviation}. For an independent sample of size ${spec.sampleSize}, use the central limit theorem to approximate P(${eventText}).`,
+    prompt: `A population has mean ${spec.mean} and standard deviation ${spec.standardDeviation}. For an independent sample of size ${spec.sampleSize}, use the central limit theorem to approximate P(${eventText}).`,
     answer: probabilityAnswer(value),
     difficulty: spec.kind === "between" ? "challenge" : "intermediate",
     patternSource: `CLT sample-${mode} normal-approximation pattern`,
@@ -1111,8 +1102,7 @@ function buildCltProportionCandidate(topic, spec) {
 
   return candidate(topic, {
     ...spec,
-    prompt:
-      `Independent Bernoulli trials have success probability ${spec.probability}. For n = ${spec.sampleSize}, use a normal approximation to find P(${eventText}).`,
+    prompt: `Independent Bernoulli trials have success probability ${spec.probability}. For n = ${spec.sampleSize}, use a normal approximation to find P(${eventText}).`,
     answer: probabilityAnswer(value),
     difficulty: spec.kind === "between" ? "challenge" : "intermediate",
     patternSource: "CLT sample-proportion normal-approximation pattern",
@@ -1264,9 +1254,7 @@ function erf(value) {
   const p = 0.3275911
   const t = 1 / (1 + p * x)
   const approximation =
-    1 -
-    (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) *
-      Math.exp(-x * x)
+    1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x)
   return sign * approximation
 }
 
@@ -1407,7 +1395,7 @@ function validateCandidates(candidates, topicMap, previousBatches) {
 
 async function main() {
   const [topics, ...previousBatches] = await Promise.all([
-    readFile(topicsPath, "utf8").then(JSON.parse),
+    Promise.resolve(canonicalTopics),
     ...previousBatchPaths.map((batchPath) =>
       readFile(batchPath, "utf8").then(JSON.parse),
     ),

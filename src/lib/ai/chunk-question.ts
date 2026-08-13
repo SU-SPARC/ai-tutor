@@ -33,7 +33,7 @@ export type QuestionChunkInput = {
   sourceType: SourceType
   title?: string
   topic: string
-  topicId?: string
+  topicId: string
   trustLevel: TrustLevel
   visibility: Visibility
 }
@@ -201,9 +201,10 @@ export function slug(value: string) {
 }
 
 function baseMetadataForQuestion(question: QuestionChunkInput) {
-  const topicId = question.topicId?.trim() || slug(question.topic)
+  const topicId = question.topicId.trim()
   const title = question.title?.trim() || titleCase(question.topic)
-  const priorityTier = question.priorityTier ?? priorityTierForQuestion(question)
+  const priorityTier =
+    question.priorityTier ?? priorityTierForQuestion(question)
   const source: SourceMetadata = {
     sourceType: question.sourceType,
     trustLevel: question.trustLevel,

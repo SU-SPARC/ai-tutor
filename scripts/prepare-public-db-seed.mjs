@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -11,7 +12,6 @@ const repoRoot = path.resolve(
 )
 
 const defaultOutputPath = path.join(tmpdir(), "pf-xj-public-db-seed.sql")
-const defaultTopicsPath = path.join(repoRoot, "data/demo/topics.json")
 const defaultDemoQuestionsPath = path.join(repoRoot, "data/demo/questions.json")
 const defaultApprovedGeneratedPath = path.join(
   repoRoot,
@@ -24,9 +24,6 @@ const outputPath = args.output
 const demoQuestionsPath = args.demoQuestions
   ? path.resolve(repoRoot, args.demoQuestions)
   : defaultDemoQuestionsPath
-const topicsPath = args.topics
-  ? path.resolve(repoRoot, args.topics)
-  : defaultTopicsPath
 const approvedGeneratedPath = args.approvedGenerated
   ? path.resolve(repoRoot, args.approvedGenerated)
   : defaultApprovedGeneratedPath
@@ -48,7 +45,7 @@ async function main() {
 
   const [demoQuestions, topics] = await Promise.all([
     readJson(demoQuestionsPath),
-    readJson(topicsPath),
+    loadCanonicalSyllabusTopics(repoRoot),
   ])
   const approvedGenerated = includeApprovedGenerated
     ? await readJson(approvedGeneratedPath)
@@ -79,7 +76,9 @@ async function main() {
   })
 
   await writeFile(outputPath, sql)
-  console.log(`Prepared public database seed SQL at ${relativeToRepo(outputPath)}.`)
+  console.log(
+    `Prepared public database seed SQL at ${relativeToRepo(outputPath)}.`,
+  )
 }
 
 export function validatePublicSeedPayload(payload, options = {}) {
@@ -93,7 +92,9 @@ export function validatePublicSeedPayload(payload, options = {}) {
   }
 
   if (forbiddenText.test(serialized)) {
-    errors.push("public seed payload contains copied-source or private-data text.")
+    errors.push(
+      "public seed payload contains copied-source or private-data text.",
+    )
   }
 
   const topicIds = validateTopics(payload.topics, errors)
@@ -107,6 +108,11 @@ export function validatePublicSeedPayload(payload, options = {}) {
 }
 
 function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
+  const topicOrders = new Map(topics.map((topic) => [topic.id, topic.order]))
+  const compareQuestions = (left, right) =>
+    (topicOrders.get(left.topicId) ?? Number.MAX_SAFE_INTEGER) -
+      (topicOrders.get(right.topicId) ?? Number.MAX_SAFE_INTEGER) ||
+    String(left.id).localeCompare(String(right.id))
   const lines = [
     "-- Public-safe seed data generated from committed demo/processed fixtures.",
     "-- Review this SQL before applying it to Postgres.",
@@ -128,11 +134,11 @@ function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
 
   lines.push("")
 
-  for (const question of demoQuestions) {
+  for (const question of [...demoQuestions].sort(compareQuestions)) {
     lines.push(...seedQuestionSql(normalizeDemoQuestion(question)))
   }
 
-  for (const question of approvedGenerated) {
+  for (const question of [...approvedGenerated].sort(compareQuestions)) {
     lines.push(...seedQuestionSql(normalizeApprovedGeneratedQuestion(question)))
   }
 
@@ -146,18 +152,18 @@ function seedQuestionSql(question) {
     "select set_config('app.current_creation_method', 'imported', true);",
     "select set_config('app.suppress_question_version', 'true', true);",
     `insert into questions (id, topic_id, pattern_id, title, prompt, difficulty, accepted_answers_json, numeric_value, tolerance, answer_explanation, source_type, trust_level, visibility, review_status, originality_note, reviewed_by, reviewed_by_user_id, reviewed_at) values (${sqlString(
-    question.id,
-  )}, ${sqlString(question.topicId)}, ${sqlString(question.patternId)}, ${sqlString(
-    question.title,
-  )}, ${sqlString(question.prompt)}, ${sqlString(question.difficulty)}, ${sqlJson(
-    question.acceptedAnswers,
-  )}, ${sqlNumber(question.numericValue)}, ${sqlNumber(
-    question.tolerance,
-  )}, ${sqlString(question.answerExplanation)}, ${sqlString(question.sourceType)}, ${sqlString(
-    question.trustLevel,
-  )}, ${sqlString(question.visibility)}, ${sqlString(
-    question.reviewStatus,
-  )}, ${sqlString(question.originalityNote)}, 'development seed', 'system:schema-migration', now()) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, reviewed_by = excluded.reviewed_by, reviewed_by_user_id = excluded.reviewed_by_user_id, reviewed_at = excluded.reviewed_at, updated_at = now();`,
+      question.id,
+    )}, ${sqlString(question.topicId)}, ${sqlString(question.patternId)}, ${sqlString(
+      question.title,
+    )}, ${sqlString(question.prompt)}, ${sqlString(question.difficulty)}, ${sqlJson(
+      question.acceptedAnswers,
+    )}, ${sqlNumber(question.numericValue)}, ${sqlNumber(
+      question.tolerance,
+    )}, ${sqlString(question.answerExplanation)}, ${sqlString(question.sourceType)}, ${sqlString(
+      question.trustLevel,
+    )}, ${sqlString(question.visibility)}, ${sqlString(
+      question.reviewStatus,
+    )}, ${sqlString(question.originalityNote)}, 'development seed', 'system:schema-migration', now()) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, reviewed_by = excluded.reviewed_by, reviewed_by_user_id = excluded.reviewed_by_user_id, reviewed_at = excluded.reviewed_at, updated_at = now();`,
   ]
 
   question.hints.forEach((hint, index) => {
@@ -226,7 +232,7 @@ function normalizeDemoQuestion(question) {
 function normalizeApprovedGeneratedQuestion(question) {
   return {
     id: question.id,
-    topicId: question.topicId ?? slug(question.topic),
+    topicId: question.topicId,
     patternId: question.patternId,
     title: question.title ?? titleCase(question.topic),
     prompt: question.questionText,
@@ -264,7 +270,9 @@ function normalizeMisconceptions(misconceptions) {
 
 function validateTopics(topics, errors) {
   if (!Array.isArray(topics) || topics.length === 0) {
-    errors.push("data/demo/topics.json must be a non-empty array.")
+    errors.push(
+      "the canonical syllabus topic catalog must be a non-empty array.",
+    )
     return new Set()
   }
 
@@ -282,7 +290,9 @@ function validateTopics(topics, errors) {
     if (!Number.isInteger(topic.order) || topic.order < 1) {
       errors.push(`${label}.order must be a positive integer.`)
     } else if (topic.order <= previousOrder) {
-      errors.push("topics must be stored in strictly increasing syllabus order.")
+      errors.push(
+        "topics must be stored in strictly increasing syllabus order.",
+      )
     } else {
       previousOrder = topic.order
     }
@@ -337,11 +347,15 @@ function validateDemoQuestions(questions, topicIds, errors) {
 
 function validateApprovedGenerated(payload, topicIds, errors) {
   if (payload?.visibility !== "public") {
-    errors.push("approved generated question payload visibility must be public.")
+    errors.push(
+      "approved generated question payload visibility must be public.",
+    )
   }
 
   if (!Array.isArray(payload?.questions)) {
-    errors.push("approved generated question payload questions must be an array.")
+    errors.push(
+      "approved generated question payload questions must be an array.",
+    )
     return
   }
 
@@ -349,7 +363,8 @@ function validateApprovedGenerated(payload, topicIds, errors) {
     const label = `approvedGenerated.questions[${index}]`
 
     requireString(question.id, `${label}.id`, errors)
-    const topicId = question.topicId ?? slug(question.topic)
+    const topicId = question.topicId
+    requireString(question.topicId, `${label}.topicId`, errors)
     requireString(question.topic, `${label}.topic`, errors)
     requireString(question.questionText, `${label}.questionText`, errors)
     requireString(question.finalAnswer, `${label}.finalAnswer`, errors)
@@ -365,7 +380,9 @@ function validateApprovedGenerated(payload, topicIds, errors) {
     }
 
     if (question.sourceMetadata?.sourceType !== "generated_original") {
-      errors.push(`${label}.sourceMetadata.sourceType must be generated_original.`)
+      errors.push(
+        `${label}.sourceMetadata.sourceType must be generated_original.`,
+      )
     }
 
     if (question.sourceMetadata?.visibility !== "public") {
@@ -425,13 +442,19 @@ function assertPublicProcessedOutput(targetPath) {
     return
   }
 
-  throw new Error("Seed SQL output must stay under data/processed or a temp directory.")
+  throw new Error(
+    "Seed SQL output must stay under data/processed or a temp directory.",
+  )
 }
 
 function isInside(childPath, parentPath) {
   const relativePath = path.relative(parentPath, childPath)
 
-  return Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
+  return (
+    Boolean(relativePath) &&
+    !relativePath.startsWith("..") &&
+    !path.isAbsolute(relativePath)
+  )
 }
 
 function sqlString(value) {
@@ -447,18 +470,13 @@ function sqlJson(value) {
 }
 
 function sqlNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : "null"
+  return typeof value === "number" && Number.isFinite(value)
+    ? String(value)
+    : "null"
 }
 
 function sqlBoolean(value) {
   return value ? "true" : "false"
-}
-
-function slug(value) {
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
 }
 
 function titleCase(value) {
@@ -480,9 +498,6 @@ function parseArgs(rawArgs) {
       index += 1
     } else if (arg === "--demo-questions") {
       parsed.demoQuestions = rawArgs[index + 1]
-      index += 1
-    } else if (arg === "--topics") {
-      parsed.topics = rawArgs[index + 1]
       index += 1
     } else if (
       arg === "--approved-generated" ||

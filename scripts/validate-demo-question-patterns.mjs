@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -23,7 +24,11 @@ const requiredTopics = new Set([
   "variance",
   "normal approximation",
 ])
-const allowedDifficulties = new Set(["foundational", "intermediate", "challenge"])
+const allowedDifficulties = new Set([
+  "foundational",
+  "intermediate",
+  "challenge",
+])
 const allowedVariableTypes = new Set([
   "category",
   "count",
@@ -49,10 +54,13 @@ const forbiddenText = [
 
 async function main() {
   const payload = JSON.parse(await readFile(patternsPath, "utf8"))
-  const errors = validatePatternPayload(payload)
+  const topics = await loadCanonicalSyllabusTopics(repoRoot)
+  const errors = validatePatternPayload(payload, topics)
 
   if (errors.length > 0) {
-    console.error(`Invalid demo question patterns in ${relativeToRepo(patternsPath)}:`)
+    console.error(
+      `Invalid demo question patterns in ${relativeToRepo(patternsPath)}:`,
+    )
     for (const error of errors) {
       console.error(`- ${error}`)
     }
@@ -63,7 +71,7 @@ async function main() {
   console.log(`Validated ${payload.patterns.length} demo question pattern(s).`)
 }
 
-export function validatePatternPayload(payload) {
+export function validatePatternPayload(payload, canonicalTopics = []) {
   const errors = []
 
   if (payload.schemaVersion !== 1) {
@@ -81,6 +89,7 @@ export function validatePatternPayload(payload) {
 
   const seenIds = new Set()
   const topics = new Set()
+  const canonicalTopicIds = new Set(canonicalTopics.map(({ id }) => id))
   const serialized = JSON.stringify(payload)
 
   for (const key of forbiddenKeys) {
@@ -108,6 +117,11 @@ export function validatePatternPayload(payload) {
     if (typeof pattern.topic === "string") {
       topics.add(pattern.topic)
     }
+    if (canonicalTopics.length > 0 && !canonicalTopicIds.has(pattern.topicId)) {
+      errors.push(
+        `patterns[${index}].topicId must reference a canonical syllabus topic.`,
+      )
+    }
   }
 
   for (const requiredTopic of requiredTopics) {
@@ -124,6 +138,7 @@ function validatePattern(pattern, index, errors) {
 
   requireString(pattern.id, `${label}.id`, errors)
   requireString(pattern.topic, `${label}.topic`, errors)
+  requireString(pattern.topicId, `${label}.topicId`, errors)
   requireString(pattern.template, `${label}.template`, errors)
 
   if (!allowedDifficulties.has(pattern.difficulty)) {
@@ -134,12 +149,20 @@ function validatePattern(pattern, index, errors) {
     errors.push(`${label}.variables must be a non-empty array.`)
   } else {
     pattern.variables.forEach((variable, variableIndex) =>
-      validateVariable(variable, `${label}.variables[${variableIndex}]`, errors),
+      validateVariable(
+        variable,
+        `${label}.variables[${variableIndex}]`,
+        errors,
+      ),
     )
   }
 
   requireStringArray(pattern.constraints, `${label}.constraints`, errors)
-  requireStringArray(pattern.generationNotes, `${label}.generationNotes`, errors)
+  requireStringArray(
+    pattern.generationNotes,
+    `${label}.generationNotes`,
+    errors,
+  )
   requireStringArray(
     pattern.misconceptionHooks,
     `${label}.misconceptionHooks`,
@@ -147,7 +170,9 @@ function validatePattern(pattern, index, errors) {
   )
 
   if (String(pattern.template ?? "").includes("?")) {
-    errors.push(`${label}.template must be a generic task shape, not a question.`)
+    errors.push(
+      `${label}.template must be a generic task shape, not a question.`,
+    )
   }
 }
 
@@ -176,7 +201,9 @@ function requireStringArray(value, label, errors) {
     return
   }
 
-  if (value.some((item) => typeof item !== "string" || item.trim().length === 0)) {
+  if (
+    value.some((item) => typeof item !== "string" || item.trim().length === 0)
+  ) {
     errors.push(`${label} must contain only non-empty strings.`)
   }
 }
