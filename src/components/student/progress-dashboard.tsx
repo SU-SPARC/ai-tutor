@@ -1,6 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,9 +6,7 @@ import {
   CheckCircle2,
   GraduationCap,
   Lightbulb,
-  ListChecks,
-  Loader2,
-  RotateCcw,
+  ListRestart,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,263 +22,420 @@ import {
 } from "@/components/ui/table";
 import type { StudentProgressDashboard } from "@/lib/types";
 
-type ProgressPayload = {
-  error?: string;
-  progress?: StudentProgressDashboard;
-};
+type QuestionProgress = StudentProgressDashboard["questions"][number];
 
 const metricDefinitions = [
   {
-    icon: BookOpenCheck,
-    key: "attemptedQuestions",
-    label: "Questions attempted",
+    icon: CheckCircle2,
+    key: "completedQuestions",
+    label: "Questions completed",
   },
-  { icon: CheckCircle2, key: "correctAttempts", label: "Correct attempts" },
-  { icon: Lightbulb, key: "hintsUsed", label: "Hints used" },
-  { icon: ListChecks, key: "stepsRevealed", label: "Steps revealed" },
-  { icon: GraduationCap, key: "topicsPracticed", label: "Topics practiced" },
+  {
+    icon: BookOpenCheck,
+    key: "inProgressQuestions",
+    label: "Questions in progress",
+  },
+  {
+    icon: Lightbulb,
+    key: "hintsUsed",
+    label: "Hints used",
+  },
+  {
+    icon: ListRestart,
+    key: "needsAnotherAttempt",
+    label: "Try another attempt",
+  },
 ] as const;
 
-export function ProgressDashboard() {
-  const [progress, setProgress] = useState<StudentProgressDashboard | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function ProgressDashboard({
+  progress,
+}: {
+  progress: StudentProgressDashboard;
+}) {
+  const completedQuestions: QuestionProgress[] = [];
+  const inProgressQuestions: QuestionProgress[] = [];
+  const needsAnotherAttempt: QuestionProgress[] = [];
 
-  async function loadProgress() {
-    setIsLoading(true);
-    setError(null);
+  for (const question of progress.questions) {
+    if (question.status === "completed") {
+      completedQuestions.push(question);
+    } else {
+      inProgressQuestions.push(question);
+    }
 
-    try {
-      setProgress(await fetchStudentProgress());
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Student progress could not be loaded.",
-      );
-    } finally {
-      setIsLoading(false);
+    if (question.needsAnotherAttempt) {
+      needsAnotherAttempt.push(question);
     }
   }
 
-  useEffect(() => {
-    let isStale = false;
-
-    void fetchStudentProgress()
-      .then((nextProgress) => {
-        if (!isStale) {
-          setProgress(nextProgress);
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (!isStale) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Student progress could not be loaded.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!isStale) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      isStale = true;
-    };
-  }, []);
+  const hasPracticeActivity = progress.questions.length > 0;
 
   return (
     <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-6 py-8">
         <header className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="mb-3 -ml-3">
               <Link href="/">
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Back
               </Link>
             </Button>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl font-semibold tracking-normal">
-                Your progress
+                Your practice progress
               </h1>
-              {progress ? (
-                <Badge variant="secondary">
-                  {progress.mode === "database"
-                    ? "Database"
-                    : "Temporary, not saved"}
-                </Badge>
-              ) : null}
+              <Badge variant="secondary">Saved to your account</Badge>
             </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              This is a record of tutor practice activity, not a formal course
+              grade.
+            </p>
           </div>
           <Button asChild>
             <Link href="/practice">
-              <GraduationCap className="h-4 w-4" />
+              <GraduationCap className="h-4 w-4" aria-hidden="true" />
               Practice
             </Link>
           </Button>
         </header>
 
-        {isLoading ? (
-          <div className="flex min-h-56 items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Loading progress
-          </div>
-        ) : error ? (
-          <Card className="border-destructive/60">
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-5 text-sm">
-              <span className="text-destructive">{error}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={loadProgress}
-              >
-                <RotateCcw className="h-4 w-4" />
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
-        ) : progress ? (
-          <>
-            <section
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
-              aria-label="Progress totals"
-            >
-              {metricDefinitions.map(({ icon: Icon, key, label }) => (
-                <Card key={key}>
-                  <CardHeader className="gap-3 p-4">
-                    <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                    <div>
-                      <p className="text-2xl font-semibold tabular-nums">
-                        {progress.summary[key]}
-                      </p>
-                      <CardTitle className="mt-1 text-sm font-medium text-muted-foreground">
-                        {label}
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
-            </section>
-
-            <section className="border-y py-5">
-              <h2 className="text-sm font-medium">Topics practiced</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {progress.topics.length > 0 ? (
-                  progress.topics.map((topic) => (
-                    <Badge key={topic.id} variant="outline">
-                      {topic.title}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">
-                    No topics practiced yet.
-                  </span>
-                )}
-              </div>
-            </section>
-
-            <section>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Recent sessions</h2>
-                <span className="text-xs text-muted-foreground">
-                  Most recent 8
-                </span>
-              </div>
-              {progress.recentSessions.length > 0 ? (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Question</TableHead>
-                        <TableHead>Topic</TableHead>
-                        <TableHead className="text-right">Attempts</TableHead>
-                        <TableHead className="text-right">Correct</TableHead>
-                        <TableHead className="text-right">Hints</TableHead>
-                        <TableHead className="text-right">Steps</TableHead>
-                        <TableHead>Last active</TableHead>
-                        <TableHead className="w-12">
-                          <span className="sr-only">Open</span>
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {progress.recentSessions.map((session) => (
-                        <TableRow
-                          key={`${session.questionId}-${session.lastSeenAt}`}
-                        >
-                          <TableCell className="min-w-52 font-medium">
-                            {session.questionTitle}
-                          </TableCell>
-                          <TableCell className="min-w-40 text-muted-foreground">
-                            {session.topicTitle}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {session.attemptCount}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {session.correctAttempts}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {session.hintsUsed}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {session.stepsRevealed}
-                          </TableCell>
-                          <TableCell className="min-w-32 text-muted-foreground">
-                            {formatSessionDate(session.lastSeenAt)}
-                          </TableCell>
-                          <TableCell>
-                            <Button asChild variant="ghost" size="icon">
-                              <Link
-                                href={`/practice?questionId=${encodeURIComponent(session.questionId)}`}
-                                aria-label={`Open ${session.questionTitle}`}
-                              >
-                                <ArrowRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex flex-col items-start gap-4 rounded-md border border-dashed p-6">
-                  <p className="text-sm text-muted-foreground">
-                    No practice activity yet.
+        <section
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          aria-label="Practice totals"
+        >
+          {metricDefinitions.map(({ icon: Icon, key, label }) => (
+            <Card key={key}>
+              <CardHeader className="gap-3 p-4">
+                <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div>
+                  <p className="text-2xl font-semibold tabular-nums">
+                    {progress.summary[key]}
                   </p>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href="/practice">
-                      Start practicing
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
+                  <CardTitle className="mt-1 text-sm font-medium text-muted-foreground">
+                    {label}
+                  </CardTitle>
                 </div>
-              )}
-            </section>
-          </>
+              </CardHeader>
+            </Card>
+          ))}
+        </section>
+
+        {!hasPracticeActivity ? <EmptyProgressState /> : null}
+
+        <section aria-labelledby="syllabus-progress-heading">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2
+                id="syllabus-progress-heading"
+                className="text-lg font-semibold"
+              >
+                Syllabus topic progress
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Topics follow the course syllabus order.
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {progress.summary.topicsStarted} topics started ·{" "}
+              {progress.summary.availableQuestions} questions available
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {progress.topics.map((topic, index) => (
+              <Card key={topic.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Topic {index + 1}
+                      </p>
+                      <h3 className="mt-1 font-semibold">{topic.title}</h3>
+                    </div>
+                    {topic.needsAnotherAttempt > 0 ? (
+                      <Badge variant="outline">
+                        {topic.needsAnotherAttempt} to try again
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {topic.availableQuestions > 0 ? (
+                    <>
+                      <div
+                        className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        aria-label={`${topic.title} practice completion`}
+                        aria-valuemin={0}
+                        aria-valuemax={topic.availableQuestions}
+                        aria-valuenow={topic.completedQuestions}
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{
+                            width: `${Math.round(
+                              (topic.completedQuestions /
+                                topic.availableQuestions) *
+                                100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {topic.completedQuestions} of {topic.availableQuestions}{" "}
+                        practice questions completed
+                        {topic.inProgressQuestions > 0
+                          ? ` · ${topic.inProgressQuestions} in progress`
+                          : ""}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      No practice questions are available for this topic yet.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {hasPracticeActivity ? (
+          <section
+            className="grid gap-5 lg:grid-cols-2"
+            aria-label="Question progress"
+          >
+            <QuestionList
+              emptyMessage="No questions are in progress."
+              heading="In progress"
+              questions={inProgressQuestions}
+            />
+            <QuestionList
+              emptyMessage="Complete a practice question to see it here."
+              heading="Completed"
+              questions={completedQuestions}
+            />
+          </section>
         ) : null}
+
+        <section aria-labelledby="another-attempt-heading">
+          <div className="mb-3">
+            <h2 id="another-attempt-heading" className="text-lg font-semibold">
+              Questions to try again
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              These questions have an incorrect attempt and no correct attempt
+              yet.
+            </p>
+          </div>
+          {needsAnotherAttempt.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {needsAnotherAttempt.map((question) => (
+                <QuestionRow key={question.questionId} question={question} />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
+              No questions currently need another attempt.
+            </p>
+          )}
+        </section>
+
+        <section aria-labelledby="recent-sessions-heading">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 id="recent-sessions-heading" className="text-lg font-semibold">
+              Recent tutor sessions
+            </h2>
+            <span className="text-xs text-muted-foreground">Most recent 8</span>
+          </div>
+          {progress.recentSessions.length > 0 ? (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Question</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Attempts</TableHead>
+                    <TableHead className="text-right">Hints</TableHead>
+                    <TableHead>Last active</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {progress.recentSessions.map((session) => (
+                    <TableRow key={session.sessionId}>
+                      <TableCell className="min-w-56">
+                        <span className="font-medium">
+                          {session.questionTitle}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {session.topicTitle}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <ProgressStatusBadge
+                          needsAnotherAttempt={session.needsAnotherAttempt}
+                          status={session.status}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {session.attemptCount}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {session.hintsUsed}
+                      </TableCell>
+                      <TableCell className="min-w-32 text-muted-foreground">
+                        {formatSessionDate(session.lastSeenAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {session.available ? (
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={resumeHref(
+                                session.questionId,
+                                session.sessionId,
+                              )}
+                            >
+                              Resume
+                              <ArrowRight
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </Link>
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
+              No tutor sessions yet.
+            </p>
+          )}
+        </section>
       </section>
     </main>
   );
 }
 
-async function fetchStudentProgress() {
-  const response = await fetch("/api/student/progress");
-  const payload = (await response.json().catch(() => ({}))) as ProgressPayload;
+function EmptyProgressState() {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="flex flex-col items-start gap-4 p-6">
+        <div>
+          <h2 className="font-semibold">No saved practice yet</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Start a practice question to build your private progress record.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/practice">
+            Start practicing
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
-  if (!response.ok || !payload.progress) {
-    throw new Error(payload.error ?? "Student progress could not be loaded.");
+function QuestionList({
+  emptyMessage,
+  heading,
+  questions,
+}: {
+  emptyMessage: string;
+  heading: string;
+  questions: QuestionProgress[];
+}) {
+  const headingId = `question-list-${heading
+    .toLowerCase()
+    .replaceAll(" ", "-")}`;
+
+  return (
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId} className="mb-3 text-lg font-semibold">
+        {heading}
+      </h2>
+      {questions.length > 0 ? (
+        <div className="space-y-3">
+          {questions.map((question) => (
+            <QuestionRow key={question.questionId} question={question} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
+          {emptyMessage}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function QuestionRow({ question }: { question: QuestionProgress }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-medium">{question.questionTitle}</h3>
+            {question.needsAnotherAttempt ? (
+              <Badge variant="outline">Try again</Badge>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {question.topicTitle} · {question.attemptCount} attempts ·{" "}
+            {question.hintsUsed} hints
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link
+            href={resumeHref(question.questionId, question.resumeSessionId)}
+          >
+            {question.status === "completed" ? "Practice again" : "Resume"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProgressStatusBadge({
+  needsAnotherAttempt,
+  status,
+}: {
+  needsAnotherAttempt: boolean;
+  status: StudentProgressDashboard["recentSessions"][number]["status"];
+}) {
+  if (status === "unavailable") {
+    return <Badge variant="secondary">Unavailable</Badge>;
   }
 
-  return payload.progress;
+  if (needsAnotherAttempt) {
+    return <Badge variant="outline">Try again</Badge>;
+  }
+
+  return (
+    <Badge variant={status === "completed" ? "default" : "secondary"}>
+      {status === "completed" ? "Completed" : "In progress"}
+    </Badge>
+  );
+}
+
+function resumeHref(questionId: string, sessionId?: string) {
+  const params = new URLSearchParams({ questionId });
+
+  if (sessionId) {
+    params.set("sessionId", sessionId);
+  }
+
+  return `/practice?${params.toString()}`;
 }
 
 function formatSessionDate(value: string) {
@@ -293,7 +445,7 @@ function formatSessionDate(value: string) {
     return "Unknown";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en", {
     day: "numeric",
     month: "short",
     year: "numeric",

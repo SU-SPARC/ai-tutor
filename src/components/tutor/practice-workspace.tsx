@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 
 type PracticeWorkspaceProps = {
   initialQuestionId?: string;
+  initialSessionId?: string;
   initialTopicId?: string;
   questions: PracticeQuestion[];
   topics: CourseTopic[];
@@ -64,6 +65,7 @@ type TutorSessionPayload = {
 
 export function PracticeWorkspace({
   initialQuestionId,
+  initialSessionId,
   initialTopicId,
   questions,
   topics,
@@ -164,6 +166,9 @@ export function PracticeWorkspace({
       try {
         const nextSession = await createOrResumeTutorSession(
           selectedQuestionIdForSession,
+          selectedQuestionIdForSession === initialQuestionId
+            ? initialSessionId
+            : undefined,
         );
 
         if (!isStale) {
@@ -185,7 +190,7 @@ export function PracticeWorkspace({
     return () => {
       isStale = true;
     };
-  }, [selectedQuestionIdForSession]);
+  }, [initialQuestionId, initialSessionId, selectedQuestionIdForSession]);
 
   function resetChat() {
     setMessages([]);
@@ -395,10 +400,7 @@ export function PracticeWorkspace({
 
     try {
       const nextSession = await createTutorSession(selectedQuestion.id);
-      window.localStorage.setItem(
-        anonymousTutorSessionStorageKey(selectedQuestion.id),
-        nextSession.id,
-      );
+      storeTutorSessionId(selectedQuestion.id, nextSession.id);
       setAnswer("");
       setLatestResponse(null);
       setSession(nextSession);
@@ -784,10 +786,25 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-async function createOrResumeTutorSession(questionId: string) {
-  const storedSessionId = window.localStorage.getItem(
-    anonymousTutorSessionStorageKey(questionId),
-  );
+async function createOrResumeTutorSession(
+  questionId: string,
+  preferredSessionId?: string,
+) {
+  if (preferredSessionId) {
+    try {
+      const preferredSession = await fetchTutorSession(preferredSessionId);
+
+      if (preferredSession.questionId === questionId) {
+        storeTutorSessionId(questionId, preferredSession.id);
+        return preferredSession;
+      }
+    } catch {
+      // The session may be expired, unpublished, or owned by someone else.
+      // Fall back without revealing which condition applied.
+    }
+  }
+
+  const storedSessionId = readTutorSessionId(questionId);
 
   if (storedSessionId) {
     try {
@@ -797,18 +814,43 @@ async function createOrResumeTutorSession(questionId: string) {
         return session;
       }
     } catch {
-      window.localStorage.removeItem(
-        anonymousTutorSessionStorageKey(questionId),
-      );
+      clearTutorSessionId(questionId);
     }
   }
 
   const session = await createTutorSession(questionId);
-  window.localStorage.setItem(
-    anonymousTutorSessionStorageKey(questionId),
-    session.id,
-  );
+  storeTutorSessionId(questionId, session.id);
   return session;
+}
+
+function readTutorSessionId(questionId: string) {
+  try {
+    return window.localStorage.getItem(
+      anonymousTutorSessionStorageKey(questionId),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function storeTutorSessionId(questionId: string, sessionId: string) {
+  try {
+    window.localStorage.setItem(
+      anonymousTutorSessionStorageKey(questionId),
+      sessionId,
+    );
+  } catch {
+    // The server session remains usable even if browser continuity storage is
+    // unavailable or full.
+  }
+}
+
+function clearTutorSessionId(questionId: string) {
+  try {
+    window.localStorage.removeItem(anonymousTutorSessionStorageKey(questionId));
+  } catch {
+    // A stale local value is harmless because ownership is checked server-side.
+  }
 }
 
 async function createTutorSession(questionId: string) {

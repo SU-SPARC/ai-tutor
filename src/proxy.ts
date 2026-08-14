@@ -48,6 +48,7 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
 function isCoarselyProtectedPath(pathname: string) {
   return (
     pathname === "/account" ||
+    pathname === "/dashboard" ||
     pathname === "/onboarding" ||
     pathname === "/professor" ||
     pathname.startsWith("/professor/")

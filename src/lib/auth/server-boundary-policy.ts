@@ -32,8 +32,9 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page("/account", "src/app/account/page.tsx", "student-authenticated", [
     "requireStudent",
   ]),
-  page("/dashboard", "src/app/dashboard/page.tsx", "student-or-anonymous", [
-    "ProgressDashboard",
+  page("/dashboard", "src/app/dashboard/page.tsx", "student-authenticated", [
+    "requireStudent",
+    "getStudentProgress",
   ]),
   page("/forbidden", "src/app/forbidden/page.tsx", "public", []),
   page("/onboarding", "src/app/onboarding/page.tsx", "student-authenticated", [
@@ -282,8 +283,8 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "GET",
     "/api/student/progress",
     "src/app/api/student/progress/route.ts",
-    "student-or-anonymous",
-    ["requireStudentAccess", "getStudentProgress"],
+    "student-authenticated",
+    ["requireStudent", "getStudentProgress"],
   ),
   route(
     "POST",

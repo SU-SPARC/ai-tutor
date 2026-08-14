@@ -62,6 +62,22 @@ describe("Clerk proxy", () => {
     expect(mocks.auth).not.toHaveBeenCalled();
   });
 
+  it("treats the student progress dashboard as authenticated account data", async () => {
+    mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
+
+    const response = requireResponse(
+      await proxy(
+        new NextRequest("https://tutor.example.edu/dashboard"),
+        {} as never,
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://tutor.example.edu/sign-in?callbackUrl=%2Fdashboard",
+    );
+  });
+
   it("requires a Clerk identity before protected page rendering", async () => {
     mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
 

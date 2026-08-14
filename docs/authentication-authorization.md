@@ -134,6 +134,14 @@ student practice. Tutor-session repositories require a server-resolved
 signed anonymous identity. A known session ID owned by another student returns
 not found and cannot affect progress.
 
+The `/dashboard` page and `/api/student/progress` are authenticated account
+boundaries. They derive syllabus-ordered practice progress only from the
+current application user's owned tutor sessions. Anonymous practice remains
+available, but its progress appears on the account dashboard only after the
+student signs in and explicitly imports that browser history. The dashboard
+does not return peer records, rankings, percentiles, or class averages, and its
+completion counts are labeled as practice activity rather than a formal grade.
+
 Public question endpoints filter through the publication policy: generated,
 needs-review, rejected, private, or otherwise unapproved questions are not
 student-visible.

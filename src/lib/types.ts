@@ -635,26 +635,47 @@ export type TutorSessionRecord = {
 
 export type StudentProgressDashboard = {
   mode: "database" | "demo";
-  recentSessions: Array<{
+  questions: Array<{
     attemptCount: number;
-    correctAttempts: number;
+    completedAt?: string;
     hintsUsed: number;
-    lastSeenAt: string;
+    lastActiveAt: string;
+    needsAnotherAttempt: boolean;
     questionId: string;
     questionTitle: string;
+    resumeSessionId?: string;
+    status: "completed" | "in_progress";
+    topicId: string;
+    topicTitle: string;
+  }>;
+  recentSessions: Array<{
+    attemptCount: number;
+    available: boolean;
+    hintsUsed: number;
+    lastSeenAt: string;
+    needsAnotherAttempt: boolean;
+    questionId: string;
+    questionTitle: string;
+    sessionId: string;
+    status: "completed" | "in_progress" | "unavailable";
     stepsRevealed: number;
     topicId: string;
     topicTitle: string;
   }>;
   summary: {
-    attemptedQuestions: number;
-    correctAttempts: number;
+    availableQuestions: number;
+    completedQuestions: number;
     hintsUsed: number;
-    stepsRevealed: number;
-    topicsPracticed: number;
+    inProgressQuestions: number;
+    needsAnotherAttempt: number;
+    topicsStarted: number;
   };
   topics: Array<{
+    availableQuestions: number;
+    completedQuestions: number;
     id: string;
+    inProgressQuestions: number;
+    needsAnotherAttempt: number;
     title: string;
   }>;
 };

@@ -15,16 +15,16 @@ grant interface.
 
 ## Pages
 
-| Page                              | Access                            | Server enforcement                                 |
-| --------------------------------- | --------------------------------- | -------------------------------------------------- |
-| `/`, `/topics/**`, `/practice/**` | Public                            | Approved/published queries only.                   |
-| `/dashboard`                      | Student/professor/anonymous pilot | Server-resolved owner.                             |
-| `/account`, `/onboarding`         | Student or professor              | `requireStudent`.                                  |
-| `/professor`                      | Professor                         | Protected layout and page call `requireProfessor`. |
-| `/professor/review`               | Professor                         | `requireProfessorReview`.                          |
-| `/professor/questions`            | Professor                         | `requireProfessorReview` before dashboard reads.   |
-| `/professor/upload`               | Professor                         | `requireProfessor`.                                |
-| `/professor/analytics`            | Professor                         | `requireAnalyticsAccess`.                          |
+| Page                              | Access               | Server enforcement                                 |
+| --------------------------------- | -------------------- | -------------------------------------------------- |
+| `/`, `/topics/**`, `/practice/**` | Public               | Approved/published queries only.                   |
+| `/dashboard`                      | Student or professor | `requireStudent`; server-resolved account owner.   |
+| `/account`, `/onboarding`         | Student or professor | `requireStudent`.                                  |
+| `/professor`                      | Professor            | Protected layout and page call `requireProfessor`. |
+| `/professor/review`               | Professor            | `requireProfessorReview`.                          |
+| `/professor/questions`            | Professor            | `requireProfessorReview` before dashboard reads.   |
+| `/professor/upload`               | Professor            | `requireProfessor`.                                |
+| `/professor/analytics`            | Professor            | `requireAnalyticsAccess`.                          |
 
 The legacy `/admin/**` route tree does not exist.
 
@@ -39,7 +39,8 @@ The legacy `/admin/**` route tree does not exist.
 | API                                              | Access                                    | Data policy                                                                              |
 | ------------------------------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `GET /api/questions`, `GET /api/questions/[id]`  | Public                                    | Approved public questions only.                                                          |
-| Student progress and tutor-session routes        | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                  |
+| `GET /api/student/progress`                      | Student or professor                      | Returns only the current account's practice progress; no ranking or peer data.           |
+| Tutor-session routes                             | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                  |
 | `GET`, `PATCH`, `POST /api/professor/review`     | Professor                                 | Professor-safe draft DTOs; real reviewer attribution.                                    |
 | `GET`, `POST /api/professor/questions`           | Professor                                 | Lifecycle listing or a complete validated initial draft.                                 |
 | `GET /api/professor/questions/[id]`              | Professor                                 | Immutable versions, lifecycle timeline, attribution, validation, and allowed actions.    |
