@@ -45,6 +45,13 @@ import {
   QuestionLifecycleNotFoundError,
   QuestionLifecycleValidationError,
 } from "@/lib/tutor/question-lifecycle";
+import type {
+  ContentTransferDocument,
+  ContentTransferImportResult,
+  ContentTransferImportState,
+  ContentTransferQuestion,
+  ContentTransferStorageInspection,
+} from "@/lib/content-transfer/types";
 
 export type QuestionVersionContentInput = QuestionContent & {
   source: SourceMetadata;
@@ -200,6 +207,177 @@ export function createDatabaseQuestionLifecycleRepository(
   query: DatabaseQueryExecutor,
 ) {
   return {
+    async inspectContentTransferStorage(
+      authorization: ProfessorReviewAuthorization,
+      input: {
+        contentFingerprints: string[];
+        misconceptionIds: string[];
+        questionIds: string[];
+        topicIds: string[];
+      },
+    ): Promise<ContentTransferStorageInspection> {
+      assertAuthorization(authorization, "professor");
+      const [questionRows, misconceptionRows, topicRows, contentRows] =
+        await Promise.all([
+          readDatabaseRows(
+            query,
+            "select id from questions where id = any($1::text[]) order by id",
+            [input.questionIds],
+          ),
+          readDatabaseRows(
+            query,
+            "select id from misconceptions where id = any($1::text[]) order by id",
+            [input.misconceptionIds],
+          ),
+          readDatabaseRows(
+            query,
+            `select id from topics
+             where id = any($1::text[]) and is_active = true
+             order by id`,
+            [input.topicIds],
+          ),
+          readDatabaseRows(
+            query,
+            `select distinct
+               lower(regexp_replace(btrim(qv.snapshot_json->>'prompt'), '\\s+', ' ', 'g'))
+                 as content_fingerprint
+             from questions q
+             join question_versions qv on qv.id = q.working_version_id
+             where lower(regexp_replace(btrim(qv.snapshot_json->>'prompt'), '\\s+', ' ', 'g'))
+               = any($1::text[])
+             order by content_fingerprint`,
+            [input.contentFingerprints],
+          ),
+        ]);
+      const activeTopicIds = new Set(topicRows.map((row) => String(row.id)));
+      return {
+        existingContentFingerprints: contentRows.map((row) =>
+          String(row.content_fingerprint),
+        ),
+        existingMisconceptionIds: misconceptionRows.map((row) =>
+          String(row.id),
+        ),
+        existingQuestionIds: questionRows.map((row) => String(row.id)),
+        unavailableTopicIds: input.topicIds.filter(
+          (topicId) => !activeTopicIds.has(topicId),
+        ),
+      };
+    },
+
+    async importContentTransfer(
+      authorization: ProfessorReviewAuthorization,
+      input: {
+        document: ContentTransferDocument;
+        requestId: string;
+      },
+    ): Promise<ContentTransferImportResult> {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+      input.document.questions.forEach((question) =>
+        validateQuestionVersionContent(transferQuestionContent(question)),
+      );
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const questionIds = input.document.questions.map(
+            (question) => question.stableId,
+          );
+          const existing = await transactionQuery(
+            `select id from questions
+             where id = any($1::text[])
+             order by id
+             for update`,
+            [questionIds],
+          );
+          if (existing.length > 0) {
+            throw new QuestionLifecycleConflictError(
+              `Question IDs already exist: ${existing
+                .map((row) => String(row.id))
+                .join(", ")}.`,
+            );
+          }
+          const contentFingerprints = input.document.questions.map((question) =>
+            question.prompt.trim().replace(/\s+/gu, " ").toLowerCase(),
+          );
+          const existingContent = await transactionQuery(
+            `select q.id
+             from questions q
+             join question_versions qv on qv.id = q.working_version_id
+             where lower(regexp_replace(btrim(qv.snapshot_json->>'prompt'), '\\s+', ' ', 'g'))
+               = any($1::text[])
+             order by q.id
+             limit 1`,
+            [contentFingerprints],
+          );
+          if (existingContent.length > 0) {
+            throw new QuestionLifecycleConflictError(
+              "Question content already exists under another stable ID.",
+            );
+          }
+
+          const stateCounts: Partial<
+            Record<ContentTransferImportState, number>
+          > = {};
+          for (const question of input.document.questions) {
+            const content = transferQuestionContent(question);
+            await requireActiveTopic(transactionQuery, content.topicId);
+            await setLifecycleActorContext(transactionQuery, {
+              creationMethod: "imported",
+              suppressVersions: true,
+              userId: reviewer.userId,
+            });
+            await insertQuestionAggregate(transactionQuery, content, reviewer);
+            await transactionQuery(
+              "select set_config('app.suppress_question_version', 'false', true)",
+            );
+            const versionRows = await transactionQuery(
+              "select app_record_question_version($1) as version_id",
+              [content.id],
+            );
+            const versionId = Number(versionRows[0]?.version_id);
+            await transitionImportedVersion(
+              transactionQuery,
+              authorization,
+              content.id,
+              versionId,
+              question.reviewState,
+              input.requestId,
+            );
+            stateCounts[question.reviewState] =
+              (stateCounts[question.reviewState] ?? 0) + 1;
+          }
+
+          const auditRows = await transactionQuery(
+            `insert into audit_events (
+              actor_user_id, actor_subject, action, entity_type, entity_id,
+              outcome, request_id, metadata_json
+            ) values (
+              $1, $1, 'content_transfer.import', 'content_transfer', $2,
+              'success', $2, $3::jsonb
+            ) returning id`,
+            [
+              reviewer.userId,
+              input.requestId,
+              JSON.stringify({
+                importedCount: questionIds.length,
+                reviewStateCounts: stateCounts,
+                schemaVersion: input.document.schemaVersion,
+              }),
+            ],
+          );
+
+          return {
+            auditEventId: Number(auditRows[0].id),
+            importedIds: questionIds,
+            importedStates: stateCounts,
+            requestId: input.requestId,
+          };
+        },
+        { retryOnConflict: true },
+      );
+    },
+
     async createQuestion(
       authorization: ProfessorReviewAuthorization,
       input: CreateQuestionInput,
@@ -1285,6 +1463,91 @@ async function insertQuestionVersion(
     ],
   );
   return Number(rows[0].id);
+}
+
+function transferQuestionContent(
+  question: ContentTransferQuestion,
+): QuestionVersionContentInput {
+  return {
+    answer: {
+      acceptedAnswers: [...question.answer.acceptedAnswers],
+      explanation: question.answer.explanation,
+      numericValue: question.answer.numericValue,
+      tolerance: question.answer.tolerance,
+    },
+    difficulty: question.difficulty,
+    hints: [...question.hints],
+    id: question.stableId,
+    misconceptions: question.misconceptions.map((item) => ({
+      feedback: item.feedback,
+      id: item.id,
+      matchTerms: [...item.matchTerms],
+    })),
+    prompt: question.prompt,
+    solutionSteps: [...question.solutionSteps],
+    source: {
+      originalityNote:
+        "Imported from a validated professor content-transfer document.",
+      sourceType: "professor_provided",
+      trustLevel: "public_original",
+      visibility: "public",
+    },
+    title: question.title,
+    topicId: question.topicId,
+  };
+}
+
+async function transitionImportedVersion(
+  query: DatabaseQueryExecutor,
+  authorization: ProfessorReviewAuthorization,
+  questionId: string,
+  versionId: number,
+  state: ContentTransferImportState,
+  requestId: string,
+) {
+  if (state === "draft") return;
+  await applyTransition(query, authorization, {
+    action: "submit",
+    expectedState: "draft",
+    metadata: { importReviewState: state },
+    questionId,
+    requestId,
+    versionId,
+  });
+  if (state === "needs_review") return;
+  if (state === "approved") {
+    await applyTransition(query, authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      metadata: { importReviewState: state },
+      questionId,
+      requestId,
+      versionId,
+    });
+    return;
+  }
+  if (state === "revision_requested") {
+    await applyTransition(query, authorization, {
+      action: "request_revision",
+      expectedState: "needs_review",
+      metadata: { importReviewState: state },
+      questionId,
+      reasonCode: "imported_review_state",
+      requestId,
+      revisionMethod: "manual",
+      versionId,
+    });
+    return;
+  }
+  await applyTransition(query, authorization, {
+    action: "reject",
+    expectedState: "needs_review",
+    metadata: { importReviewState: state },
+    questionId,
+    reasonCode: "imported_review_state",
+    requestId,
+    versionId,
+  });
 }
 
 async function recordRegenerationFailure(

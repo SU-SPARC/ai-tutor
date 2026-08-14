@@ -122,6 +122,9 @@ student DTOs contain neither identities nor review notes.
   the current immutable review version for the signed-in professor.
 - `POST /api/professor/questions/batch` atomically requests revision, rejects,
   or publishes 2–25 already-inspected versions. It never accepts `approve`.
+- `GET|POST /api/professor/content-transfer` provides professor-only sanitized
+  JSON exports and dry-run-first transactional imports. See
+  [Protected question content transfer](./content-transfer.md).
 - `GET /api/professor/review` returns canonical syllabus topics and aggregate
   lifecycle counts without question content. Supplying one `topicId` returns
   only that topic's `needs_review` working versions through a narrow,

@@ -58,6 +58,12 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireAnalyticsAccess"],
   ),
   page(
+    "/professor/content-transfer",
+    "src/app/professor/content-transfer/page.tsx",
+    "professor-review",
+    ["requireProfessorReview"],
+  ),
+  page(
     "/professor/questions",
     "src/app/professor/questions/page.tsx",
     "professor-review",
@@ -184,6 +190,20 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/professor/content-preview/route.ts",
     "professor",
     ["requireProfessor"],
+  ),
+  route(
+    "GET",
+    "/api/professor/content-transfer",
+    "src/app/api/professor/content-transfer/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "buildQuestionContentExport"],
+  ),
+  route(
+    "POST",
+    "/api/professor/content-transfer",
+    "src/app/api/professor/content-transfer/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "validateContentTransferDocument"],
   ),
   route(
     "GET",

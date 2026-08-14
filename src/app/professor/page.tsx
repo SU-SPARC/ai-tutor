@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { ArrowLeft, ClipboardCheck, Gauge, LockKeyhole } from "lucide-react";
+import {
+  ArrowLeft,
+  ClipboardCheck,
+  FileJson,
+  Gauge,
+  LockKeyhole,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +54,12 @@ export default async function ProfessorPage() {
           </Button>
           <Button asChild variant="outline">
             <Link href="/professor/upload">Upload preview</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/professor/content-transfer">
+              <FileJson className="h-4 w-4" />
+              Import/export
+            </Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/professor/analytics">Analytics</Link>

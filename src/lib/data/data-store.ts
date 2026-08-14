@@ -51,6 +51,11 @@ import type {
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
 import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode";
+import type {
+  ContentTransferDocument,
+  ContentTransferImportResult,
+  ContentTransferStorageInspection,
+} from "@/lib/content-transfer/types";
 
 let contentRepositoryOverride: ContentRepository | undefined;
 
@@ -424,6 +429,31 @@ export async function createQuestionLifecycle(
   assertAuthorization(authorization, "professor");
   return writeStrictDatabaseLifecycle((repository) =>
     repository.createQuestion(authorization, input),
+  );
+}
+
+export async function inspectContentTransferStorage(
+  authorization: ProfessorReviewAuthorization,
+  input: {
+    contentFingerprints: string[];
+    misconceptionIds: string[];
+    questionIds: string[];
+    topicIds: string[];
+  },
+): Promise<ContentTransferStorageInspection> {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.inspectContentTransferStorage(authorization, input),
+  );
+}
+
+export async function importContentTransferDocument(
+  authorization: ProfessorReviewAuthorization,
+  input: { document: ContentTransferDocument; requestId: string },
+): Promise<ContentTransferImportResult> {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.importContentTransfer(authorization, input),
   );
 }
 
