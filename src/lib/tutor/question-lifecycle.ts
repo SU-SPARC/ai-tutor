@@ -1,5 +1,6 @@
 import type {
   QuestionLifecycleAction,
+  QuestionPublicationBlocker,
   QuestionRecordState,
   QuestionRevisionMethod,
   QuestionVersionState,
@@ -16,6 +17,20 @@ export class QuestionLifecycleValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "QuestionLifecycleValidationError";
+  }
+}
+
+export class QuestionPublicationBlockedError extends QuestionLifecycleValidationError {
+  readonly reasons: QuestionPublicationBlocker[];
+
+  constructor(reasons: QuestionPublicationBlocker[]) {
+    super(
+      `Publication blocked: ${reasons
+        .map((reason) => reason.message)
+        .join(" ")}`,
+    );
+    this.name = "QuestionPublicationBlockedError";
+    this.reasons = reasons;
   }
 }
 

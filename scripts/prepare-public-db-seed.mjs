@@ -39,6 +39,7 @@ const forbiddenKeys = [
 ]
 const forbiddenText =
   /source page|answer key|worked example|copied from|verbatim|raw extracted|private chunk|embedding/i
+const developmentProfessorId = "user:development-seed-professor"
 
 async function main() {
   assertPublicProcessedOutput(outputPath)
@@ -118,6 +119,13 @@ function buildSeedSql({ approvedGenerated, demoQuestions, topics }) {
     "-- Review this SQL before applying it to Postgres.",
     "begin;",
     "",
+    `insert into users (id, identity_provider, external_subject, email, display_name, status) values (${sqlString(
+      developmentProfessorId,
+    )}, 'internal', 'development-seed-professor', 'development-seed-professor@example.invalid', 'Development Seed Professor', 'active') on conflict (id) do nothing;`,
+    `insert into user_roles (user_id, role_id, granted_by_user_id) values (${sqlString(
+      developmentProfessorId,
+    )}, 'professor', 'system:schema-migration') on conflict (user_id, role_id) do nothing;`,
+    "",
   ]
 
   for (const topic of topics) {
@@ -163,7 +171,7 @@ function seedQuestionSql(question) {
       question.trustLevel,
     )}, ${sqlString(question.visibility)}, ${sqlString(
       question.reviewStatus,
-    )}, ${sqlString(question.originalityNote)}, 'development seed', 'system:schema-migration', now()) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, reviewed_by = excluded.reviewed_by, reviewed_by_user_id = excluded.reviewed_by_user_id, reviewed_at = excluded.reviewed_at, updated_at = now();`,
+    )}, ${sqlString(question.originalityNote)}, 'Development Seed Professor', ${sqlString(developmentProfessorId)}, now()) on conflict (id) do update set topic_id = excluded.topic_id, pattern_id = excluded.pattern_id, title = excluded.title, prompt = excluded.prompt, difficulty = excluded.difficulty, accepted_answers_json = excluded.accepted_answers_json, numeric_value = excluded.numeric_value, tolerance = excluded.tolerance, answer_explanation = excluded.answer_explanation, source_type = excluded.source_type, trust_level = excluded.trust_level, visibility = excluded.visibility, review_status = excluded.review_status, originality_note = excluded.originality_note, reviewed_by = excluded.reviewed_by, reviewed_by_user_id = excluded.reviewed_by_user_id, reviewed_at = excluded.reviewed_at, updated_at = now();`,
   ]
 
   question.hints.forEach((hint, index) => {
@@ -197,7 +205,7 @@ function seedQuestionSql(question) {
   lines.push(
     "select set_config('app.suppress_question_version', 'false', true);",
     `select app_record_question_version(${sqlString(question.id)});`,
-    `insert into question_approval_history (question_id, question_version_id, decision, reviewer_user_id, reviewer_label, decided_at) select q.id, q.working_version_id, 'approved', 'system:schema-migration', 'development seed', q.reviewed_at from questions q where q.id = ${sqlString(question.id)} and not exists (select 1 from question_approval_history qah where qah.question_id = q.id and qah.question_version_id = q.working_version_id and qah.decision = 'approved');`,
+    `insert into question_approval_history (question_id, question_version_id, decision, reviewer_user_id, reviewer_label, decided_at) select q.id, q.working_version_id, 'approved', ${sqlString(developmentProfessorId)}, 'Development Seed Professor', q.reviewed_at from questions q where q.id = ${sqlString(question.id)} and not exists (select 1 from question_approval_history qah where qah.question_id = q.id and qah.question_version_id = q.working_version_id and qah.decision = 'approved');`,
   )
 
   return lines

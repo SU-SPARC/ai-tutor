@@ -58,6 +58,22 @@ content, validation status, and active topic. Any failure returns an itemized
 report and changes nothing. Only a fully valid batch executes its attributed
 lifecycle transitions and publication pointer changes in one transaction.
 
+## Publication quality gates
+
+Every single publish, rollback, and batch publish evaluates the same ordered,
+deterministic quality gates. A version must reference an active syllabus topic;
+contain question text, a schema-valid final answer, solution steps, and at
+least one useful non-answer hint; contain no private-source metadata; carry a
+public-safe source/originality classification and unique stable ID; be approved
+or previously unpublished; pass current schema and content-hash validation;
+and have immutable professor approval evidence for that exact version.
+
+Blocked single operations return `422` with all applicable `{code, message}`
+reasons. Batch preflight attaches the same reasons to each failed item and
+changes no questions. Migration `015_question_publication_quality_gates.sql`
+also enforces the gates on publication pointer and lifecycle-state writes so a
+direct procedure or SQL caller cannot bypass the application evaluator.
+
 ## Versions, generation, and rollback
 
 `question_versions` contains the authoritative aggregate, parent lineage,

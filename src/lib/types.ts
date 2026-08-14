@@ -70,6 +70,25 @@ export type QuestionLifecycleBatchItem = {
   versionId: number;
 };
 
+export type QuestionPublicationGateCode =
+  | "invalid_syllabus_topic"
+  | "missing_question_text"
+  | "missing_final_answer"
+  | "invalid_answer_schema"
+  | "missing_solution_steps"
+  | "missing_required_hint"
+  | "forbidden_private_source_metadata"
+  | "invalid_source_classification"
+  | "duplicate_question_id"
+  | "invalid_review_state"
+  | "deterministic_validation_failed"
+  | "professor_approval_missing";
+
+export type QuestionPublicationBlocker = {
+  code: QuestionPublicationGateCode;
+  message: string;
+};
+
 export type QuestionLifecycleBatchFailureCode =
   | "archived"
   | "idempotency_conflict"
@@ -84,6 +103,7 @@ export type QuestionLifecycleBatchFailure = QuestionLifecycleBatchItem & {
   actualState?: QuestionVersionState;
   code: QuestionLifecycleBatchFailureCode;
   message: string;
+  publicationBlockers?: QuestionPublicationBlocker[];
   title?: string;
   topicId?: string;
 };

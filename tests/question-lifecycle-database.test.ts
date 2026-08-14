@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { requireProfessorReview } from "@/lib/auth/authorization";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { createDatabaseQuestionLifecycleRepository } from "@/lib/data/question-lifecycle-repository";
+import { QuestionPublicationBlockedError } from "@/lib/tutor/question-lifecycle";
 import { mockPrincipal, resetAuthMocks } from "./auth-test-helpers";
 
 const databases: PGlite[] = [];
@@ -18,6 +19,94 @@ afterEach(async () => {
 });
 
 describe("question lifecycle database", () => {
+  it("returns structured blockers and keeps the database trigger as the final publication gate", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const question = await repository.createQuestion(authorization, {
+      content: {
+        answer: {
+          acceptedAnswers: ["0.5", "1/2"],
+          explanation: "Divide one favorable outcome by two total outcomes.",
+          numericValue: 0.5,
+          tolerance: 0.001,
+        },
+        difficulty: "foundational",
+        hints: [],
+        id: "publication-gate-question",
+        misconceptions: [],
+        prompt:
+          "One of two equally likely outcomes is favorable. What is the probability?",
+        solutionSteps: ["Compute 1 / 2 = 0.5."],
+        source: {
+          originalityNote: "Original public-safe publication gate test.",
+          sourceType: "professor_provided",
+          trustLevel: "public_original",
+          visibility: "public",
+        },
+        title: "Publication gate question",
+        topicId: "lifecycle-topic",
+      },
+      creationMethod: "manual",
+      submit: true,
+    });
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: question.questionId,
+      versionId: question.workingVersion.versionId,
+    });
+
+    const applicationAttempt = repository.transition(authorization, {
+      action: "publish",
+      expectedState: "approved",
+      questionId: question.questionId,
+      versionId: question.workingVersion.versionId,
+    });
+    await expect(applicationAttempt).rejects.toMatchObject({
+      name: "QuestionPublicationBlockedError",
+      reasons: [
+        {
+          code: "missing_required_hint",
+          message: expect.any(String),
+        },
+      ],
+    } satisfies Partial<QuestionPublicationBlockedError>);
+
+    await expect(
+      database.query(
+        `select * from app_transition_question_version(
+          $1, $2, 'publish', $3, $4, 'approved'
+        )`,
+        [
+          question.questionId,
+          question.workingVersion.versionId,
+          "user:lifecycle-professor",
+          "Lifecycle Professor",
+        ],
+      ),
+    ).rejects.toThrow(/missing_required_hint/i);
+
+    const visibility = await database.query<{
+      public_count: number;
+      published_version_id: number | null;
+    }>(`
+      select
+        q.published_version_id,
+        (select count(*)::int from app_public_questions
+         where id = 'publication-gate-question') as public_count
+      from questions q
+      where q.id = 'publication-gate-question'
+    `);
+    expect(visibility.rows[0]).toEqual({
+      public_count: 0,
+      published_version_id: null,
+    });
+  });
+
   it("separates approval from publication and enforces takedown, replacement, rollback, and archive", async () => {
     const database = await migratedDatabase();
     await seedLifecycleActorsAndQuestion(database);
@@ -906,7 +995,7 @@ async function seedLifecycleActorsAndQuestion(database: PGlite) {
       id, topic_id, title, prompt, difficulty,
       accepted_answers_json, answer_explanation,
       source_type, trust_level, review_status, visibility,
-      reviewed_by, reviewed_by_user_id, reviewed_at
+      originality_note, reviewed_by, reviewed_by_user_id, reviewed_at
     ) values (
       'lifecycle-question',
       'lifecycle-topic',
@@ -919,8 +1008,9 @@ async function seedLifecycleActorsAndQuestion(database: PGlite) {
       'public_original',
       'approved',
       'public',
-      'Schema migration system actor',
-      'system:schema-migration',
+      'Original public-safe lifecycle test question.',
+      'Lifecycle Professor',
+      'user:lifecycle-professor',
       now()
     );
 
@@ -928,6 +1018,12 @@ async function seedLifecycleActorsAndQuestion(database: PGlite) {
     values (
       'lifecycle-question', 1,
       'Divide the favorable outcomes by the total.'
+    );
+
+    insert into hints (question_id, hint_order, body)
+    values (
+      'lifecycle-question', 1,
+      'First count the favorable outcomes.'
     );
 
     select set_config('app.suppress_question_version', 'false', false);
@@ -961,8 +1057,8 @@ async function seedGeneratedWorkingDraft(database: PGlite) {
       'approved',
       'public',
       'Original generated item from an abstract public-safe pattern.',
-      'Schema migration system actor',
-      'system:schema-migration',
+      'Lifecycle Professor',
+      'user:lifecycle-professor',
       now()
     );
 
@@ -1082,6 +1178,13 @@ async function seedBatchReviewQuestions(database: PGlite) {
       'Original generated batch review item.',
       'Question generation system',
       'system:question-generator'
+    from generate_series(1, 4) as item;
+
+    insert into hints (question_id, hint_order, body)
+    select
+      'batch-question-' || item,
+      1,
+      'First identify the numerator and denominator.'
     from generate_series(1, 4) as item;
 
     insert into solution_steps (question_id, step_order, body)

@@ -44,7 +44,9 @@ import {
   QuestionLifecycleConflictError,
   QuestionLifecycleNotFoundError,
   QuestionLifecycleValidationError,
+  QuestionPublicationBlockedError,
 } from "@/lib/tutor/question-lifecycle";
+import { evaluateQuestionPublicationQualityGates } from "@/lib/tutor/question-publication-quality-gates";
 import type {
   ContentTransferDocument,
   ContentTransferImportResult,
@@ -1224,6 +1226,23 @@ async function preflightBatchItem(
       detail,
     );
   }
+  if (action === "publish") {
+    const publicationBlockers = await publicationQualityGateBlockers(
+      query,
+      lifecycle,
+      selectedVersion,
+    );
+    if (publicationBlockers.length > 0) {
+      return batchFailure(
+        item,
+        "validation_failed",
+        `Publication blocked: ${publicationBlockers
+          .map((blocker) => blocker.message)
+          .join(" ")}`,
+        { ...detail, publicationBlockers },
+      );
+    }
+  }
   if (!selectedVersion.allowedActions.includes(action)) {
     return batchFailure(
       item,
@@ -1235,45 +1254,6 @@ async function preflightBatchItem(
       },
     );
   }
-
-  if (action === "publish") {
-    if (
-      selectedVersion.validationStatus !== "valid" ||
-      selectedVersion.schemaVersion !== 2
-    ) {
-      return batchFailure(
-        item,
-        "validation_failed",
-        "The version does not pass current schema and lifecycle validation.",
-        detail,
-      );
-    }
-    try {
-      validateQuestionVersionContent(selectedVersion, item.questionId);
-    } catch (error) {
-      return batchFailure(
-        item,
-        "validation_failed",
-        error instanceof Error
-          ? error.message
-          : "Question content validation failed.",
-        detail,
-      );
-    }
-    const topics = await readDatabaseRows(
-      query,
-      "select id from topics where id = $1 and is_active = true limit 1",
-      [selectedVersion.topicId],
-    );
-    if (!topics[0]) {
-      return batchFailure(
-        item,
-        "validation_failed",
-        "The question topic is unavailable under the current publication policy.",
-        detail,
-      );
-    }
-  }
 }
 
 function batchFailure(
@@ -1283,7 +1263,7 @@ function batchFailure(
   detail: Partial<
     Pick<
       QuestionLifecycleBatchFailure,
-      "actualState" | "title" | "topicId"
+      "actualState" | "publicationBlockers" | "title" | "topicId"
     >
   > = {},
 ): QuestionLifecycleBatchFailure {
@@ -1300,6 +1280,121 @@ async function selectBatchQuestionLifecycles(
     if (question) questions.push(question);
   }
   return questions;
+}
+
+async function publicationQualityGateBlockers(
+  query: DatabaseQueryExecutor,
+  lifecycle: QuestionLifecycleDto,
+  version: QuestionVersionDto,
+) {
+  const rows = await readDatabaseRows(
+    query,
+    `select
+       qv.snapshot_json,
+       qv.generation_metadata_json,
+       qv.snapshot_json ->> 'id' as snapshot_question_id,
+       exists (
+         select 1
+         from topics t
+         where t.id = qv.snapshot_json ->> 'topicId'
+           and t.is_active = true
+       ) as active_syllabus_topic,
+       exists (
+         select 1
+         from question_versions duplicate_version
+         where duplicate_version.question_id <> qv.question_id
+           and duplicate_version.legacy_audit_only = false
+           and duplicate_version.snapshot_json ->> 'id' = qv.snapshot_json ->> 'id'
+       ) as duplicate_question_id,
+       (
+         qvl.validation_status = 'valid'
+         and qv.schema_version = 2
+         and qv.content_sha256 = encode(
+           sha256(
+             convert_to(
+               (
+                 qv.snapshot_json - array[
+                   'reviewStatus', 'visibility', 'trustLevel',
+                   'reviewPriority', 'reviewNotes', 'reviewedByUserId',
+                   'reviewedAt', 'archivedAt'
+                 ]::text[]
+               )::text,
+               'UTF8'
+             )
+           ),
+           'hex'
+         )
+       ) as deterministic_validation_passes,
+       (
+         exists (
+           select 1
+           from question_lifecycle_events approval
+           where approval.question_id = qv.question_id
+             and approval.question_version_id = qv.id
+             and approval.action = 'approve'
+             and approval.actor_role = 'professor'
+         )
+         or exists (
+           select 1
+           from question_approval_history legacy_approval
+           join users reviewer on reviewer.id = legacy_approval.reviewer_user_id
+           where legacy_approval.question_id = qv.question_id
+             and legacy_approval.question_version_id = qv.id
+             and legacy_approval.decision = 'approved'
+             and reviewer.user_type <> 'system'
+             and exists (
+               select 1
+               from user_roles reviewer_role
+               where reviewer_role.user_id = reviewer.id
+                 and reviewer_role.role_id = 'professor'
+             )
+         )
+         or exists (
+           select 1
+           from questions legacy_question
+           join users reviewer on reviewer.id = legacy_question.reviewed_by_user_id
+           where legacy_question.id = qv.question_id
+             and qv.version_number = 1
+             and legacy_question.review_status = 'approved'
+             and legacy_question.reviewed_at is not null
+             and reviewer.user_type <> 'system'
+             and exists (
+               select 1
+               from user_roles reviewer_role
+               where reviewer_role.user_id = reviewer.id
+                 and reviewer_role.role_id = 'professor'
+             )
+         )
+       ) as professor_approval_exists
+     from question_versions qv
+     join question_version_lifecycle qvl on qvl.question_version_id = qv.id
+     where qv.id = $1 and qv.question_id = $2
+     limit 1`,
+    [version.versionId, lifecycle.questionId],
+  );
+  const evidence = rows[0];
+  if (!evidence) {
+    throw new QuestionLifecycleNotFoundError("Question version was not found.");
+  }
+  return evaluateQuestionPublicationQualityGates({
+    activeSyllabusTopic: Boolean(evidence.active_syllabus_topic),
+    deterministicValidationPasses: Boolean(
+      evidence.deterministic_validation_passes,
+    ),
+    duplicateQuestionId: Boolean(evidence.duplicate_question_id),
+    hintsRequired: true,
+    professorApprovalExists: Boolean(evidence.professor_approval_exists),
+    questionId: lifecycle.questionId,
+    rawMetadata: {
+      generationMetadata: evidence.generation_metadata_json,
+      snapshot: evidence.snapshot_json,
+    },
+    snapshotQuestionId:
+      typeof evidence.snapshot_question_id === "string"
+        ? evidence.snapshot_question_id
+        : undefined,
+    version,
+  });
 }
 
 async function applyTransition(
@@ -1348,6 +1443,17 @@ async function applyTransition(
     }
   }
 
+  if (input.action === "publish" || input.action === "rollback") {
+    const blockers = await publicationQualityGateBlockers(
+      query,
+      current,
+      version,
+    );
+    if (blockers.length > 0) {
+      throw new QuestionPublicationBlockedError(blockers);
+    }
+  }
+
   assertQuestionLifecycleTransition({
     action: input.action,
     hasPublishedVersion: Boolean(current.publishedVersion),
@@ -1357,7 +1463,7 @@ async function applyTransition(
     versionState: version.state,
   });
 
-  if (["approve", "publish", "rollback"].includes(input.action)) {
+  if (input.action === "approve") {
     if (version.schemaVersion !== 2) {
       throw new QuestionLifecycleValidationError(
         "The question version must be cloned into the current content schema before approval or publication.",
@@ -1404,7 +1510,7 @@ async function applyTransition(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Lifecycle change failed.";
-    if (/requires a reason|valid question/i.test(message)) {
+    if (/publication blocked|requires a reason|valid question/i.test(message)) {
       throw new QuestionLifecycleValidationError(message);
     }
     throw new QuestionLifecycleConflictError(message);

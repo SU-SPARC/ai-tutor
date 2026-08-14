@@ -122,6 +122,13 @@ PostgreSQL owner connection retains access. This prevents review drafts,
 question versions, and private retrieval rows from bypassing Clerk professor
 authorization through an owner-executed PostgREST view.
 
+`015_question_publication_quality_gates.sql` adds deterministic publication
+gate functions and trigger enforcement for both the publication pointer and
+the version lifecycle state. Invalid topic, content, answer, solution, hint,
+private metadata, source classification, stable ID, review state, content
+hash/schema validation, or professor approval evidence blocks publication
+before student visibility changes.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval

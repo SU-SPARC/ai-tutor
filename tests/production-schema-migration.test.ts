@@ -569,6 +569,7 @@ describe("production schema hardening migration", () => {
         trust_level,
         review_status,
         visibility,
+        originality_note,
         reviewed_by,
         reviewed_by_user_id,
         reviewed_at
@@ -585,6 +586,7 @@ describe("production schema hardening migration", () => {
         'professor_approved',
         'approved',
         'public',
+        'Original public-safe question authored for this test.',
         'Professor One',
         'professor-1',
         now()
@@ -592,6 +594,12 @@ describe("production schema hardening migration", () => {
 
       insert into solution_steps (question_id, step_order, body)
       values ('approved-question', 1, 'Compute one divided by two.');
+
+      insert into hints (question_id, hint_order, body)
+      values (
+        'approved-question', 1,
+        'Think about one favorable outcome out of two total outcomes.'
+      );
 
       select * from app_transition_question_version(
         'approved-question',

@@ -13,6 +13,7 @@ import {
   QuestionLifecycleConflictError,
   QuestionLifecycleNotFoundError,
   QuestionLifecycleValidationError,
+  QuestionPublicationBlockedError,
 } from "@/lib/tutor/question-lifecycle";
 
 export const QUESTION_CREATION_METHODS = [
@@ -83,7 +84,16 @@ export function lifecycleApiErrorResponse(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
   if (error instanceof QuestionLifecycleValidationError) {
-    return NextResponse.json({ error: error.message }, { status: 422 });
+    return NextResponse.json(
+      {
+        error: error.message,
+        reasons:
+          error instanceof QuestionPublicationBlockedError
+            ? error.reasons
+            : undefined,
+      },
+      { status: 422 },
+    );
   }
   if (error instanceof QuestionLifecycleConflictError) {
     return NextResponse.json({ error: error.message }, { status: 409 });
