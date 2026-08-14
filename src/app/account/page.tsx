@@ -57,9 +57,16 @@ export default async function AccountPage() {
           />
 
           <div className="mt-8 border-t pt-6">
-            <Button asChild>
-              <Link href="/dashboard">View your progress</Link>
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/dashboard">View your progress</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/onboarding?review=1&amp;returnTo=%2Faccount">
+                  Tutor and data notice
+                </Link>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

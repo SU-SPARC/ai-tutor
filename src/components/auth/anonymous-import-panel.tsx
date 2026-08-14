@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 import { ArrowRight, Download, Loader2 } from "lucide-react";
 
+import type { StudentOnboardingActionState } from "@/app/onboarding/actions";
 import { Button } from "@/components/ui/button";
 import {
   clearLegacyAnonymousStudentId,
@@ -16,15 +16,16 @@ type Feedback = {
 };
 
 export function AnonymousImportPanel({
-  continueTo,
+  continueAction,
   hasSignedBrowserIdentity,
   legacyBridgeEnabled,
 }: {
-  continueTo?: string;
+  continueAction?: (
+    state: StudentOnboardingActionState,
+  ) => Promise<StudentOnboardingActionState>;
   hasSignedBrowserIdentity: boolean;
   legacyBridgeEnabled: boolean;
 }) {
-  const router = useRouter();
   const [legacyId, setLegacyId] = useState<string>();
   const [checkingLegacy, setCheckingLegacy] = useState(legacyBridgeEnabled);
   const [signedIdentityAvailable, setSignedIdentityAvailable] = useState(
@@ -47,7 +48,7 @@ export function AnonymousImportPanel({
 
   const hasBrowserPractice = signedIdentityAvailable || Boolean(legacyId);
 
-  if (!continueTo && !hasBrowserPractice && !checkingLegacy && !feedback) {
+  if (!continueAction && !hasBrowserPractice && !checkingLegacy && !feedback) {
     return null;
   }
 
@@ -125,7 +126,7 @@ export function AnonymousImportPanel({
           text:
             payload.error ?? "The browser practice could not be left separate.",
         });
-        return false;
+        return;
       }
 
       setSignedIdentityAvailable(false);
@@ -133,36 +134,21 @@ export function AnonymousImportPanel({
         kind: "success",
         text: "Browser practice was left separate from this account.",
       });
-      return true;
     } catch {
       setFeedback({
         kind: "error",
         text: "The browser practice could not be left separate. Try again.",
       });
-      return false;
     } finally {
       setBusy(false);
     }
-  }
-
-  async function continueOnboarding() {
-    if (!continueTo || checkingLegacy) {
-      return;
-    }
-
-    if (signedIdentityAvailable && !(await discardSignedPractice())) {
-      return;
-    }
-
-    router.replace(continueTo);
-    router.refresh();
   }
 
   return (
     <section
       aria-labelledby="browser-practice-heading"
       aria-busy={busy}
-      className="mt-8 rounded-md border border-warning/50 bg-warning/10 p-4 text-sm"
+      className="rounded-md border border-warning/50 bg-warning/10 p-4 text-sm"
     >
       <h2 id="browser-practice-heading" className="font-semibold">
         Practice from this browser
@@ -215,7 +201,7 @@ export function AnonymousImportPanel({
               Import older practice
             </Button>
           ) : null}
-          {!continueTo && signedIdentityAvailable ? (
+          {!continueAction && signedIdentityAvailable ? (
             <Button
               disabled={busy}
               type="button"
@@ -245,19 +231,51 @@ export function AnonymousImportPanel({
         </p>
       ) : null}
 
-      {continueTo ? (
-        <div className="mt-6 border-t pt-4">
-          <Button
-            disabled={busy || checkingLegacy}
-            type="button"
-            variant={hasBrowserPractice ? "outline" : "default"}
-            onClick={() => void continueOnboarding()}
-          >
-            {hasBrowserPractice ? "Continue without importing" : "Continue"}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
+      {continueAction ? (
+        <OnboardingContinueForm
+          action={continueAction}
+          disabled={busy || checkingLegacy}
+          hasBrowserPractice={hasBrowserPractice}
+        />
       ) : null}
     </section>
+  );
+}
+
+function OnboardingContinueForm({
+  action,
+  disabled,
+  hasBrowserPractice,
+}: {
+  action: (
+    state: StudentOnboardingActionState,
+  ) => Promise<StudentOnboardingActionState>;
+  disabled: boolean;
+  hasBrowserPractice: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(action, {});
+
+  return (
+    <form action={formAction} className="mt-6 border-t pt-4">
+      <Button
+        disabled={disabled || pending}
+        type="submit"
+        variant={hasBrowserPractice ? "outline" : "default"}
+      >
+        {pending ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        )}
+        {hasBrowserPractice
+          ? "I understand — continue without importing"
+          : "I understand — continue"}
+      </Button>
+      {state.error ? (
+        <p role="alert" className="mt-3 text-destructive">
+          {state.error}
+        </p>
+      ) : null}
+    </form>
   );
 }

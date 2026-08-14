@@ -3,7 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  acknowledgeStudentOnboarding: vi.fn(),
+  clearAnonymousSession: vi.fn(),
   getServerEnv: vi.fn(),
+  hasAcknowledgedStudentOnboarding: vi.fn(),
   readAnonymousCookieSubject: vi.fn(),
   redirect: vi.fn(),
   refresh: vi.fn(),
@@ -47,7 +50,13 @@ vi.mock("@/lib/auth/principal", () => ({
 }));
 
 vi.mock("@/lib/auth/anonymous-session", () => ({
+  clearAnonymousSession: mocks.clearAnonymousSession,
   readAnonymousCookieSubject: mocks.readAnonymousCookieSubject,
+}));
+
+vi.mock("@/lib/data/student-onboarding-repository", () => ({
+  acknowledgeStudentOnboarding: mocks.acknowledgeStudentOnboarding,
+  hasAcknowledgedStudentOnboarding: mocks.hasAcknowledgedStudentOnboarding,
 }));
 
 vi.mock("@/lib/env/server", () => ({
@@ -55,6 +64,7 @@ vi.mock("@/lib/env/server", () => ({
 }));
 
 import AccountPage from "@/app/account/page";
+import { acknowledgeStudentOnboardingAction } from "@/app/onboarding/actions";
 import OnboardingPage from "@/app/onboarding/page";
 import SignInPage from "@/app/sign-in/[[...sign-in]]/page";
 import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
@@ -94,6 +104,7 @@ beforeEach(() => {
   });
   mocks.resolveAuthenticatedPrincipal.mockResolvedValue(undefined);
   mocks.readAnonymousCookieSubject.mockResolvedValue(undefined);
+  mocks.hasAcknowledgedStudentOnboarding.mockResolvedValue(false);
   mocks.redirect.mockImplementation((destination: string) => {
     throw new RedirectSignal(destination);
   });
@@ -235,7 +246,7 @@ describe("student onboarding and account routes", () => {
     });
   });
 
-  it("shows only the minimal profile and explicit migration choices", async () => {
+  it("shows the complete data notice and explicit migration choices", async () => {
     mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
     mocks.readAnonymousCookieSubject.mockResolvedValue(
       "anon:11111111-1111-4111-8111-111111111111",
@@ -248,13 +259,82 @@ describe("student onboarding and account routes", () => {
 
     expect(markup).toContain("Test Student");
     expect(markup).toContain("student@example.invalid");
+    expect(markup).toContain("does not replace your professor");
+    expect(markup).toContain("Activity that is saved");
+    expect(markup).toContain("short answer preview");
+    expect(markup).toContain("Optional AI fallback");
+    expect(markup).toContain(
+      "Generated explanations can be incomplete or wrong",
+    );
+    expect(markup).toContain("To report an error");
+    expect(markup).toContain("Pilot limits, errors, and support");
+    expect(markup).toContain("Account → Tutor and data notice");
+    expect(markup).toContain(
+      "stores only the date and time that you acknowledged",
+    );
     expect(markup).toContain("Import recent practice");
-    expect(markup).toContain("Continue without importing");
+    expect(markup).toContain("continue without importing");
     expect(markup).toContain(
       "Nothing is imported until you choose an import button.",
     );
-    expect(markup).toContain("never receives or stores your password");
+    expect(markup).toContain("does not receive or store your password");
     expect(markup).not.toMatch(/application roles|issuer/i);
+    expect(markup).not.toMatch(/university approved|approved by suffolk/i);
+  });
+
+  it("skips completed onboarding unless the student asks to review it", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+    mocks.hasAcknowledgedStudentOnboarding.mockResolvedValue(true);
+
+    await expect(
+      OnboardingPage({
+        searchParams: Promise.resolve({ returnTo: "/dashboard" }),
+      }),
+    ).rejects.toMatchObject({ destination: "/dashboard" });
+
+    const review = await OnboardingPage({
+      searchParams: Promise.resolve({
+        returnTo: "/account",
+        review: "1",
+      }),
+    });
+    const markup = renderToStaticMarkup(review);
+
+    expect(markup).toContain("Tutor and data notice");
+    expect(markup).toContain("Back to your account");
+    expect(markup).not.toContain("stores only the date and time");
+  });
+
+  it("acknowledges once, leaves browser practice separate, and continues safely", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+    mocks.acknowledgeStudentOnboarding.mockResolvedValue(undefined);
+    mocks.clearAnonymousSession.mockResolvedValue(undefined);
+
+    await expect(
+      acknowledgeStudentOnboardingAction("https://attacker.example/steal", {}),
+    ).rejects.toMatchObject({ destination: "/dashboard" });
+
+    expect(mocks.acknowledgeStudentOnboarding).toHaveBeenCalledOnce();
+    expect(mocks.acknowledgeStudentOnboarding).toHaveBeenCalledWith(
+      "user:test-student",
+    );
+    expect(mocks.clearAnonymousSession).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the student on the notice when acknowledgement storage fails", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+    mocks.acknowledgeStudentOnboarding.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+
+    await expect(
+      acknowledgeStudentOnboardingAction("/practice", {}),
+    ).resolves.toEqual({
+      error:
+        "Your acknowledgement could not be saved. Please try again before continuing.",
+    });
+    expect(mocks.clearAnonymousSession).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("protects the account route and does not render role details", async () => {
@@ -268,6 +348,7 @@ describe("student onboarding and account routes", () => {
 
     expect(markup).toContain("Test Student");
     expect(markup).toContain("student@example.invalid");
+    expect(markup).toContain("Tutor and data notice");
     expect(markup).not.toMatch(/application roles|student,|identity provider/i);
   });
 });
@@ -276,7 +357,7 @@ describe("session-aware authentication components", () => {
   it("offers migration and a separate continue choice without auto-submitting", () => {
     const markup = renderToStaticMarkup(
       createElement(AnonymousImportPanel, {
-        continueTo: "/dashboard",
+        continueAction: async () => ({}),
         hasSignedBrowserIdentity: true,
         legacyBridgeEnabled: false,
       }),
@@ -284,7 +365,7 @@ describe("session-aware authentication components", () => {
 
     expect(markup).toContain('type="button"');
     expect(markup).toContain("Import recent practice");
-    expect(markup).toContain("Continue without importing");
+    expect(markup).toContain("continue without importing");
     expect(markup).not.toContain("legacyAnonymousId");
   });
 

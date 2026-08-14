@@ -163,8 +163,23 @@ describe("production schema hardening migration", () => {
         "tutor_sessions_identity_check",
         "users_human_email_required",
         "users_session_version_positive",
+        "users_student_onboarding_acknowledgement_time_check",
       ]),
     );
+
+    const onboardingColumns = await columnValues(
+      database,
+      `
+        select column_name
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'users'
+          and column_name like 'student_onboarding_%'
+        order by column_name
+      `,
+      "column_name",
+    );
+    expect(onboardingColumns).toEqual(["student_onboarding_acknowledged_at"]);
 
     const indexNames = await columnValues(
       database,

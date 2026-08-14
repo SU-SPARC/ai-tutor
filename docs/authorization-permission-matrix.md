@@ -28,6 +28,12 @@ grant interface.
 
 The legacy `/admin/**` route tree does not exist.
 
+## Server Actions
+
+| Action                               | Access               | Data policy                                                 |
+| ------------------------------------ | -------------------- | ----------------------------------------------------------- |
+| `acknowledgeStudentOnboardingAction` | Student or professor | Stores only the first onboarding acknowledgement timestamp. |
+
 ## APIs
 
 | API                                              | Access                                    | Data policy                                                                              |

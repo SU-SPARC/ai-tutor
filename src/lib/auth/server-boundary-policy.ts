@@ -100,6 +100,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "requireProfessor",
   ]),
 
+  action(
+    "acknowledgeStudentOnboardingAction",
+    "src/app/onboarding/actions.ts",
+    "student-authenticated",
+    ["requireStudent", "acknowledgeStudentOnboarding"],
+  ),
+
   route(
     "POST",
     "/api/account/claim-anonymous",
@@ -372,6 +379,22 @@ function route(
     enforcementMarkers,
     file,
     kind: "route-handler",
+  };
+}
+
+function action(
+  name: string,
+  file: string,
+  access: ServerBoundaryAccess,
+  enforcementMarkers: readonly string[],
+): ServerBoundaryPolicy {
+  return {
+    access,
+    boundary: `ACTION ${name}`,
+    dataPolicy: dataPolicyFor(access),
+    enforcementMarkers,
+    file,
+    kind: "server-action",
   };
 }
 
