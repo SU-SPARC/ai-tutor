@@ -68,7 +68,11 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "/professor/questions",
     "src/app/professor/questions/page.tsx",
     "professor-review",
-    ["requireProfessorReview", "getQuestionLifecycleDashboard"],
+    [
+      "requireProfessorReview",
+      "getContentAvailabilityDashboard",
+      "getQuestionLifecycleDashboard",
+    ],
   ),
   page(
     "/professor/review",
@@ -226,6 +230,20 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/identity/legacy-anonymous/route.ts",
     "student-authenticated",
     ["requireStudent"],
+  ),
+  route(
+    "GET",
+    "/api/professor/availability",
+    "src/app/api/professor/availability/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "getContentAvailabilityDashboard"],
+  ),
+  route(
+    "PATCH",
+    "/api/professor/availability",
+    "src/app/api/professor/availability/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "updateContentAvailability"],
   ),
   route(
     "GET",

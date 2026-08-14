@@ -550,8 +550,19 @@ export function createDatabaseContentRepository(
           module_ref,
           is_active
         from topics
-        where is_active = true
-        order by sort_order, title, id
+        left join topic_student_availability availability
+          on availability.topic_id = topics.id
+        where topics.is_active = true
+          and coalesce(availability.release_state, 'published') = 'published'
+          and (
+            availability.available_from is null
+            or availability.available_from <= statement_timestamp()
+          )
+          and (
+            availability.available_until is null
+            or availability.available_until > statement_timestamp()
+          )
+        order by topics.sort_order, topics.title, topics.id
       `,
       );
       return rows.map((row) => ({

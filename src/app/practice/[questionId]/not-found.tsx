@@ -21,8 +21,8 @@ export default function PracticeQuestionNotFound() {
               Question not available
             </CardTitle>
             <CardDescription>
-              This question could not be found, or it is not approved for
-              students yet. Try picking another question from a topic.
+              This question could not be found, is not currently available, or
+              is not published for practice yet. Try another question.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">

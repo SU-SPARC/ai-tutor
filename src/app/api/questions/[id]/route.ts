@@ -21,8 +21,8 @@ export async function GET(
   try {
     const question = await getApprovedQuestionById(id);
 
-    // Only approved, public, student-facing questions are served here. Drafts
-    // (needs_review / generated_unverified) return 404, never their content.
+    // Only approved, lifecycle-published, currently available student-facing
+    // questions are served here. Every unavailable state returns the same 404.
     if (!question || !isPublishedContent(question)) {
       return NextResponse.json(
         { error: `Question not found: ${id}` },

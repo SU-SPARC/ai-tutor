@@ -10,6 +10,12 @@ import {
 } from "@/lib/auth/authorization";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import {
+  ContentAvailabilityNotFoundError,
+  ContentAvailabilityValidationError,
+  createDatabaseContentAvailabilityRepository,
+  type ContentAvailabilityUpdateInput,
+} from "@/lib/data/content-availability-repository";
+import {
   createDatabaseQuestionLifecycleRepository,
   type CreateQuestionInput,
   type CreateQuestionRevisionInput,
@@ -47,6 +53,7 @@ import type {
   QuestionLifecycleDto,
   QuestionVersionDto,
   ReviewCandidate,
+  StudentContentAvailabilityDashboard,
 } from "@/lib/types";
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
@@ -58,6 +65,9 @@ import type {
 } from "@/lib/content-transfer/types";
 
 let contentRepositoryOverride: ContentRepository | undefined;
+let contentAvailabilityRepositoryOverride:
+  | ReturnType<typeof createDatabaseContentAvailabilityRepository>
+  | undefined;
 
 export async function listTopics() {
   return readWithConfiguredRepository((repository) => repository.listTopics());
@@ -351,6 +361,67 @@ export async function getQuestionLifecycleDashboard(
   };
 }
 
+export async function getContentAvailabilityDashboard(
+  authorization: ProfessorReviewAuthorization,
+): Promise<StudentContentAvailabilityDashboard> {
+  assertAuthorization(authorization, "professor");
+  if (contentAvailabilityRepositoryOverride) {
+    return contentAvailabilityRepositoryOverride.getDashboard(authorization);
+  }
+
+  const policy = getOperatingModePolicy();
+  if (policy.repositorySource === "demo") {
+    return demoContentAvailabilityDashboard();
+  }
+
+  const env = getServerEnv();
+  if (!env.DATABASE_URL) {
+    if (policy.allowDemoFallback) return demoContentAvailabilityDashboard();
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    return await createDatabaseContentAvailabilityRepository(
+      queryPostgres,
+    ).getDashboard(authorization);
+  } catch (cause) {
+    if (policy.allowDemoFallback) return demoContentAvailabilityDashboard();
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+export async function updateContentAvailability(
+  authorization: ProfessorReviewAuthorization,
+  input: ContentAvailabilityUpdateInput,
+) {
+  assertAuthorization(authorization, "professor");
+  if (contentAvailabilityRepositoryOverride) {
+    return contentAvailabilityRepositoryOverride.updateAvailability(
+      authorization,
+      input,
+    );
+  }
+
+  const env = getServerEnv();
+  if (env.APP_DEMO_MODE || !env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    return await createDatabaseContentAvailabilityRepository(
+      queryPostgres,
+    ).updateAvailability(authorization, input);
+  } catch (cause) {
+    if (
+      cause instanceof ContentAvailabilityNotFoundError ||
+      cause instanceof ContentAvailabilityValidationError
+    ) {
+      throw cause;
+    }
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
 export async function getProfessorQuestionReviewDashboard(
   authorization: ProfessorReviewAuthorization,
   selectedTopicId?: string,
@@ -566,6 +637,14 @@ export function setContentRepositoryForTests(
   contentRepositoryOverride = repository;
 }
 
+export function setContentAvailabilityRepositoryForTests(
+  repository:
+    | ReturnType<typeof createDatabaseContentAvailabilityRepository>
+    | undefined,
+) {
+  contentAvailabilityRepositoryOverride = repository;
+}
+
 export function resetReviewQueueForTests() {
   resetDemoReviewQueueForTests();
 }
@@ -598,6 +677,41 @@ function safeTopicOptions(topics: AdminQuestionDashboard["topics"]) {
     id: topic.id,
     title: topic.title,
   }));
+}
+
+async function demoContentAvailabilityDashboard(): Promise<StudentContentAvailabilityDashboard> {
+  const [topics, questions] = await Promise.all([listTopics(), listQuestions()]);
+
+  return {
+    assignmentScope: "global_only",
+    auditEvents: [],
+    mode: "demo",
+    questions: questions.map((question) => ({
+      audienceType: "global",
+      effectiveAvailability: "available",
+      id: question.id,
+      publicationState: "published",
+      releaseState: "published",
+      targetType: "question",
+      title: question.title,
+      topicId: question.topicId,
+      topicTitle:
+        topics.find((topic) => topic.id === question.topicId)?.title ??
+        question.topicId,
+    })),
+    readOnly: true,
+    readOnlyReason:
+      "Availability controls require the production database; demo content remains read-only.",
+    topics: topics.map((topic) => ({
+      audienceType: "global",
+      effectiveAvailability: "available",
+      id: topic.id,
+      publicationState: "published",
+      releaseState: "published",
+      targetType: "topic",
+      title: topic.title,
+    })),
+  };
 }
 
 async function readWithConfiguredRepository<T>(

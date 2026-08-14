@@ -129,6 +129,18 @@ private metadata, source classification, stable ID, review state, content
 hash/schema validation, or professor approval evidence blocks publication
 before student visibility changes.
 
+`016_student_onboarding_acknowledgement.sql` stores only the first successful
+student onboarding acknowledgement timestamp on the application user.
+
+`017_controlled_content_availability.sql` adds global topic and question
+availability rules, optional start/end schedules, and an append-only,
+professor-attributed availability ledger. Missing rules preserve current
+published behavior. Student question and retrieval views require both active
+topic availability and question availability in addition to the existing
+approval and immutable-version publication gates. The schema intentionally
+does not invent course/cohort assignment because no course, cohort, membership,
+or enrollment model exists.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval

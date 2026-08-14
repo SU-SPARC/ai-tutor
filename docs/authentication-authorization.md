@@ -111,6 +111,7 @@ Handler repeats the role check close to its data operation:
 - `/professor`, `/professor/review`, `/professor/questions`,
   `/professor/upload`, and `/professor/analytics`
 - `/api/professor/review`
+- `/api/professor/availability`
 - `/api/professor/questions` and its detail/regeneration routes
 - `/api/professor/upload` for generated candidate import
 - `/api/professor/content-preview` for private upload previews
@@ -125,6 +126,15 @@ Review approvals, rejections, edits, regeneration, imports, and publication
 changes receive the authenticated application user ID through the server-created
 authorization grant. Client-supplied reviewer IDs, roles, and legacy shared
 secret headers are ignored.
+
+Professor availability changes use the same authenticated professor boundary.
+Global topic/question release state and optional schedules are recorded in an
+append-only availability ledger and the general audit log. Availability is a
+separate gate: it may hide or schedule an already published question, but it
+cannot approve a version, move a publication pointer, or expose archived,
+unpublished, or unapproved content. Course/cohort assignment is not simulated
+because the application has no course, cohort, membership, or enrollment data
+model.
 
 ## Student boundaries
 
@@ -142,9 +152,11 @@ student signs in and explicitly imports that browser history. The dashboard
 does not return peer records, rankings, percentiles, or class averages, and its
 completion counts are labeled as practice activity rather than a formal grade.
 
-Public question endpoints filter through the publication policy: generated,
-needs-review, rejected, private, or otherwise unapproved questions are not
-student-visible.
+Public question endpoints filter through both publication and availability:
+generated, needs-review, rejected, private, lifecycle-unpublished, archived,
+globally unpublished, not-yet-scheduled, expired, or otherwise unapproved
+questions are not student-visible. Hiding a topic also hides its questions and
+student retrieval material while preserving the remaining syllabus order.
 
 ## Configuration and local behavior
 

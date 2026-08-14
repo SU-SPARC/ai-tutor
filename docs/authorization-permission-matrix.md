@@ -41,6 +41,7 @@ The legacy `/admin/**` route tree does not exist.
 | `GET /api/questions`, `GET /api/questions/[id]`  | Public                                    | Approved public questions only.                                                          |
 | `GET /api/student/progress`                      | Student or professor                      | Returns only the current account's practice progress; no ranking or peer data.           |
 | Tutor-session routes                             | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                  |
+| `GET`, `PATCH /api/professor/availability`       | Professor                                 | Global-only topic/question release rules, schedules, and attributed audit history.       |
 | `GET`, `PATCH`, `POST /api/professor/review`     | Professor                                 | Professor-safe draft DTOs; real reviewer attribution.                                    |
 | `GET`, `POST /api/professor/questions`           | Professor                                 | Lifecycle listing or a complete validated initial draft.                                 |
 | `GET /api/professor/questions/[id]`              | Professor                                 | Immutable versions, lifecycle timeline, attribution, validation, and allowed actions.    |
@@ -63,6 +64,9 @@ The legacy `/admin/**` route tree does not exist.
 - Only lifecycle transitions can change publication pointers. Client-supplied
   trust, visibility, review state, and reviewer identity are not publication
   authority.
+- Availability can further restrict an active topic or published question, but
+  cannot expose content that fails approval or lifecycle publication. The
+  current schema has no course/cohort assignment model.
 - Client role fields, headers, email domains, unsafe metadata, and legacy shared
   secrets cannot elevate a user.
 - `ADMIN_SECRET` is rejected in every environment and there is no administrator

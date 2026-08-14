@@ -39,6 +39,64 @@ export type QuestionVersionState =
 
 export type QuestionRecordState = "active" | "archived";
 
+export type StudentContentReleaseState =
+  | "published"
+  | "unpublished"
+  | "archived";
+
+export type StudentContentEffectiveAvailability =
+  | "available"
+  | "scheduled"
+  | "expired"
+  | "unpublished"
+  | "archived";
+
+export type StudentContentPublicationState =
+  | "published"
+  | "unpublished"
+  | "archived";
+
+export type StudentContentAvailabilityTarget = {
+  audienceType: "global";
+  availableFrom?: string;
+  availableUntil?: string;
+  effectiveAvailability: StudentContentEffectiveAvailability;
+  id: string;
+  publicationState: StudentContentPublicationState;
+  releaseState: StudentContentReleaseState;
+  targetType: "topic" | "question";
+  title: string;
+  topicId?: string;
+  topicTitle?: string;
+};
+
+export type StudentContentAvailabilityEvent = {
+  actorDisplayName: string;
+  actorUserId: string;
+  fromAvailableFrom?: string;
+  fromAvailableUntil?: string;
+  fromReleaseState: StudentContentReleaseState;
+  id: number;
+  occurredAt: string;
+  reason?: string;
+  requestId?: string;
+  targetId: string;
+  targetType: "topic" | "question";
+  toAvailableFrom?: string;
+  toAvailableUntil?: string;
+  toReleaseState: StudentContentReleaseState;
+};
+
+export type StudentContentAvailabilityDashboard = {
+  assignmentScope: "global_only";
+  auditEvents: StudentContentAvailabilityEvent[];
+  mode: "database" | "demo";
+  questions: StudentContentAvailabilityTarget[];
+  readOnly: boolean;
+  readOnlyReason?: string;
+  topics: StudentContentAvailabilityTarget[];
+};
+
 export type QuestionCreationMethod =
   | "manual"
   | "imported"

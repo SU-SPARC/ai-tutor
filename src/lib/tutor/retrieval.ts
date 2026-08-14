@@ -10,6 +10,7 @@ import {
   getApprovedQuestions,
   getRetrievalChunks,
   getReviewQueue,
+  getTopics,
 } from "@/lib/data/data-store";
 import { chunkQuestion } from "@/lib/ai/chunk-question";
 import {
@@ -102,7 +103,13 @@ export async function retrieveTutorContext(
     }
     assertAuthorization(options.professorAuthorization, "professor");
   }
-  const [storedChunks, approvedQuestions, reviewCandidates, localResults] =
+  const [
+    storedChunks,
+    approvedQuestions,
+    reviewCandidates,
+    localResults,
+    availableTopics,
+  ] =
     await Promise.all([
       getRetrievalChunks(),
       includeQuestionExamples ? getApprovedQuestions() : Promise.resolve([]),
@@ -114,10 +121,26 @@ export async function retrieveTutorContext(
         maxResults: options.maxResults ?? 3,
         topicId: options.topicId,
       }),
+      audience === "student" ? getTopics() : Promise.resolve([]),
     ]);
+  const availableQuestionIds = new Set(
+    approvedQuestions.map((question) => question.id),
+  );
+  const availableTopicIds = new Set(
+    availableTopics.map((topic) => topic.id),
+  );
+  const audienceSafeLocalResults =
+    audience === "student"
+      ? localResults.filter(
+          (result) =>
+            availableTopicIds.has(result.metadata.topicId) &&
+            (!result.metadata.questionId ||
+              availableQuestionIds.has(result.metadata.questionId)),
+        )
+      : localResults;
   const chunks = [
     ...storedChunks,
-    ...localResults.map(localResultToRetrievalChunk),
+    ...audienceSafeLocalResults.map(localResultToRetrievalChunk),
     ...approvedQuestions.flatMap(questionToRetrievalChunks),
     ...reviewCandidates.flatMap(reviewCandidateToRetrievalChunks),
   ];

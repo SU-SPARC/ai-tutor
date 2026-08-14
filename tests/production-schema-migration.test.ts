@@ -38,10 +38,15 @@ describe("production schema hardening migration", () => {
       grant all privileges on all functions in schema public to anon, authenticated;
     `);
     await applyMigration(database, "014_lock_down_data_api.sql");
+    await applyMigration(database, "015_question_publication_quality_gates.sql");
+    await applyMigration(database, "016_student_onboarding_acknowledgement.sql");
+    await applyMigration(database, "017_controlled_content_availability.sql");
 
     const grants = await database.query<{
+      anon_availability_select: boolean;
       anon_review_select: boolean;
       anon_schema_usage: boolean;
+      authenticated_availability_audit_select: boolean;
       authenticated_private_select: boolean;
       authenticated_schema_usage: boolean;
     }>(`
@@ -54,11 +59,21 @@ describe("production schema hardening migration", () => {
         ) as anon_review_select,
         has_table_privilege(
           'authenticated', 'public.app_admin_retrieval_chunks', 'select'
-        ) as authenticated_private_select
+        ) as authenticated_private_select,
+        has_table_privilege(
+          'anon', 'public.topic_student_availability', 'select'
+        ) as anon_availability_select,
+        has_table_privilege(
+          'authenticated',
+          'public.student_content_availability_events',
+          'select'
+        ) as authenticated_availability_audit_select
     `);
     expect(grants.rows[0]).toEqual({
+      anon_availability_select: false,
       anon_review_select: false,
       anon_schema_usage: false,
+      authenticated_availability_audit_select: false,
       authenticated_private_select: false,
       authenticated_schema_usage: false,
     });
@@ -115,12 +130,15 @@ describe("production schema hardening migration", () => {
         "question_approval_history",
         "question_lifecycle_events",
         "question_patterns",
+        "question_student_availability",
         "question_version_lifecycle",
         "question_versions",
         "questions",
         "roles",
         "solution_steps",
         "student_progress",
+        "student_content_availability_events",
+        "topic_student_availability",
         "topics",
         "tutor_sessions",
         "user_roles",
@@ -153,6 +171,7 @@ describe("production schema hardening migration", () => {
         "question_approval_history_version_fkey",
         "question_lifecycle_events_version_fkey",
         "question_patterns_no_private_source_signals",
+        "question_student_availability_schedule_check",
         "question_version_lifecycle_version_fkey",
         "questions_pattern_id_fkey",
         "questions_publication_state_check",
@@ -160,6 +179,7 @@ describe("production schema hardening migration", () => {
         "student_progress_question_topic_fkey",
         "student_progress_question_version_fkey",
         "topics_sort_order_unique",
+        "topic_student_availability_schedule_check",
         "tutor_sessions_identity_check",
         "users_human_email_required",
         "users_session_version_positive",
@@ -207,6 +227,7 @@ describe("production schema hardening migration", () => {
         "question_approval_history_question_idx",
         "question_lifecycle_events_question_idx",
         "question_patterns_topic_idx",
+        "question_student_availability_release_idx",
         "question_version_lifecycle_queue_idx",
         "question_versions_question_created_idx",
         "questions_professor_queue_idx",
@@ -215,6 +236,8 @@ describe("production schema hardening migration", () => {
         "questions_student_publication_idx",
         "solution_steps_question_idx",
         "student_progress_student_topic_idx",
+        "student_content_availability_events_target_idx",
+        "topic_student_availability_release_idx",
         "tutor_sessions_user_activity_idx",
         "tutor_sessions_anonymous_activity_idx",
         "tutor_sessions_question_version_idx",
@@ -242,6 +265,8 @@ describe("production schema hardening migration", () => {
             'tutor_sessions',
             'attempts',
             'student_progress',
+            'topic_student_availability',
+            'question_student_availability',
             'ai_usage',
             'ai_response_cache',
             'ai_llm_reservations',
@@ -252,7 +277,27 @@ describe("production schema hardening migration", () => {
       `,
       "table_name",
     );
-    expect(mutableTablesWithUpdatedAt).toHaveLength(16);
+    expect(mutableTablesWithUpdatedAt).toHaveLength(18);
+
+    const availabilitySecurity = await database.query<{
+      relname: string;
+      relrowsecurity: boolean;
+    }>(`
+      select c.relname, c.relrowsecurity
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = any(array[
+          'question_student_availability',
+          'student_content_availability_events',
+          'topic_student_availability'
+        ])
+      order by c.relname
+    `);
+    expect(availabilitySecurity.rows).toHaveLength(3);
+    expect(
+      availabilitySecurity.rows.every((table) => table.relrowsecurity),
+    ).toBe(true);
 
     const deletionRules = await database.query<{
       confdeltype: string;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
+import { ProfessorContentAvailabilityPanel } from "@/components/professor/professor-content-availability-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getQuestionLifecycleDashboard } from "@/lib/data/data-store";
+import {
+  getContentAvailabilityDashboard,
+  getQuestionLifecycleDashboard,
+} from "@/lib/data/data-store";
 import {
   requireProfessorReview,
   requirePageAccess,
@@ -22,7 +26,10 @@ export default async function ProfessorQuestionsPage() {
     requireProfessorReview,
     "/professor/questions",
   );
-  const initialDashboard = await getQuestionLifecycleDashboard(authorization);
+  const [initialAvailabilityDashboard, initialDashboard] = await Promise.all([
+    getContentAvailabilityDashboard(authorization),
+    getQuestionLifecycleDashboard(authorization),
+  ]);
 
   return (
     <main className="min-h-svh bg-background">
@@ -51,6 +58,21 @@ export default async function ProfessorQuestionsPage() {
             private materials excluded
           </Badge>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Student availability</CardTitle>
+            <CardDescription>
+              Publish globally, schedule, unpublish, or archive student access
+              without changing review approval.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProfessorContentAvailabilityPanel
+              initialDashboard={initialAvailabilityDashboard}
+            />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
