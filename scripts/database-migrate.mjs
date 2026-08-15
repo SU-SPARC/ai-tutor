@@ -10,6 +10,7 @@ import {
   deploymentCheckExitCode,
   getMigrationStatus,
   loadMigrations,
+  normalizeMigrationDatabaseUrl,
   runPendingMigrations,
 } from "./lib/database-migrations.mjs"
 
@@ -29,7 +30,9 @@ async function main() {
 
   const migrationsDirectory = path.resolve(repositoryRoot, "db/migrations")
   const migrations = await loadMigrations(migrationsDirectory)
-  const databaseUrl = resolveDatabaseUrl(options.command)
+  const databaseUrl = normalizeMigrationDatabaseUrl(
+    resolveDatabaseUrl(options.command),
+  )
   validatePostgresUrl(databaseUrl)
 
   const pool = new Pool({
@@ -148,10 +151,12 @@ function resolveDatabaseUrl(command) {
   }
 
   const databaseUrl =
-    process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+    process.env.MIGRATION_DATABASE_URL ??
+    process.env.DATABASE_URL ??
+    process.env.POSTGRES_URL
   if (!databaseUrl) {
     throw new Error(
-      "MIGRATION_DATABASE_URL or a read-only DATABASE_URL is required to check migration status.",
+      "MIGRATION_DATABASE_URL, DATABASE_URL, or a read-only POSTGRES_URL is required to check migration status.",
     )
   }
   return databaseUrl

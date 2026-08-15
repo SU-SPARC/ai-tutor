@@ -67,6 +67,7 @@ export function getMigrationStatus(
   migrations: Migration[],
 ): Promise<MigrationStatus>
 export function deploymentCheckExitCode(status: MigrationStatus): 0 | 1 | 2
+export function normalizeMigrationDatabaseUrl(databaseUrl: string): string
 export function runPendingMigrations(options: {
   actor?: string
   allowDestructive?: boolean

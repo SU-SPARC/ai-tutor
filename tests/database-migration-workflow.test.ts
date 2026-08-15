@@ -11,6 +11,7 @@ import {
   getMigrationStatus,
   loadMigrations,
   migrationFromSql,
+  normalizeMigrationDatabaseUrl,
   runPendingMigrations,
   validateMigrationHistory,
   type MigrationClient,
@@ -26,6 +27,32 @@ afterEach(async () => {
 });
 
 describe("safe database migration workflow", () => {
+  it("normalizes managed Supabase TLS without weakening other URLs", () => {
+    const normalized = new URL(
+      normalizeMigrationDatabaseUrl(
+        "postgresql://postgres:secret@db.example.com:5432/postgres?sslmode=require",
+      ),
+    );
+
+    expect(normalized.searchParams.get("sslmode")).toBe("require");
+    expect(normalized.searchParams.get("uselibpqcompat")).toBe("true");
+    expect(
+      normalizeMigrationDatabaseUrl(
+        "postgresql://postgres:secret@db.example.com:5432/postgres?sslmode=verify-full",
+      ),
+    ).not.toContain("uselibpqcompat");
+  });
+
+  it("gates Vercel production builds on the migration ledger", () => {
+    const config = JSON.parse(
+      readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"),
+    ) as { buildCommand?: string };
+
+    expect(config.buildCommand).toContain('VERCEL_ENV" = "production');
+    expect(config.buildCommand).toContain("npm run db:migrate:check");
+    expect(config.buildCommand).toContain("npm run build");
+  });
+
   it("loads one contiguous, checksummed, version-controlled history", async () => {
     const migrations = await loadMigrations(migrationsDirectory);
 

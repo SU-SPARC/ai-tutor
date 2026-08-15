@@ -279,6 +279,22 @@ export function deploymentCheckExitCode(status) {
   return status.pending.length > 0 ? 2 : 0
 }
 
+export function normalizeMigrationDatabaseUrl(databaseUrl) {
+  const parsed = new URL(databaseUrl)
+
+  // Supabase's managed connection strings use libpq's sslmode=require
+  // semantics. pg 8 otherwise treats require as verify-full, which rejects
+  // the managed certificate before a migration status check can run.
+  if (
+    parsed.searchParams.get("sslmode") === "require" &&
+    !parsed.searchParams.has("uselibpqcompat")
+  ) {
+    parsed.searchParams.set("uselibpqcompat", "true")
+  }
+
+  return parsed.toString()
+}
+
 export async function runPendingMigrations({
   actor,
   allowDestructive = false,
