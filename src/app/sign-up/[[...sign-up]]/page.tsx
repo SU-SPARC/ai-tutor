@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { SignUp } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
+import { ThemedSignUp } from "@/components/auth/themed-clerk-form";
 import { AuthenticationUnavailable } from "@/components/auth/authentication-unavailable";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
@@ -40,7 +40,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const destination = postSignInPath(returnTo);
   return (
     <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg items-center justify-center px-6 py-12">
-      <SignUp
+      <ThemedSignUp
         path="/sign-up"
         routing="path"
         signInUrl={signInPath(returnTo)}

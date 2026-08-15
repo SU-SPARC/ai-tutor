@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -160,25 +161,13 @@ export function ProgressDashboard({
                   </div>
                   {topic.availableQuestions > 0 ? (
                     <>
-                      <div
-                        className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
-                        role="progressbar"
+                      <Progress
+                        className="mt-4"
                         aria-label={`${topic.title} practice completion`}
-                        aria-valuemin={0}
-                        aria-valuemax={topic.availableQuestions}
-                        aria-valuenow={topic.completedQuestions}
-                      >
-                        <div
-                          className="h-full rounded-full bg-primary"
-                          style={{
-                            width: `${Math.round(
-                              (topic.completedQuestions /
-                                topic.availableQuestions) *
-                                100,
-                            )}%`,
-                          }}
-                        />
-                      </div>
+                        indicatorClassName="bg-cta"
+                        max={topic.availableQuestions}
+                        value={topic.completedQuestions}
+                      />
                       <p className="mt-2 text-sm text-muted-foreground">
                         {topic.completedQuestions} of {topic.availableQuestions}{" "}
                         practice questions completed

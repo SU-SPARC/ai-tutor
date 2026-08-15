@@ -5,6 +5,7 @@ import { Loader2, Save, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { nativeSelectClassName } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
@@ -143,7 +144,7 @@ export function ProfessorQuestionRevisionEditor({
         </RevisionField>
         <RevisionField label="Syllabus topic">
           <select
-            className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
+            className={nativeSelectClassName}
             value={form.topicId}
             onChange={(event) => updateForm("topicId", event.target.value)}
           >
@@ -156,7 +157,7 @@ export function ProfessorQuestionRevisionEditor({
         </RevisionField>
         <RevisionField label="Difficulty">
           <select
-            className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
+            className={nativeSelectClassName}
             value={form.difficulty}
             onChange={(event) =>
               updateForm("difficulty", event.target.value as Difficulty)

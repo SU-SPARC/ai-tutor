@@ -11,6 +11,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -183,12 +184,9 @@ export function ProfessorContentTransferPanel() {
       </section>
 
       {message ? (
-        <div
-          aria-live="polite"
-          className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
-        >
-          {message}
-        </div>
+        <Alert aria-live="polite">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       {preview ? <PreviewResult preview={preview} /> : null}

@@ -1,10 +1,31 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Palette extracted from public/logo.png (the sigma mark).
+ * The logo is a vertical gradient: spring green #0FF7A3 -> teal #00C0A8
+ * -> cyan #008CBB -> azure #0048D0. Azure covers the most pixels, so it
+ * is the primary; the spring green becomes the CTA accent.
+ *
+ * Two rules to keep the palette accessible:
+ *
+ * 1. --cta is a BACKGROUND-only token in light mode. Green on white is
+ *    1.6:1 as text. When you need green *text* on a light surface, use
+ *    --success (4.95:1) instead.
+ * 2. --border is decorative and deliberately low-contrast. --input is the
+ *    boundary that identifies a control and must stay >= 3:1 against both
+ *    --background and --card (WCAG 1.4.11). Do not collapse them into one
+ *    value.
+ *
+ * Every text pair below clears 4.5:1 and every interactive boundary clears
+ * 3:1 in both themes.
+ */
+
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -19,13 +40,22 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --radius-xs: calc(var(--radius) * 0.5);
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: calc(var(--radius) * 0.875);
@@ -34,52 +64,109 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  color-scheme: light;
+
+  --background: oklch(0.994 0.003 250);
+  --foreground: oklch(0.185 0.022 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.185 0.022 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.442 0.151 243.9);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.958 0.033 196.3);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.704 0.14 243.4);
-  --success: oklch(0.62 0.16 150);
-  --warning: oklch(0.77 0.16 74);
+  --popover-foreground: oklch(0.185 0.022 264);
+
+  /* Logo azure #0048D0 — 7.2:1 against its foreground. */
+  --primary: oklch(0.465 0.218 262);
+  --primary-foreground: oklch(0.99 0.005 250);
+
+  --secondary: oklch(0.966 0.008 250);
+  --secondary-foreground: oklch(0.245 0.03 262);
+  --muted: oklch(0.968 0.008 250);
+  --muted-foreground: oklch(0.494 0.022 258);
+
+  /* Hover surface for ghost/outline controls — brand-tinted, not vivid. */
+  --accent: oklch(0.952 0.024 240);
+  --accent-foreground: oklch(0.27 0.05 262);
+
+  /* Logo spring green #00E5A0 — background-only in this theme. */
+  --cta: oklch(0.815 0.177 163);
+  --cta-foreground: oklch(0.22 0.045 255);
+
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.99 0.005 250);
+  --success: oklch(0.52 0.14 158);
+  --success-foreground: oklch(0.99 0.005 250);
+  --warning: oklch(0.52 0.12 68);
+  --warning-foreground: oklch(0.99 0.005 250);
+
+  --border: oklch(0.906 0.012 252);
+  --input: oklch(0.65 0.03 252);
+  --ring: oklch(0.465 0.218 262);
+
+  /* Sampled along the logo gradient, green -> azure. */
+  --chart-1: oklch(0.815 0.177 163);
+  --chart-2: oklch(0.724 0.132 179);
+  --chart-3: oklch(0.64 0.12 205);
+  --chart-4: oklch(0.6 0.121 231);
+  --chart-5: oklch(0.512 0.189 258);
+
+  --brand-gradient: linear-gradient(
+    160deg,
+    oklch(0.815 0.177 163),
+    oklch(0.724 0.132 179) 45%,
+    oklch(0.465 0.218 262)
+  );
+
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.704 0.14 243.4);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.704 0.14 243.4);
-  --success: oklch(0.723 0.219 149.579);
-  --warning: oklch(0.82 0.16 82);
+  color-scheme: dark;
+
+  --background: oklch(0.165 0.014 258);
+  --foreground: oklch(0.962 0.006 250);
+  --card: oklch(0.212 0.016 258);
+  --card-foreground: oklch(0.962 0.006 250);
+  --popover: oklch(0.212 0.016 258);
+  --popover-foreground: oklch(0.962 0.006 250);
+
+  /* The logo azure is too dark on a dark ground; lift it in the same hue
+   * family to #5999F8 for 6.8:1 against --background. */
+  --primary: oklch(0.685 0.155 258);
+  --primary-foreground: oklch(0.17 0.03 262);
+
+  --secondary: oklch(0.268 0.018 258);
+  --secondary-foreground: oklch(0.962 0.006 250);
+  --muted: oklch(0.268 0.018 258);
+  --muted-foreground: oklch(0.725 0.022 254);
+
+  --accent: oklch(0.285 0.028 255);
+  --accent-foreground: oklch(0.96 0.008 250);
+
+  --cta: oklch(0.815 0.177 163);
+  --cta-foreground: oklch(0.19 0.04 255);
+
+  --destructive: oklch(0.68 0.19 25);
+  --destructive-foreground: oklch(0.17 0.03 262);
+  --success: oklch(0.76 0.17 160);
+  --success-foreground: oklch(0.17 0.03 262);
+  --warning: oklch(0.82 0.15 78);
+  --warning-foreground: oklch(0.17 0.03 262);
+
+  --border: oklch(0.32 0.02 258);
+  --input: oklch(0.505 0.03 258);
+  --ring: oklch(0.685 0.155 258);
+
+  --chart-1: oklch(0.815 0.177 163);
+  --chart-2: oklch(0.724 0.132 179);
+  --chart-3: oklch(0.64 0.12 205);
+  --chart-4: oklch(0.6 0.121 231);
+  --chart-5: oklch(0.685 0.155 258);
+
+  --brand-gradient: linear-gradient(
+    160deg,
+    oklch(0.815 0.177 163),
+    oklch(0.724 0.132 179) 45%,
+    oklch(0.685 0.155 258)
+  );
 }
 
 @layer base {
@@ -93,5 +180,26 @@
 
   body {
     @apply min-h-svh bg-background text-foreground antialiased;
+  }
+
+  /* Headings read tighter than body copy at the sizes this app uses. */
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* Echoes the logo gradient. Used for the hero wordmark and rule accents. */
+  .brand-gradient-text {
+    background-image: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .brand-gradient-surface {
+    background-image: var(--brand-gradient);
   }
 }

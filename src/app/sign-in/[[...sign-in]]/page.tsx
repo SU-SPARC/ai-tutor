@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { SignIn } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
+import { ThemedSignIn } from "@/components/auth/themed-clerk-form";
 import { AuthenticationUnavailable } from "@/components/auth/authentication-unavailable";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
@@ -37,7 +37,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   return (
     <AuthenticationPageShell
       body={
-        <SignIn
+        <ThemedSignIn
           path="/sign-in"
           routing="path"
           signUpUrl={signUpPath(returnTo)}

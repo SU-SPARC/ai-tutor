@@ -3,8 +3,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { BarChart3, Database, Loader2, RefreshCw } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -20,6 +22,15 @@ type AnalyticsPayload = {
   analytics?: ProfessorAnalyticsDto;
   error?: string;
 };
+
+// Sampled along the logo gradient so the bars read as one family.
+const CHART_BAR_COLORS = [
+  "bg-chart-5",
+  "bg-chart-4",
+  "bg-chart-3",
+  "bg-chart-2",
+  "bg-chart-1",
+];
 
 export function InstructorAnalyticsPanel() {
   const [analytics, setAnalytics] =
@@ -65,9 +76,9 @@ export function InstructorAnalyticsPanel() {
       </div>
 
       {message ? (
-        <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          {message}
-        </div>
+        <Alert>
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       {analytics ? (
@@ -249,7 +260,7 @@ function TopicBars({
 
   return (
     <div className="flex flex-col gap-3">
-      {topics.map((topic) => (
+      {topics.map((topic, index) => (
         <div key={topic.topicId} className="grid gap-1">
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium">{topic.topicTitle}</span>
@@ -257,14 +268,13 @@ function TopicBars({
               {formatNumber(topic.attempts)} attempts
             </span>
           </div>
-          <div className="h-2 rounded-sm bg-muted">
-            <div
-              className="h-2 rounded-sm bg-primary"
-              style={{
-                width: `${Math.max(6, (topic.attempts / maxAttempts) * 100)}%`,
-              }}
-            />
-          </div>
+          <Progress
+            aria-label={`${topic.topicTitle} practice attempts`}
+            indicatorClassName={CHART_BAR_COLORS[index % CHART_BAR_COLORS.length]}
+            max={maxAttempts}
+            minPercent={6}
+            value={topic.attempts}
+          />
         </div>
       ))}
     </div>

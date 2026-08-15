@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import "katex/dist/katex.min.css";
@@ -9,10 +10,24 @@ import { AccountActions } from "@/components/auth/account-actions";
 import { getServerEnv } from "@/lib/env/server";
 import { operatingModePolicyFor } from "@/lib/runtime/operating-mode";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Suffolk AI Probability Tutor",
   description:
     "A rule-first probability and statistics tutor with professor review and controlled LLM fallback.",
+  // `icons` is intentionally omitted: Next derives the correct hashed URLs
+  // from src/app/icon.png and src/app/apple-icon.png on its own.
+  openGraph: {
+    title: "Suffolk AI Probability Tutor",
+    description:
+      "A rule-first probability and statistics tutor with professor review and controlled LLM fallback.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -34,7 +49,9 @@ export default function RootLayout({
   );
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    // `suppressHydrationWarning` is required because next-themes writes the
+    // theme class onto <html> before React hydrates.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>
         {authenticationEnabled ? (
           <ClerkProvider dynamic signInUrl="/sign-in" signUpUrl="/sign-up">

@@ -16,8 +16,10 @@ import {
   ProfessorQuestionRevisionEditor,
   revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { nativeSelectClassName } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -386,7 +388,7 @@ export function ProfessorQuestionLifecyclePanel({
         <label className="space-y-1 text-xs text-muted-foreground">
           Revision method
           <select
-            className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
+            className={nativeSelectClassName}
             value={revisionMethod}
             onChange={(event) =>
               setRevisionMethod(
@@ -409,12 +411,9 @@ export function ProfessorQuestionLifecyclePanel({
       </div>
 
       {message ? (
-        <p
-          className="border border-border bg-muted px-3 py-2 text-sm"
-          role="status"
-        >
-          {message}
-        </p>
+        <Alert role="status">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       <section

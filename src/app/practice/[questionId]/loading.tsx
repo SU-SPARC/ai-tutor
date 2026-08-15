@@ -1,11 +1,13 @@
+import { Skeleton } from "@/components/ui/skeleton";
+
 export default function PracticeQuestionLoading() {
   return (
-    <main className="min-h-svh bg-background">
+    <main className="min-h-svh bg-background" aria-busy="true">
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-12">
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-        <div className="h-64 animate-pulse rounded-lg border bg-card" />
-        <div className="h-40 animate-pulse rounded-lg border bg-card" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-40 rounded-lg" />
       </section>
     </main>
-  )
+  );
 }

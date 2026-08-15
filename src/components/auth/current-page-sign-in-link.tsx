@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { navigationClassName } from "@/components/auth/navigation-class-name";
 import { safeReturnPath, signInPath } from "@/lib/auth/return-path";
 
 export function CurrentPageSignInLink() {
@@ -12,10 +13,7 @@ export function CurrentPageSignInLink() {
   const returnTo = safeReturnPath(`${pathname}${query ? `?${query}` : ""}`);
 
   return (
-    <Link
-      href={signInPath(returnTo)}
-      className="rounded-sm text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <Link href={signInPath(returnTo)} className={navigationClassName}>
       Sign in
     </Link>
   );

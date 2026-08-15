@@ -47,12 +47,25 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
+function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
+  return (
+    <tfoot
+      data-slot="table-footer"
+      className={cn(
+        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium text-muted-foreground",
+        "h-10 px-2 text-left align-middle text-xs font-semibold tracking-wide text-muted-foreground uppercase",
         className,
       )}
       {...props}
@@ -70,4 +83,26 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   )
 }
 
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow }
+function TableCaption({
+  className,
+  ...props
+}: React.ComponentProps<"caption">) {
+  return (
+    <caption
+      data-slot="table-caption"
+      className={cn("mt-4 text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+}

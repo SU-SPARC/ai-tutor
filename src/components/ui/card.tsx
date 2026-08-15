@@ -7,7 +7,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "rounded-lg border bg-card text-card-foreground shadow-sm",
+        "rounded-lg border border-border bg-card text-card-foreground shadow-xs",
         className,
       )}
       {...props}
@@ -15,6 +15,8 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// Padding lives on Header/Content/Footer rather than on Card, matching how
+// the ~19 existing consumers already compose these.
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -29,7 +31,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn("font-semibold leading-none tracking-normal", className)}
+      className={cn("font-semibold leading-none tracking-tight", className)}
       {...props}
     />
   )
@@ -39,7 +41,17 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm leading-relaxed text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn("flex items-center gap-2", className)}
       {...props}
     />
   )
@@ -67,6 +79,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,

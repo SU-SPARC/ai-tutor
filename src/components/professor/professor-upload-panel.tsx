@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { AlertTriangle, FileText, Loader2, UploadCloud } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,9 +84,9 @@ export function ProfessorUploadPanel() {
       </form>
 
       {message ? (
-        <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          {message}
-        </div>
+        <Alert>
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       {preview ? <PreviewResult preview={preview} /> : null}
@@ -120,14 +121,14 @@ function PreviewResult({
       </div>
 
       {preview.warnings.length > 0 ? (
-        <div className="flex gap-2 rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex flex-col gap-1">
+        <Alert variant="warning">
+          <AlertTriangle />
+          <AlertDescription>
             {preview.warnings.map((warning) => (
               <span key={warning}>{warning}</span>
             ))}
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">

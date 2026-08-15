@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { CalendarClock, Loader2, ShieldCheck } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { nativeSelectClassName } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -83,17 +85,14 @@ export function ProfessorContentAvailabilityPanel({
       </div>
 
       {dashboard.readOnlyReason ? (
-        <p className="border border-border bg-muted px-3 py-2 text-sm">
-          {dashboard.readOnlyReason}
-        </p>
+        <Alert>
+          <AlertDescription>{dashboard.readOnlyReason}</AlertDescription>
+        </Alert>
       ) : null}
       {message ? (
-        <p
-          className="border border-border bg-muted px-3 py-2 text-sm"
-          role="status"
-        >
-          {message}
-        </p>
+        <Alert role="status">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       <AvailabilitySection
@@ -276,7 +275,7 @@ function AvailabilityEditor({
         <label className="space-y-1 text-xs text-muted-foreground">
           Student release state
           <select
-            className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm text-foreground"
+            className={nativeSelectClassName}
             value={releaseState}
             disabled={disabled}
             onChange={(event) => {

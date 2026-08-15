@@ -3,8 +3,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Check, Loader2, RotateCcw, Save, X } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { nativeSelectClassName } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { professorReviewQueuePath } from "@/lib/tutor/professor-review-mode";
 import type {
@@ -159,9 +161,11 @@ export function ProfessorFriendlyReviewPanel({
   return (
     <div className="flex flex-col gap-5">
       {dashboard.readOnly ? (
-        <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          {dashboard.readOnlyReason ?? "This review queue is read-only."}
-        </div>
+        <Alert>
+          <AlertDescription>
+            {dashboard.readOnlyReason ?? "This review queue is read-only."}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
@@ -171,7 +175,7 @@ export function ProfessorFriendlyReviewPanel({
             value={selectedTopicId}
             disabled={isLoading}
             onChange={(event) => selectTopic(event.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className={nativeSelectClassName}
           >
             <option value="">Choose a topic</option>
             {dashboard.topics.map((topic) => (
@@ -251,12 +255,9 @@ export function ProfessorFriendlyReviewPanel({
       ) : null}
 
       {message ? (
-        <div
-          role="status"
-          className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
-        >
-          {message}
-        </div>
+        <Alert role="status">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
       ) : null}
 
       {current ? (
