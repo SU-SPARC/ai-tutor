@@ -97,6 +97,7 @@ describe("production operating mode", () => {
       new Request("https://tutor.example.edu/api/tutor/session", {
         body: JSON.stringify({
           anonymousStudentId: "anon-production-student",
+          idempotencyKey: "session:production-unavailable",
           questionId: "dice-sum-eight",
         }),
         headers: {
@@ -284,6 +285,7 @@ function failingTutorSessionRepository(
     createSession: fail,
     getSession: fail,
     listSessionsForStudent: fail,
+    persistTransition: fail,
     recordAttempt: fail,
     recordAttemptOutcome: fail,
     revealHint: fail,

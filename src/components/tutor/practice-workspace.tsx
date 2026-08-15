@@ -119,7 +119,11 @@ export function PracticeWorkspace({
 
   const selectedQuestionIdForSession = selectedQuestion?.id;
   const isTutorBusy = activeMode !== null || isSessionLoading;
-  const canSend = Boolean(session) && !isTutorBusy && answer.trim().length > 0;
+  const canSend =
+    Boolean(session) &&
+    !session?.solved &&
+    !isTutorBusy &&
+    answer.trim().length > 0;
   const hintsExhausted = Boolean(
     selectedQuestion && hintCount >= selectedQuestion.hints.length,
   );
@@ -173,6 +177,22 @@ export function PracticeWorkspace({
 
         if (!isStale) {
           setSession(nextSession);
+          setMessages(recoveryMessages(nextSession, selectedQuestion));
+          setHintCount(
+            Math.min(
+              nextSession.revealedHints,
+              selectedQuestion?.hints.length ?? 0,
+            ),
+          );
+          setHintViewIndex(
+            Math.max(
+              0,
+              Math.min(
+                nextSession.revealedHints,
+                selectedQuestion?.hints.length ?? 0,
+              ) - 1,
+            ),
+          );
         }
       } catch (error) {
         if (!isStale) {
@@ -190,7 +210,12 @@ export function PracticeWorkspace({
     return () => {
       isStale = true;
     };
-  }, [initialQuestionId, initialSessionId, selectedQuestionIdForSession]);
+  }, [
+    initialQuestionId,
+    initialSessionId,
+    selectedQuestion,
+    selectedQuestionIdForSession,
+  ]);
 
   function resetChat() {
     setMessages([]);
@@ -239,20 +264,16 @@ export function PracticeWorkspace({
     setAnswer("");
 
     try {
-      const nextSession = await postTutorSessionEvent(session.id, "attempt", {
-        answer: trimmed,
-      });
-      setSession(nextSession);
-
       const tutorResponse = await requestTutorResponse({
         answer: trimmed,
         mode: "check",
         questionId: selectedQuestion.id,
-        sessionId: nextSession.id,
+        sessionId: session.id,
         topicId: selectedQuestion.topicId,
       });
 
       setLatestResponse(tutorResponse);
+      setSession((current) => sessionWithProgress(current, tutorResponse));
       pushMessage({
         note: tutorResponse.misconceptions[0],
         role: "tutor",
@@ -266,43 +287,35 @@ export function PracticeWorkspace({
     }
   }
 
-  function getHint() {
+  async function getHint() {
     if (!selectedQuestion || !session || hintsExhausted) {
       return;
     }
 
-    // Reveal exactly one more hint from the local list. Driving the display
-    // off a local counter (rather than the engine's cumulative response)
-    // guarantees one hint per click, even after wrong answers advance the
-    // engine's own hint index.
-    const next = hintCount + 1;
-    setHintCount(next);
-    setHintViewIndex(next - 1);
+    setActiveMode("hint");
     setSessionError(null);
 
-    // Sync the server session counter and engine hint state in the background
-    // (for analytics + LLM-fallback eligibility); the hint is already shown.
-    const sessionId = session.id;
-    const questionId = selectedQuestion.id;
-    const topicId = selectedQuestion.topicId;
-    const submittedAnswer = answer;
-    void postTutorSessionEvent(sessionId, "hint")
-      .then((updatedSession) => {
-        setSession(updatedSession);
-        return requestTutorResponse({
-          answer: submittedAnswer,
-          mode: "hint",
-          questionId,
-          sessionId,
-          topicId,
-        });
-      })
-      .then((response) => {
-        setLatestResponse(response);
-      })
-      .catch(() => {
-        // Background sync only — the revealed hint is unaffected.
+    try {
+      const response = await requestTutorResponse({
+        answer,
+        mode: "hint",
+        questionId: selectedQuestion.id,
+        sessionId: session.id,
+        topicId: selectedQuestion.topicId,
       });
+      const next = Math.min(
+        selectedQuestion.hints.length,
+        response.progress?.hintsRevealed ?? hintCount + 1,
+      );
+      setHintCount(next);
+      setHintViewIndex(Math.max(0, next - 1));
+      setLatestResponse(response);
+      setSession((current) => sessionWithProgress(current, response));
+    } catch (error) {
+      setSessionError(errorMessageFor(error));
+    } finally {
+      setActiveMode(null);
+    }
   }
 
   async function showAnswer() {
@@ -314,18 +327,16 @@ export function PracticeWorkspace({
     setSessionError(null);
 
     try {
-      const nextSession = await postTutorSessionEvent(session.id, "step");
-      setSession(nextSession);
-
       const tutorResponse = await requestTutorResponse({
         answer,
         mode: "full_solution",
         questionId: selectedQuestion.id,
-        sessionId: nextSession.id,
+        sessionId: session.id,
         topicId: selectedQuestion.topicId,
       });
 
       setLatestResponse(tutorResponse);
+      setSession((current) => sessionWithProgress(current, tutorResponse));
 
       const total = tutorResponse.steps.length;
       setMessages((items) => [
@@ -374,6 +385,7 @@ export function PracticeWorkspace({
       });
 
       setLatestResponse(tutorResponse);
+      setSession((current) => sessionWithProgress(current, tutorResponse));
       pushMessage({
         note: tutorResponse.misconceptions[0],
         role: "tutor",
@@ -689,7 +701,9 @@ export function PracticeWorkspace({
                     type="button"
                     size="sm"
                     disabled={isTutorBusy || !session || hintsExhausted}
-                    onClick={getHint}
+                    onClick={() => {
+                      void getHint();
+                    }}
                   >
                     <Lightbulb className="h-4 w-4" />
                     Hint
@@ -854,39 +868,25 @@ function clearTutorSessionId(questionId: string) {
 }
 
 async function createTutorSession(questionId: string) {
-  const result = await fetch("/api/tutor/session", {
-    body: JSON.stringify({
-      questionId,
+  const idempotencyKey = createClientId("session");
+  const result = await retryTutorWrite(() =>
+    fetch("/api/tutor/session", {
+      body: JSON.stringify({
+        idempotencyKey,
+        questionId,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
     }),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
+  );
 
   return readTutorSessionPayload(result);
 }
 
 async function fetchTutorSession(sessionId: string) {
   const result = await fetch(`/api/tutor/session/${sessionId}`);
-  return readTutorSessionPayload(result);
-}
-
-async function postTutorSessionEvent(
-  sessionId: string,
-  event: "attempt" | "hint" | "step",
-  body?: Record<string, unknown>,
-) {
-  const result = await fetch(`/api/tutor/session/${sessionId}/${event}`, {
-    body: body ? JSON.stringify(body) : undefined,
-    headers: body
-      ? {
-          "Content-Type": "application/json",
-        }
-      : undefined,
-    method: "POST",
-  });
-
   return readTutorSessionPayload(result);
 }
 
@@ -898,13 +898,16 @@ async function requestTutorResponse(input: {
   sessionId: string;
   topicId: string;
 }) {
-  const result = await fetch("/api/tutor/respond", {
-    body: JSON.stringify(input),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
+  const eventId = createClientId("event");
+  const result = await retryTutorWrite(() =>
+    fetch("/api/tutor/respond", {
+      body: JSON.stringify({ ...input, eventId }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
   const payload = (await result
     .json()
     .catch(() => ({}))) as Partial<TutorResponse> & {
@@ -916,6 +919,26 @@ async function requestTutorResponse(input: {
   }
 
   return payload as TutorResponse;
+}
+
+async function retryTutorWrite(request: () => Promise<Response>) {
+  let lastResponse: Response | undefined;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await request();
+      if (response.status < 500 || attempt === 1) {
+        return response;
+      }
+      lastResponse = response;
+    } catch (error) {
+      if (attempt === 1) {
+        throw error;
+      }
+    }
+  }
+
+  return lastResponse!;
 }
 
 async function readTutorSessionPayload(result: Response) {
@@ -971,6 +994,80 @@ function createClientId(prefix: string) {
   }
 
   return `${prefix}-${Math.random().toString(36).slice(2)}`;
+}
+
+function sessionWithProgress(
+  session: TutorSessionDto | null,
+  response: TutorResponse,
+) {
+  if (!session || !response.progress) {
+    return session;
+  }
+
+  return {
+    ...session,
+    aiFallbackUsed: response.progress.llmUsed,
+    attemptCount: response.progress.attemptCount,
+    currentState: response.progress.state,
+    revealedHints: response.progress.hintsRevealed,
+    revealedSteps: response.progress.stepsRevealed,
+    solved: response.progress.solved,
+    wrongAttemptCount: response.progress.wrongAttemptCount,
+  };
+}
+
+function recoveryMessages(
+  session: TutorSessionDto,
+  question: PracticeQuestion | undefined,
+): ChatMessage[] {
+  if (!question) {
+    return [];
+  }
+
+  return session.attempts.flatMap((attempt, attemptIndex) => {
+    const messages: ChatMessage[] = [];
+    if (attempt.submittedAnswer) {
+      messages.push({
+        id: `recovered-student-${attemptIndex}`,
+        role: "student",
+        text: attempt.submittedAnswer,
+      });
+    }
+
+    if (attempt.mode === "full_solution") {
+      question.solutionSteps
+        .slice(0, session.revealedSteps)
+        .forEach((step, stepIndex, steps) => {
+          messages.push({
+            id: `recovered-step-${attemptIndex}-${stepIndex}`,
+            role: "tutor",
+            stepLabel: `Step ${stepIndex + 1} of ${steps.length}`,
+            text: step,
+            tone: "neutral",
+          });
+        });
+    } else if (attempt.verdict === "correct") {
+      messages.push({
+        id: `recovered-tutor-${attemptIndex}`,
+        role: "tutor",
+        text: question.answer.explanation,
+        tone: "correct",
+      });
+    } else if (attempt.verdict === "incorrect") {
+      messages.push({
+        id: `recovered-tutor-${attemptIndex}`,
+        note: attempt.misconceptionFeedback[0],
+        role: "tutor",
+        text:
+          attempt.misconceptionFeedback.length > 0
+            ? "Not quite. I found a likely misconception to check first."
+            : "Not quite.",
+        tone: "incorrect",
+      });
+    }
+
+    return messages;
+  });
 }
 
 function errorMessageFor(error: unknown) {

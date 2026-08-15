@@ -1,5 +1,7 @@
 import "server-only"
 
+import { createHash } from "node:crypto"
+
 import {
   estimateLlmTutorTokens,
   generateLlmTutorResponse,
@@ -60,10 +62,12 @@ export type EscalationInput = {
   state: TutorSessionState
 }
 
-type RuleResult = {
+export type TutorResponseTransition = {
   response: TutorResponse
   state: TutorSessionState
 }
+
+type RuleResult = TutorResponseTransition
 
 type LlmTutorResultInput = {
   answer: string
@@ -94,13 +98,31 @@ export async function createTutorResponse(
   request: TutorRequest,
 ): Promise<TutorResponse> {
   const sessionId = request.sessionId || "anonymous-demo-session"
-  const answer = request.answer.trim()
   const questionKey = questionKeyForRequest(request)
   const state = getTutorSessionState(sessionId, questionKey)
+  const result = await createTutorResponseFromState(request, state)
+  saveTutorSessionState(result.state)
+  return result.response
+}
 
-  const question = request.questionId
-    ? await getApprovedQuestionById(request.questionId)
-    : undefined
+/**
+ * Computes one tutor transition from an explicit state snapshot. Production
+ * routes use this pure boundary so database revision checks, rather than
+ * process memory, decide which concurrent transition commits.
+ */
+export async function createTutorResponseFromState(
+  request: TutorRequest,
+  state: TutorSessionState,
+  questionVersion?: PracticeQuestion,
+): Promise<RuleResult> {
+  const sessionId = request.sessionId || state.sessionId
+  const answer = request.answer.trim()
+
+  const question =
+    questionVersion ??
+    (request.questionId
+      ? await getApprovedQuestionById(request.questionId)
+      : undefined)
 
   if (question) {
     const result = await decideTutorResponse({
@@ -112,17 +134,20 @@ export async function createTutorResponse(
       sessionId,
       state,
     })
-    const nextState = saveTutorSessionState(result.state)
-    return finalizeResponse(
-      withProgress(
-        withLlmFallbackEligibility(result.response, question, nextState),
+    const nextState = result.state
+    return {
+      response: finalizeResponse(
+        withProgress(
+          withLlmFallbackEligibility(result.response, question, nextState),
+          nextState,
+        ),
+        request,
+        answer,
+        sessionId,
         nextState,
       ),
-      request,
-      answer,
-      sessionId,
-      nextState,
-    )
+      state: nextState,
+    }
   }
 
   const shouldRetrieve = shouldEscalateToRetrieval({
@@ -144,14 +169,17 @@ export async function createTutorResponse(
       state,
     )
     if (result) {
-      const nextState = saveTutorSessionState(result.state)
-      return finalizeResponse(
-        withProgress(result.response, nextState),
-        request,
-        answer,
-        sessionId,
-        nextState,
-      )
+      const nextState = result.state
+      return {
+        response: finalizeResponse(
+          withProgress(result.response, nextState),
+          request,
+          answer,
+          sessionId,
+          nextState,
+        ),
+        state: nextState,
+      }
     }
   }
 
@@ -172,31 +200,35 @@ export async function createTutorResponse(
       task: request.mode === "hint" ? "hint" : "conceptual_explanation",
       topicId: request.topicId,
     })
-    const nextState = saveTutorSessionState(result.state)
-    return finalizeResponse(
-      withProgress(result.response, nextState),
+    const nextState = result.state
+    return {
+      response: finalizeResponse(
+        withProgress(result.response, nextState),
+        request,
+        answer,
+        sessionId,
+        nextState,
+      ),
+      state: nextState,
+    }
+  }
+
+  const nextState = nextStateForAttempt(state, {
+    state: "blocked",
+  })
+  return {
+    response: finalizeResponse(
+      blockedResponse(
+        "No approved rule or retrieval match was found, and LLM fallback was not requested.",
+        nextState,
+      ),
       request,
       answer,
       sessionId,
       nextState,
-    )
-  }
-
-  const nextState = saveTutorSessionState(
-    nextStateForAttempt(state, {
-      state: "blocked",
-    }),
-  )
-  return finalizeResponse(
-    blockedResponse(
-      "No approved rule or retrieval match was found, and LLM fallback was not requested.",
-      nextState,
     ),
-    request,
-    answer,
-    sessionId,
-    nextState,
-  )
+    state: nextState,
+  }
 }
 
 export async function decideTutorResponse({
@@ -340,7 +372,7 @@ export async function decideTutorResponse({
     !attemptCheck.misconception &&
     attemptCheck.answerCheck.confidence <= LOW_CONFIDENCE_THRESHOLD
   ) {
-    const fingerprint = normalizeAnswerText(answer)
+    const fingerprint = answerFingerprint(answer)
     const result = await buildRetrievalOrLlmResponse({
       allowLlmFallback,
       answer,
@@ -364,7 +396,7 @@ export async function decideTutorResponse({
     }
   }
 
-  const fingerprint = normalizeAnswerText(answer)
+  const fingerprint = answerFingerprint(answer)
   const misconceptionMatches = attemptCheck.misconception
     ? [attemptCheck.misconception]
     : []
@@ -954,6 +986,10 @@ function questionKeyForRequest(request: TutorRequest) {
 
 function answerPreviewFor(answer: string) {
   return answer.length > 0 ? answer.slice(0, 80) : undefined
+}
+
+function answerFingerprint(answer: string) {
+  return createHash("sha256").update(normalizeAnswerText(answer)).digest("hex")
 }
 
 function sameStringSet(left: string[], right: string[]) {

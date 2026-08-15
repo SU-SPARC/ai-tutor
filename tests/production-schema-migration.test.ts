@@ -38,8 +38,14 @@ describe("production schema hardening migration", () => {
       grant all privileges on all functions in schema public to anon, authenticated;
     `);
     await applyMigration(database, "014_lock_down_data_api.sql");
-    await applyMigration(database, "015_question_publication_quality_gates.sql");
-    await applyMigration(database, "016_student_onboarding_acknowledgement.sql");
+    await applyMigration(
+      database,
+      "015_question_publication_quality_gates.sql",
+    );
+    await applyMigration(
+      database,
+      "016_student_onboarding_acknowledgement.sql",
+    );
     await applyMigration(database, "017_controlled_content_availability.sql");
 
     const grants = await database.query<{
@@ -164,6 +170,8 @@ describe("production schema hardening migration", () => {
         "ai_usage_counts_nonnegative",
         "attempts_question_topic_fkey",
         "attempts_question_version_fkey",
+        "attempts_idempotency_key_check",
+        "attempts_misconception_feedback_array_check",
         "audit_events_metadata_object",
         "feedback_reports_question_version_fkey",
         "hints_order_positive",
@@ -181,6 +189,8 @@ describe("production schema hardening migration", () => {
         "topics_sort_order_unique",
         "topic_student_availability_schedule_check",
         "tutor_sessions_identity_check",
+        "tutor_sessions_creation_idempotency_key_check",
+        "tutor_sessions_progress_counts_check",
         "users_human_email_required",
         "users_session_version_positive",
         "users_student_onboarding_acknowledgement_time_check",
@@ -201,6 +211,50 @@ describe("production schema hardening migration", () => {
     );
     expect(onboardingColumns).toEqual(["student_onboarding_acknowledged_at"]);
 
+    const tutorPersistenceColumns = await columnValues(
+      database,
+      `
+        select column_name
+        from information_schema.columns
+        where table_schema = 'public'
+          and (
+            (table_name = 'tutor_sessions' and column_name in (
+              'attempt_count',
+              'completed_at',
+              'creation_idempotency_key',
+              'current_state',
+              'expires_at',
+              'llm_used',
+              'question_version_id',
+              'revision',
+              'solved',
+              'wrong_attempt_count'
+            ))
+            or
+            (table_name = 'attempts' and column_name in (
+              'fallback_used',
+              'idempotency_key',
+              'misconception_feedback_json',
+              'normalized_answer',
+              'progress_revision',
+              'submitted_answer',
+              'tutor_state'
+            ))
+          )
+        order by table_name, column_name
+      `,
+      "column_name",
+    );
+    expect(tutorPersistenceColumns).toHaveLength(17);
+    expect(tutorPersistenceColumns).not.toEqual(
+      expect.arrayContaining([
+        "embedding",
+        "prompt",
+        "provider_payload",
+        "retrieval_context",
+      ]),
+    );
+
     const indexNames = await columnValues(
       database,
       `
@@ -219,6 +273,8 @@ describe("production schema hardening migration", () => {
         "anonymous_identity_claims_user_idx",
         "attempts_question_activity_idx",
         "attempts_session_timeline_idx",
+        "attempts_session_idempotency_idx",
+        "attempts_session_recovery_idx",
         "attempts_topic_activity_idx",
         "audit_events_entity_idx",
         "feedback_reports_professor_queue_idx",
@@ -241,6 +297,8 @@ describe("production schema hardening migration", () => {
         "tutor_sessions_user_activity_idx",
         "tutor_sessions_anonymous_activity_idx",
         "tutor_sessions_question_version_idx",
+        "tutor_sessions_user_creation_idempotency_idx",
+        "tutor_sessions_anonymous_creation_idempotency_idx",
         "user_roles_active_role_idx",
         "users_active_email_unique_idx",
       ]),
@@ -401,6 +459,93 @@ describe("production schema hardening migration", () => {
       body: "Count all tickets: 4 + 3 + 5 = 12.",
       order: 1,
     });
+  });
+
+  it("deletes expired tutor sessions only after the retention grace period", async () => {
+    const database = await migratedDatabase();
+    const temporaryDirectory = mkdtempSync(
+      path.join(tmpdir(), "pf-xj-retention-seed-"),
+    );
+    temporaryDirectories.push(temporaryDirectory);
+    const outputPath = path.join(temporaryDirectory, "seed.sql");
+    execFileSync(
+      process.execPath,
+      [
+        path.join(process.cwd(), "scripts/prepare-public-db-seed.mjs"),
+        "--output",
+        outputPath,
+      ],
+      { stdio: "pipe" },
+    );
+    await database.exec(readFileSync(outputPath, "utf8"));
+
+    await database.exec(`
+      insert into tutor_sessions (
+        id,
+        anonymous_user_id,
+        question_id,
+        status,
+        creation_idempotency_key,
+        created_at,
+        last_seen_at,
+        updated_at,
+        expires_at
+      ) values
+        (
+          'retention-old',
+          'anon:retention-old',
+          'demo-basic-probability-colored-tickets',
+          'expired',
+          'session:retention-old',
+          now() - interval '90 days',
+          now() - interval '90 days',
+          now() - interval '90 days',
+          now() - interval '45 days'
+        ),
+        (
+          'retention-recent',
+          'anon:retention-recent',
+          'demo-basic-probability-colored-tickets',
+          'expired',
+          'session:retention-recent',
+          now() - interval '20 days',
+          now() - interval '20 days',
+          now() - interval '20 days',
+          now() - interval '10 days'
+        );
+
+      insert into attempts (
+        session_id,
+        mode,
+        source,
+        verdict,
+        idempotency_key
+      ) values (
+        'retention-old',
+        'check',
+        'rule',
+        'incorrect',
+        'event:retention-old'
+      );
+    `);
+
+    const sweep = await database.query<{ deleted: number }>(`
+      select app_apply_tutor_session_retention(1) as deleted
+    `);
+    const remaining = await columnValues(
+      database,
+      "select id from tutor_sessions where id like 'retention-%' order by id",
+      "id",
+    );
+    const oldAttempts = await database.query<{ count: number }>(`
+      select count(*)::int as count
+      from attempts
+      where session_id = 'retention-old'
+    `);
+
+    expect(sweep.rows[0]?.deleted).toBe(1);
+    expect(remaining).toEqual(["retention-recent"]);
+    expect(oldAttempts.rows[0]?.count).toBe(0);
   });
 
   it("preserves and backfills legacy content and activity rows", async () => {

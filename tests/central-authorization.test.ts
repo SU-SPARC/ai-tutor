@@ -281,10 +281,13 @@ describe("authorized repository boundaries and DTOs", () => {
       questionId: "dice-sum-eight",
     });
 
-    expect(sessionDto).toEqual({
+    expect(sessionDto).toMatchObject({
       id: "session:test",
       questionId: "dice-sum-eight",
     });
+    expect(JSON.stringify(sessionDto)).not.toMatch(
+      /anonymous|userId|retrievedContext|embedding|provider/i,
+    );
     expect(JSON.stringify(candidateDto)).not.toMatch(
       /matchTerms|patternIds|reviewedBy|visibility/,
     );

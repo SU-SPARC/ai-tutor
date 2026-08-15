@@ -370,6 +370,7 @@ describe("direct student API authorization", () => {
       () =>
         createTutorSessionRoute(
           jsonRequest("http://test/api/tutor/session", {
+            idempotencyKey: "session:no-identity",
             questionId: "dice-sum-eight",
           }),
         ),

@@ -650,6 +650,7 @@ export function hasGeneratedQuestionDefaults(question: TutorQuestion) {
 export type TutorRequest = {
   allowLlmFallback?: boolean;
   answer: string;
+  eventId?: string;
   mode: TutorMode;
   questionId?: string;
   sessionId?: string;
@@ -665,9 +666,19 @@ export type TutorUsage = {
 
 export type TutorSessionAttempt = {
   answerPreview?: string;
+  contextUsed?: boolean;
   createdAt: string;
+  estimatedTokens?: number;
+  fallbackUsed?: boolean;
   id: string;
+  idempotencyKey?: string;
+  misconceptionFeedback?: string[];
+  mode?: TutorMode;
+  normalizedAnswer?: string;
+  responseLabel?: TutorResponseLabel;
   source?: TutorSource;
+  state?: TutorState;
+  submittedAnswer?: string;
   verdict?: TutorVerdict;
 };
 
@@ -678,17 +689,36 @@ export type TutorSessionStatus =
   | "content_unpublished";
 
 export type TutorSessionRecord = {
+  attemptCount?: number;
   attempts: TutorSessionAttempt[];
+  completedAt?: string;
   createdAt: string;
+  currentState?: TutorState;
+  engineState?: TutorSessionEngineState;
+  expiresAt?: string;
   id: string;
+  idempotencyKey?: string;
   lastSeenAt: string;
+  llmUsed?: boolean;
   questionId: string;
   questionTitle?: string;
   questionVersionId?: number;
+  questionVersion?: PracticeQuestion;
   revealedHints: number;
   revealedSteps: number;
+  retrievalUsed?: boolean;
+  revision?: number;
+  solved?: boolean;
   status?: TutorSessionStatus;
   topicId?: string;
+  wrongAttemptCount?: number;
+};
+
+export type TutorSessionEngineState = TutorProgress & {
+  lastAnswerFingerprint?: string;
+  lastMisconceptionIds: string[];
+  questionKey: string;
+  sessionId: string;
 };
 
 export type StudentProgressDashboard = {

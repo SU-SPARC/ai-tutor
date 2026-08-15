@@ -5,8 +5,10 @@ import { authorizeApi, requireStudentAccess } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { getApprovedQuestionById } from "@/lib/data/data-store";
 import { createTutorSession } from "@/lib/data/tutor-session-repository";
+import { isTutorSessionIdempotencyKey } from "@/lib/tutor/session-persistence";
 
 type CreateSessionBody = {
+  idempotencyKey?: unknown;
   questionId?: unknown;
 };
 
@@ -46,8 +48,18 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
+    if (!isTutorSessionIdempotencyKey(body.idempotencyKey)) {
+      return NextResponse.json(
+        { error: "A 1-128 character idempotencyKey is required." },
+        { status: 400 },
+      );
+    }
 
-    const session = await createTutorSession(access.authorization, questionId);
+    const session = await createTutorSession(
+      access.authorization,
+      questionId,
+      body.idempotencyKey,
+    );
     return NextResponse.json(
       { session: toTutorSessionDto(session) },
       { status: 201 },

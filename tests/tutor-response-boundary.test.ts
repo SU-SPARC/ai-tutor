@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  createTutorResponse: vi.fn(),
+  createTutorResponseFromState: vi.fn(),
   getApprovedQuestionById: vi.fn(),
   getTutorSession: vi.fn(),
-  recordTutorSessionAttemptOutcome: vi.fn(),
+  persistTutorSessionTransition: vi.fn(),
 }));
 
 vi.mock("@/lib/data/data-store", () => ({
@@ -13,11 +13,11 @@ vi.mock("@/lib/data/data-store", () => ({
 
 vi.mock("@/lib/data/tutor-session-repository", () => ({
   getTutorSession: mocks.getTutorSession,
-  recordTutorSessionAttemptOutcome: mocks.recordTutorSessionAttemptOutcome,
+  persistTutorSessionTransition: mocks.persistTutorSessionTransition,
 }));
 
 vi.mock("@/lib/tutor/tutor-engine", () => ({
-  createTutorResponse: mocks.createTutorResponse,
+  createTutorResponseFromState: mocks.createTutorResponseFromState,
 }));
 
 import { POST } from "@/app/api/tutor/respond/route";
@@ -45,14 +45,24 @@ describe("student tutor response boundary", () => {
       questionId: question.id,
       revealedHints: 0,
       revealedSteps: 0,
+      revision: 0,
+      status: "active",
     });
     mocks.getApprovedQuestionById.mockResolvedValue(question);
-    mocks.createTutorResponse.mockResolvedValue(privateGroundedResponse());
+    mocks.createTutorResponseFromState.mockResolvedValue({
+      response: privateGroundedResponse(),
+      state: engineState(),
+    });
+    mocks.persistTutorSessionTransition.mockResolvedValue({
+      outcome: "applied",
+      session: mocks.getTutorSession.mock.results[0]?.value,
+    });
 
     const response = await POST(
       new Request("http://test/api/tutor/respond", {
         body: JSON.stringify({
           answer: "Please explain this.",
+          eventId: "event:private-grounding",
           mode: "hint",
           sessionId: "session:owned",
           topicId: "client-controlled-private-topic",
@@ -65,14 +75,28 @@ describe("student tutor response boundary", () => {
     const payload = JSON.parse(body) as TutorResponse;
 
     expect(response.status).toBe(200);
-    expect(mocks.createTutorResponse).toHaveBeenCalledWith({
-      allowLlmFallback: false,
-      answer: "Please explain this.",
-      mode: "hint",
-      questionId: question.id,
-      sessionId: "session:owned",
-      topicId: question.topicId,
-    });
+    expect(mocks.createTutorResponseFromState).toHaveBeenCalledWith(
+      {
+        allowLlmFallback: false,
+        answer: "Please explain this.",
+        mode: "hint",
+        questionId: question.id,
+        sessionId: "session:owned",
+        topicId: question.topicId,
+      },
+      expect.objectContaining({
+        questionKey: question.id,
+        sessionId: "session:owned",
+      }),
+      question,
+    );
+    expect(mocks.persistTutorSessionTransition).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        idempotencyKey: "event:private-grounding",
+        submittedAnswer: "Please explain this.",
+      }),
+    );
     expect(payload.retrievedContext).toEqual([]);
     expect(payload.responseLabel).toBe(
       "private_reference_grounded_explanation",
@@ -137,5 +161,21 @@ function privateGroundedResponse(): TutorResponse {
       fallbackUsed: false,
     },
     verdict: "guidance",
+  };
+}
+
+function engineState() {
+  return {
+    attemptCount: 1,
+    hintsRevealed: 1,
+    lastMisconceptionIds: [],
+    llmUsed: false,
+    questionKey: "approved-question",
+    retrievalUsed: true,
+    sessionId: "session:owned",
+    solved: false,
+    state: "retrieval_guidance" as const,
+    stepsRevealed: 0,
+    wrongAttemptCount: 0,
   };
 }

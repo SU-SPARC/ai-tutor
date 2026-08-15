@@ -239,7 +239,177 @@ describe("production database reliability", () => {
     expect(final?.revealedHints).toBe(12);
     expect(final?.attempts).toHaveLength(8);
   });
+
+  it("recovers the complete safe tutor state through a fresh repository instance", async () => {
+    const database = createDatabase();
+    await createTutorSchema(database);
+    const executor = pgliteExecutor(database);
+    const owner = { kind: "user" as const, userId: "user:recovery" };
+    const firstRepository = createDatabaseTutorSessionRepository(
+      "postgres://not-used.invalid/recovery-test",
+      executor,
+    );
+    const created = await firstRepository.createSession({
+      idempotencyKey: "session:recovery",
+      owner,
+      questionId: "question-1",
+    });
+    const state = {
+      ...created.engineState!,
+      attemptCount: 1,
+      hintsRevealed: 1,
+      lastAnswerFingerprint: "a".repeat(64),
+      lastMisconceptionIds: ["denominator-error"],
+      state: "misconception_detected" as const,
+      wrongAttemptCount: 1,
+    };
+
+    const saved = await firstRepository.persistTransition({
+      expectedRevision: 0,
+      idempotencyKey: "event:recovery-answer",
+      mode: "check",
+      normalizedAnswer: "1/3",
+      owner,
+      response: guidanceResponse({
+        misconceptions: ["Check the denominator before simplifying."],
+        verdict: "incorrect",
+      }),
+      sessionId: created.id,
+      state,
+      submittedAnswer: "1/3",
+    });
+    const restartedRepository = createDatabaseTutorSessionRepository(
+      "postgres://not-used.invalid/recovery-test",
+      executor,
+    );
+    const recovered = await restartedRepository.getSession(created.id, owner);
+    const concealed = await restartedRepository.getSession(created.id, {
+      kind: "user",
+      userId: "user:other-student",
+    });
+
+    expect(saved.outcome).toBe("applied");
+    expect(recovered).toMatchObject({
+      attemptCount: 1,
+      currentState: "misconception_detected",
+      questionId: "question-1",
+      questionVersionId: 1,
+      revision: 1,
+      revealedHints: 1,
+      wrongAttemptCount: 1,
+    });
+    expect(recovered?.questionVersion).toMatchObject({
+      id: "question-1",
+      title: "Question 1",
+    });
+    expect(recovered?.attempts).toEqual([
+      expect.objectContaining({
+        idempotencyKey: "event:recovery-answer",
+        misconceptionFeedback: ["Check the denominator before simplifying."],
+        normalizedAnswer: "1/3",
+        submittedAnswer: "1/3",
+        verdict: "incorrect",
+      }),
+    ]);
+    expect(concealed).toBeUndefined();
+  });
+
+  it("conflicts concurrent revisions and applies an idempotent retry once", async () => {
+    const database = createDatabase();
+    await createTutorSchema(database);
+    const repository = createDatabaseTutorSessionRepository(
+      "postgres://not-used.invalid/concurrency-test",
+      pgliteExecutor(database),
+    );
+    const owner = {
+      kind: "anonymous" as const,
+      anonymousId: "anon:revision-test",
+    };
+    const session = await repository.createSession({
+      idempotencyKey: "session:revision-test",
+      owner,
+      questionId: "question-1",
+    });
+    const competingState = {
+      ...session.engineState!,
+      attemptCount: 1,
+      hintsRevealed: 1,
+      state: "hinting" as const,
+    };
+    const inputs = ["event:concurrent-a", "event:concurrent-b"].map(
+      (idempotencyKey) => ({
+        expectedRevision: 0,
+        idempotencyKey,
+        mode: "hint" as const,
+        owner,
+        response: guidanceResponse(),
+        sessionId: session.id,
+        state: competingState,
+      }),
+    );
+    const results = await Promise.all(
+      inputs.map((input) => repository.persistTransition(input)),
+    );
+    const conflictIndex = results.findIndex(
+      (result) => result.outcome === "conflict",
+    );
+    const conflict = results[conflictIndex];
+
+    expect(results.map((result) => result.outcome).sort()).toEqual([
+      "applied",
+      "conflict",
+    ]);
+    expect(conflict?.outcome).toBe("conflict");
+    if (!conflict || conflict.outcome !== "conflict") {
+      throw new Error("Expected one optimistic concurrency conflict.");
+    }
+
+    const retryState = {
+      ...conflict.session.engineState!,
+      attemptCount: conflict.session.engineState!.attemptCount + 1,
+      hintsRevealed: conflict.session.engineState!.hintsRevealed + 1,
+    };
+    const retry = await repository.persistTransition({
+      ...inputs[conflictIndex],
+      expectedRevision: conflict.session.revision!,
+      state: retryState,
+    });
+    const duplicate = await repository.persistTransition({
+      ...inputs[conflictIndex],
+      expectedRevision: 0,
+      state: competingState,
+    });
+    const final = await repository.getSession(session.id, owner);
+
+    expect(retry.outcome).toBe("applied");
+    expect(duplicate.outcome).toBe("idempotent");
+    expect(final).toMatchObject({
+      attemptCount: 2,
+      revision: 2,
+      revealedHints: 2,
+    });
+    expect(final?.attempts).toHaveLength(2);
+  });
 });
+
+function guidanceResponse(
+  overrides: {
+    misconceptions?: string[];
+    verdict?: "incorrect" | "guidance";
+  } = {},
+) {
+  return {
+    misconceptions: overrides.misconceptions ?? [],
+    responseLabel: "approved_course_content" as const,
+    source: "rule" as const,
+    usage: {
+      contextUsed: false,
+      estimatedTokens: 0,
+      fallbackUsed: false,
+    },
+    verdict: overrides.verdict ?? ("guidance" as const),
+  };
+}
 
 function createDatabase() {
   const database = new PGlite();
@@ -363,7 +533,18 @@ async function createTutorSchema(database: PGlite) {
       question_id text not null,
       question_version_id bigint not null default 1,
       status text not null default 'active',
-      expires_at timestamptz,
+      expires_at timestamptz not null,
+      creation_idempotency_key text not null,
+      current_state text not null default 'working',
+      attempt_count integer not null default 0,
+      wrong_attempt_count integer not null default 0,
+      solved boolean not null default false,
+      retrieval_used boolean not null default false,
+      llm_used boolean not null default false,
+      last_answer_fingerprint text,
+      last_misconception_ids_json jsonb not null default '[]'::jsonb,
+      completed_at timestamptz,
+      revision bigint not null default 0,
       revealed_hints integer not null default 0,
       revealed_steps integer not null default 0,
       created_at timestamptz not null default now(),
@@ -380,7 +561,53 @@ async function createTutorSchema(database: PGlite) {
       source text,
       verdict text,
       estimated_tokens integer not null,
+      idempotency_key text not null default gen_random_uuid()::text,
+      submitted_answer text,
+      normalized_answer text,
+      tutor_state text,
+      misconception_feedback_json jsonb not null default '[]'::jsonb,
+      context_used boolean not null default false,
+      fallback_used boolean not null default false,
+      response_label text,
+      progress_revision bigint,
       created_at timestamptz not null default now()
     );
+
+    create table question_versions (
+      id bigint primary key,
+      snapshot_json jsonb not null
+    );
+
+    insert into question_versions (id, snapshot_json)
+    values (
+      1,
+      '{
+        "id":"question-1",
+        "topicId":"topic-1",
+        "title":"Question 1",
+        "prompt":"What is one half?",
+        "difficulty":"foundational",
+        "acceptedAnswers":["1/2"],
+        "answerExplanation":"One half is 1/2.",
+        "sourceType":"original_demo",
+        "trustLevel":"public_original",
+        "reviewStatus":"approved",
+        "visibility":"public",
+        "hints":[],
+        "solutionSteps":[],
+        "misconceptions":[]
+      }'::jsonb
+    );
+
+    create unique index tutor_sessions_anonymous_creation_idempotency_idx
+      on tutor_sessions (anonymous_user_id, creation_idempotency_key)
+      where anonymous_user_id is not null;
+
+    create unique index tutor_sessions_user_creation_idempotency_idx
+      on tutor_sessions (user_id, creation_idempotency_key)
+      where user_id is not null;
+
+    create unique index attempts_session_idempotency_idx
+      on attempts (session_id, idempotency_key);
   `);
 }

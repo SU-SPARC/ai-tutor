@@ -37,6 +37,7 @@ describe("tutor response API", () => {
     const mismatch = await POST(
       jsonRequest({
         answer: "2/5",
+        eventId: "event:mismatch",
         mode: "check",
         questionId: "five-question-quiz",
         sessionId: session.id,
@@ -45,6 +46,7 @@ describe("tutor response API", () => {
     const accepted = await POST(
       jsonRequest({
         answer: "2/5",
+        eventId: "event:accepted",
         mode: "check",
         questionId: "dice-sum-eight",
         sessionId: session.id,
@@ -77,6 +79,7 @@ describe("tutor response API", () => {
     const response = await POST(
       jsonRequest({
         answer: "x".repeat(801),
+        eventId: "event:long-hint",
         mode: "hint",
         questionId: "dice-sum-eight",
         sessionId: session.id,
@@ -87,6 +90,59 @@ describe("tutor response API", () => {
     await expect(response.json()).resolves.toMatchObject({
       source: "rule",
       verdict: "guidance",
+    });
+  });
+
+  it("recovers progress after process state loss and deduplicates a retried event", async () => {
+    const session = await createTutorSession(
+      studentAuthorization,
+      "dice-sum-eight",
+      "session:recovery-api",
+    );
+    const requestBody = {
+      answer: "Contact me at student@example.edu before I answer 1/3",
+      eventId: "event:recovery-api",
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: session.id,
+    } as const;
+
+    const first = await POST(jsonRequest(requestBody));
+    resetTutorStateForTests();
+    const duplicate = await POST(jsonRequest(requestBody));
+    const afterDuplicate = await getTutorSession(
+      studentAuthorization,
+      session.id,
+    );
+    const resumedHint = await POST(
+      jsonRequest({
+        answer: "",
+        eventId: "event:recovery-hint",
+        mode: "hint",
+        questionId: "dice-sum-eight",
+        sessionId: session.id,
+      }),
+    );
+    const recovered = await getTutorSession(studentAuthorization, session.id);
+
+    expect(first.status).toBe(200);
+    expect(duplicate.status).toBe(200);
+    expect(afterDuplicate).toMatchObject({
+      attemptCount: 1,
+      revision: 1,
+    });
+    expect(afterDuplicate?.attempts).toEqual([
+      expect.objectContaining({
+        idempotencyKey: "event:recovery-api",
+        normalizedAnswer: "contactmeat[emailredacted]beforeianswer1/3",
+        submittedAnswer: "Contact me at [email redacted] before I answer 1/3",
+      }),
+    ]);
+    expect(JSON.stringify(afterDuplicate)).not.toContain("student@example.edu");
+    expect(resumedHint.status).toBe(200);
+    expect(recovered).toMatchObject({
+      attemptCount: 2,
+      revision: 2,
     });
   });
 });

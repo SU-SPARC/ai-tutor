@@ -43,9 +43,10 @@ describe("tutor session API", () => {
     resetAuthMocks();
   });
 
-  it("creates, reads, and updates an in-memory tutor session", async () => {
+  it("creates and reads a session while retiring split event writes", async () => {
     const createdResponse = await postSession(
       jsonRequest("http://localhost/api/tutor/session", {
+        idempotencyKey: "session:create-memory",
         questionId: "dice-sum-eight",
       }),
     );
@@ -85,22 +86,23 @@ describe("tutor session API", () => {
     const attemptedPayload = (await attempted.json()) as SessionPayload;
     const fetchedPayload = (await fetched.json()) as SessionPayload;
 
-    expect(hintedPayload.session).toEqual(created.session);
-    expect(steppedPayload.session).toEqual(created.session);
-    expect(attemptedPayload.session).toEqual(created.session);
+    expect([hinted.status, stepped.status, attempted.status]).toEqual([
+      410, 410, 410,
+    ]);
+    expect(
+      [hintedPayload, steppedPayload, attemptedPayload].every((payload) =>
+        payload.error?.includes("/api/tutor/respond"),
+      ),
+    ).toBe(true);
     expect(fetchedPayload.session).toMatchObject({
       id: sessionId,
       questionId: "dice-sum-eight",
+      revealedHints: 0,
+      revealedSteps: 0,
     });
-    expect(
-      JSON.stringify({
-        attemptedPayload,
-        fetchedPayload,
-        hintedPayload,
-        steppedPayload,
-      }),
-    ).not.toMatch(
-      /answerPreview|attempts|questionVersionId|revealedHints|revealedSteps/,
+    expect(fetchedPayload.session?.attempts).toEqual([]);
+    expect(JSON.stringify(fetchedPayload)).not.toMatch(
+      /anonymous|userId|answerPreview|retrievedContext|embedding|provider/i,
     );
   });
 
@@ -115,6 +117,7 @@ describe("tutor session API", () => {
     mockStudentOwner(undefined);
     const missingIdentityResponse = await postSession(
       jsonRequest("http://localhost/api/tutor/session", {
+        idempotencyKey: "session:no-identity",
         questionId: "dice-sum-eight",
       }),
     );
@@ -131,6 +134,25 @@ describe("tutor session API", () => {
     expect(missingResponse.status).toBe(404);
   });
 
+  it("returns the same owned session when creation is retried", async () => {
+    const body = {
+      idempotencyKey: "session:creation-retry",
+      questionId: "dice-sum-eight",
+    };
+    const first = await postSession(
+      jsonRequest("http://localhost/api/tutor/session", body),
+    );
+    const second = await postSession(
+      jsonRequest("http://localhost/api/tutor/session", body),
+    );
+    const firstPayload = (await first.json()) as SessionPayload;
+    const secondPayload = (await second.json()) as SessionPayload;
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(secondPayload.session?.id).toBe(firstPayload.session?.id);
+  });
+
   it("never creates, returns, or mutates a session bound to a generated draft", async () => {
     const draft = generatedDraftQuestion();
     setContentRepositoryForTests({
@@ -139,6 +161,7 @@ describe("tutor session API", () => {
 
     const createResponse = await postSession(
       jsonRequest("http://localhost/api/tutor/session", {
+        idempotencyKey: "session:draft",
         questionId: draft.id,
       }),
     );
@@ -182,6 +205,7 @@ describe("tutor session API", () => {
       postTutorResponse(
         jsonRequest("http://localhost/api/tutor/respond", {
           answer: "private answer",
+          eventId: "event:draft",
           mode: "check",
           sessionId: legacyDraftSession.id,
         }),
@@ -256,6 +280,7 @@ describe("tutor session API", () => {
       postTutorResponse(
         jsonRequest("http://localhost/api/tutor/respond", {
           answer: "cross-student tutor request",
+          eventId: "event:cross-student",
           mode: "check",
           sessionId: victimSession.id,
         }),
@@ -286,6 +311,7 @@ describe("tutor session API", () => {
 
     const response = await postSession(
       jsonRequest("http://localhost/api/tutor/session", {
+        idempotencyKey: "session:database-failure",
         questionId: "dice-sum-eight",
       }),
     );
@@ -443,7 +469,11 @@ function createFakeTutorSessionRows() {
       }
 
       if (normalizedSql.startsWith("select s.*,")) {
-        return session && session.anonymous_user_id === params[1]
+        return session &&
+          (normalizedSql.includes("where s.id = $1")
+            ? session.id === params[0] &&
+              session.anonymous_user_id === params[2]
+            : session.anonymous_user_id === params[1])
           ? [session]
           : [];
       }
@@ -505,18 +535,13 @@ function createFakeTutorSessionRows() {
       }
 
       if (
-        normalizedSql.startsWith(
-          "select id, answer_preview, source, verdict, created_at from attempts",
-        )
+        normalizedSql.startsWith("select id, answer_preview") &&
+        normalizedSql.includes("from attempts where session_id = $1")
       ) {
         return attempts;
       }
 
-      if (
-        normalizedSql.startsWith(
-          "select session_id, id, answer_preview, source, verdict, created_at from attempts",
-        )
-      ) {
+      if (normalizedSql.startsWith("select session_id, id, answer_preview")) {
         return attempts.map((attempt) => ({
           ...attempt,
           session_id: session?.id,

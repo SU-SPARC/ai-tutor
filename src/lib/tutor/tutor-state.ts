@@ -4,17 +4,12 @@ import type {
   TutorMode,
   TutorProgress,
   TutorResponseLabel,
+  TutorSessionEngineState,
   TutorSource,
-  TutorState,
   TutorVerdict,
 } from "@/lib/types"
 
-export type TutorSessionState = TutorProgress & {
-  lastAnswerFingerprint?: string
-  lastMisconceptionIds: string[]
-  questionKey: string
-  sessionId: string
-}
+export type TutorSessionState = TutorSessionEngineState
 
 export type TutorAttemptSnapshot = {
   answerPreview?: string
@@ -27,7 +22,7 @@ export type TutorAttemptSnapshot = {
   responseLabel?: TutorResponseLabel
   sessionId: string
   source: TutorSource
-  state: TutorState
+  state: TutorProgress["state"]
   topicId?: string
   verdict: TutorVerdict
 }
@@ -66,7 +61,9 @@ export function recordTutorAttemptSnapshot(
   })
 }
 
-export function tutorProgressFromState(state: TutorSessionState): TutorProgress {
+export function tutorProgressFromState(
+  state: TutorSessionState,
+): TutorProgress {
   return {
     attemptCount: state.attemptCount,
     hintsRevealed: state.hintsRevealed,

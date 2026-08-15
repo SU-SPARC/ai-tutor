@@ -3,10 +3,7 @@ import { NextResponse } from "next/server";
 import { toStudentTutorSessionDto } from "@/lib/api/tutor-session-dto";
 import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
-import {
-  getTutorSession,
-  revealTutorSessionHint,
-} from "@/lib/data/tutor-session-repository";
+import { getTutorSession } from "@/lib/data/tutor-session-repository";
 
 type SessionRouteContext = {
   params: Promise<{ sessionId: string }> | { sessionId: string };
@@ -18,8 +15,6 @@ export async function POST(_request: Request, context: SessionRouteContext) {
   if (!access.ok) {
     return access.response;
   }
-  let sessionDto;
-
   try {
     const currentSession = await getTutorSession(
       access.authorization,
@@ -28,21 +23,17 @@ export async function POST(_request: Request, context: SessionRouteContext) {
     if (!currentSession || !(await toStudentTutorSessionDto(currentSession))) {
       return sessionNotFoundResponse();
     }
-
-    const session = await revealTutorSessionHint(
-      access.authorization,
-      sessionId,
-    );
-    sessionDto = session ? await toStudentTutorSessionDto(session) : undefined;
   } catch {
     return dataServiceUnavailableResponse();
   }
 
-  if (!sessionDto) {
-    return sessionNotFoundResponse();
-  }
-
-  return NextResponse.json({ session: sessionDto });
+  return NextResponse.json(
+    {
+      error:
+        "This split tutor event endpoint is retired. Submit an idempotent event to /api/tutor/respond.",
+    },
+    { status: 410 },
+  );
 }
 
 function sessionNotFoundResponse() {
