@@ -461,7 +461,7 @@ describe("production schema hardening migration", () => {
     });
   });
 
-  it("deletes expired tutor sessions only after the retention grace period", async () => {
+  it("does not install or execute a destructive tutor-session retention sweep", async () => {
     const database = await migratedDatabase();
     const temporaryDirectory = mkdtempSync(
       path.join(tmpdir(), "pf-xj-retention-seed-"),
@@ -529,8 +529,9 @@ describe("production schema hardening migration", () => {
       );
     `);
 
-    const sweep = await database.query<{ deleted: number }>(`
-      select app_apply_tutor_session_retention(1) as deleted
+    const retentionFunction = await database.query<{ function_name: string | null }>(`
+      select to_regprocedure('app_apply_tutor_session_retention(integer)')::text
+        as function_name
     `);
     const remaining = await columnValues(
       database,
@@ -543,9 +544,9 @@ describe("production schema hardening migration", () => {
       where session_id = 'retention-old'
     `);
 
-    expect(sweep.rows[0]?.deleted).toBe(1);
-    expect(remaining).toEqual(["retention-recent"]);
-    expect(oldAttempts.rows[0]?.count).toBe(0);
+    expect(retentionFunction.rows[0]?.function_name).toBeNull();
+    expect(remaining).toEqual(["retention-old", "retention-recent"]);
+    expect(oldAttempts.rows[0]?.count).toBe(1);
   });
 
   it("preserves and backfills legacy content and activity rows", async () => {

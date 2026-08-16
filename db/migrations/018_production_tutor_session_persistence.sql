@@ -1,6 +1,6 @@
--- migration-safety: destructive
--- Destructive scope is limited to the bounded retention function, which
--- deletes tutor sessions only after expiry plus a 30-day grace period.
+-- This migration expands and backfills the tutor persistence schema without
+-- deleting Production data. Retention enforcement requires a separate,
+-- explicitly approved change.
 -- Persist only the student-owned tutor state required to resume a session.
 -- Retrieval chunks, embeddings, prompts, private grounding context, and
 -- provider request/response payloads are deliberately excluded.
@@ -170,43 +170,3 @@ create index attempts_session_recovery_idx
     tutor_state,
     fallback_used
   );
-
--- A bounded, server-invoked retention sweep. Active or completed sessions are
--- made inaccessible at expiry; expired rows and their cascading attempts are
--- deleted after a 30-day grace period in batches.
-create or replace function app_apply_tutor_session_retention(
-  batch_size integer default 500
-)
-returns integer
-language plpgsql
-as $$
-declare
-  deleted_count integer;
-begin
-  if batch_size < 1 or batch_size > 5000 then
-    raise exception 'Tutor session retention batch size must be between 1 and 5000';
-  end if;
-
-  update tutor_sessions
-  set status = 'expired',
-      updated_at = now()
-  where expires_at <= now()
-    and status <> 'expired';
-
-  with expired_sessions as (
-    select id
-    from tutor_sessions
-    where status = 'expired'
-      and expires_at <= now() - interval '30 days'
-    order by expires_at, id
-    limit batch_size
-    for update skip locked
-  )
-  delete from tutor_sessions s
-  using expired_sessions e
-  where s.id = e.id;
-
-  get diagnostics deleted_count = row_count;
-  return deleted_count;
-end;
-$$;
