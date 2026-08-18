@@ -255,6 +255,34 @@ function classifyPostgresFailureKind(message: unknown): PostgresFailureKind {
   return "unknown"
 }
 
+const POSTGRES_ERRNO_CODES = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EPIPE",
+  "ETIMEDOUT",
+])
+
+/**
+ * Distinguishes a driver/database failure from an application error that was
+ * raised inside a database transaction. Domain and validation errors carry no
+ * SQLSTATE, so classifying them would erase the reason a request was rejected.
+ */
+export function isDatabaseFailure(cause: unknown) {
+  if (cause instanceof DatabaseOperationError) {
+    return true
+  }
+  if (!cause || typeof cause !== "object") {
+    return false
+  }
+  const code = (cause as PostgresErrorShape).code
+  return (
+    typeof code === "string" &&
+    (/^[0-9A-Z]{5}$/.test(code) || POSTGRES_ERRNO_CODES.has(code))
+  )
+}
+
 export function classifyPostgresError(cause: unknown) {
   if (cause instanceof DatabaseOperationError) {
     return cause
@@ -289,13 +317,7 @@ export function classifyPostgresError(cause: unknown) {
   if (
     sqlState?.startsWith("08") ||
     ["53300", "57P01", "57P02", "57P03"].includes(sqlState ?? "") ||
-    [
-      "ECONNREFUSED",
-      "ECONNRESET",
-      "ENETUNREACH",
-      "ENOTFOUND",
-      "EPIPE",
-    ].includes(rawCode ?? "")
+    (rawCode !== "ETIMEDOUT" && POSTGRES_ERRNO_CODES.has(rawCode ?? ""))
   ) {
     return new DatabaseOperationError("unavailable", {
       retryable: true,
@@ -321,14 +343,14 @@ async function withPostgresTransaction<T>(
     try {
       return await runSingleTransaction(work)
     } catch (cause) {
-      const error = classifyPostgresError(cause)
       const canRetry =
         options.retryOnConflict &&
-        error.category === "concurrency" &&
+        cause instanceof DatabaseOperationError &&
+        cause.category === "concurrency" &&
         attempt < attempts
 
       if (!canRetry) {
-        throw error
+        throw cause
       }
 
       await retryDelay(attempt)
@@ -345,8 +367,12 @@ async function runSingleTransaction<T>(
   let destroyClient = false
 
   try {
-    client = await getPostgresPool().connect()
-    await client.query("begin")
+    try {
+      client = await getPostgresPool().connect()
+      await client.query("begin")
+    } catch (cause) {
+      throw classifyPostgresError(cause)
+    }
 
     const transactionQuery: DatabaseQueryExecutor = async (
       sql: string,
@@ -362,10 +388,17 @@ async function runSingleTransaction<T>(
     transactionQuery.read = transactionQuery
 
     const result = await work(transactionQuery)
-    await client.query("commit")
+    try {
+      await client.query("commit")
+    } catch (cause) {
+      throw classifyPostgresError(cause)
+    }
     return result
   } catch (cause) {
-    const error = classifyPostgresError(cause)
+    // Domain and validation errors raised by application code inside the
+    // transaction must survive the rollback unchanged, otherwise callers cannot
+    // tell a rejected transition apart from unavailable storage.
+    const error = isDatabaseFailure(cause) ? classifyPostgresError(cause) : cause
 
     if (client) {
       try {
@@ -375,7 +408,10 @@ async function runSingleTransaction<T>(
       }
     }
 
-    if (error.category === "unavailable") {
+    if (
+      error instanceof DatabaseOperationError &&
+      error.category === "unavailable"
+    ) {
       destroyClient = true
     }
 

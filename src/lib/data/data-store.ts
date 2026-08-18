@@ -58,6 +58,7 @@ import type {
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
 import { buildProfessorTopicReviewProgress } from "@/lib/tutor/professor-review-mode";
+import { isQuestionLifecycleDomainError } from "@/lib/tutor/question-lifecycle";
 import type {
   ContentTransferDocument,
   ContentTransferImportResult,
@@ -806,12 +807,7 @@ async function writeStrictDatabaseLifecycle<T>(
       createDatabaseQuestionLifecycleRepository(queryPostgres),
     );
   } catch (cause) {
-    if (
-      cause instanceof Error &&
-      (cause.name === "QuestionLifecycleConflictError" ||
-        cause.name === "QuestionLifecycleNotFoundError" ||
-        cause.name === "QuestionLifecycleValidationError")
-    ) {
+    if (isQuestionLifecycleDomainError(cause)) {
       throw cause;
     }
     throw new DataServiceUnavailableError("content", { cause });

@@ -139,3 +139,24 @@ export function stateAfterQuestionLifecycleAction(
 export function lifecycleActionRequiresReason(action: QuestionLifecycleAction) {
   return REQUIRED_REASON_ACTIONS.has(action);
 }
+
+const LIFECYCLE_DOMAIN_ERROR_NAMES = new Set([
+  "QuestionLifecycleConflictError",
+  "QuestionLifecycleNotFoundError",
+  "QuestionLifecycleValidationError",
+  "QuestionPublicationBlockedError",
+]);
+
+/**
+ * Domain and validation failures (including publication quality-gate blockers)
+ * must stay distinguishable from infrastructure failures so callers never
+ * report a rejected transition as unavailable storage.
+ */
+export function isQuestionLifecycleDomainError(error: unknown): boolean {
+  return (
+    error instanceof QuestionLifecycleConflictError ||
+    error instanceof QuestionLifecycleNotFoundError ||
+    error instanceof QuestionLifecycleValidationError ||
+    (error instanceof Error && LIFECYCLE_DOMAIN_ERROR_NAMES.has(error.name))
+  );
+}
