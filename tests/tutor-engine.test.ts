@@ -55,6 +55,7 @@ import {
   type GeneratedQuestionDraft,
   type GeneratedQuestionReviewItem,
   type RetrievalChunk,
+  type SourceType,
   type TutorMode,
   type TutorQuestion,
 } from "@/lib/types";
@@ -76,6 +77,11 @@ import {
   TEST_PROFESSOR,
   TEST_STUDENT,
 } from "./auth-test-helpers";
+
+const GENERATED_SOURCE_TYPES: readonly SourceType[] = [
+  "generated_original",
+  "pattern_derived_original",
+];
 
 describe("tutor engine", () => {
   beforeEach(() => {
@@ -1019,7 +1025,7 @@ describe("content provenance and review metadata", () => {
       queue.every(
         (candidate) =>
           hasGeneratedQuestionDefaults(candidate) &&
-          candidate.source.sourceType === "pattern_derived_original" &&
+          GENERATED_SOURCE_TYPES.includes(candidate.source.sourceType) &&
           candidate.answer.acceptedAnswers.length > 0 &&
           candidate.hints.length > 0 &&
           candidate.solutionSteps.length > 0,
@@ -1049,13 +1055,29 @@ describe("content provenance and review metadata", () => {
 
     expect(generatedReviewCandidates).toHaveLength(14);
     expect(additionalDrafts).toHaveLength(12);
+    // Only drafts that name a catalogued pattern may claim pattern-derived
+    // provenance; ad-hoc template output stays generated_original.
+    expect(
+      additionalDrafts.every(
+        (candidate) =>
+          candidate.source.sourceType === "pattern_derived_original",
+      ),
+    ).toBe(true);
+    expect(
+      generatedReviewCandidates
+        .filter((candidate) => !candidate.id.startsWith("generated-additional-"))
+        .every(
+          (candidate) => candidate.source.sourceType === "generated_original",
+        ),
+    ).toBe(true);
     expect(
       generatedReviewCandidates.every(
         (candidate) =>
           candidate.prompt.length > 0 &&
           candidate.patternSource.length > 0 &&
           candidate.review.status === "needs_review" &&
-          candidate.source.sourceType === "pattern_derived_original" &&
+          (candidate.source.sourceType === "generated_original" ||
+            candidate.source.sourceType === "pattern_derived_original") &&
           candidate.source.trustLevel === "generated_unverified" &&
           candidate.source.visibility === "public" &&
           typeof candidate.source.originalityNote === "string" &&
@@ -1103,7 +1125,7 @@ describe("content provenance and review metadata", () => {
       generatedExamples.examples.every(
         (example) =>
           example.review.status === "needs_review" &&
-          example.source.sourceType === "pattern_derived_original" &&
+          example.source.sourceType === "generated_original" &&
           example.source.trustLevel === "generated_unverified" &&
           example.source.visibility === "public" &&
           example.source.originalityNote.length > 0,

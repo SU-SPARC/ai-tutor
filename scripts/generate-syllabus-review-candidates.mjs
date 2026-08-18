@@ -699,7 +699,10 @@ function candidate({
       },
     ],
     source: {
-      sourceType: "pattern_derived_original",
+      // Ad-hoc template output. pattern_derived_original requires a linked
+      // catalogued pattern ID (publication quality gate
+      // invalid_source_classification); these drafts have none.
+      sourceType: "generated_original",
       trustLevel: "generated_unverified",
       visibility: "public",
       originalityNote: ORIGINALITY_NOTE,

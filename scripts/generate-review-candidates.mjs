@@ -317,7 +317,10 @@ function buildZScoreCandidate(sequence, topicId) {
 
 function generatedSource(patternLabel) {
   return {
-    sourceType: "pattern_derived_original",
+    // Ad-hoc template output. Use pattern_derived_original only when a
+    // catalogued pattern ID is linked, which the publication quality gate
+    // requires (invalid_source_classification).
+    sourceType: "generated_original",
     trustLevel: "generated_unverified",
     visibility: "public",
     originalityNote: `Original practice item generated from an abstract ${patternLabel} pattern; no private source text or private audit identifiers included.`,

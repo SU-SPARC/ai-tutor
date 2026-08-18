@@ -34,7 +34,7 @@
         }
       ],
       "source": {
-        "sourceType": "pattern_derived_original",
+        "sourceType": "generated_original",
         "trustLevel": "generated_unverified",
         "visibility": "public",
         "originalityNote": "Original development example generated from an abstract Bayes alert-update pattern; no course wording or audit details included."
@@ -74,7 +74,7 @@
         }
       ],
       "source": {
-        "sourceType": "pattern_derived_original",
+        "sourceType": "generated_original",
         "trustLevel": "generated_unverified",
         "visibility": "public",
         "originalityNote": "Original development example generated from an abstract binomial exact-count pattern; no course wording or audit details included."
@@ -115,7 +115,7 @@
         }
       ],
       "source": {
-        "sourceType": "pattern_derived_original",
+        "sourceType": "generated_original",
         "trustLevel": "generated_unverified",
         "visibility": "public",
         "originalityNote": "Original development example generated from an abstract normal-approximation pattern; no course wording or audit details included."

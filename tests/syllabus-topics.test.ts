@@ -198,7 +198,7 @@ describe("syllabus topic catalog", () => {
         (candidate) =>
           candidate.review.status === "needs_review" &&
           candidate.source.trustLevel === "generated_unverified" &&
-          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.sourceType === "generated_original" &&
           candidate.source.visibility === "public" &&
           Boolean(candidate.patternSource) &&
           Boolean(candidate.source.originalityNote) &&
@@ -244,7 +244,7 @@ describe("syllabus topic catalog", () => {
           candidate.id.startsWith("generated-following-") &&
           candidate.review.status === "needs_review" &&
           candidate.source.trustLevel === "generated_unverified" &&
-          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.sourceType === "generated_original" &&
           candidate.source.visibility === "public" &&
           Boolean(candidate.patternSource) &&
           Boolean(candidate.source.originalityNote) &&
@@ -302,7 +302,7 @@ describe("syllabus topic catalog", () => {
           candidate.id.startsWith("generated-uncovered-") &&
           candidate.review.status === "needs_review" &&
           candidate.source.trustLevel === "generated_unverified" &&
-          candidate.source.sourceType === "pattern_derived_original" &&
+          candidate.source.sourceType === "generated_original" &&
           candidate.source.visibility === "public" &&
           Boolean(candidate.patternSource) &&
           Boolean(candidate.source.originalityNote) &&

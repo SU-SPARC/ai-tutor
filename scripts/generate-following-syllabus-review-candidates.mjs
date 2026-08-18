@@ -1198,7 +1198,10 @@ function candidate(topic, spec) {
     solutionSteps: spec.solutionSteps,
     misconceptions: [spec.misconception],
     source: {
-      sourceType: "pattern_derived_original",
+      // Ad-hoc template output. pattern_derived_original requires a linked
+      // catalogued pattern ID (publication quality gate
+      // invalid_source_classification); these drafts have none.
+      sourceType: "generated_original",
       trustLevel: "generated_unverified",
       visibility: "public",
       originalityNote: ORIGINALITY_NOTE,
@@ -1380,7 +1383,7 @@ function validateCandidates(candidates, topicMap, previousBatches) {
     if (
       candidateItem.review.status !== "needs_review" ||
       candidateItem.source.trustLevel !== "generated_unverified" ||
-      candidateItem.source.sourceType !== "pattern_derived_original" ||
+      candidateItem.source.sourceType !== "generated_original" ||
       candidateItem.source.visibility !== "public"
     ) {
       throw new Error(`Unsafe review metadata on ${candidateItem.id}.`)

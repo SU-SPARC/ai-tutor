@@ -281,7 +281,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original practice item generated from an abstract Bayes false-positive pattern; no private source text or private audit identifiers included."
@@ -666,7 +666,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original practice item generated from an abstract binomial exact-count pattern; no private source text or private audit identifiers included."

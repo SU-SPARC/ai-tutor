@@ -101,7 +101,7 @@ describe("professor questions API", () => {
   it("shows all 60 following-syllabus drafts in the professor review section", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/professor/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&sourceType=generated_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -114,7 +114,7 @@ describe("professor questions API", () => {
       payload.dashboard.questions.map((question) => question.id),
     );
     const reviewSectionIds = new Set(
-      payload.dashboard.sections.pattern_derived_original_candidates,
+      payload.dashboard.sections.generated_original,
     );
 
     expect(response.status).toBe(200);
@@ -130,7 +130,7 @@ describe("professor questions API", () => {
   it("shows all 60 next-uncovered drafts in the professor review section", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/professor/questions?status=needs_review&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&sourceType=generated_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -143,7 +143,7 @@ describe("professor questions API", () => {
       payload.dashboard.questions.map((question) => question.id),
     );
     const reviewSectionIds = new Set(
-      payload.dashboard.sections.pattern_derived_original_candidates,
+      payload.dashboard.sections.generated_original,
     );
 
     expect(response.status).toBe(200);
