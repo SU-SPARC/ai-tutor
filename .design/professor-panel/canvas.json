@@ -1,0 +1,39 @@
+{
+  "artboards": [
+    { "file": "Current.dc.html", "title": "Today", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Main.dc.html", "title": "Direction A — Overview", "x": 1560, "y": 0, "w": 1440, "h": 1240 },
+    { "file": "Questions.dc.html", "title": "Direction A — sub-page", "x": 3120, "y": 0, "w": 1440, "h": 1080 },
+    { "file": "DirectionB.dc.html", "title": "Direction B — Console", "x": 4680, "y": 0, "w": 1440, "h": 1080 }
+  ],
+  "annotations": [
+    {
+      "id": "note-today",
+      "x": 0,
+      "y": -170,
+      "w": 440,
+      "text": "Today's /professor.\n\nSix equal-weight buttons, three cards that describe permissions rather than showing anything, and a fourth card repeating a button that is already on the page. Nothing here tells you what is waiting on you."
+    },
+    {
+      "id": "note-direction-a",
+      "x": 1560,
+      "y": -210,
+      "w": 560,
+      "text": "Direction A — Overview.\n\nThe hub answers \"what needs me?\" before it lists tools. The pipeline strip makes the two separate gates visible — you approve content, then you release it — which is the thing this app models and the old page never showed. One primary action per card; tools demoted to a list.\n\nCounts and names are sample data, not real numbers."
+    },
+    {
+      "id": "note-shell",
+      "x": 3120,
+      "y": -170,
+      "w": 440,
+      "text": "The same shell on a sub-page: breadcrumb, section nav, one page title, one status badge.\n\nEvery professor page inherits it, so the navigation never disappears mid-task the way it does today (each page's only way back is a \"Back\" link to the home page)."
+    },
+    {
+      "id": "note-direction-b",
+      "x": 4680,
+      "y": -210,
+      "w": 560,
+      "text": "Direction B — Console.\n\nSame tokens, different bet: a persistent left rail and a triage inbox, so reviewing IS the landing state instead of somewhere you navigate to. Faster for working through a backlog; gives up the at-a-glance pipeline overview, and the rail costs 248px on every page.\n\nPick one direction — I would not ship both."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

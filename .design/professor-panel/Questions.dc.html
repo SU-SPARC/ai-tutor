@@ -1,0 +1,238 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: oklch(0.465 0.218 262); text-decoration: none; }
+    a:hover { color: oklch(0.40 0.20 262); }
+    .dc-nav:hover { background: oklch(0.952 0.024 240); color: oklch(0.27 0.05 262); }
+    .dc-trow:hover { background: oklch(0.968 0.008 250 / 0.5); }
+  </style>
+</helmet>
+<div style="width: 1440px; min-height: 1080px; background: oklch(0.994 0.003 250); color: oklch(0.185 0.022 264); font-size: 14px; line-height: 24px">
+
+  <div style="display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 24px; max-width: 1440px; width: 100%; box-sizing: border-box; padding: 12px 24px; margin: 0 auto">
+      <div style="display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -0.01em">
+        <img src="./logo.png" alt="" style="width: 28px; height: 28px; display: block">
+        <span>Suffolk Prob &amp; Stats Tutor</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px; font-size: 14px">
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Home</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Topics</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Practice</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Dashboard</a>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; margin-left: auto">
+        <span style="display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid oklch(0.906 0.012 252); border-radius: 8.75px; font-size: 12px; font-weight: 500; line-height: 16px">Preview</span>
+        <span style="font-size: 14px; color: oklch(0.494 0.022 258)">a.morales@suffolk.edu</span>
+        <div style="width: 36px; height: 36px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); display: flex; align-items: center; justify-content: center; color: oklch(0.494 0.022 258)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+        </div>
+      </div>
+    </div>
+    <div style="height: 1px; width: 100%; opacity: 0.4; background-image: linear-gradient(160deg, oklch(0.815 0.177 163), oklch(0.724 0.132 179) 45%, oklch(0.465 0.218 262))"></div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 24px; max-width: 1280px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 32px 24px 48px">
+
+    <!-- same title block + section nav as the hub: the shared shell -->
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.494 0.022 258)">
+          <a href="#">Professor workspace</a>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          <span>Question lifecycle</span>
+        </div>
+        <h1 style="margin: 0; font-size: 30px; line-height: 36px; font-weight: 600; letter-spacing: normal">Question lifecycle</h1>
+        <p style="margin: 0; font-size: 14px; line-height: 24px; color: oklch(0.494 0.022 258)">Every question keeps an immutable version history. Approving records a decision; publishing creates the version students can be shown.</p>
+      </div>
+      <span style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8.75px; border: 1px solid oklch(0.906 0.012 252); font-size: 12px; font-weight: 500">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.52 0.14 158)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        private materials excluded
+      </span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 4px; border-bottom: 1px solid oklch(0.906 0.012 252); padding-bottom: 12px">
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Overview</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Review queue</a>
+      <a href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; background: oklch(0.465 0.218 262 / 0.1); color: oklch(0.465 0.218 262)">Question lifecycle</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Student availability</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Uploads</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Analytics</a>
+    </div>
+
+    <!-- filters -->
+    <div style="display: flex; align-items: center; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 10px; background: oklch(0.968 0.008 250)">
+        <span style="padding: 5px 12px; border-radius: 7.5px; background: oklch(1 0 0); font-size: 14px; font-weight: 500; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">All 78</span>
+        <span style="padding: 5px 12px; border-radius: 7.5px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Drafts 12</span>
+        <span style="padding: 5px 12px; border-radius: 7.5px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Needs review 7</span>
+        <span style="padding: 5px 12px; border-radius: 7.5px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Approved 5</span>
+        <span style="padding: 5px 12px; border-radius: 7.5px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Published 48</span>
+        <span style="padding: 5px 12px; border-radius: 7.5px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Archived 6</span>
+      </div>
+      <select style="height: 40px; width: 200px; padding: 8px 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(0.994 0.003 250); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">
+        <option>All syllabus topics</option>
+      </select>
+      <div style="display: flex; align-items: center; gap: 8px; height: 40px; min-width: 240px; padding: 8px 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(0.994 0.003 250); box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <span style="font-size: 14px; color: oklch(0.494 0.022 258)">Search questions</span>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 12px">
+        <span style="font-size: 14px; color: oklch(0.494 0.022 258)">2 selected</span>
+        <button style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8.75px; border: none; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Publish selected</button>
+      </div>
+    </div>
+
+    <!-- table -->
+    <div style="border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); overflow: hidden">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+        <thead>
+          <tr style="border-bottom: 1px solid oklch(0.906 0.012 252)">
+            <th style="height: 44px; padding: 0 16px; text-align: left; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Question</th>
+            <th style="height: 44px; padding: 0 16px; text-align: left; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Working state</th>
+            <th style="height: 44px; padding: 0 16px; text-align: left; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Students see</th>
+            <th style="height: 44px; padding: 0 16px; text-align: left; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Version</th>
+            <th style="height: 44px; padding: 0 16px; text-align: left; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Last decision</th>
+            <th style="height: 44px; padding: 0 16px; text-align: right; vertical-align: middle; font-size: 12px; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: oklch(0.494 0.022 258)">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="dc-trow" style="border-bottom: 1px solid oklch(0.906 0.012 252)">
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 500">Two independent draws without replacement</span>
+                <span style="font-size: 12px; color: oklch(0.494 0.022 258)">Conditional Probability</span>
+              </div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.966 0.008 250); color: oklch(0.245 0.03 262); font-size: 12px; font-weight: 500; line-height: 16px">Needs review</span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.494 0.022 258)">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.65 0.03 252)"></span>
+                Nothing yet
+              </span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">v1 draft</td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258)">Imported &middot; 6 days ago</td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right">
+              <button style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Review</button>
+            </td>
+          </tr>
+          <tr class="dc-trow" style="border-bottom: 1px solid oklch(0.906 0.012 252)">
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 500">Bayes update with a false positive rate</span>
+                <span style="font-size: 12px; color: oklch(0.494 0.022 258)">Bayes&rsquo; Theorem</span>
+              </div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-size: 12px; font-weight: 500; line-height: 16px">Approved</span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.52 0.12 68)">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.52 0.12 68)"></span>
+                Not published
+              </span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">v3 working</td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258)">You &middot; 2 hours ago</td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right">
+              <button style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8.75px; border: none; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Publish</button>
+            </td>
+          </tr>
+          <tr class="dc-trow" style="border-bottom: 1px solid oklch(0.906 0.012 252)">
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 500">Expected value of a weighted die</span>
+                <span style="font-size: 12px; color: oklch(0.494 0.022 258)">Discrete Distributions</span>
+              </div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-size: 12px; font-weight: 500; line-height: 16px">Published</span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.52 0.12 68)">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.52 0.12 68)"></span>
+                Sept 2, 9:00 AM
+              </span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">v2 live</td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258)">R. Chen &middot; Yesterday</td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right">
+              <button style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Manage</button>
+            </td>
+          </tr>
+          <tr class="dc-trow" style="border-bottom: 1px solid oklch(0.906 0.012 252)">
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 500">Binomial probability of exactly three successes</span>
+                <span style="font-size: 12px; color: oklch(0.494 0.022 258)">Binomial Models</span>
+              </div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-size: 12px; font-weight: 500; line-height: 16px">Published</span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.52 0.14 158)">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.52 0.14 158)"></span>
+                Available now
+              </span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">v4 live</td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258)">You &middot; 4 days ago</td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right">
+              <button style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Manage</button>
+            </td>
+          </tr>
+          <tr class="dc-trow">
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <div style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 500">Coin flip variance</span>
+                <span style="font-size: 12px; color: oklch(0.494 0.022 258)">Binomial Models</span>
+              </div>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; border: 1px solid oklch(0.906 0.012 252); color: oklch(0.185 0.022 264); font-size: 12px; font-weight: 500; line-height: 16px">Revision requested</span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: oklch(0.494 0.022 258)">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.65 0.03 252)"></span>
+                Withdrawn
+              </span>
+            </td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258); font-family: ui-monospace, SFMono-Regular, Menlo, monospace">v2 working</td>
+            <td style="padding: 14px 16px; vertical-align: middle; font-size: 14px; color: oklch(0.494 0.022 258)">You &middot; Yesterday</td>
+            <td style="padding: 14px 16px; vertical-align: middle; text-align: right">
+              <button style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Open editor</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: oklch(0.494 0.022 258)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+      &ldquo;Students see&rdquo; is the release gate, set on the Student availability page. Publishing a version does not release it on its own.
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

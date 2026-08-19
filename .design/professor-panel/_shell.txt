@@ -1,0 +1,14 @@
+token reference (resolved from src/app/globals.css, light theme)
+bg oklch(0.994 0.003 250) | fg oklch(0.185 0.022 264) | card oklch(1 0 0)
+primary oklch(0.465 0.218 262) | primary-fg oklch(0.99 0.005 250)
+secondary oklch(0.966 0.008 250) / fg oklch(0.245 0.03 262)
+muted oklch(0.968 0.008 250) / fg oklch(0.494 0.022 258)
+accent oklch(0.952 0.024 240) / fg oklch(0.27 0.05 262)
+cta oklch(0.815 0.177 163) / fg oklch(0.22 0.045 255)
+success oklch(0.52 0.14 158) | warning oklch(0.52 0.12 68) | destructive oklch(0.55 0.22 27)
+border oklch(0.906 0.012 252) | input oklch(0.65 0.03 252)
+radius 10 / md 8.75 / sm 7.5 / xs 5 / xl 15
+btn h40 px16 text14 fw500 gap8 shadow-sm | btn-sm h36 px12 | badge px8 py2 text12 fw500 r8.75
+card r10 border1 shadow-xs | cardheader p24 gap6
+h1 30px fw600 tracking-normal | body 14px/24px
+container max 1280 px24 py32 gap24 | header max 1440 px24 py12

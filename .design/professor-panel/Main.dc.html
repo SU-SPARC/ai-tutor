@@ -1,0 +1,352 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: oklch(0.465 0.218 262); text-decoration: none; }
+    a:hover { color: oklch(0.40 0.20 262); }
+    .dc-nav:hover { background: oklch(0.952 0.024 240); color: oklch(0.27 0.05 262); }
+    .dc-row:hover { background: oklch(0.968 0.008 250); }
+    .dc-btn-primary:hover { background: oklch(0.465 0.218 262 / 0.9); }
+    .dc-btn-outline:hover { background: oklch(0.952 0.024 240); color: oklch(0.27 0.05 262); }
+    .dc-btn-ghost:hover { background: oklch(0.952 0.024 240); color: oklch(0.27 0.05 262); }
+  </style>
+</helmet>
+<div style="width: 1440px; min-height: 1240px; background: oklch(0.994 0.003 250); color: oklch(0.185 0.022 264); font-size: 14px; line-height: 24px">
+
+  <!-- ============ app shell: site header (copied from src/components/site-header.tsx) ============ -->
+  <div style="display: flex; flex-direction: column; background: oklch(0.994 0.003 250 / 0.85)">
+    <div style="display: flex; align-items: center; gap: 24px; max-width: 1440px; width: 100%; box-sizing: border-box; padding: 12px 24px; margin: 0 auto">
+      <div style="display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -0.01em">
+        <img src="./logo.png" alt="" style="width: 28px; height: 28px; display: block">
+        <span>Suffolk Prob &amp; Stats Tutor</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px; font-size: 14px">
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Home</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Topics</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Practice</a>
+        <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-weight: 500; color: oklch(0.494 0.022 258)">Dashboard</a>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; margin-left: auto">
+        <span style="display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid oklch(0.906 0.012 252); border-radius: 8.75px; font-size: 12px; font-weight: 500; line-height: 16px">Preview</span>
+        <span style="font-size: 14px; color: oklch(0.494 0.022 258)">a.morales@suffolk.edu</span>
+        <div style="width: 36px; height: 36px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); display: flex; align-items: center; justify-content: center; color: oklch(0.494 0.022 258)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+        </div>
+      </div>
+    </div>
+    <div style="height: 1px; width: 100%; opacity: 0.4; background-image: linear-gradient(160deg, oklch(0.815 0.177 163), oklch(0.724 0.132 179) 45%, oklch(0.465 0.218 262))"></div>
+  </div>
+
+  <!-- ============ professor shell ============ -->
+  <div style="display: flex; flex-direction: column; gap: 24px; max-width: 1280px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 32px 24px 48px">
+
+    <!-- page title block -->
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px">
+        <span style="display: inline-flex; align-items: center; width: fit-content; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.966 0.008 250); color: oklch(0.245 0.03 262); font-size: 12px; font-weight: 500; line-height: 16px">Professor workspace</span>
+        <h1 style="margin: 0; font-size: 30px; line-height: 36px; font-weight: 600; letter-spacing: normal">Good morning, Dr. Morales</h1>
+        <p style="margin: 0; font-size: 14px; line-height: 24px; color: oklch(0.494 0.022 258)">Seven questions are waiting on your review and five approved ones are not published yet. Approval and student release are separate steps, so nothing reaches a student until you release it.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px">
+        <button class="dc-btn-outline" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(0.994 0.003 250); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
+          Upload material
+        </button>
+        <button class="dc-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8.75px; border: none; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">
+          Start reviewing
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- section nav: replaces the six equal-weight buttons -->
+    <div style="display: flex; align-items: center; gap: 4px; border-bottom: 1px solid oklch(0.906 0.012 252); padding-bottom: 12px">
+      <a href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; background: oklch(0.465 0.218 262 / 0.1); color: oklch(0.465 0.218 262)">Overview</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Review queue</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Question lifecycle</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Student availability</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Uploads</a>
+      <a class="dc-nav" href="#" style="padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">Analytics</a>
+      <a class="dc-nav" href="#" style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8.75px; font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"></path><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"></path></svg>
+        Import &amp; export
+      </a>
+    </div>
+
+    <!-- ============ pipeline strip ============ -->
+    <div style="border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px 16px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">Question pipeline</div>
+          <div style="font-size: 14px; line-height: 22.75px; color: oklch(0.494 0.022 258)">Where every question in the course currently sits. Two gates are separate on purpose: you approve content, then you release it.</div>
+        </div>
+        <a href="#" style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; white-space: nowrap">
+          Full lifecycle view
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </a>
+      </div>
+
+      <div style="display: flex; align-items: stretch; gap: 0; padding: 0 12px 20px">
+        <!-- stage 1 -->
+        <div class="dc-row" style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; flex-basis: 0; padding: 14px 16px; border-radius: 8.75px">
+          <div style="display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em">12</span>
+            <span style="font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">drafts</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 500">Imported, untriaged</div>
+          <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">Generated or uploaded, no decision recorded</div>
+        </div>
+        <div style="display: flex; align-items: center; padding: 0 2px; color: oklch(0.906 0.012 252)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+        <!-- stage 2 : needs action -->
+        <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; flex-basis: 0; padding: 14px 16px; border-radius: 8.75px; background: oklch(0.952 0.024 240); border: 1px solid oklch(0.465 0.218 262 / 0.25)">
+          <div style="display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em; color: oklch(0.465 0.218 262)">7</span>
+            <span style="font-size: 14px; font-weight: 500; color: oklch(0.27 0.05 262)">in review</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 500; color: oklch(0.27 0.05 262)">Waiting on you</div>
+          <div style="font-size: 12px; line-height: 16px; color: oklch(0.27 0.05 262)">Oldest has waited 6 days</div>
+        </div>
+        <div style="display: flex; align-items: center; padding: 0 2px; color: oklch(0.906 0.012 252)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+        <!-- stage 3 : needs action -->
+        <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; flex-basis: 0; padding: 14px 16px; border-radius: 8.75px; background: oklch(0.952 0.024 240); border: 1px solid oklch(0.465 0.218 262 / 0.25)">
+          <div style="display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em; color: oklch(0.465 0.218 262)">5</span>
+            <span style="font-size: 14px; font-weight: 500; color: oklch(0.27 0.05 262)">approved</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 500; color: oklch(0.27 0.05 262)">Not published yet</div>
+          <div style="font-size: 12px; line-height: 16px; color: oklch(0.27 0.05 262)">Approved content students cannot see</div>
+        </div>
+        <div style="display: flex; align-items: center; padding: 0 2px; color: oklch(0.906 0.012 252)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+        <!-- stage 4 -->
+        <div class="dc-row" style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; flex-basis: 0; padding: 14px 16px; border-radius: 8.75px">
+          <div style="display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em">48</span>
+            <span style="font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">published</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 500">Immutable versions</div>
+          <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">Each edit creates a new version</div>
+        </div>
+        <div style="display: flex; align-items: center; padding: 0 2px; color: oklch(0.906 0.012 252)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+        </div>
+        <!-- stage 5 -->
+        <div class="dc-row" style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; flex-basis: 0; padding: 14px 16px; border-radius: 8.75px">
+          <div style="display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 30px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em; color: oklch(0.52 0.14 158)">41</span>
+            <span style="font-size: 14px; font-weight: 500; color: oklch(0.494 0.022 258)">live</span>
+          </div>
+          <div style="font-size: 14px; font-weight: 500">Available to students</div>
+          <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">3 scheduled &middot; 4 held back</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ row A ============ -->
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+
+      <!-- waiting on your review -->
+      <div style="grid-column: span 2; display: flex; flex-direction: column; border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 16px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.465 0.218 262)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>
+              Waiting on your review
+            </div>
+            <div style="font-size: 14px; line-height: 22.75px; color: oklch(0.494 0.022 258)">Questions are shown one at a time, in syllabus order. Your decision is recorded against your account.</div>
+          </div>
+          <span style="display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8.75px; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-size: 12px; font-weight: 500; line-height: 16px; white-space: nowrap">7 open</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; padding: 0 12px">
+          <!-- topic row -->
+          <div class="dc-row" style="display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 8.75px">
+            <div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1">
+              <div style="font-size: 14px; font-weight: 500">Conditional Probability</div>
+              <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">3 drafts &middot; oldest waiting 6 days</div>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 8.75px; border: 1px solid oklch(0.906 0.012 252); font-size: 12px; font-weight: 500; line-height: 16px; color: oklch(0.52 0.12 68)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+              overdue
+            </span>
+            <button class="dc-btn-outline" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Review</button>
+          </div>
+          <div style="height: 1px; background: oklch(0.906 0.012 252); margin: 0 12px"></div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 8.75px">
+            <div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1">
+              <div style="font-size: 14px; font-weight: 500">Binomial Models</div>
+              <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">2 drafts &middot; oldest waiting 2 days</div>
+            </div>
+            <button class="dc-btn-outline" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Review</button>
+          </div>
+          <div style="height: 1px; background: oklch(0.906 0.012 252); margin: 0 12px"></div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 8.75px">
+            <div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1">
+              <div style="font-size: 14px; font-weight: 500">Bayes&rsquo; Theorem</div>
+              <div style="font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">2 drafts &middot; oldest waiting 1 day</div>
+            </div>
+            <button class="dc-btn-outline" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Review</button>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; padding: 16px 24px 24px; margin-top: 8px">
+          <button class="dc-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8.75px; border: none; background: oklch(0.465 0.218 262); color: oklch(0.99 0.005 250); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">
+            Review oldest first
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </button>
+          <button class="dc-btn-ghost" style="display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 8.75px; border: none; background: transparent; color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500">Choose a topic</button>
+        </div>
+      </div>
+
+      <!-- student availability -->
+      <div style="display: flex; flex-direction: column; border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 24px 24px 16px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.465 0.218 262)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path><circle cx="16" cy="16" r="6"></circle><path d="M16 14v2l1 1"></path></svg>
+            Student availability
+          </div>
+          <div style="font-size: 14px; line-height: 22.75px; color: oklch(0.494 0.022 258)">A release gate, separate from approval. Availability is global &mdash; there are no cohorts.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px; padding: 0 24px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.52 0.14 158)"></span>
+            <span style="font-size: 14px; flex-grow: 1">Available now</span>
+            <span style="font-size: 14px; font-weight: 600">41</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.52 0.12 68)"></span>
+            <span style="font-size: 14px; flex-grow: 1">Scheduled</span>
+            <span style="font-size: 14px; font-weight: 600">3</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.65 0.03 252)"></span>
+            <span style="font-size: 14px; flex-grow: 1">Held back</span>
+            <span style="font-size: 14px; font-weight: 600">4</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 8px; height: 8px; border-radius: 999px; background: oklch(0.906 0.012 252)"></span>
+            <span style="font-size: 14px; flex-grow: 1">Archived</span>
+            <span style="font-size: 14px; font-weight: 600">6</span>
+          </div>
+        </div>
+        <div style="margin: 20px 24px 0; padding: 12px 14px; border-radius: 8.75px; background: oklch(0.968 0.008 250); font-size: 12px; line-height: 16px; color: oklch(0.494 0.022 258)">
+          Next scheduled release &mdash; <span style="color: oklch(0.185 0.022 264); font-weight: 500">Sept 2, 9:00 AM</span>, 3 questions in Discrete Distributions.
+        </div>
+        <div style="padding: 20px 24px 24px; margin-top: auto">
+          <button class="dc-btn-outline" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px; padding: 0 16px; border-radius: 8.75px; border: 1px solid oklch(0.65 0.03 252); background: oklch(1 0 0); color: oklch(0.185 0.022 264); font-family: inherit; font-size: 14px; font-weight: 500; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)">Manage availability</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ row B ============ -->
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+
+      <!-- recent activity -->
+      <div style="grid-column: span 2; display: flex; flex-direction: column; border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 8px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">Recent decisions</div>
+            <div style="font-size: 14px; line-height: 22.75px; color: oklch(0.494 0.022 258)">Every review, publication and release change, attributed to the account that made it.</div>
+          </div>
+          <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap">Full history</a>
+        </div>
+        <div style="display: flex; flex-direction: column; padding: 8px 12px 20px">
+          <div class="dc-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8.75px; background: oklch(0.52 0.14 158 / 0.12); color: oklch(0.52 0.14 158)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+            </span>
+            <span style="font-size: 14px; flex-grow: 1"><span style="font-weight: 500">Approved</span> &ldquo;Two independent draws without replacement&rdquo;</span>
+            <span style="font-size: 12px; color: oklch(0.494 0.022 258); white-space: nowrap">You &middot; 18 min ago</span>
+          </div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8.75px; background: oklch(0.465 0.218 262 / 0.1); color: oklch(0.465 0.218 262)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
+            </span>
+            <span style="font-size: 14px; flex-grow: 1"><span style="font-weight: 500">Published version 3</span> of &ldquo;Bayes update with a false positive rate&rdquo;</span>
+            <span style="font-size: 12px; color: oklch(0.494 0.022 258); white-space: nowrap">You &middot; 2 hours ago</span>
+          </div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8.75px; background: oklch(0.52 0.12 68 / 0.14); color: oklch(0.52 0.12 68)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+            </span>
+            <span style="font-size: 14px; flex-grow: 1"><span style="font-weight: 500">Scheduled release</span> for 3 questions in Discrete Distributions</span>
+            <span style="font-size: 12px; color: oklch(0.494 0.022 258); white-space: nowrap">R. Chen &middot; Yesterday</span>
+          </div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8.75px; background: oklch(0.55 0.22 27 / 0.1); color: oklch(0.55 0.22 27)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+            </span>
+            <span style="font-size: 14px; flex-grow: 1"><span style="font-weight: 500">Rejected</span> &ldquo;Coin flip variance&rdquo; &mdash; answer key disagreed with the solution</span>
+            <span style="font-size: 12px; color: oklch(0.494 0.022 258); white-space: nowrap">You &middot; Yesterday</span>
+          </div>
+          <div class="dc-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8.75px; background: oklch(0.968 0.008 250); color: oklch(0.494 0.022 258)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M9 15h6"></path></svg>
+            </span>
+            <span style="font-size: 14px; flex-grow: 1"><span style="font-weight: 500">Imported 12 candidates</span> from <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px">week-07-notes.pdf</span></span>
+            <span style="font-size: 12px; color: oklch(0.494 0.022 258); white-space: nowrap">You &middot; 2 days ago</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- tools + safeguards -->
+      <div style="display: flex; flex-direction: column; gap: 24px">
+        <div style="display: flex; flex-direction: column; border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)">
+          <div style="padding: 24px 24px 8px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em">Course tools</div>
+          <div style="display: flex; flex-direction: column; padding: 4px 12px 16px">
+            <a class="dc-row" href="#" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px; color: oklch(0.185 0.022 264)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+              <span style="font-size: 14px; font-weight: 500; flex-grow: 1">Analytics</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </a>
+            <a class="dc-row" href="#" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px; color: oklch(0.185 0.022 264)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
+              <span style="font-size: 14px; font-weight: 500; flex-grow: 1">Upload preview</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </a>
+            <a class="dc-row" href="#" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8.75px; color: oklch(0.185 0.022 264)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"></path><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"></path></svg>
+              <span style="font-size: 14px; font-weight: 500; flex-grow: 1">Import &amp; export</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="oklch(0.494 0.022 258)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </a>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; border: 1px solid oklch(0.906 0.012 252); border-radius: 10px; background: oklch(1 0 0); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); padding: 20px 24px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.52 0.14 158)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            Private material excluded
+          </div>
+          <div style="font-size: 14px; line-height: 22.75px; color: oklch(0.494 0.022 258)">Uploaded source files stay on the server. Students never see them, and they are excluded from exports and analytics.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
