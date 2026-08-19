@@ -102,12 +102,12 @@ export function ProgressDashboard({
         </header>
 
         <section
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
           aria-label="Practice totals"
         >
           {metricDefinitions.map(({ icon: Icon, key, label }) => (
-            <Card key={key}>
-              <CardHeader className="gap-3 p-4">
+            <Card key={key} className="border-primary/10 shadow-sm">
+              <CardHeader className="gap-3 p-5">
                 <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
                 <div>
                   <p className="text-2xl font-semibold tabular-nums">
