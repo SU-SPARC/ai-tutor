@@ -14,6 +14,7 @@
     "db:migrate:check": "node scripts/database-migrate.mjs check",
     "db:import:approved": "node scripts/import-approved-content.mjs",
     "db:import:review-candidates": "node scripts/import-review-candidates.mjs",
+    "db:repair:review-candidate-provenance": "node scripts/repair-review-candidate-provenance.mjs",
     "db:integrity": "node scripts/database-integrity.mjs",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",

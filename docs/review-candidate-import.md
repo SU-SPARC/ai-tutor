@@ -62,3 +62,48 @@ npm run db:import:review-candidates -- \
 
 The Production command is intentionally manual. It is not run during builds,
 deployments, migrations, or application startup.
+
+## Correcting imported source provenance
+
+Drafts imported before the generators were reclassified claim
+`pattern_derived_original` while carrying no catalogued pattern. The
+publication quality gate requires a linked pattern ID for that source type, so
+those drafts are permanently blocked with `invalid_source_classification`. The
+truthful classification is `generated_original`: the drafts come from ad-hoc
+templates in the generator scripts, not from
+`data/demo/question-patterns.json`.
+
+The importer never updates an existing ID, and `question_versions`,
+`question_lifecycle_events`, and `audit_events` reject `DELETE`, so neither
+re-import nor removal can correct an already-imported draft. The repair instead
+appends a corrected version through the lifecycle system:
+
+```bash
+npm run db:repair:review-candidate-provenance -- --target production --check
+npm run db:repair:review-candidate-provenance -- \
+  --target production \
+  --apply \
+  --confirm-production
+```
+
+`--only <question-id>` restricts an apply to a single draft. The command is
+idempotent; a second run reports every corrected draft as already correct.
+
+Safety model:
+
+- Only IDs whose committed fixture says `generated_original` are considered.
+- A draft is repaired only when the question row and its working version both
+  still claim `pattern_derived_original` and no pattern ID is linked anywhere.
+  Every other state is reported as blocked and left untouched, so the twelve
+  `generated-additional-*` drafts that genuinely name a catalogued pattern are
+  never reclassified and no pattern ID is ever invented.
+- `questions.source_type` is corrected on the mutable projection only. The
+  stored snapshot of every existing version is left byte-for-byte unchanged.
+- A new immutable version is appended with parent lineage, `imported` creation
+  method, and repair metadata, then submitted back to `needs_review`.
+- Approval is version-specific, so a draft approved before the repair must be
+  approved again on the corrected version before it can be published. The
+  publication gate is untouched in both the TypeScript evaluator and the
+  migration 015 trigger.
+- Migration history must be checksum-clean, and the whole apply runs in one
+  transaction under an advisory lock.
