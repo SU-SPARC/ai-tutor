@@ -49,14 +49,23 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "public",
     ["getApprovedQuestionById"],
   ),
-  page("/professor", "src/app/professor/page.tsx", "professor", [
-    "requireProfessor",
+  page("/professor", "src/app/professor/page.tsx", "professor-review", [
+    "requireProfessorReview",
+    "getContentAvailabilityDashboard",
+    "getProfessorQuestionReviewDashboard",
+    "getQuestionLifecycleDashboard",
   ]),
   page(
     "/professor/analytics",
     "src/app/professor/analytics/page.tsx",
     "professor-analytics",
     ["requireAnalyticsAccess"],
+  ),
+  page(
+    "/professor/availability",
+    "src/app/professor/availability/page.tsx",
+    "professor-review",
+    ["requireProfessorReview", "getContentAvailabilityDashboard"],
   ),
   page(
     "/professor/content-transfer",
@@ -68,11 +77,7 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "/professor/questions",
     "src/app/professor/questions/page.tsx",
     "professor-review",
-    [
-      "requireProfessorReview",
-      "getContentAvailabilityDashboard",
-      "getQuestionLifecycleDashboard",
-    ],
+    ["requireProfessorReview", "getQuestionLifecycleDashboard"],
   ),
   page(
     "/professor/review",

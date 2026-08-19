@@ -77,10 +77,14 @@ describe("professor page authorization", () => {
 
     const markup = renderToStaticMarkup(await ProfessorPage());
     expect(markup).toContain("Professor workspace");
-    expect(markup).toContain("Review generated practice questions");
-    expect(markup).toContain(
-      "Review changes are attributed to the signed-in account",
-    );
+    expect(markup).toContain("Question pipeline");
+    expect(markup).toContain("Waiting on your review");
+    // The two gates the workspace exists to keep apart.
+    expect(markup).toContain("Not published yet");
+    expect(markup).toContain("Available to students");
+    // Every section stays reachable from the shared nav.
+    expect(markup).toContain('href="/professor/review"');
+    expect(markup).toContain('href="/professor/availability"');
   });
 
   it("enforces anonymous, student, and professor API access", async () => {

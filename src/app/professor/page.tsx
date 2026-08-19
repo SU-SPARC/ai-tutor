@@ -1,125 +1,83 @@
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ClipboardCheck,
-  FileJson,
-  Gauge,
-  LockKeyhole,
-} from "lucide-react";
+import { Upload } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
+import { ProfessorWorkspaceOverviewPanel } from "@/components/professor/professor-workspace-overview";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { requirePageAccess, requireProfessor } from "@/lib/auth/authorization";
+  requirePageAccess,
+  requireProfessorReview,
+} from "@/lib/auth/authorization";
+import {
+  getContentAvailabilityDashboard,
+  getProfessorQuestionReviewDashboard,
+  getQuestionLifecycleDashboard,
+} from "@/lib/data/data-store";
+import {
+  summarizeProfessorWorkspace,
+  type ProfessorWorkspaceOverview,
+} from "@/lib/professor/workspace-overview";
+
+/**
+ * The overview reads three dashboards. Before it did so this page could not
+ * fail, so a read failure degrades to the shell and its navigation rather
+ * than taking the whole workspace entry point down with it.
+ */
+async function loadOverview(): Promise<ProfessorWorkspaceOverview | undefined> {
+  const authorization = await requirePageAccess(
+    requireProfessorReview,
+    "/professor",
+  );
+  try {
+    const [availability, lifecycle, review] = await Promise.all([
+      getContentAvailabilityDashboard(authorization),
+      getQuestionLifecycleDashboard(authorization),
+      getProfessorQuestionReviewDashboard(authorization),
+    ]);
+    return summarizeProfessorWorkspace({ availability, lifecycle, review });
+  } catch {
+    return undefined;
+  }
+}
 
 export default async function ProfessorPage() {
-  await requirePageAccess(requireProfessor, "/professor");
-  return (
-    <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-        <div className="flex flex-col gap-4 border-b pb-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <Button asChild variant="ghost" size="sm" className="mb-3 px-0">
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Link>
-            </Button>
-            <Badge variant="secondary" className="mb-3">
-              Professor workspace
-            </Badge>
-            <h1 className="text-3xl font-semibold tracking-normal">
-              Review generated practice questions
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Draft questions are separated from approved student-facing
-              content. The server verifies your current instructor permissions
-              before every read and review action.
-            </p>
-          </div>
-        </div>
+  const overview = await loadOverview();
+  const needsReview = overview?.totalNeedsReview ?? 0;
 
-        <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/professor/review">Review queue</Link>
-          </Button>
+  return (
+    <ProfessorPageShell
+      title="Professor workspace"
+      description={
+        needsReview > 0
+          ? `${needsReview} ${needsReview === 1 ? "question is" : "questions are"} waiting on your review. Approval and student release are separate steps, so nothing reaches a student until you release it.`
+          : "Approval and student release are separate steps, so nothing reaches a student until you release it."
+      }
+      aside={
+        <>
           <Button asChild variant="outline">
-            <Link href="/professor/questions">Question catalog</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/professor/upload">Upload preview</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/professor/content-transfer">
-              <FileJson className="h-4 w-4" />
-              Import/export
+            <Link href="/professor/upload">
+              <Upload className="h-4 w-4" />
+              Upload material
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/professor/analytics">Analytics</Link>
+          <Button asChild>
+            <Link href="/professor/review">Start reviewing</Link>
           </Button>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ClipboardCheck className="h-4 w-4 text-primary" />
-                Pending drafts
-              </CardTitle>
-              <CardDescription>
-                Queue access is limited to signed-in instructor accounts.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Gauge className="h-4 w-4 text-primary" />
-                Usage dashboard
-              </CardTitle>
-              <CardDescription>
-                Aggregate model usage, cache hits, and limits load only after
-                instructor access is verified.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <LockKeyhole className="h-4 w-4 text-primary" />
-                Server-side control
-              </CardTitle>
-              <CardDescription>
-                Review changes are attributed to the signed-in account and
-                handled only by protected server routes.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Topic-based review queue</CardTitle>
-            <CardDescription>
-              Select a syllabus topic before loading question details. Review
-              decisions are recorded under your authenticated application
-              account and do not publish content automatically.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link href="/professor/review">Open review queue</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-    </main>
+        </>
+      }
+    >
+      {overview ? (
+        <ProfessorWorkspaceOverviewPanel overview={overview} />
+      ) : (
+        <Alert>
+          <AlertDescription>
+            The workspace summary could not be loaded, so the counts below are
+            unavailable. Every section is still reachable from the navigation
+            above.
+          </AlertDescription>
+        </Alert>
+      )}
+    </ProfessorPageShell>
   );
 }

@@ -20,9 +20,10 @@ grant interface.
 | `/`, `/topics/**`, `/practice/**` | Public               | Approved/published queries only.                   |
 | `/dashboard`                      | Student or professor | `requireStudent`; server-resolved account owner.   |
 | `/account`, `/onboarding`         | Student or professor | `requireStudent`.                                  |
-| `/professor`                      | Professor            | Protected layout and page call `requireProfessor`. |
+| `/professor`                      | Professor            | Layout calls `requireProfessor`; the overview reads use `requireProfessorReview`. |
 | `/professor/review`               | Professor            | `requireProfessorReview`.                          |
 | `/professor/questions`            | Professor            | `requireProfessorReview` before dashboard reads.   |
+| `/professor/availability`         | Professor            | `requireProfessorReview` before dashboard reads.   |
 | `/professor/upload`               | Professor            | `requireProfessor`.                                |
 | `/professor/analytics`            | Professor            | `requireAnalyticsAccess`.                          |
 
