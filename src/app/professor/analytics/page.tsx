@@ -2,14 +2,20 @@ import { BarChart3 } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { InstructorAnalyticsPanel } from "@/components/professor/instructor-analytics-panel";
+import { InstructorCohortPanel } from "@/components/professor/instructor-cohort-panel";
 import { Badge } from "@/components/ui/badge";
 import {
   requireAnalyticsAccess,
   requirePageAccess,
 } from "@/lib/auth/authorization";
+import { getInstructorCohortAnalytics } from "@/lib/data/data-store";
 
 export default async function ProfessorAnalyticsPage() {
-  await requirePageAccess(requireAnalyticsAccess, "/professor/analytics");
+  const authorization = await requirePageAccess(
+    requireAnalyticsAccess,
+    "/professor/analytics",
+  );
+  const cohort = await getInstructorCohortAnalytics(authorization);
   return (
     <ProfessorPageShell
       title="Course practice overview"
@@ -21,6 +27,8 @@ export default async function ProfessorAnalyticsPage() {
         </Badge>
       }
     >
+      <InstructorCohortPanel cohort={cohort} />
+
       <InstructorAnalyticsPanel />
     </ProfessorPageShell>
   );

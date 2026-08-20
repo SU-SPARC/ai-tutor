@@ -15,17 +15,19 @@ grant interface.
 
 ## Pages
 
-| Page                              | Access               | Server enforcement                                 |
-| --------------------------------- | -------------------- | -------------------------------------------------- |
-| `/`, `/topics/**`, `/practice/**` | Public               | Approved/published queries only.                   |
-| `/dashboard`                      | Student or professor | `requireStudent`; server-resolved account owner.   |
-| `/account`, `/onboarding`         | Student or professor | `requireStudent`.                                  |
-| `/professor`                      | Professor            | Layout calls `requireProfessor`; the overview reads use `requireProfessorReview`. |
-| `/professor/review`               | Professor            | `requireProfessorReview`.                          |
-| `/professor/questions`            | Professor            | `requireProfessorReview` before dashboard reads.   |
-| `/professor/availability`         | Professor            | `requireProfessorReview` before dashboard reads.   |
-| `/professor/upload`               | Professor            | `requireProfessor`.                                |
-| `/professor/analytics`            | Professor            | `requireAnalyticsAccess`.                          |
+| Page                               | Access               | Server enforcement                                                                |
+| ---------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
+| `/`, `/topics/**`, `/practice/**`  | Public               | Approved/published queries only.                                                  |
+| `/dashboard`                       | Student or professor | `requireStudent`; server-resolved account owner.                                  |
+| `/account`, `/onboarding`          | Student or professor | `requireStudent`.                                                                 |
+| `/professor`                       | Professor            | Layout calls `requireProfessor`; the overview reads use `requireProfessorReview`. |
+| `/professor/review`                | Professor            | `requireProfessorReview`.                                                         |
+| `/professor/questions`             | Professor            | `requireProfessorReview` before dashboard reads.                                  |
+| `/professor/availability`          | Professor            | `requireProfessorReview` before dashboard reads.                                  |
+| `/professor/upload`                | Professor            | `requireProfessor`.                                                               |
+| `/professor/analytics`             | Professor            | `requireAnalyticsAccess`.                                                         |
+| `/professor/students`              | Professor            | `requireAnalyticsAccess`; pseudonymous records only.                              |
+| `/professor/students/[studentKey]` | Professor            | `requireAnalyticsAccess`; key must be a hex digest.                               |
 
 The legacy `/admin/**` route tree does not exist.
 

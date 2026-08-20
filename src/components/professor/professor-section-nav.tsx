@@ -21,6 +21,7 @@ const SECTIONS: SectionItem[] = [
   { href: "/professor/review", label: "Review queue" },
   { href: "/professor/questions", label: "Question lifecycle" },
   { href: "/professor/availability", label: "Student availability" },
+  { href: "/professor/students", label: "Students" },
   { href: "/professor/upload", label: "Uploads" },
   { href: "/professor/analytics", label: "Analytics" },
 ];

@@ -30,6 +30,10 @@ import {
   demoContentRepository,
   resetDemoReviewQueueForTests,
 } from "@/lib/data/demo-repository";
+import {
+  createDatabaseInstructorStudentRepository,
+  INSTRUCTOR_STUDENT_PAGE_SIZE,
+} from "@/lib/data/instructor-student-repository";
 import { queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import type {
@@ -46,6 +50,10 @@ import type {
 import type {
   AdminQuestion,
   AdminQuestionDashboard,
+  InstructorCohortAnalytics,
+  InstructorStudentDetail,
+  InstructorStudentList,
+  InstructorStudentListFilters,
   ProfessorQuestionReviewCandidateDto,
   ProfessorQuestionReviewDashboard,
   ProfessorReviewTopicSummaryDto,
@@ -388,6 +396,122 @@ export async function getContentAvailabilityDashboard(
   } catch (cause) {
     if (policy.allowDemoFallback) return demoContentAvailabilityDashboard();
     throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+/**
+ * Demo mode keeps tutor sessions in an in-process store that is only readable
+ * per owner, so there is no cohort to enumerate. Report that honestly rather
+ * than inventing synthetic students an instructor might mistake for real ones.
+ */
+function demoInstructorStudentList(
+  filters: InstructorStudentListFilters,
+): InstructorStudentList {
+  return {
+    limit: filters.limit ?? INSTRUCTOR_STUDENT_PAGE_SIZE,
+    mode: "demo",
+    offset: filters.offset ?? 0,
+    students: [],
+    total: 0,
+  };
+}
+
+function demoInstructorCohortAnalytics(): InstructorCohortAnalytics {
+  return {
+    activeStudents: 0,
+    attempts: 0,
+    blockedAttempts: 0,
+    correctAttempts: 0,
+    hintsUsed: 0,
+    llmAttempts: 0,
+    misconceptions: [],
+    mode: "demo",
+    retrievalAttempts: 0,
+    ruleAttempts: 0,
+    sessions: 0,
+    solutionsRevealed: 0,
+    studentsNeedingAttention: 0,
+  };
+}
+
+function instructorStudentRepository() {
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo") {
+    return undefined;
+  }
+
+  const env = getServerEnv();
+
+  if (!env.DATABASE_URL) {
+    return undefined;
+  }
+
+  return createDatabaseInstructorStudentRepository(queryPostgres);
+}
+
+export async function listInstructorStudents(
+  authorization: AnalyticsAuthorization,
+  filters: InstructorStudentListFilters = {},
+): Promise<InstructorStudentList> {
+  assertAuthorization(authorization, "professor");
+  const repository = instructorStudentRepository();
+
+  if (!repository) {
+    return demoInstructorStudentList(filters);
+  }
+
+  try {
+    return await repository.listStudents(authorization, filters);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return demoInstructorStudentList(filters);
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
+export async function getInstructorStudentDetail(
+  authorization: AnalyticsAuthorization,
+  studentKey: string,
+): Promise<InstructorStudentDetail | undefined> {
+  assertAuthorization(authorization, "professor");
+  const repository = instructorStudentRepository();
+
+  if (!repository) {
+    return undefined;
+  }
+
+  try {
+    return await repository.getStudentDetail(authorization, studentKey);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return undefined;
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
+export async function getInstructorCohortAnalytics(
+  authorization: AnalyticsAuthorization,
+): Promise<InstructorCohortAnalytics> {
+  assertAuthorization(authorization, "professor");
+  const repository = instructorStudentRepository();
+
+  if (!repository) {
+    return demoInstructorCohortAnalytics();
+  }
+
+  try {
+    return await repository.getCohortAnalytics(authorization);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return demoInstructorCohortAnalytics();
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
   }
 }
 

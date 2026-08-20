@@ -59,7 +59,7 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "/professor/analytics",
     "src/app/professor/analytics/page.tsx",
     "professor-analytics",
-    ["requireAnalyticsAccess"],
+    ["requireAnalyticsAccess", "getInstructorCohortAnalytics"],
   ),
   page(
     "/professor/availability",
@@ -78,6 +78,18 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/professor/questions/page.tsx",
     "professor-review",
     ["requireProfessorReview", "getQuestionLifecycleDashboard"],
+  ),
+  page(
+    "/professor/students",
+    "src/app/professor/students/page.tsx",
+    "professor-analytics",
+    ["requireAnalyticsAccess", "listInstructorStudents"],
+  ),
+  page(
+    "/professor/students/[studentKey]",
+    "src/app/professor/students/[studentKey]/page.tsx",
+    "professor-analytics",
+    ["requireAnalyticsAccess", "getInstructorStudentDetail"],
   ),
   page(
     "/professor/review",

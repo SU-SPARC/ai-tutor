@@ -721,6 +721,136 @@ export type TutorSessionEngineState = TutorProgress & {
   sessionId: string;
 };
 
+/**
+ * Instructor analytics DTOs.
+ *
+ * `studentKey` is a SHA-256 digest of the tutor-session owner, derived in SQL.
+ * It is stable across sessions and is the only student handle that leaves the
+ * server: the raw anonymous cookie value, the authenticated user id, and the
+ * user's name and email deliberately never reach an instructor surface.
+ */
+export type InstructorStudentSummary = {
+  attempts: number;
+  correctAttempts: number;
+  firstActiveAt?: string;
+  hintsUsed: number;
+  incorrectAttempts: number;
+  lastActiveAt?: string;
+  llmAttempts: number;
+  misconceptionAttempts: number;
+  sessions: number;
+  solutionsRevealed: number;
+  solvedSessions: number;
+  studentKey: string;
+  topicsPracticed: number;
+};
+
+export type InstructorStudentSort =
+  | "attempts"
+  | "last_active"
+  | "lowest_accuracy"
+  | "sessions";
+
+export type InstructorStudentListFilters = {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  sort?: InstructorStudentSort;
+};
+
+export type InstructorStudentList = {
+  limit: number;
+  mode: "database" | "demo";
+  offset: number;
+  students: InstructorStudentSummary[];
+  total: number;
+};
+
+export type InstructorStudentTopicPerformance = {
+  attempts: number;
+  correctAttempts: number;
+  hintsUsed: number;
+  incorrectAttempts: number;
+  lastActiveAt?: string;
+  misconceptionAttempts: number;
+  solutionsRevealed: number;
+  topicId: string;
+  topicTitle: string;
+};
+
+/**
+ * One recorded tutor interaction. `misconceptionDetected` reports only whether
+ * the engine matched a misconception; the stored feedback text itself is not
+ * returned, and neither is the submitted answer.
+ */
+export type InstructorStudentAttempt = {
+  createdAt: string;
+  id: string;
+  misconceptionDetected: boolean;
+  mode: string;
+  questionId: string;
+  questionTitle: string;
+  source: string;
+  topicId: string;
+  topicTitle: string;
+  verdict?: string;
+};
+
+export type InstructorMisconceptionCount = {
+  label: string;
+  misconceptionId: string;
+  sessions: number;
+};
+
+export type InstructorStudentActivityPoint = {
+  attempts: number;
+  correctAttempts: number;
+  date: string;
+};
+
+/**
+ * A deterministic, explainable signal. Every entry carries the counts it was
+ * derived from so the instructor can check the reasoning rather than trust a
+ * ranking.
+ */
+export type InstructorAttentionSignal = {
+  attempts: number;
+  code:
+    | "repeated_misconception"
+    | "repeated_topic_difficulty"
+    | "solution_reliance";
+  correctAttempts: number;
+  detail: string;
+  topicId?: string;
+  topicTitle?: string;
+};
+
+export type InstructorStudentDetail = {
+  activity: InstructorStudentActivityPoint[];
+  attention: InstructorAttentionSignal[];
+  attempts: InstructorStudentAttempt[];
+  misconceptions: InstructorMisconceptionCount[];
+  mode: "database" | "demo";
+  summary: InstructorStudentSummary;
+  topics: InstructorStudentTopicPerformance[];
+};
+
+export type InstructorCohortAnalytics = {
+  activeStudents: number;
+  attempts: number;
+  blockedAttempts: number;
+  correctAttempts: number;
+  hintsUsed: number;
+  llmAttempts: number;
+  misconceptions: InstructorMisconceptionCount[];
+  mode: "database" | "demo";
+  retrievalAttempts: number;
+  ruleAttempts: number;
+  sessions: number;
+  solutionsRevealed: number;
+  studentsNeedingAttention: number;
+};
+
 export type StudentProgressDashboard = {
   mode: "database" | "demo";
   questions: Array<{

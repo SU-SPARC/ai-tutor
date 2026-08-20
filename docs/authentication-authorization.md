@@ -109,7 +109,8 @@ navigation visibility or proxy middleware as authorization.
 Handler repeats the role check close to its data operation:
 
 - `/professor`, `/professor/review`, `/professor/questions`,
-  `/professor/availability`, `/professor/upload`, and `/professor/analytics`
+  `/professor/availability`, `/professor/students`, `/professor/upload`, and
+  `/professor/analytics`
 - `/api/professor/review`
 - `/api/professor/availability`
 - `/api/professor/questions` and its detail/regeneration routes
