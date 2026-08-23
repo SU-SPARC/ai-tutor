@@ -74,6 +74,12 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireProfessorReview"],
   ),
   page(
+    "/professor/feedback",
+    "src/app/professor/feedback/page.tsx",
+    "professor-review",
+    ["requireProfessorReview", "getProfessorQuestionFeedbackDashboard"],
+  ),
+  page(
     "/professor/questions",
     "src/app/professor/questions/page.tsx",
     "professor-review",
@@ -264,6 +270,20 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "GET",
+    "/api/professor/feedback",
+    "src/app/api/professor/feedback/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "getProfessorQuestionFeedbackDashboard"],
+  ),
+  route(
+    "PATCH",
+    "/api/professor/feedback/[reportId]",
+    "src/app/api/professor/feedback/[reportId]/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "reviewQuestionFeedback"],
+  ),
+  route(
+    "GET",
     "/api/professor/analytics",
     "src/app/api/professor/analytics/route.ts",
     "professor-analytics",
@@ -352,6 +372,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/tutor/session/[sessionId]/attempt/route.ts",
     "owned-student-resource",
     ["authorizeStudentResourceApi", "toStudentTutorSessionDto"],
+  ),
+  route(
+    "POST",
+    "/api/tutor/session/[sessionId]/feedback",
+    "src/app/api/tutor/session/[sessionId]/feedback/route.ts",
+    "owned-student-resource",
+    ["authorizeStudentResourceApi", "submitQuestionFeedback"],
   ),
   route(
     "POST",

@@ -13,10 +13,10 @@ export class DataServiceUnavailableError extends Error {
   readonly code = DATA_SERVICE_UNAVAILABLE_CODE
   readonly databaseCategory?: DatabaseErrorCategory
   readonly retryable: boolean
-  readonly subsystem: "content" | "tutor-session"
+  readonly subsystem: "content" | "question-feedback" | "tutor-session"
 
   constructor(
-    subsystem: "content" | "tutor-session",
+    subsystem: "content" | "question-feedback" | "tutor-session",
     options?: { cause?: unknown },
   ) {
     super(DATA_SERVICE_UNAVAILABLE_MESSAGE)

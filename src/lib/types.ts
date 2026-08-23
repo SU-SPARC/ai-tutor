@@ -97,6 +97,68 @@ export type StudentContentAvailabilityDashboard = {
   topics: StudentContentAvailabilityTarget[];
 };
 
+export const QUESTION_FEEDBACK_CATEGORIES = [
+  "answer_appears_incorrect",
+  "wording_unclear",
+  "hint_unhelpful",
+  "solution_step_issue",
+  "technical_problem",
+  "other",
+] as const;
+
+export type QuestionFeedbackCategory =
+  (typeof QUESTION_FEEDBACK_CATEGORIES)[number];
+
+export const QUESTION_FEEDBACK_STATUSES = [
+  "open",
+  "triaged",
+  "resolved",
+  "dismissed",
+] as const;
+
+export type QuestionFeedbackStatus =
+  (typeof QUESTION_FEEDBACK_STATUSES)[number];
+
+/**
+ * Minimal student-facing confirmation. Session, version, reporter, and free
+ * text fields deliberately stay behind the server boundary.
+ */
+export type QuestionFeedbackReceipt = {
+  acknowledgement: string;
+  category: QuestionFeedbackCategory;
+  createdAt: string;
+  id: string;
+  status: "open";
+};
+
+/**
+ * Professor review data omits the raw student identity and its one-way key.
+ * The session reference is included only on the professor-authorized surface.
+ */
+export type ProfessorQuestionFeedbackReport = {
+  assignedToDisplayName?: string;
+  category: QuestionFeedbackCategory;
+  createdAt: string;
+  id: string;
+  message: string;
+  questionId: string;
+  questionTitle: string;
+  questionVersionId: number;
+  questionVersionNumber: number;
+  resolutionNotes?: string;
+  resolvedAt?: string;
+  status: QuestionFeedbackStatus;
+  topicId?: string;
+  tutorSessionId: string;
+  updatedAt: string;
+};
+
+export type ProfessorQuestionFeedbackDashboard = {
+  counts: Record<QuestionFeedbackStatus, number>;
+  mode: "database" | "demo";
+  reports: ProfessorQuestionFeedbackReport[];
+};
+
 export type QuestionCreationMethod =
   | "manual"
   | "imported"

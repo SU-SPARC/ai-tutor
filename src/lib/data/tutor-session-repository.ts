@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   isSameOwner,
@@ -360,6 +360,7 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         lastSeenAt: createdAt.toISOString(),
         llmUsed: false,
         questionId: input.questionId,
+        questionVersionId: demoQuestionVersionId(input.questionId),
         revealedHints: 0,
         revealedSteps: 0,
         retrievalUsed: false,
@@ -1393,6 +1394,13 @@ function initialEngineState(
     stepsRevealed: 0,
     wrongAttemptCount: 0,
   };
+}
+
+function demoQuestionVersionId(questionId: string) {
+  return Number.parseInt(
+    createHash("sha256").update(questionId).digest("hex").slice(0, 8),
+    16,
+  );
 }
 
 function engineStateFromRow(row: TutorSessionRow): TutorSessionEngineState {

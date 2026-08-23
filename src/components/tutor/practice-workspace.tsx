@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { MathText } from "@/components/math/math-renderer";
+import { QuestionFeedbackForm } from "@/components/tutor/question-feedback-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -578,19 +579,26 @@ export function PracticeWorkspace({
                     <MathText>{selectedQuestion.prompt}</MathText>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  title="Reset"
-                  aria-label="Reset conversation"
-                  disabled={isTutorBusy}
-                  onClick={() => {
-                    void restartTutorSession();
-                  }}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <QuestionFeedbackForm
+                    key={session?.id ?? selectedQuestion.id}
+                    questionTitle={selectedQuestion.title}
+                    sessionId={session?.id}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title="Reset"
+                    aria-label="Reset conversation"
+                    disabled={isTutorBusy}
+                    onClick={() => {
+                      void restartTutorSession();
+                    }}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div

@@ -141,6 +141,20 @@ approval and immutable-version publication gates. The schema intentionally
 does not invent course/cohort assignment because no course, cohort, membership,
 or enrollment model exists.
 
+`018_production_tutor_session_persistence.sql` stores the minimum durable tutor
+state needed to resume a student-owned session, including immutable question
+version, progress, redacted submitted answers, normalized results, hint/step
+usage, misconception feedback, completion, timestamps, and AI fallback flags.
+Idempotency keys and optimistic revisions protect retries and concurrent writes;
+raw retrieval context and provider payloads are excluded.
+
+`019_question_feedback_reporting.sql` activates question/explanation reporting
+for the six student-facing categories, adds per-reporter idempotency and abuse-
+limit indexes, and preserves historical category rows. New application reports
+derive their session, question, and immutable version links from the owned tutor
+session, store only a one-way reporter key and redacted optional details, and
+remain operational records separate from question publication.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval

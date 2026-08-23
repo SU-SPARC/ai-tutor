@@ -24,6 +24,7 @@ grant interface.
 | `/professor/review`                | Professor            | `requireProfessorReview`.                                                         |
 | `/professor/questions`             | Professor            | `requireProfessorReview` before dashboard reads.                                  |
 | `/professor/availability`          | Professor            | `requireProfessorReview` before dashboard reads.                                  |
+| `/professor/feedback`              | Professor            | `requireProfessorReview`; reporter identity is omitted.                           |
 | `/professor/upload`                | Professor            | `requireProfessor`.                                                               |
 | `/professor/analytics`             | Professor            | `requireAnalyticsAccess`.                                                         |
 | `/professor/students`              | Professor            | `requireAnalyticsAccess`; pseudonymous records only.                              |
@@ -44,7 +45,9 @@ The legacy `/admin/**` route tree does not exist.
 | `GET /api/questions`, `GET /api/questions/[id]`  | Public                                    | Approved public questions only.                                                          |
 | `GET /api/student/progress`                      | Student or professor                      | Returns only the current account's practice progress; no ranking or peer data.           |
 | Tutor-session routes                             | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                  |
+| `POST /api/tutor/session/[sessionId]/feedback`   | Owning student/professor/anonymous        | Derives the exact question version from the owned session; returns a minimal receipt.    |
 | `GET`, `PATCH /api/professor/availability`       | Professor                                 | Global-only topic/question release rules, schedules, and attributed audit history.       |
+| `GET`, `PATCH /api/professor/feedback/**`        | Professor                                 | Redacted, version-linked queue data; status updates cannot mutate question content.      |
 | `GET`, `PATCH`, `POST /api/professor/review`     | Professor                                 | Professor-safe draft DTOs; real reviewer attribution.                                    |
 | `GET`, `POST /api/professor/questions`           | Professor                                 | Lifecycle listing or a complete validated initial draft.                                 |
 | `GET /api/professor/questions/[id]`              | Professor                                 | Immutable versions, lifecycle timeline, attribution, validation, and allowed actions.    |

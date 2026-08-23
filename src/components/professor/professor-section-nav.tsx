@@ -19,6 +19,7 @@ type SectionItem = {
 const SECTIONS: SectionItem[] = [
   { href: "/professor", label: "Overview" },
   { href: "/professor/review", label: "Review queue" },
+  { href: "/professor/feedback", label: "Student reports" },
   { href: "/professor/questions", label: "Question lifecycle" },
   { href: "/professor/availability", label: "Student availability" },
   { href: "/professor/students", label: "Students" },
