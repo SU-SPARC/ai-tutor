@@ -60,13 +60,14 @@ Audit baseline: `e310048`
 
 - The tutor is rule-first and uses saved hints, solution steps, and
   misconception feedback before retrieval or LLM fallback.
-- Retrieval supports keyword search and optional embeddings, with audience
-  filtering and server-side private-reference summaries.
+- Retrieval uses production keyword ranking with topic and lexical relevance
+  gates, audience filtering, and server-side private-reference summaries.
 - LLM fallback is server-side, opt-in, limited to probability/statistics help,
   guarded against unsafe output, and disabled when durable usage controls are
   unavailable outside demo mode.
-- Usage controls include input/output limits, session and daily call limits,
-  token reservations, per-student/per-question scopes, and response caching.
+- Usage controls include input/output limits, one in-flight generation per
+  session, HMAC-scoped accounting, token reservations, and student-isolated
+  response caching. The project owner selected unlimited daily/session access.
 
 ### Identity And Operations
 
@@ -107,7 +108,8 @@ by themselves establish production readiness:
       chunks are not returned through student APIs.
 - [x] Server-side LLM fallback has response guardrails, caching, and token/call
       controls.
-- [x] Aggregate professor analytics and AI usage dashboards exist.
+- [x] HMAC-scoped AI usage, reservation, token, and cache-hit accounting is
+      durable; no separate professor-facing AI usage dashboard is claimed.
 - [x] Explicit operating modes prevent Preview database mode, Staging, and
       Production from falling back to demo content or in-memory sessions.
 - [x] Lint, TypeScript, unit/API tests, and the production build pass at the
@@ -148,7 +150,7 @@ team should replace each role before a pilot is scheduled.
 | PR-19 | High     | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them.                              | Planned           | Application engineering + professor           | Browser/API tests prove progression is server-enforced.                                                                                                                                                                                                                                                                     |
 | PR-20 | High     | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation.                                    | Planned           | Platform engineering + security               | Staging evidence demonstrates useful diagnostics without secrets, raw private content, or student answers.                                                                                                                                                                                                                  |
 | PR-21 | High     | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests.       | Planned           | Quality engineering                           | CI blocks deployment when any production gate fails.                                                                                                                                                                                                                                                                        |
-| PR-22 | Medium   | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts.                          | Decision required | AI engineering + project owner                | Failure tests and provider budget alerts prove spend remains bounded.                                                                                                                                                                                                                                                       |
+| PR-22 | Medium   | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts.                          | Partially complete | AI engineering + project owner                | The [production retrieval/LLM policy](retrieval-llm-production-policy.md), runtime deadlines, atomic reservations, and AI evaluation tests cover application controls. The owner selected unlimited student quotas; provider billing alerts remain an external operational task.                                                                                         |
 | PR-23 | Medium   | Add rate limits and abuse controls for session creation and public APIs.                                                            | Planned           | Security + application engineering            | Tests cover identity rotation, bursts, oversized requests, and controlled throttling.                                                                                                                                                                                                                                       |
 | PR-24 | Medium   | Correct analytics semantics and document metric definitions.                                                                        | Planned           | Data/analytics owner + professor              | Validated metrics distinguish detected misconceptions from general missed attempts.                                                                                                                                                                                                                                         |
 | PR-25 | Medium   | Complete accessibility verification and remediation.                                                                                | Planned           | Frontend engineering + accessibility reviewer | WCAG acceptance review, keyboard/screen-reader checks, and automated tests pass.                                                                                                                                                                                                                                            |
@@ -203,8 +205,9 @@ link it from the corresponding task above.
   summaries may be used.
 - Copied-source indicators are screened by ingestion, database constraints,
   retrieval, uploads, and LLM output guardrails.
-- LLM usage keys are HMAC-derived, and production LLM spending fails closed
-  without durable usage configuration.
+- LLM usage keys are HMAC-derived, and production LLM execution fails closed
+  without durable usage configuration. Student quotas are unlimited by the
+  recorded project-owner decision.
 
 ### Unresolved Risks
 

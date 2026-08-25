@@ -155,6 +155,13 @@ derive their session, question, and immutable version links from the owned tutor
 session, store only a one-way reporter key and redacted optional details, and
 remain operational records separate from question publication.
 
+`020_production_ai_fallback_controls.sql` adds idempotent provider-event and
+request hashes, one pending generation per tutor session, token-estimate
+provenance, and cache/reservation indexes. Runtime settlement updates the tutor
+transition, reservation, student-isolated cache, session token counters, and
+HMAC-scoped usage rows in one database transaction; prompts, answers, raw
+retrieval context, and provider payloads are not stored.
+
 Deletion behavior is explicit:
 
 - retiring content is a state change; immutable question versions and approval

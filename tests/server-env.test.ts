@@ -18,6 +18,7 @@ describe("typed server environment", () => {
     expect(env).toMatchObject({
       AI_ENABLED: false,
       AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
+      AI_REQUEST_TIMEOUT_MS: 8_000,
       APP_DEMO_MODE: true,
       APP_ENV: "development",
       APP_URL: "http://localhost:3000",
@@ -83,6 +84,7 @@ describe("typed server environment", () => {
       AI_ENABLED: true,
       AI_MODEL: "approved/model",
       AI_PROVIDER: "openrouter",
+      AI_REQUEST_TIMEOUT_MS: 8_000,
       APP_DEMO_MODE: false,
       APP_ENV: "staging",
       APP_URL: "https://staging.example.edu",
@@ -268,7 +270,7 @@ describe("typed server environment", () => {
         issues: expect.arrayContaining([
           "AI_PROVIDER is required when AI_ENABLED is true.",
           "AI_MODEL is required.",
-          "MAX_LLM_OUTPUT_TOKENS is required and must be a positive integer.",
+          "MAX_LLM_OUTPUT_TOKENS is required and must be an integer between 64 and 400.",
           "OPENROUTER_API_KEY is required when AI_ENABLED is true and AI_PROVIDER is openrouter.",
         ]),
       }),
@@ -282,6 +284,7 @@ describe("typed server environment", () => {
       parseServerEnv({
         NODE_ENV: "test",
         NEXT_PUBLIC_ADMIN_SECRET: exposedValue,
+        NEXT_PUBLIC_AI_USAGE_HMAC_SECRET: exposedValue,
         NEXT_PUBLIC_CLERK_SECRET_KEY: exposedValue,
         NEXT_PUBLIC_DATABASE_URL: exposedValue,
         NEXT_PUBLIC_OPENROUTER_API_KEY: exposedValue,
@@ -291,6 +294,7 @@ describe("typed server environment", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
       expect(String(error)).toContain("NEXT_PUBLIC_ADMIN_SECRET");
+      expect(String(error)).toContain("NEXT_PUBLIC_AI_USAGE_HMAC_SECRET");
       expect(String(error)).toContain("NEXT_PUBLIC_CLERK_SECRET_KEY");
       expect(String(error)).toContain("NEXT_PUBLIC_DATABASE_URL");
       expect(String(error)).toContain("NEXT_PUBLIC_OPENROUTER_API_KEY");
@@ -322,6 +326,8 @@ function strictEnvironment(
     AI_ENABLED: "true",
     AI_MODEL: "approved/model",
     AI_PROVIDER: "openrouter",
+    AI_REQUEST_TIMEOUT_MS: "8000",
+    AI_USAGE_HMAC_SECRET: "unit-test-hmac-secret-material-1234567890",
     APP_DEMO_MODE: "false",
     APP_ENV: environment,
     APP_URL:

@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { TutorAiAccounting } from "@/lib/ai/usage-controls";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import {
@@ -390,6 +391,153 @@ describe("production database reliability", () => {
     });
     expect(final?.attempts).toHaveLength(2);
   });
+
+  it("atomically settles AI accounting once for an idempotent tutor event", async () => {
+    const database = createDatabase();
+    await createTutorSchema(database);
+    const repository = createDatabaseTutorSessionRepository(
+      "postgres://not-used.invalid/ai-accounting-test",
+      pgliteExecutor(database),
+    );
+    const owner = { kind: "user" as const, userId: "user:ai-accounting" };
+    const session = await repository.createSession({
+      idempotencyKey: "session:ai-accounting",
+      owner,
+      questionId: "question-1",
+    });
+    const accounting = aiAccountingFor(session.id, "reservation:success", {
+      cacheEntry: {
+        contextUsed: true,
+        message: "Start with the event definition.",
+        responseLabel: "approved_course_content",
+        schemaVersion: 1,
+      },
+      providerCalls: 1,
+      providerInputTokens: 80,
+      providerOutputTokens: 20,
+      providerTotalTokens: 100,
+    });
+    await insertAiReservation(database, accounting);
+    const state = {
+      ...session.engineState!,
+      attemptCount: 1,
+      llmUsed: true,
+      state: "llm_guidance" as const,
+    };
+    const input = {
+      aiAccounting: accounting,
+      expectedRevision: 0,
+      idempotencyKey: "event:ai-accounting",
+      mode: "check" as const,
+      owner,
+      response: {
+        ...guidanceResponse(),
+        source: "llm" as const,
+        usage: {
+          contextUsed: true,
+          estimatedTokens: 180,
+          fallbackUsed: true,
+        },
+      },
+      sessionId: session.id,
+      state,
+      submittedAnswer: "I am stuck.",
+    };
+
+    const applied = await repository.persistTransition(input);
+    const duplicate = await repository.persistTransition(input);
+    const persisted = await database.query<{
+      llm_calls: number;
+      llm_total_tokens: number;
+    }>(
+      `select llm_calls, llm_total_tokens from tutor_sessions where id = $1`,
+      [session.id],
+    );
+    const reservation = await database.query<{ status: string }>(
+      `select status from ai_llm_reservations where id = $1`,
+      [accounting.reservationId],
+    );
+    const cache = await database.query<{ count: number }>(
+      `select count(*)::integer as count from ai_response_cache`,
+    );
+    const usage = await database.query<{
+      count: number;
+      llm_fallbacks: number;
+    }>(
+      `select count(*)::integer as count,
+              sum(llm_fallbacks)::integer as llm_fallbacks
+       from ai_usage`,
+    );
+
+    expect(applied.outcome).toBe("applied");
+    expect(duplicate.outcome).toBe("idempotent");
+    expect(persisted.rows[0]).toEqual({ llm_calls: 1, llm_total_tokens: 100 });
+    expect(reservation.rows[0]?.status).toBe("settled");
+    expect(cache.rows[0]?.count).toBe(1);
+    expect(usage.rows[0]).toEqual({ count: 4, llm_fallbacks: 4 });
+  });
+
+  it("releases failed AI accounting without caching or marking LLM use", async () => {
+    const database = createDatabase();
+    await createTutorSchema(database);
+    const repository = createDatabaseTutorSessionRepository(
+      "postgres://not-used.invalid/ai-release-test",
+      pgliteExecutor(database),
+    );
+    const owner = { kind: "anonymous" as const, anonymousId: "anon:ai-release" };
+    const session = await repository.createSession({
+      owner,
+      questionId: "question-1",
+    });
+    const accounting = aiAccountingFor(session.id, "reservation:failure", {
+      providerCalls: 2,
+    });
+    await insertAiReservation(database, accounting);
+
+    const result = await repository.persistTransition({
+      aiAccounting: accounting,
+      expectedRevision: 0,
+      idempotencyKey: "event:ai-release",
+      mode: "check",
+      owner,
+      response: {
+        ...guidanceResponse(),
+        source: "blocked",
+        verdict: "blocked",
+      },
+      sessionId: session.id,
+      state: {
+        ...session.engineState!,
+        attemptCount: 1,
+        state: "blocked",
+      },
+    });
+    const persisted = await database.query<{
+      llm_calls: number;
+      llm_total_tokens: number;
+      llm_used: boolean;
+    }>(
+      `select llm_calls, llm_total_tokens, llm_used
+       from tutor_sessions where id = $1`,
+      [session.id],
+    );
+    const reservation = await database.query<{ status: string }>(
+      `select status from ai_llm_reservations where id = $1`,
+      [accounting.reservationId],
+    );
+    const cache = await database.query<{ count: number }>(
+      `select count(*)::integer as count from ai_response_cache`,
+    );
+
+    expect(result.outcome).toBe("applied");
+    expect(persisted.rows[0]).toEqual({
+      llm_calls: 2,
+      llm_total_tokens: 0,
+      llm_used: false,
+    });
+    expect(reservation.rows[0]?.status).toBe("released");
+    expect(cache.rows[0]?.count).toBe(0);
+  });
 });
 
 function guidanceResponse(
@@ -409,6 +557,57 @@ function guidanceResponse(
     },
     verdict: overrides.verdict ?? ("guidance" as const),
   };
+}
+
+function aiAccountingFor(
+  sessionId: string,
+  reservationId: string,
+  overrides: Partial<TutorAiAccounting> = {},
+): TutorAiAccounting {
+  return {
+    cacheHit: false,
+    estimatedInputTokens: 80,
+    estimatedTotalTokens: 180,
+    mode: "check",
+    providerCalls: 0,
+    providerInputTokens: 0,
+    providerOutputTokens: 0,
+    providerTotalTokens: 0,
+    questionId: "question-1",
+    questionKeyHash: "question-hash",
+    questionVersionId: 1,
+    requestHash: `${reservationId}:request`,
+    reservationId,
+    sessionId,
+    sessionKeyHash: `${sessionId}:hash`,
+    studentKeyHash: "student-hash",
+    topicId: "topic-1",
+    usageIsEstimate: false,
+    ...overrides,
+  };
+}
+
+async function insertAiReservation(
+  database: PGlite,
+  accounting: TutorAiAccounting,
+) {
+  await database.query(
+    `insert into ai_llm_reservations (
+       id, session_id, student_key_hash, question_key_hash,
+       reserved_total_tokens, status, expires_at, idempotency_key,
+       request_hash, usage_is_estimate
+     ) values ($1, $2, $3, $4, $5, 'pending', now() + interval '30 seconds',
+       $6, $7, false)`,
+    [
+      accounting.reservationId,
+      accounting.sessionId,
+      accounting.studentKeyHash,
+      accounting.questionKeyHash,
+      accounting.estimatedTotalTokens,
+      `event:${accounting.reservationId}`,
+      accounting.requestHash,
+    ],
+  );
 }
 
 function createDatabase() {
@@ -541,6 +740,10 @@ async function createTutorSchema(database: PGlite) {
       solved boolean not null default false,
       retrieval_used boolean not null default false,
       llm_used boolean not null default false,
+      llm_calls integer not null default 0,
+      llm_input_tokens integer not null default 0,
+      llm_output_tokens integer not null default 0,
+      llm_total_tokens integer not null default 0,
       last_answer_fingerprint text,
       last_misconception_ids_json jsonb not null default '[]'::jsonb,
       completed_at timestamptz,
@@ -571,6 +774,61 @@ async function createTutorSchema(database: PGlite) {
       response_label text,
       progress_revision bigint,
       created_at timestamptz not null default now()
+    );
+
+    create table ai_llm_reservations (
+      id text primary key,
+      session_id text not null,
+      student_key_hash text not null,
+      question_key_hash text not null,
+      reserved_total_tokens integer not null,
+      actual_input_tokens integer,
+      actual_output_tokens integer,
+      actual_total_tokens integer,
+      status text not null,
+      expires_at timestamptz not null,
+      idempotency_key text not null,
+      request_hash text not null,
+      usage_is_estimate boolean not null default false,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create unique index ai_llm_reservations_session_event_idx
+      on ai_llm_reservations (session_id, idempotency_key);
+
+    create unique index ai_llm_reservations_one_pending_session_idx
+      on ai_llm_reservations (session_id)
+      where status = 'pending';
+
+    create table ai_response_cache (
+      request_hash text primary key,
+      question_id text,
+      question_version_id bigint,
+      topic_id text,
+      mode text not null,
+      source text not null,
+      response_json jsonb not null,
+      expires_at timestamptz not null,
+      student_key_hash text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create table ai_usage (
+      scope text not null,
+      scope_key text not null,
+      date_key date not null,
+      interactions integer not null default 0,
+      estimated_tokens integer not null default 0,
+      llm_fallbacks integer not null default 0,
+      llm_input_tokens integer not null default 0,
+      llm_output_tokens integer not null default 0,
+      llm_total_tokens integer not null default 0,
+      estimated_llm_tokens integer not null default 0,
+      cache_hits integer not null default 0,
+      updated_at timestamptz not null default now(),
+      primary key (scope, scope_key, date_key)
     );
 
     create table question_versions (

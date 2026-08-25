@@ -108,6 +108,48 @@ describe("retrieval ranking and safety", () => {
     expect(matches[0].chunk.body).not.toContain("textbook page")
   })
 
+  it("rejects topic-only matches without meaningful lexical evidence", () => {
+    const matches = rankRetrievalChunks(
+      "unrelated quilting advice",
+      [retrievalChunk()],
+      { audience: "student", topicId: "binomial-models" },
+    )
+
+    expect(matches).toEqual([])
+  })
+
+  it("does not retrieve a strong lexical match from another active topic", () => {
+    const matches = rankRetrievalChunks(
+      "binomial model independent trials",
+      [retrievalChunk({ topicId: "normal-standardization" })],
+      { audience: "student", topicId: "binomial-models" },
+    )
+
+    expect(matches).toEqual([])
+  })
+
+  it("excludes demo sources from the production retrieval policy", () => {
+    const matches = rankRetrievalChunks(
+      "binomial model independent trials",
+      [
+        retrievalChunk({ id: "demo" }),
+        retrievalChunk({
+          id: "course-approved",
+          priorityTier: "approved_professor_course",
+          sourceType: "professor_provided",
+          trustLevel: "course_approved",
+        }),
+      ],
+      {
+        audience: "student",
+        productionSourcesOnly: true,
+        topicId: "binomial-models",
+      },
+    )
+
+    expect(matches.map((match) => match.chunk.id)).toEqual(["course-approved"])
+  })
+
   it("builds compact LLM grounding context and drops forbidden private-source signals", () => {
     const matches = [
       {
@@ -214,13 +256,14 @@ function retrievalChunk(
     priorityTier: RetrievalPriorityTier
     reviewStatus: ReviewStatus
     sourceType: SourceType
+    topicId: string
     trustLevel: TrustLevel
     visibility: Visibility
   }> = {},
 ): RetrievalChunk {
   return {
     id: overrides.id ?? "chunk",
-    topicId: "binomial-models",
+    topicId: overrides.topicId ?? "binomial-models",
     chunkType: "concept",
     title: "Retrieval chunk",
     body: overrides.body ?? "Use the binomial model with independent trials.",

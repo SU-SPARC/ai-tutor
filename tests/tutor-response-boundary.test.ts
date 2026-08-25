@@ -89,6 +89,7 @@ describe("student tutor response boundary", () => {
         sessionId: "session:owned",
       }),
       question,
+      undefined,
     );
     expect(mocks.persistTutorSessionTransition).toHaveBeenCalledWith(
       expect.anything(),

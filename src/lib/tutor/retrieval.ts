@@ -17,6 +17,7 @@ import {
   localResultToRetrievalChunk,
   searchLocalRetrieval,
 } from "@/lib/ai/retrieval";
+import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
 import {
   type LlmGroundingContext,
   type RetrievalChunk,
@@ -33,6 +34,7 @@ export type RetrievalOptions = {
   audience?: RetrievalAudience;
   includeQuestionExamples?: boolean;
   maxResults?: number;
+  productionSourcesOnly?: boolean;
   professorAuthorization?: ProfessorReviewAuthorization;
   topicId?: string;
 };
@@ -147,6 +149,9 @@ export async function retrieveTutorContext(
   const matches = rankRetrievalChunks(query, chunks, {
     ...options,
     audience,
+    productionSourcesOnly: ["production", "staging"].includes(
+      getOperatingModePolicy().mode,
+    ),
   });
 
   return {
@@ -170,18 +175,30 @@ export function rankRetrievalChunks(
   }
 
   return chunks
-    .map((chunk) => sanitizeChunkForAudience(chunk, audience))
+    .map((chunk) =>
+      sanitizeChunkForAudience(
+        chunk,
+        audience,
+        options.productionSourcesOnly ?? false,
+      ),
+    )
     .filter((chunk): chunk is RetrievalChunk => Boolean(chunk))
-    .map((chunk) => ({
-      chunk,
-      priorityTier: chunk.priorityTier,
-      score: scoreChunk(chunk, {
+    .filter((chunk) => !options.topicId || chunk.topicId === options.topicId)
+    .map((chunk) => {
+      const relevance = relevanceForChunk(chunk, {
         normalizedQuery,
         queryTerms,
         topicId: options.topicId,
-      }),
-    }))
-    .filter((match) => match.score > 0)
+      })
+
+      return {
+        chunk,
+        priorityTier: chunk.priorityTier,
+        qualifies: relevance.strongMetadataMatch || relevance.textOverlap >= 2,
+        score: relevance.score,
+      }
+    })
+    .filter((match) => match.qualifies)
     .sort((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
@@ -197,7 +214,12 @@ export function rankRetrievalChunks(
 
       return left.chunk.id.localeCompare(right.chunk.id);
     })
-    .slice(0, options.maxResults ?? DEFAULT_MAX_RESULTS);
+    .slice(0, options.maxResults ?? DEFAULT_MAX_RESULTS)
+    .map(({ chunk, priorityTier, score }) => ({
+      chunk,
+      priorityTier,
+      score,
+    }));
 }
 
 export function buildLlmGroundingContext(
@@ -281,6 +303,7 @@ function reviewCandidateToRetrievalChunks(
 function sanitizeChunkForAudience(
   chunk: RetrievalChunk,
   audience: RetrievalAudience,
+  productionSourcesOnly: boolean,
 ): RetrievalChunk | undefined {
   const priorityTier = chunk.priorityTier ?? priorityTierForContent(chunk);
   const normalizedChunk = {
@@ -316,6 +339,15 @@ function sanitizeChunkForAudience(
     });
   }
 
+  if (
+    productionSourcesOnly &&
+    (normalizedChunk.priorityTier === "safe_demo" ||
+      normalizedChunk.source.sourceType === "original_demo" ||
+      normalizedChunk.source.trustLevel === "public_original")
+  ) {
+    return undefined;
+  }
+
   if (!isPublishedContent(normalizedChunk)) {
     return undefined;
   }
@@ -346,7 +378,7 @@ function safeChunkWithBody(
   };
 }
 
-function scoreChunk(
+function relevanceForChunk(
   chunk: RetrievalChunk,
   input: {
     normalizedQuery: string;
@@ -360,13 +392,23 @@ function scoreChunk(
     score += 8;
   }
 
-  score += scorePhrases(chunk.formulaRefs, input, 6);
-  score += scorePhrases(chunk.conceptTags, input, 5);
-  score += scorePhrases(chunk.keywords, input, 4);
-  score += scorePhrases([chunk.title], input, 3);
-  score += scoreText(chunk.llmSafeSummary ?? chunk.body, input.queryTerms);
+  const formulaScore = scorePhrases(chunk.formulaRefs, input, 6);
+  const conceptScore = scorePhrases(chunk.conceptTags, input, 5);
+  const keywordScore = scorePhrases(chunk.keywords, input, 4);
+  const titleScore = scorePhrases([chunk.title], input, 3);
+  const textOverlap = countTextOverlap(
+    chunk.llmSafeSummary ?? chunk.body,
+    input.queryTerms,
+  );
 
-  return score;
+  score += formulaScore + conceptScore + keywordScore + titleScore + textOverlap;
+
+  return {
+    score,
+    strongMetadataMatch:
+      formulaScore > 0 || conceptScore > 0 || keywordScore > 0 || titleScore > 0,
+    textOverlap,
+  };
 }
 
 function scorePhrases(
@@ -394,17 +436,17 @@ function scorePhrases(
   }, 0);
 }
 
-function scoreText(text: string, queryTerms: Set<string>) {
+function countTextOverlap(text: string, queryTerms: Set<string>) {
   const terms = tokenizeText(text);
-  let score = 0;
+  let overlap = 0;
 
   for (const term of queryTerms) {
     if (terms.has(term)) {
-      score += 1;
+      overlap += 1;
     }
   }
 
-  return score;
+  return overlap;
 }
 
 function contextBodyForChunk(chunk: RetrievalChunk) {

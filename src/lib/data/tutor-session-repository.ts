@@ -16,6 +16,10 @@ import { queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
+import {
+  applyTutorAiAccounting,
+  type TutorAiAccounting,
+} from "@/lib/ai/usage-controls";
 import type { StudentOwner } from "@/lib/auth/principal";
 import type {
   Difficulty,
@@ -111,6 +115,7 @@ export type RecordTutorSessionAttemptOutcomeInput = {
 };
 
 export type PersistTutorSessionTransitionInput = {
+  aiAccounting?: TutorAiAccounting;
   expectedRevision: number;
   idempotencyKey: string;
   mode: TutorMode;
@@ -522,6 +527,9 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
 
       applyEngineStateToSession(session, input.state, now);
       session.revision = (session.revision ?? 0) + 1;
+      if (input.aiAccounting) {
+        await applyTutorAiAccounting(input.aiAccounting);
+      }
       stored.session = cloneSession(session);
       sessions.set(session.id, stored);
       return { outcome: "applied", session: cloneSession(session) };
@@ -761,11 +769,32 @@ export function createDatabaseTutorSessionRepository(
                     else completed_at
                   end,
                   last_seen_at = now(),
-                  revision = $14
+                  revision = $14,
+                  llm_calls = llm_calls + $17,
+                  llm_input_tokens = llm_input_tokens + $18,
+                  llm_output_tokens = llm_output_tokens + $19,
+                  llm_total_tokens = llm_total_tokens + $20
               where id = $1
                 and revision = $2
                 and status = 'active'
                 and expires_at > now()
+                and (
+                  not exists (
+                    select 1
+                    from ai_llm_reservations reservation
+                    where reservation.session_id = tutor_sessions.id
+                      and reservation.status = 'pending'
+                      and reservation.expires_at > now()
+                  )
+                  or exists (
+                    select 1
+                    from ai_llm_reservations reservation
+                    where reservation.id = $16
+                      and reservation.session_id = tutor_sessions.id
+                      and reservation.status = 'pending'
+                      and reservation.expires_at > now()
+                  )
+                )
                 and (
                   ($3 = 'user' and user_id = $15 and anonymous_user_id is null)
                   or
@@ -789,6 +818,11 @@ export function createDatabaseTutorSessionRepository(
               JSON.stringify(input.state.lastMisconceptionIds),
               nextRevision,
               ownerIdentifier(input.owner),
+              input.aiAccounting?.reservationId ?? null,
+              input.aiAccounting?.providerCalls ?? 0,
+              input.aiAccounting?.providerInputTokens ?? 0,
+              input.aiAccounting?.providerOutputTokens ?? 0,
+              input.aiAccounting?.providerTotalTokens ?? 0,
             ],
           );
           if (!updatedRows[0]) {
@@ -859,6 +893,13 @@ export function createDatabaseTutorSessionRepository(
               nextRevision,
             ],
           );
+
+          if (input.aiAccounting) {
+            await applyTutorAiAccounting(
+              input.aiAccounting,
+              transactionQuery,
+            );
+          }
 
           const current = await readDatabaseSession(
             transactionQuery,

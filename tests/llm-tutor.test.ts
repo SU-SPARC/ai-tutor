@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   buildLlmTutorUserPrompt,
+  estimateLlmTutorTokens,
   generateLlmTutorResponse,
   type LlmTutorInput,
 } from "@/lib/ai/llm-tutor"
@@ -26,7 +27,7 @@ describe("server-side LLM tutor service", () => {
       error: "ai_disabled",
       fallbackUsed: false,
     })
-    expect(result.tutorMessage).toContain("LLM fallback is disabled")
+    expect(result.tutorMessage).toContain("temporarily unavailable")
     expect(result.estimatedTokens?.estimatedTotalTokens).toBeGreaterThan(0)
   })
 
@@ -39,8 +40,12 @@ describe("server-side LLM tutor service", () => {
           choices: [
             {
               message: {
-                content:
-                  "Use the binomial setup first, then identify the exact count.",
+                content: JSON.stringify({
+                  schemaVersion: 1,
+                  pedagogicalAction: "hint",
+                  message:
+                    "Use the binomial setup first, then identify the exact count.",
+                }),
               },
             },
           ],
@@ -90,7 +95,17 @@ describe("server-side LLM tutor service", () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
-          choices: [{ message: { content: "Use the sample space first." } }],
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  schemaVersion: 1,
+                  pedagogicalAction: "hint",
+                  message: "Use the sample space first.",
+                }),
+              },
+            },
+          ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
@@ -121,7 +136,7 @@ describe("server-side LLM tutor service", () => {
     )
   })
 
-  it("repairs unsafe provider text before returning tutor output", async () => {
+  it("rejects unsafe provider text after one bounded retry", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
       async () =>
@@ -130,8 +145,12 @@ describe("server-side LLM tutor service", () => {
             choices: [
               {
                 message: {
-                  content:
-                    "From textbook page 12 and the answer key: the final answer is 2/5.",
+                  content: JSON.stringify({
+                    schemaVersion: 1,
+                    pedagogicalAction: "hint",
+                    message:
+                      "From textbook page 12 and the answer key: the final answer is 2/5.",
+                  }),
                 },
               },
             ],
@@ -144,8 +163,9 @@ describe("server-side LLM tutor service", () => {
       fetchImpl,
     })
 
-    expect(result.fallbackUsed).toBe(true)
-    expect(result.tutorMessage).toContain("probability/statistics")
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result.fallbackUsed).toBe(false)
+    expect(result.error).toBe("unsafe_provider_output")
     expect(result.tutorMessage).not.toMatch(/textbook page|answer key|2\/5/i)
   })
 
@@ -155,6 +175,159 @@ describe("server-side LLM tutor service", () => {
     expect("llmTutorSystemPrompt" in moduleExports).toBe(false)
     expect(buildLlmTutorUserPrompt(baseTutorInput())).not.toContain(
       "You are a probability/statistics tutor.",
+    )
+  })
+
+  it("retries one invalid schema response and accepts the repaired schema", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(providerResponse("not-json"))
+      .mockResolvedValueOnce(
+        providerResponse(
+          JSON.stringify({
+            schemaVersion: 1,
+            pedagogicalAction: "hint",
+            message: "Identify the exact-count event first.",
+          }),
+        ),
+      )
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      fallbackUsed: true,
+      providerAttempts: 2,
+      tutorMessage: "Identify the exact-count event first.",
+    })
+  })
+
+  it("retries a transient provider limit once without exposing provider details", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("limited", { status: 429 }))
+      .mockResolvedValueOnce(
+        providerResponse(
+          JSON.stringify({
+            schemaVersion: 1,
+            pedagogicalAction: "hint",
+            message: "Write the binomial probability expression first.",
+          }),
+        ),
+      )
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result.fallbackUsed).toBe(true)
+    expect(result.tutorMessage).not.toMatch(/openrouter|billing|credit|provider/i)
+  })
+
+  it("does not retry non-retryable provider rejections", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("rejected", { status: 400 }))
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      error: "provider_rejected_request",
+      fallbackUsed: false,
+      providerAttempts: 1,
+    })
+    expect(result.tutorMessage).toContain("temporarily unavailable")
+  })
+
+  it("retries an SDK-wrapped network failure once", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("connection failed"))
+      .mockResolvedValueOnce(
+        providerResponse(
+          JSON.stringify({
+            schemaVersion: 1,
+            pedagogicalAction: "hint",
+            message: "Start by identifying the number of independent trials.",
+          }),
+        ),
+      )
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      fallbackUsed: true,
+      providerAttempts: 2,
+    })
+  })
+
+  it("uses only a reviewed private summary and replaces its source title", () => {
+    const prompt = buildLlmTutorUserPrompt({
+      ...baseTutorInput(),
+      retrievedContext: [
+        {
+          body: "Compare the event definition with the count variable before selecting a formula.",
+          id: "reviewed-summary",
+          priorityTier: "private_reference",
+          sourceType: "private_reference_pattern",
+          title: "Private textbook page 48",
+          topicId: "binomial-models",
+        },
+      ],
+    })
+    const parsed = JSON.parse(prompt) as {
+      retrieved_context: Array<{ body: string; title: string }>
+    }
+
+    expect(parsed.retrieved_context).toEqual([
+      expect.objectContaining({
+        body: "Compare the event definition with the count variable before selecting a formula.",
+        title: "Reviewed private-reference summary",
+      }),
+    ])
+    expect(prompt).not.toContain("textbook page 48")
+  })
+
+  it("builds valid bounded JSON and redacts unnecessary sensitive input", () => {
+    const input: LlmTutorInput = {
+      ...baseTutorInput(),
+      currentQuestion: {
+        prompt: "Q".repeat(900),
+        title: "T".repeat(300),
+      },
+      studentMessage: `Email me at student@example.edu ${"x".repeat(700)}`,
+    }
+    const prompt = buildLlmTutorUserPrompt(input)
+    const parsed = JSON.parse(prompt) as {
+      prompt_version: number
+      retrieved_context: unknown[]
+      student_message: string
+    }
+
+    expect(prompt.length).toBeLessThanOrEqual(2_400)
+    expect(parsed.prompt_version).toBe(1)
+    expect(parsed.retrieved_context).toHaveLength(1)
+    expect(parsed.student_message).toContain("[email redacted]")
+    expect(prompt).not.toContain("student@example.edu")
+    expect(estimateLlmTutorTokens(input).estimatedInputTokens).toBeLessThanOrEqual(
+      800,
     )
   })
 })
@@ -218,4 +391,11 @@ function llmTutorRequestPayload(
     messages: Array<{ content?: string; role?: string }>
     model?: string
   }
+}
+
+function providerResponse(content: string) {
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content } }] }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  )
 }

@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { toTutorResponseDto } from "@/lib/api/tutor-response-dto";
-import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
+import {
+  authorizeStudentResourceApi,
+  ownerFromAuthorization,
+} from "@/lib/auth/authorization";
+import {
+  AiGenerationInProgressError,
+  releaseTutorAiReservation,
+  type TutorAiAccounting,
+} from "@/lib/ai/usage-controls";
 import { getApprovedQuestionById } from "@/lib/data/data-store";
 import {
   getTutorSession,
@@ -24,6 +32,7 @@ import type {
 const MAX_CONCURRENCY_RETRIES = 3;
 
 export async function POST(request: Request) {
+  let pendingAiAccounting: TutorAiAccounting | undefined;
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > 8_192) {
     return NextResponse.json(
@@ -73,9 +82,46 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (
+    body.allowLlmFallback !== undefined &&
+    typeof body.allowLlmFallback !== "boolean"
+  ) {
+    return NextResponse.json(
+      { error: "allowLlmFallback must be a boolean." },
+      { status: 400 },
+    );
+  }
+  if (
+    body.allowLlmFallback &&
+    (typeof body.answer !== "string" || body.answer.trim().length > 500)
+  ) {
+    return NextResponse.json(
+      { error: "AI help messages must be 500 characters or fewer." },
+      { status: 400 },
+    );
+  }
   const access = await authorizeStudentResourceApi();
   if (!access.ok) {
     return access.response;
+  }
+  const owner = ownerFromAuthorization(access.authorization);
+  const ownerRateLimit = checkRateLimit(
+    owner.kind === "user"
+      ? `student:user:${owner.userId}`
+      : `student:anonymous:${owner.anonymousId}`,
+    {
+      max: env.RATE_LIMIT_MAX_REQUESTS,
+      windowMs: env.RATE_LIMIT_WINDOW_SECONDS * 1_000,
+    },
+  );
+  if (!ownerRateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        headers: { "Retry-After": String(ownerRateLimit.retryAfterSeconds) },
+        status: 429,
+      },
+    );
   }
 
   try {
@@ -131,12 +177,26 @@ export async function POST(request: Request) {
         },
         state,
         question,
+        body.allowLlmFallback
+          ? {
+              eventId: body.eventId,
+              expectedRevision: session.revision ?? 0,
+              mode: body.mode,
+              owner,
+              questionId: question.id,
+              questionVersionId: session.questionVersionId!,
+              sessionId: session.id,
+              topicId: question.topicId,
+            }
+          : undefined,
       );
+      pendingAiAccounting = transition.aiAccounting;
       const persisted = await persistTutorSessionTransition(
         access.authorization,
         {
           expectedRevision: session.revision ?? 0,
           idempotencyKey: body.eventId,
+          aiAccounting: transition.aiAccounting,
           mode: body.mode,
           response: transition.response,
           sessionId: session.id,
@@ -146,9 +206,12 @@ export async function POST(request: Request) {
       );
 
       if (persisted.outcome === "applied") {
+        pendingAiAccounting = undefined;
         return NextResponse.json(toTutorResponseDto(transition.response));
       }
       if (persisted.outcome === "idempotent") {
+        await releaseReservationSafely(transition.aiAccounting);
+        pendingAiAccounting = undefined;
         const saved = persisted.session.attempts.find(
           (attempt) => attempt.idempotencyKey === body.eventId,
         );
@@ -161,7 +224,18 @@ export async function POST(request: Request) {
           : dataServiceUnavailableResponse();
       }
       if (persisted.outcome === "not_found") {
+        await releaseReservationSafely(transition.aiAccounting);
+        pendingAiAccounting = undefined;
         return sessionNotFoundResponse();
+      }
+
+      if (transition.aiAccounting?.reservationId) {
+        await releaseReservationSafely(transition.aiAccounting);
+        pendingAiAccounting = undefined;
+        return NextResponse.json(
+          { error: "Tutor progress changed while AI help was being prepared. Please retry." },
+          { headers: { "Retry-After": "1" }, status: 409 },
+        );
       }
 
       session = persisted.session;
@@ -171,8 +245,24 @@ export async function POST(request: Request) {
       { error: "Tutor progress changed in another request. Please retry." },
       { status: 409 },
     );
-  } catch {
+  } catch (error) {
+    await releaseReservationSafely(pendingAiAccounting);
+    if (error instanceof AiGenerationInProgressError) {
+      return NextResponse.json(
+        { error: error.message },
+        { headers: { "Retry-After": "1" }, status: 409 },
+      );
+    }
     return dataServiceUnavailableResponse();
+  }
+}
+
+async function releaseReservationSafely(accounting?: TutorAiAccounting) {
+  try {
+    await releaseTutorAiReservation(accounting);
+  } catch {
+    // Reservations expire automatically. Cleanup must not expose database or
+    // provider details or replace the safe tutor response with a new failure.
   }
 }
 

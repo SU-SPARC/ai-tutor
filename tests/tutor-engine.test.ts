@@ -352,8 +352,12 @@ describe("tutor engine", () => {
         allowLlmFallback: true,
         answer: "still stuck",
         mode: "check",
+        question,
         retrievalMatches: 0,
-        state,
+        state: {
+          ...state,
+          hintsRevealed: question.hints.length,
+        },
       }),
     ).toBe(true);
   });
@@ -489,7 +493,7 @@ describe("tutor engine", () => {
     expect(response.progress?.state).toBe("blocked");
   });
 
-  it("calls the LLM fallback even for requests that don't look like probability/statistics", async () => {
+  it("blocks off-domain LLM fallback without an active course question", async () => {
     const fetchImpl = mockLlmResponse("Here's some general guidance.");
 
     const response = await createTutorResponse({
@@ -499,12 +503,13 @@ describe("tutor engine", () => {
       sessionId: "llm-off-domain-test",
     });
 
-    expect(response.source).toBe("llm");
-    expect(response.progress?.llmUsed).toBe(true);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(response.source).toBe("blocked");
+    expect(response.progress?.llmUsed).toBe(false);
+    expect(response.message).toContain("active published course question");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("surfaces the LLM's own message when AI is disabled, without blocking", async () => {
+  it("keeps provider configuration hidden when off-domain AI is disabled", async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     vi.stubEnv("AI_ENABLED", "false");
     vi.stubEnv("OPENROUTER_API_KEY", "");
@@ -517,9 +522,9 @@ describe("tutor engine", () => {
       sessionId: "llm-missing-key-test",
     });
 
-    expect(response.source).toBe("llm");
+    expect(response.source).toBe("blocked");
     expect(response.usage.fallbackUsed).toBe(false);
-    expect(response.message).toContain("LLM fallback is disabled");
+    expect(response.message).not.toMatch(/openrouter|key|provider/i);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -551,8 +556,8 @@ describe("tutor engine", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("labels general probability help beyond approved course content", async () => {
-    mockLlmResponse(
+  it("does not permit unbound general AI help", async () => {
+    const fetchImpl = mockLlmResponse(
       "A confidence interval describes plausible values for an unknown population parameter.",
     );
 
@@ -563,15 +568,12 @@ describe("tutor engine", () => {
       sessionId: "llm-general-help-test",
     });
 
-    expect(response.source).toBe("llm");
+    expect(response.source).toBe("blocked");
     expect(response.retrievedContext).toHaveLength(0);
-    expect(response.responseLabel).toBe("general_ai_help");
     expect(response.usage.contextUsed).toBe(false);
-    expect(response.usage.fallbackUsed).toBe(true);
-    expect(response.message).toContain(
-      "general AI help beyond approved course content",
-    );
-    expect(response.progress?.llmUsed).toBe(true);
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.progress?.llmUsed).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("skips a self-referential retrieval echo and goes straight to real LLM help", async () => {
@@ -627,7 +629,7 @@ describe("tutor engine", () => {
     expect(response.progress?.solved).toBe(false);
     expect(response.steps).toHaveLength(0);
     expect(userPrompt).toContain("low_confidence_answer_help");
-    expect(userPrompt).toContain('"confidence": 0.1');
+    expect(userPrompt).toContain('"confidence":0.1');
     expect(userPrompt).not.toContain("2/5");
     expect(second.source).toBe("llm");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -660,10 +662,11 @@ describe("tutor engine", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(response.source).toBe("llm");
+    expect(response.source).toBe("blocked");
     expect(response.usage.fallbackUsed).toBe(false);
-    expect(response.message).toContain("rejected the fallback request");
-    expect(response.progress?.llmUsed).toBe(true);
+    expect(response.message).toContain("temporarily unavailable");
+    expect(response.message).not.toMatch(/provider|openrouter|billing/i);
+    expect(response.progress?.llmUsed).toBe(false);
   });
 
   it("records lightweight tutor attempt snapshots", async () => {
@@ -706,7 +709,17 @@ function mockLlmResponse(text: string): FetchMock {
     async () =>
       new Response(
         JSON.stringify({
-          choices: [{ message: { content: text } }],
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  schemaVersion: 1,
+                  pedagogicalAction: "hint",
+                  message: text,
+                }),
+              },
+            },
+          ],
           usage: {
             completion_tokens: 20,
             prompt_tokens: 50,

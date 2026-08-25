@@ -3,6 +3,12 @@ import "server-only"
 import { createHash } from "node:crypto"
 
 import {
+  accountingForGeneratedResponse,
+  prepareTutorAiGeneration,
+  type TutorAiAccounting,
+  type TutorAiExecutionContext,
+} from "@/lib/ai/usage-controls"
+import {
   estimateLlmTutorTokens,
   generateLlmTutorResponse,
   type LlmTutorDisclosure,
@@ -39,6 +45,7 @@ import type {
 export type RuleTutorMode = TutorMode | "full_solution"
 
 export type TutorDecisionInput = {
+  aiExecutionContext?: TutorAiExecutionContext
   allowFullSolution?: boolean
   allowLlmFallback?: boolean
   answer: string
@@ -63,6 +70,7 @@ export type EscalationInput = {
 }
 
 export type TutorResponseTransition = {
+  aiAccounting?: TutorAiAccounting
   response: TutorResponse
   state: TutorSessionState
 }
@@ -70,6 +78,7 @@ export type TutorResponseTransition = {
 type RuleResult = TutorResponseTransition
 
 type LlmTutorResultInput = {
+  aiExecutionContext?: TutorAiExecutionContext
   answer: string
   answerCheck?: AnswerCheckResult
   allowFullSolution?: boolean
@@ -114,6 +123,7 @@ export async function createTutorResponseFromState(
   request: TutorRequest,
   state: TutorSessionState,
   questionVersion?: PracticeQuestion,
+  aiExecutionContext?: TutorAiExecutionContext,
 ): Promise<RuleResult> {
   const sessionId = request.sessionId || state.sessionId
   const answer = request.answer.trim()
@@ -126,6 +136,7 @@ export async function createTutorResponseFromState(
 
   if (question) {
     const result = await decideTutorResponse({
+      aiExecutionContext,
       allowFullSolution: request.mode === "full_solution",
       allowLlmFallback: request.allowLlmFallback,
       answer,
@@ -136,6 +147,7 @@ export async function createTutorResponseFromState(
     })
     const nextState = result.state
     return {
+      aiAccounting: result.aiAccounting,
       response: finalizeResponse(
         withProgress(
           withLlmFallbackEligibility(result.response, question, nextState),
@@ -183,43 +195,15 @@ export async function createTutorResponseFromState(
     }
   }
 
-  if (
-    shouldEscalateToLLM({
-      allowLlmFallback: request.allowLlmFallback,
-      answer,
-      mode: request.mode,
-      retrievalMatches: 0,
-      state,
-    })
-  ) {
-    const result = await buildLlmResponse({
-      answer,
-      mode: request.mode,
-      retrievalResult,
-      state,
-      task: request.mode === "hint" ? "hint" : "conceptual_explanation",
-      topicId: request.topicId,
-    })
-    const nextState = result.state
-    return {
-      response: finalizeResponse(
-        withProgress(result.response, nextState),
-        request,
-        answer,
-        sessionId,
-        nextState,
-      ),
-      state: nextState,
-    }
-  }
-
   const nextState = nextStateForAttempt(state, {
     state: "blocked",
   })
   return {
     response: finalizeResponse(
       blockedResponse(
-        "No approved rule or retrieval match was found, and LLM fallback was not requested.",
+        request.allowLlmFallback
+          ? "AI help is available only for an active published course question."
+          : "No approved rule or retrieval match was found, and LLM fallback was not requested.",
         nextState,
       ),
       request,
@@ -232,6 +216,7 @@ export async function createTutorResponseFromState(
 }
 
 export async function decideTutorResponse({
+  aiExecutionContext,
   allowFullSolution,
   allowLlmFallback,
   answer,
@@ -243,6 +228,7 @@ export async function decideTutorResponse({
   if (mode === "hint") {
     if (question.hints.length === 0) {
       const retrieved = await buildRetrievalOrLlmResponse({
+        aiExecutionContext,
         allowLlmFallback,
         answer,
         mode,
@@ -280,6 +266,7 @@ export async function decideTutorResponse({
   if (mode === "solution" || mode === "full_solution") {
     if (question.solutionSteps.length === 0) {
       const retrieved = await buildRetrievalOrLlmResponse({
+        aiExecutionContext,
         allowFullSolution,
         allowLlmFallback,
         answer,
@@ -374,6 +361,7 @@ export async function decideTutorResponse({
   ) {
     const fingerprint = answerFingerprint(answer)
     const result = await buildRetrievalOrLlmResponse({
+      aiExecutionContext,
       allowLlmFallback,
       answer,
       answerCheck: attemptCheck.answerCheck,
@@ -544,7 +532,12 @@ export function shouldEscalateToRetrieval(input: EscalationInput) {
 }
 
 export function shouldEscalateToLLM(input: EscalationInput) {
-  return Boolean(input.allowLlmFallback && input.answer.trim().length > 0)
+  return Boolean(
+    input.question &&
+      input.allowLlmFallback &&
+      input.answer.trim().length > 0 &&
+      isLlmFallbackEligible(input.question, input.state),
+  )
 }
 
 export function isLlmFallbackEligible(
@@ -601,6 +594,7 @@ function buildRetrievalResponseFromResult(
 }
 
 async function buildRetrievalOrLlmResponse(input: {
+  aiExecutionContext?: TutorAiExecutionContext
   allowFullSolution?: boolean
   allowLlmFallback?: boolean
   answer: string
@@ -651,6 +645,7 @@ async function buildRetrievalOrLlmResponse(input: {
     : { ...input.state, retrievalUsed: true }
 
   return buildLlmResponse({
+    aiExecutionContext: input.aiExecutionContext,
     allowFullSolution: input.allowFullSolution,
     answer: input.answer,
     answerCheck: input.answerCheck,
@@ -669,6 +664,7 @@ async function buildRetrievalOrLlmResponse(input: {
 }
 
 async function buildLlmResponse({
+  aiExecutionContext,
   allowFullSolution,
   answer,
   answerCheck,
@@ -717,17 +713,68 @@ async function buildLlmResponse({
     topicId: topicId ?? question?.topicId,
   }
   const estimatedTokens = estimateLlmTutorTokens(promptInput)
-  const generated = await generateLlmTutorResponse(promptInput)
+  const responseLabel =
+    groundingContext.length > 0
+      ? labelForGroundingContext(groundingContext)
+      : "general_ai_help"
+  const prepared = aiExecutionContext
+    ? await prepareTutorAiGeneration(
+        aiExecutionContext,
+        promptInput,
+        estimatedTokens,
+      )
+    : undefined
+  const generated =
+    prepared?.outcome === "cache_hit"
+      ? prepared.cacheResult
+      : await generateLlmTutorResponse(promptInput)
+  const aiAccounting = prepared
+    ? prepared.outcome === "cache_hit"
+      ? prepared.accounting
+      : accountingForGeneratedResponse(
+          prepared.accounting,
+          generated,
+          responseLabel,
+        )
+    : undefined
+
+  if (!generated.fallbackUsed) {
+    const retrievalFallback = retrievalResult
+      ? buildRetrievalResponseFromResult(
+          retrievalResult,
+          answer,
+          state,
+          question?.id,
+        )
+      : undefined
+
+    if (retrievalFallback) {
+      return {
+        ...retrievalFallback,
+        aiAccounting,
+      }
+    }
+
+    const unavailableState = nextStateForAttempt(state, {
+      ...stateUpdates,
+      retrievalUsed: state.retrievalUsed || Boolean(retrievalResult),
+      state: "blocked",
+    })
+    return {
+      aiAccounting,
+      response: blockedResponse(generated.tutorMessage, unavailableState),
+      state: unavailableState,
+    }
+  }
 
   const nextState = nextStateForAttempt(state, {
     ...stateUpdates,
     llmUsed: true,
     retrievalUsed: state.retrievalUsed || retrievedContext.length > 0,
-    state: generated.fallbackUsed ? "llm_guidance" : state.state,
+    state: "llm_guidance",
   })
 
   const message =
-    generated.fallbackUsed &&
     groundingContext.length === 0 &&
     !generated.tutorMessage
       .toLowerCase()
@@ -736,14 +783,12 @@ async function buildLlmResponse({
       : generated.tutorMessage
 
   return {
+    aiAccounting,
     response: {
-      source: "llm",
+      source: prepared?.outcome === "cache_hit" ? "cache" : "llm",
       verdict: "guidance",
       message,
-      responseLabel:
-        groundingContext.length > 0
-          ? labelForGroundingContext(groundingContext)
-          : "general_ai_help",
+      responseLabel,
       hints: [],
       steps: [],
       misconceptions: [],

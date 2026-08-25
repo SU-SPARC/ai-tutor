@@ -39,6 +39,8 @@ type EnabledAiServerEnv = {
   AI_ENABLED: true;
   AI_MODEL: string;
   AI_PROVIDER: "openrouter";
+  AI_REQUEST_TIMEOUT_MS: number;
+  AI_USAGE_HMAC_SECRET: string;
   MAX_LLM_OUTPUT_TOKENS: number;
   OPENROUTER_API_KEY: string;
 };
@@ -47,6 +49,8 @@ type DisabledAiServerEnv = {
   AI_ENABLED: false;
   AI_MODEL?: string;
   AI_PROVIDER?: "openrouter";
+  AI_REQUEST_TIMEOUT_MS?: number;
+  AI_USAGE_HMAC_SECRET?: string;
   MAX_LLM_OUTPUT_TOKENS?: number;
   OPENROUTER_API_KEY?: string;
 };
@@ -56,6 +60,9 @@ export type ServerEnv = ServerEnvBase &
 
 const DEFAULTS = {
   AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  AI_REQUEST_TIMEOUT_MS: 8_000,
+  AI_USAGE_HMAC_SECRET:
+    "development-ai-usage-hmac-key-not-for-deployment",
   ANONYMOUS_COOKIE_DAYS: 30,
   APP_URL: "http://localhost:3000",
   MAX_LLM_OUTPUT_TOKENS: 400,
@@ -68,6 +75,7 @@ const STRICT_ENVIRONMENTS = new Set<AppEnvironment>(["staging", "production"]);
 const SERVER_SECRET_NAMES = [
   "ADMIN_SECRET",
   "ANONYMOUS_ID_SECRET",
+  "AI_USAGE_HMAC_SECRET",
   "CLERK_SECRET_KEY",
   "DATABASE_URL",
   "ERROR_TRACKING_DSN",
@@ -215,12 +223,36 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     defaultValue: !strict ? DEFAULTS.AI_MODEL : undefined,
     required: AI_ENABLED && strict,
   });
-  const MAX_LLM_OUTPUT_TOKENS = parsePositiveInteger(
+  const AI_REQUEST_TIMEOUT_MS = parseIntegerInRange(
+    "AI_REQUEST_TIMEOUT_MS",
+    input.AI_REQUEST_TIMEOUT_MS,
+    issues,
+    {
+      defaultValue: !strict ? DEFAULTS.AI_REQUEST_TIMEOUT_MS : undefined,
+      maximum: 8_000,
+      minimum: 1_000,
+      required: AI_ENABLED && strict,
+    },
+  );
+  const AI_USAGE_HMAC_SECRET = parseString(
+    "AI_USAGE_HMAC_SECRET",
+    input.AI_USAGE_HMAC_SECRET,
+    issues,
+    {
+      defaultValue:
+        AI_ENABLED && !strict ? DEFAULTS.AI_USAGE_HMAC_SECRET : undefined,
+      minimumLength: 32,
+      required: AI_ENABLED && strict,
+    },
+  );
+  const MAX_LLM_OUTPUT_TOKENS = parseIntegerInRange(
     "MAX_LLM_OUTPUT_TOKENS",
     input.MAX_LLM_OUTPUT_TOKENS,
     issues,
     {
       defaultValue: !strict ? DEFAULTS.MAX_LLM_OUTPUT_TOKENS : undefined,
+      maximum: 400,
+      minimum: 64,
       required: AI_ENABLED && strict,
     },
   );
@@ -306,6 +338,8 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       AI_ENABLED: true,
       AI_MODEL: AI_MODEL!,
       AI_PROVIDER: AI_PROVIDER!,
+      AI_REQUEST_TIMEOUT_MS: AI_REQUEST_TIMEOUT_MS!,
+      AI_USAGE_HMAC_SECRET: AI_USAGE_HMAC_SECRET!,
       MAX_LLM_OUTPUT_TOKENS: MAX_LLM_OUTPUT_TOKENS!,
       OPENROUTER_API_KEY: OPENROUTER_API_KEY!,
     };
@@ -316,6 +350,8 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     AI_ENABLED: false,
     AI_MODEL,
     AI_PROVIDER,
+    AI_REQUEST_TIMEOUT_MS,
+    AI_USAGE_HMAC_SECRET,
     MAX_LLM_OUTPUT_TOKENS,
     OPENROUTER_API_KEY,
   };
@@ -447,6 +483,44 @@ function parsePositiveInteger(
 
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     issues.push(`${name} must be a positive integer.`);
+    return options.defaultValue;
+  }
+
+  return parsed;
+}
+
+function parseIntegerInRange(
+  name: string,
+  value: string | undefined,
+  issues: string[],
+  options: {
+    defaultValue?: number;
+    maximum: number;
+    minimum: number;
+    required?: boolean;
+  },
+) {
+  const parsedValue = optionalString(value);
+
+  if (!parsedValue) {
+    if (options.required) {
+      issues.push(
+        `${name} is required and must be an integer between ${options.minimum} and ${options.maximum}.`,
+      );
+    }
+    return options.defaultValue;
+  }
+
+  const parsed = Number(parsedValue);
+
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < options.minimum ||
+    parsed > options.maximum
+  ) {
+    issues.push(
+      `${name} must be an integer between ${options.minimum} and ${options.maximum}.`,
+    );
     return options.defaultValue;
   }
 
