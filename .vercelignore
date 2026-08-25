@@ -1,0 +1,17 @@
+# Local and environment-specific secrets must never enter deployment uploads.
+.env
+.env.*
+
+# Private course/reference artifacts remain local-only.
+data/private/
+data/processed/private/
+data/**/*.pdf
+data/**/*.PDF
+data/**/*textbook*.txt
+data/**/*textbook*.md
+data/**/*answer-key*
+data/**/*answer_key*
+data/**/*solution-key*
+data/**/*solutions*
+data/**/*extracted*
+data/**/*generated-private*
