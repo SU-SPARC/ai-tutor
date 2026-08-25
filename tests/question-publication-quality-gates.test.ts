@@ -141,7 +141,9 @@ describe("question publication quality gates", () => {
 
     expect(evaluateQuestionPublicationQualityGates(input)).toContainEqual({
       code: "invalid_source_classification",
-      message: expect.stringMatching(/linked catalogued pattern ID/i),
+      message: expect.stringMatching(
+        /linked catalogued pattern ID.*correct provenance/i,
+      ),
     });
   });
 

@@ -194,6 +194,148 @@ describe("review-candidate provenance repair", () => {
     ]);
   });
 
+  it("lets a professor append an unchanged server-derived correction and requires fresh approval", async () => {
+    const database = await migratedDatabase();
+    const client = pgliteClient(database);
+    await importLegacyClassifiedCandidates(database, client);
+    await seedProfessor(database);
+
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const authorization = await professorAuthorization();
+    const importedVersionId = await workingVersionId(
+      database,
+      FAILING_QUESTION_ID,
+    );
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: FAILING_QUESTION_ID,
+      versionId: importedVersionId,
+    });
+
+    const corrected = await repository.correctProvenance(authorization, {
+      baseVersionId: importedVersionId,
+      expectedWorkingVersionId: importedVersionId,
+      idempotencyKey: "professor-provenance-correction-test",
+      questionId: FAILING_QUESTION_ID,
+      requestId: "request-professor-provenance-correction-test",
+    });
+    expect(corrected?.workingVersion).toMatchObject({
+      createdBy: {
+        displayName: "Lifecycle Professor",
+        userId: "user:lifecycle-professor",
+      },
+      creationMethod: "manual",
+      parentVersionId: importedVersionId,
+      source: {
+        sourceType: "generated_original",
+        trustLevel: "generated_unverified",
+        visibility: "public",
+      },
+      state: "needs_review",
+    });
+    expect(corrected?.provenanceCorrectionAllowed).toBe(false);
+
+    const correctedVersionId = corrected!.workingVersion.versionId;
+    const versions = await database.query<{
+      action: string;
+      actor_user_id: string;
+      content_unchanged: boolean;
+      correction_kind: string;
+      source_type: string;
+      state: string;
+      version_id: number;
+    }>(
+      `select
+         qv.id as version_id,
+         qvl.state,
+         qv.snapshot_json ->> 'sourceType' as source_type,
+         (qv.snapshot_json - array[
+           'archivedAt', 'reviewNotes', 'reviewedAt', 'reviewedByUserId',
+           'schemaVersion', 'sourceType'
+         ]::text[]) =
+           (base.snapshot_json - array[
+             'archivedAt', 'reviewNotes', 'reviewedAt', 'reviewedByUserId',
+             'schemaVersion', 'sourceType'
+           ]::text[]) as content_unchanged,
+         event.action,
+         event.actor_user_id,
+         event.metadata_json ->> 'correctionKind' as correction_kind
+       from question_versions qv
+       join question_versions base on base.id = qv.parent_version_id
+       join question_version_lifecycle qvl
+         on qvl.question_version_id = qv.id
+       join question_lifecycle_events event
+         on event.question_version_id = qv.id
+        and event.action = 'create_version'
+       where qv.id = $1`,
+      [correctedVersionId],
+    );
+    expect(versions.rows[0]).toEqual({
+      action: "create_version",
+      actor_user_id: "user:lifecycle-professor",
+      content_unchanged: true,
+      correction_kind: "unlinked_pattern_provenance",
+      source_type: "generated_original",
+      state: "needs_review",
+      version_id: correctedVersionId,
+    });
+
+    const beforePublication = await database.query<{
+      published_version_id: number | null;
+      public_count: number;
+      version_count: number;
+    }>(
+      `select
+         q.published_version_id,
+         (select count(*)::int from app_public_questions where id = q.id)
+           as public_count,
+         (select count(*)::int from question_versions where question_id = q.id)
+           as version_count
+       from questions q
+       where q.id = $1`,
+      [FAILING_QUESTION_ID],
+    );
+    expect(beforePublication.rows[0]).toEqual({
+      public_count: 0,
+      published_version_id: null,
+      version_count: 2,
+    });
+
+    await repository.correctProvenance(authorization, {
+      baseVersionId: importedVersionId,
+      expectedWorkingVersionId: importedVersionId,
+      idempotencyKey: "professor-provenance-correction-test",
+      questionId: FAILING_QUESTION_ID,
+      requestId: "retry-professor-provenance-correction-test",
+    });
+    const idempotentVersionCount = await database.query<{ count: number }>(
+      `select count(*)::int as count from question_versions where question_id = $1`,
+      [FAILING_QUESTION_ID],
+    );
+    expect(idempotentVersionCount.rows[0].count).toBe(2);
+
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: FAILING_QUESTION_ID,
+      versionId: correctedVersionId,
+    });
+    await repository.transition(authorization, {
+      action: "publish",
+      expectedState: "approved",
+      questionId: FAILING_QUESTION_ID,
+      versionId: correctedVersionId,
+    });
+    const afterPublication = await database.query<{ count: number }>(
+      `select count(*)::int as count from app_public_questions where id = $1`,
+      [FAILING_QUESTION_ID],
+    );
+    expect(afterPublication.rows[0].count).toBe(1);
+  });
+
   it("repairs every legacy unlinked draft and stays idempotent", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);

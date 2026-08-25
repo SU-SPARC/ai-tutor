@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   RotateCcw,
+  ShieldCheck,
 } from "lucide-react";
 
 import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
@@ -250,6 +251,57 @@ export function ProfessorQuestionLifecyclePanel({
       setMessage("A regenerated version was submitted for review.");
     } catch {
       setMessage("Regeneration failed.");
+    } finally {
+      setActiveKey(undefined);
+    }
+  }
+
+  async function correctProvenance(question: QuestionLifecycleDto) {
+    const key = `${question.questionId}:correct-provenance`;
+    setActiveKey(key);
+    setMessage(undefined);
+    try {
+      const response = await fetch(
+        `/api/professor/questions/${encodeURIComponent(question.questionId)}/versions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({
+            baseVersionId: question.workingVersion.versionId,
+            correction: "unlinked_pattern_provenance",
+            expectedWorkingVersionId: question.workingVersion.versionId,
+          }),
+        },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        question?: QuestionLifecycleDto;
+      };
+      if (!response.ok || !payload.question) {
+        setMessage(payload.error ?? "Provenance correction failed.");
+        return;
+      }
+      setDashboard((current) => ({
+        ...current,
+        questions: current.questions.map((candidate) =>
+          candidate.questionId === payload.question?.questionId
+            ? payload.question
+            : candidate,
+        ),
+      }));
+      setSelectedVersionIds((current) =>
+        current.filter(
+          (versionId) => versionId !== question.workingVersion.versionId,
+        ),
+      );
+      setMessage(
+        "Provenance corrected without changing question content. Review and approve the new version before publishing.",
+      );
+    } catch {
+      setMessage("Provenance correction failed.");
     } finally {
       setActiveKey(undefined);
     }
@@ -663,7 +715,8 @@ export function ProfessorQuestionLifecyclePanel({
                             </Button>
                           );
                         })}
-                        {question.regenerationAllowed ? (
+                        {question.regenerationAllowed &&
+                        !question.provenanceCorrectionAllowed ? (
                           <Button
                             type="button"
                             size="sm"
@@ -682,6 +735,27 @@ export function ProfessorQuestionLifecyclePanel({
                               <RotateCcw className="h-4 w-4" />
                             )}
                             Regenerate
+                          </Button>
+                        ) : null}
+                        {question.provenanceCorrectionAllowed ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              dashboard.readOnly ||
+                              Boolean(activeKey) ||
+                              Boolean(batchAction)
+                            }
+                            onClick={() => correctProvenance(question)}
+                          >
+                            {activeKey ===
+                            `${question.questionId}:correct-provenance` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ShieldCheck className="h-4 w-4" />
+                            )}
+                            Correct provenance
                           </Button>
                         ) : null}
                       </div>

@@ -78,6 +78,13 @@ The importer never updates an existing ID, and `question_versions`,
 re-import nor removal can correct an already-imported draft. The repair instead
 appends a corrected version through the lifecycle system:
 
+- For one question, a professor can use **Correct provenance** in the lifecycle
+  panel. The server copies the exact working-version content, changes only the
+  unsupported unlinked source classification, and submits the new version for
+  fresh review. The operation is attributed and idempotent; it does not publish.
+- For an operator-controlled bulk correction, use the transactional command
+  below with the dedicated owner/admin database credential.
+
 ```bash
 npm run db:repair:review-candidate-provenance -- --target production --check
 npm run db:repair:review-candidate-provenance -- \

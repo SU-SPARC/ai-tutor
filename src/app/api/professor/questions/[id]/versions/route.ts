@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import {
@@ -10,9 +12,11 @@ import {
   positiveInteger,
   QUESTION_CREATION_METHODS,
   safeGenerationMetadata,
+  stringValue,
 } from "@/lib/api/question-lifecycle";
 import { authorizeApi, requireProfessorReview } from "@/lib/auth/authorization";
 import {
+  correctQuestionLifecycleProvenance,
   createQuestionLifecycleRevision,
   createQuestionLifecycleVersion,
 } from "@/lib/data/data-store";
@@ -56,6 +60,15 @@ export async function POST(
       { error: "Request body must be a JSON object." },
       { status: 400 },
     );
+  }
+
+  if (body.correction !== undefined) {
+    return correctProfessorProvenance({
+      authorization: access.authorization,
+      body,
+      questionId,
+      request,
+    });
   }
 
   if (body.revision !== undefined) {
@@ -104,6 +117,73 @@ export async function POST(
         supersedeReason: boundedNote(body.supersedeReason),
       },
     );
+    return question
+      ? NextResponse.json({ question }, { status: 201 })
+      : NextResponse.json(
+          { error: "Question was not found." },
+          { status: 404 },
+        );
+  } catch (error) {
+    return lifecycleApiErrorResponse(error);
+  }
+}
+
+async function correctProfessorProvenance({
+  authorization,
+  body,
+  questionId,
+  request,
+}: {
+  authorization: Awaited<ReturnType<typeof requireProfessorReview>>;
+  body: Record<string, unknown>;
+  questionId: string;
+  request: Request;
+}) {
+  const unsupportedField = Object.keys(body).find(
+    (field) =>
+      field !== "baseVersionId" &&
+      field !== "correction" &&
+      field !== "expectedWorkingVersionId",
+  );
+  if (unsupportedField) {
+    return NextResponse.json(
+      { error: `Unsupported provenance correction field: ${unsupportedField}.` },
+      { status: 422 },
+    );
+  }
+  if (body.correction !== "unlinked_pattern_provenance") {
+    return NextResponse.json(
+      { error: "The requested provenance correction is not supported." },
+      { status: 422 },
+    );
+  }
+
+  const baseVersionId = positiveInteger(body.baseVersionId);
+  const expectedWorkingVersionId = positiveInteger(
+    body.expectedWorkingVersionId,
+  );
+  if (!baseVersionId || !expectedWorkingVersionId) {
+    return NextResponse.json(
+      {
+        error:
+          "Provenance correction requires a base version and expected working version.",
+      },
+      { status: 422 },
+    );
+  }
+
+  try {
+    const question = await correctQuestionLifecycleProvenance(authorization, {
+      baseVersionId,
+      expectedWorkingVersionId,
+      idempotencyKey:
+        stringValue(request.headers.get("idempotency-key"))?.slice(0, 200) ??
+        randomUUID(),
+      questionId,
+      requestId:
+        stringValue(request.headers.get("x-request-id"))?.slice(0, 200) ??
+        randomUUID(),
+    });
     return question
       ? NextResponse.json({ question }, { status: 201 })
       : NextResponse.json(

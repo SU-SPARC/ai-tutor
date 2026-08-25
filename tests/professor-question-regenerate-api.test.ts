@@ -108,7 +108,35 @@ describe("admin question regeneration API", () => {
 
     expect(response.status).toBe(200);
     expect(payload.regenerated.source.patternIds).toBeUndefined();
+    expect(payload.regenerated.source.sourceType).toBe("generated_original");
     expect(payload.regenerated.topicId).toBe(original.topicId);
+  });
+
+  it("reclassifies unlinked pattern-derived regeneration as generated original", () => {
+    const original = adminQuestionFixture({
+      id: "unlinked-pattern-regeneration",
+      reviewStatus: "approved",
+      trustLevel: "generated_unverified",
+    });
+    original.source = {
+      ...original.source,
+      patternIds: undefined,
+      sourceType: "pattern_derived_original",
+    };
+
+    const regenerated = generateDeterministicRegeneratedQuestion({
+      id: original.id,
+      keepPattern: true,
+      original,
+      sequence: 2,
+    });
+
+    expect(regenerated.source).toMatchObject({
+      sourceType: "generated_original",
+      trustLevel: "generated_unverified",
+      visibility: "public",
+    });
+    expect(regenerated.source.patternIds).toBeUndefined();
   });
 
   it("rejects unsupported request body fields and modes", async () => {

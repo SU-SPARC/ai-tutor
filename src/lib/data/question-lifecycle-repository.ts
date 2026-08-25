@@ -81,6 +81,14 @@ export type CreateQuestionRevisionInput = {
   revision: QuestionRevisionContentInput;
 };
 
+export type CorrectQuestionVersionProvenanceInput = {
+  baseVersionId: number;
+  expectedWorkingVersionId: number;
+  idempotencyKey?: string;
+  questionId: string;
+  requestId?: string;
+};
+
 export type QuestionLifecycleTransitionInput = {
   action: QuestionLifecycleAction;
   expectedState?: QuestionVersionState;
@@ -639,6 +647,143 @@ export function createDatabaseQuestionLifecycleRepository(
             createdByUserId: reviewer.userId,
             parentVersionId: input.baseVersionId,
             supersedeReason: input.comment,
+          });
+
+          return requireQuestionLifecycle(transactionQuery, input.questionId);
+        },
+        { retryOnConflict: true },
+      );
+    },
+
+    async correctProvenance(
+      authorization: ProfessorReviewAuthorization,
+      input: CorrectQuestionVersionProvenanceInput,
+    ) {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `select q.record_state, q.working_version_id, q.pattern_id
+             from questions q
+             where q.id = $1
+             for update of q`,
+            [input.questionId],
+          );
+          const current = rows[0];
+          if (!current) return undefined;
+          if (input.idempotencyKey) {
+            const prior = await transactionQuery(
+              `select question_version_id
+               from question_lifecycle_events
+               where question_id = $1
+                 and idempotency_key = $2
+                 and metadata_json ->> 'correctionKind' =
+                   'unlinked_pattern_provenance'
+               limit 1`,
+              [input.questionId, input.idempotencyKey],
+            );
+            if (prior[0]) {
+              return requireQuestionLifecycle(transactionQuery, input.questionId);
+            }
+          }
+          if (current.record_state !== "active") {
+            throw new QuestionLifecycleConflictError(
+              "Archived questions must be restored before correcting provenance.",
+            );
+          }
+          if (
+            Number(current.working_version_id) !==
+              input.expectedWorkingVersionId ||
+            input.baseVersionId !== input.expectedWorkingVersionId
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "The working question version changed. Refresh before correcting provenance.",
+            );
+          }
+
+          const baseRows = await selectQuestionVersionRows(
+            transactionQuery,
+            input.questionId,
+          );
+          const baseRow = baseRows.find(
+            (row) => Number(row.question_version_id) === input.baseVersionId,
+          );
+          if (!baseRow) {
+            throw new QuestionLifecycleConflictError(
+              "The selected base version does not belong to this question.",
+            );
+          }
+          const base = mapQuestionVersion(baseRow);
+          if (
+            base.source.sourceType !== "pattern_derived_original" ||
+            base.source.patternIds?.length ||
+            current.pattern_id
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "Provenance correction is limited to pattern-derived working versions with no linked catalogued pattern.",
+            );
+          }
+
+          const content: QuestionVersionContentInput = {
+            answer: {
+              ...base.answer,
+              acceptedAnswers: [...base.answer.acceptedAnswers],
+            },
+            difficulty: base.difficulty,
+            hints: [...base.hints],
+            id: base.id,
+            misconceptions: base.misconceptions.map((item) => ({
+              ...item,
+              matchTerms: [...item.matchTerms],
+            })),
+            prompt: base.prompt,
+            solutionSteps: [...base.solutionSteps],
+            source: {
+              ...base.source,
+              patternIds: undefined,
+              sourceType: "generated_original",
+              trustLevel: "generated_unverified",
+              visibility: "public",
+            },
+            title: base.title,
+            topicId: base.topicId,
+          };
+          validateQuestionVersionContent(content, input.questionId);
+          await requireActiveTopic(transactionQuery, content.topicId);
+
+          await setLifecycleActorContext(transactionQuery, {
+            creationMethod: "manual",
+            suppressVersions: false,
+            userId: reviewer.userId,
+          });
+          const correctionMetadata = {
+            correctionKind: "unlinked_pattern_provenance",
+            correctedFromSourceType: "pattern_derived_original",
+            correctedToSourceType: "generated_original",
+            idempotencyKey: input.idempotencyKey,
+            requestId: input.requestId,
+          };
+          const versionId = await insertQuestionVersion(transactionQuery, {
+            content,
+            creationMethod: "manual",
+            createdByUserId: reviewer.userId,
+            generationMetadata: correctionMetadata,
+            parentVersionId: input.baseVersionId,
+            supersedeReason:
+              "Corrected unlinked pattern provenance; source content is unchanged.",
+          });
+          await applyTransition(transactionQuery, authorization, {
+            action: "submit",
+            expectedState: "draft",
+            metadata: correctionMetadata,
+            note:
+              "Server-derived provenance correction submitted for fresh review.",
+            questionId: input.questionId,
+            requestId: input.requestId,
+            versionId,
           });
 
           return requireQuestionLifecycle(transactionQuery, input.questionId);
@@ -1885,6 +2030,10 @@ function buildQuestionLifecycles(
       }),
       events: eventsByQuestion.get(questionId) ?? [],
       publishedVersion,
+      provenanceCorrectionAllowed:
+        first.record_state === "active" &&
+        workingVersion.source.sourceType === "pattern_derived_original" &&
+        !workingVersion.source.patternIds?.length,
       questionId,
       recordState: first.record_state,
       regenerationAllowed:

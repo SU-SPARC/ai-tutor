@@ -24,11 +24,30 @@ describe("professor question revision API", () => {
   it("requires an authenticated professor", async () => {
     mockPrincipal(undefined);
     const anonymous = await postRevision(validRevisionRequest());
+    const anonymousCorrection = await postRevision(validCorrectionRequest());
     mockPrincipal(TEST_STUDENT);
     const student = await postRevision(validRevisionRequest());
+    const studentCorrection = await postRevision(validCorrectionRequest());
 
     expect(anonymous.status).toBe(401);
+    expect(anonymousCorrection.status).toBe(401);
     expect(student.status).toBe(403);
+    expect(studentCorrection.status).toBe(403);
+  });
+
+  it("accepts only the server-defined provenance correction request", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const unsupported = await postRevision({
+      ...validCorrectionRequest(),
+      sourceType: "generated_original",
+    });
+    const valid = await postRevision(validCorrectionRequest());
+
+    expect(unsupported.status).toBe(422);
+    await expect(unsupported.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/unsupported provenance correction field/i),
+    });
+    expect(valid.status).toBe(503);
   });
 
   it("rejects invalid mathematical and content structure before storage", async () => {
@@ -137,5 +156,13 @@ function validRevisionRequest(revisionPatch: Record<string, unknown> = {}) {
       topicId: "basic-probability",
       ...revisionPatch,
     },
+  };
+}
+
+function validCorrectionRequest() {
+  return {
+    baseVersionId: 12,
+    correction: "unlinked_pattern_provenance",
+    expectedWorkingVersionId: 12,
   };
 }

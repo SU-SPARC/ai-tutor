@@ -277,6 +277,7 @@ function lifecycleFixture(
     publishedVersion: version.state === "published" ? version : undefined,
     questionId: version.id,
     recordState: "active",
+    provenanceCorrectionAllowed: false,
     regenerationAllowed: false,
     versions: [version],
     workingVersion: version,

@@ -54,6 +54,7 @@ function lifecycleQuestion(
     events: [],
     questionId: "question",
     recordState: "active",
+    provenanceCorrectionAllowed: false,
     regenerationAllowed: false,
     versions: [],
     workingVersion: version({ state: "draft" }),

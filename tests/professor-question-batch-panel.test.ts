@@ -80,6 +80,7 @@ function lifecycleFixture(
   return {
     allowedActions: ["publish", "request_revision", "reject"],
     events: [],
+    provenanceCorrectionAllowed: false,
     questionId: version.id,
     recordState: "active",
     regenerationAllowed: true,

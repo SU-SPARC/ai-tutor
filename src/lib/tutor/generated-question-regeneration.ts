@@ -32,7 +32,10 @@ export function generateDeterministicRegeneratedQuestion({
     keepPattern && original.patternSource
       ? original.patternSource
       : `${original.topicId}-deterministic-regeneration`
-  const sourceType = original.source.sourceType
+  const sourceType =
+    original.source.sourceType === "pattern_derived_original" && patternId
+      ? "pattern_derived_original"
+      : "generated_original"
 
   const candidate = candidateForTopic(topicSignal, sequence)
 

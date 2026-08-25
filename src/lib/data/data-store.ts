@@ -19,6 +19,7 @@ import {
   createDatabaseQuestionLifecycleRepository,
   type CreateQuestionInput,
   type CreateQuestionRevisionInput,
+  type CorrectQuestionVersionProvenanceInput,
   type CreateQuestionVersionInput,
   type QuestionLifecycleBatchTransitionInput,
   type QuestionLifecycleFilters,
@@ -673,6 +674,16 @@ export async function createQuestionLifecycleRevision(
   );
 }
 
+export async function correctQuestionLifecycleProvenance(
+  authorization: ProfessorReviewAuthorization,
+  input: CorrectQuestionVersionProvenanceInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.correctProvenance(authorization, input),
+  );
+}
+
 export async function transitionQuestionLifecycle(
   authorization: ProfessorReviewAuthorization,
   input: QuestionLifecycleTransitionInput,
@@ -1028,6 +1039,7 @@ function demoQuestionLifecycle(
     publishedVersion: state === "published" ? version : undefined,
     questionId: question.id,
     recordState: "active",
+    provenanceCorrectionAllowed: false,
     regenerationAllowed: false,
     versions: [version],
     workingVersion: version,

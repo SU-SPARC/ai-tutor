@@ -9,7 +9,10 @@ import {
   ProfessorQuestionRevisionEditor,
   revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
-import { ProfessorQuestionVersionHistory } from "@/components/professor/professor-question-lifecycle-panel";
+import {
+  ProfessorQuestionLifecyclePanel,
+  ProfessorQuestionVersionHistory,
+} from "@/components/professor/professor-question-lifecycle-panel";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
 
@@ -141,6 +144,56 @@ describe("professor question revision panel", () => {
     );
   });
 
+  it("offers a server-derived correction only for eligible unlinked pattern provenance", () => {
+    const base = lifecycleFixture();
+    const workingVersion: QuestionVersionDto = {
+      ...base.workingVersion,
+      source: {
+        ...base.workingVersion.source,
+        patternIds: undefined,
+        sourceType: "pattern_derived_original",
+      },
+    };
+    const question: QuestionLifecycleDto = {
+      ...base,
+      provenanceCorrectionAllowed: true,
+      versions: [workingVersion],
+      workingVersion,
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionLifecyclePanel, {
+        initialDashboard: {
+          inspections: [],
+          mode: "database",
+          questions: [question],
+          readOnly: false,
+          topics: [{ id: "basic-probability", title: "Basic probability" }],
+        },
+      }),
+    );
+    const source = readFileSync(
+      path.join(
+        process.cwd(),
+        "src/components/professor/professor-question-lifecycle-panel.tsx",
+      ),
+      "utf8",
+    );
+    const correctionBodyStart = source.indexOf(
+      'correction: "unlinked_pattern_provenance"',
+    );
+    const correctionBody = source.slice(
+      source.lastIndexOf("body: JSON.stringify", correctionBodyStart),
+      source.indexOf("}),", correctionBodyStart) + 3,
+    );
+
+    expect(markup).toContain("Correct provenance");
+    expect(correctionBody).toContain("baseVersionId");
+    expect(correctionBody).toContain("expectedWorkingVersionId");
+    expect(correctionBody).not.toMatch(
+      /sourceType|trustLevel|visibility|patternIds|originalityNote/i,
+    );
+  });
+
   it("shows professors immutable content, lineage, actors, timestamps, and lifecycle comments", () => {
     const original = {
       ...versionFixture(),
@@ -219,6 +272,7 @@ function lifecycleFixture(): QuestionLifecycleDto {
   return {
     allowedActions: ["approve", "request_revision", "reject"],
     events: [],
+    provenanceCorrectionAllowed: false,
     questionId: version.id,
     recordState: "active",
     regenerationAllowed: true,

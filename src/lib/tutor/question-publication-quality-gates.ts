@@ -242,7 +242,7 @@ function sourceClassificationFailureMessage(source: SourceMetadata) {
       source.sourceType === "pattern_derived_original" &&
       !source.patternIds?.length
     ) {
-      return "A pattern-derived question requires a linked catalogued pattern ID. If no approved pattern is linked, append a corrected generated_original version and review it again.";
+      return 'A pattern-derived question requires a linked catalogued pattern ID. Use "Correct provenance" to append an unchanged generated_original version, then review and approve that new version.';
     }
     return undefined;
   }

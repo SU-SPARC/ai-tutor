@@ -483,6 +483,7 @@ export type QuestionLifecycleDto = {
   allowedActions: QuestionLifecycleAction[];
   events: QuestionLifecycleEventDto[];
   publishedVersion?: QuestionVersionDto;
+  provenanceCorrectionAllowed: boolean;
   questionId: string;
   recordState: QuestionRecordState;
   regenerationAllowed: boolean;
