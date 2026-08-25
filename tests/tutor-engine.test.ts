@@ -1068,20 +1068,17 @@ describe("content provenance and review metadata", () => {
 
     expect(generatedReviewCandidates).toHaveLength(14);
     expect(additionalDrafts).toHaveLength(12);
-    // Only drafts that name a catalogued pattern may claim pattern-derived
-    // provenance; ad-hoc template output stays generated_original.
+    // Descriptive patternSource labels are not approved database provenance.
+    // The review-candidate importer must not invent a pattern relationship.
     expect(
       additionalDrafts.every(
-        (candidate) =>
-          candidate.source.sourceType === "pattern_derived_original",
+        (candidate) => candidate.source.sourceType === "generated_original",
       ),
     ).toBe(true);
     expect(
-      generatedReviewCandidates
-        .filter((candidate) => !candidate.id.startsWith("generated-additional-"))
-        .every(
-          (candidate) => candidate.source.sourceType === "generated_original",
-        ),
+      generatedReviewCandidates.every(
+        (candidate) => candidate.source.sourceType === "generated_original",
+      ),
     ).toBe(true);
     expect(
       generatedReviewCandidates.every(
@@ -1089,8 +1086,7 @@ describe("content provenance and review metadata", () => {
           candidate.prompt.length > 0 &&
           candidate.patternSource.length > 0 &&
           candidate.review.status === "needs_review" &&
-          (candidate.source.sourceType === "generated_original" ||
-            candidate.source.sourceType === "pattern_derived_original") &&
+          candidate.source.sourceType === "generated_original" &&
           candidate.source.trustLevel === "generated_unverified" &&
           candidate.source.visibility === "public" &&
           typeof candidate.source.originalityNote === "string" &&

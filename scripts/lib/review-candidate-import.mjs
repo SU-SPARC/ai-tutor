@@ -142,7 +142,14 @@ export async function importPublicReviewCandidates({
 }
 
 async function buildImportPlan(client, fixtures) {
-  const [topicResult, questionResult] = await Promise.all([
+  const requestedPatternIds = [
+    ...new Set(
+      fixtures.candidates.flatMap(
+        ({ candidate }) => candidate.source.patternIds ?? [],
+      ),
+    ),
+  ];
+  const [topicResult, questionResult, patternResult] = await Promise.all([
     client.query(`
       select id, title, description, sort_order, week_number, module_ref, is_active
       from topics
@@ -166,7 +173,26 @@ async function buildImportPlan(client, fixtures) {
       `,
       [fixtures.candidates.map(({ candidate }) => candidate.id)],
     ),
+    client.query(
+      `select id
+       from question_patterns
+       where id = any($1::text[])
+       order by id`,
+      [requestedPatternIds],
+    ),
   ]);
+
+  const storedPatternIds = new Set(
+    patternResult.rows.map((row) => String(row.id)),
+  );
+  const missingPatternIds = requestedPatternIds.filter(
+    (patternId) => !storedPatternIds.has(patternId),
+  );
+  if (missingPatternIds.length > 0) {
+    throw new ReviewCandidateImportValidationError([
+      `Pattern-derived review candidates reference catalogued patterns that are not present in question_patterns: ${missingPatternIds.join(", ")}.`,
+    ]);
+  }
 
   const existingTopics = new Map(
     topicResult.rows.map((row) => [String(row.id), row]),
@@ -276,6 +302,7 @@ async function applyTopicPlan(client, plan) {
 
 async function insertReviewCandidate(client, { candidate, sourceFile }) {
   const reviewPriority = candidate.review.reviewPriority ?? "normal";
+  const patternId = candidate.source.patternIds?.[0] ?? null;
   await client.query(
     `select
        set_config('app.current_user_id', 'system:question-generator', true),
@@ -304,13 +331,14 @@ async function insertReviewCandidate(client, { candidate, sourceFile }) {
         review_notes
       )
       values (
-        $1, $2, null, $3, $4, $5, $6::jsonb, $7, $8, $9, $10,
-        'generated_unverified', 'public', 'needs_review', $11, $12, $13
+        $1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11,
+        'generated_unverified', 'public', 'needs_review', $12, $13, $14
       )
     `,
     [
       candidate.id,
       candidate.topicId,
+      patternId,
       candidate.title,
       candidate.prompt,
       candidate.difficulty,
@@ -505,7 +533,7 @@ function expectedSnapshot(candidate) {
     })),
     numericValue: candidate.answer.numericValue ?? null,
     originalityNote: candidate.source.originalityNote ?? null,
-    patternId: null,
+    patternId: candidate.source.patternIds?.[0] ?? null,
     prompt: candidate.prompt,
     reviewNotes: candidate.review.notes ?? null,
     reviewPriority: candidate.review.reviewPriority ?? "normal",
@@ -665,6 +693,28 @@ function validateCandidate(candidate, label, topicIds, issues) {
       `${label}.source.patternIds`,
       issues,
       { allowEmpty: true },
+    );
+  }
+  const patternIds = candidate.source?.patternIds ?? [];
+  if (candidate.source?.sourceType === "pattern_derived_original") {
+    if (patternIds.length !== 1) {
+      issues.push(
+        `${label}.source.patternIds must contain exactly one catalogued pattern ID for pattern_derived_original.`,
+      );
+    } else if (
+      typeof candidate.patternSource === "string" &&
+      !candidate.patternSource.startsWith(`${patternIds[0]} /`)
+    ) {
+      issues.push(
+        `${label}.patternSource must identify ${patternIds[0]} as its catalogued pattern.`,
+      );
+    }
+  } else if (
+    candidate.source?.sourceType === "generated_original" &&
+    patternIds.length > 0
+  ) {
+    issues.push(
+      `${label}.source.patternIds must be empty for generated_original.`,
     );
   }
   if (candidate.source?.trustLevel !== "generated_unverified") {

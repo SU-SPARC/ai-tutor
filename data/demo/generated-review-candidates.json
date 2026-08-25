@@ -36,7 +36,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract combinations pattern with new context, numbers, and solution wording."
@@ -82,7 +82,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract permutations pattern with new context, numbers, and solution wording."
@@ -132,7 +132,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract Bayes alert-update pattern with new context, numbers, and solution wording."
@@ -182,7 +182,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract Bayes alert-update pattern with new context, numbers, and solution wording."
@@ -232,7 +232,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract conditional-probability pattern with new context, numbers, and solution wording."
@@ -328,7 +328,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract expected-value pattern with new context, numbers, and solution wording."
@@ -375,7 +375,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract expected-value pattern with new context, numbers, and solution wording."
@@ -421,7 +421,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract variance pattern with new context, numbers, and solution wording."
@@ -469,7 +469,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract variance pattern with new context, numbers, and solution wording."
@@ -518,7 +518,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract binomial exact-count pattern with new context, numbers, and solution wording."
@@ -567,7 +567,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract binomial exact-count pattern with new context, numbers, and solution wording."
@@ -617,7 +617,7 @@
       }
     ],
     "source": {
-      "sourceType": "pattern_derived_original",
+      "sourceType": "generated_original",
       "trustLevel": "generated_unverified",
       "visibility": "public",
       "originalityNote": "Original generated question from an abstract hypergeometric/counting pattern with new context, numbers, and solution wording."

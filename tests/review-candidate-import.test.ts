@@ -88,8 +88,10 @@ describe("public review-candidate fixture validation", () => {
       fixtures.candidates.every(
         ({ candidate }) =>
           candidate.review.status === "needs_review" &&
+          candidate.source.sourceType === "generated_original" &&
           candidate.source.trustLevel === "generated_unverified" &&
-          candidate.source.visibility === "public",
+          candidate.source.visibility === "public" &&
+          !candidate.source.patternIds?.length,
       ),
     ).toBe(true);
   });
@@ -118,10 +120,134 @@ describe("public review-candidate fixture validation", () => {
     unapprovedPath.candidates[0].sourceFile =
       "data/private/unapproved-review-candidates.json";
     expectValidationFailure(unapprovedPath, /not an allowed public fixture/);
+
+    const unlinkedPattern = structuredClone(fixtures);
+    unlinkedPattern.candidates[0].candidate.source.sourceType =
+      "pattern_derived_original";
+    expectValidationFailure(unlinkedPattern, /exactly one catalogued pattern/);
+
+    const generatedWithPattern = structuredClone(fixtures);
+    generatedWithPattern.candidates[0].candidate.source.patternIds = [
+      "pattern-should-not-be-invented",
+    ];
+    expectValidationFailure(
+      generatedWithPattern,
+      /empty for generated_original/,
+    );
   });
 });
 
 describe("production-safe review-candidate database import", () => {
+  it("rejects pattern-derived provenance when the catalogued pattern is not in the database", async () => {
+    const database = await migratedDatabase();
+    const allFixtures = await loadPublicReviewCandidateFixtures(process.cwd());
+    const fixtures = {
+      candidates: structuredClone(allFixtures.candidates.slice(0, 1)),
+      topics: structuredClone(allFixtures.topics),
+    };
+    fixtures.candidates[0].candidate.source.sourceType =
+      "pattern_derived_original";
+    fixtures.candidates[0].candidate.source.patternIds = [
+      "pattern-not-approved-in-database",
+    ];
+    fixtures.candidates[0].candidate.patternSource =
+      "pattern-not-approved-in-database / test pattern";
+
+    await expect(
+      importPublicReviewCandidates({
+        client: importClient(database),
+        dryRun: false,
+        fixtures,
+        target: "test",
+      }),
+    ).rejects.toMatchObject({
+      issues: [expect.stringMatching(/not present in question_patterns/i)],
+    });
+
+    const counts = await database.query<{ questions: number; topics: number }>(`
+      select
+        (select count(*)::int from questions) as questions,
+        (select count(*)::int from topics) as topics
+    `);
+    expect(counts.rows[0]).toEqual({ questions: 0, topics: 0 });
+  });
+
+  it("persists a verified catalogued pattern in the question and immutable snapshot", async () => {
+    const database = await migratedDatabase();
+    const allFixtures = await loadPublicReviewCandidateFixtures(process.cwd());
+    const fixtures = {
+      candidates: structuredClone(allFixtures.candidates.slice(0, 1)),
+      topics: structuredClone(allFixtures.topics),
+    };
+    const candidate = fixtures.candidates[0].candidate;
+    const patternId = "pattern-approved-for-import-test";
+    candidate.source.sourceType = "pattern_derived_original";
+    candidate.source.patternIds = [patternId];
+    candidate.patternSource = `${patternId} / approved test pattern`;
+
+    const topic = fixtures.topics.find(
+      (item) => item.id === candidate.topicId,
+    )!;
+    await database.query(
+      `insert into topics (
+         id, title, description, sort_order, week_number, module_ref, is_active
+       ) values ($1, $2, $3, $4, $5, $6, true)`,
+      [
+        topic.id,
+        topic.title,
+        topic.description,
+        topic.order,
+        topic.weekNumber,
+        topic.moduleRef,
+      ],
+    );
+    await createProfessor(database);
+    await database.query(
+      `insert into question_patterns (
+         id, topic_id, title, description, difficulty,
+         reviewed_by_user_id, reviewed_at, created_at
+       ) values (
+         $1, $2, 'Approved test pattern', 'Public-safe import test pattern',
+         'foundational', 'user:import-test-professor', now(), now()
+       )`,
+      [patternId, candidate.topicId],
+    );
+
+    await importPublicReviewCandidates({
+      client: importClient(database),
+      dryRun: false,
+      fixtures,
+      target: "test",
+    });
+
+    const stored = await database.query<{
+      pattern_id: string;
+      snapshot_pattern_id: string;
+    }>(
+      `select
+         q.pattern_id,
+         qv.snapshot_json ->> 'patternId' as snapshot_pattern_id
+       from questions q
+       join question_versions qv on qv.id = q.working_version_id
+       where q.id = $1`,
+      [candidate.id],
+    );
+    expect(stored.rows[0]).toEqual({
+      pattern_id: patternId,
+      snapshot_pattern_id: patternId,
+    });
+
+    await transition(database, candidate.id, "approve");
+    await transition(database, candidate.id, "publish");
+    const publicQuestion = await database.query<{ count: number }>(
+      `select count(*)::int as count
+       from app_public_questions
+       where id = $1`,
+      [candidate.id],
+    );
+    expect(publicQuestion.rows[0].count).toBe(1);
+  });
+
   it("imports topics and 234 drafts idempotently for professors while students see none", async () => {
     const database = await migratedDatabase();
     const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
@@ -473,7 +599,7 @@ async function createProfessor(database: PGlite) {
 async function transition(
   database: PGlite,
   questionId: string,
-  action: "approve" | "reject",
+  action: "approve" | "publish" | "reject",
   reasonCode?: string,
 ) {
   await database.query(
@@ -485,7 +611,7 @@ async function transition(
         $2,
         'user:import-test-professor',
         'Import Test Professor',
-        'needs_review',
+        $4,
         $3,
         null,
         null,
@@ -493,6 +619,11 @@ async function transition(
         '{}'::jsonb
       )
     `,
-    [questionId, action, reasonCode ?? null],
+    [
+      questionId,
+      action,
+      reasonCode ?? null,
+      action === "publish" ? "approved" : "needs_review",
+    ],
   );
 }

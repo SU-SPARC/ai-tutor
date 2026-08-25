@@ -79,7 +79,7 @@ describe("professor questions API", () => {
   it("filters by status, topic, source type, and generated-only", async () => {
     const response = await getAdminQuestions(
       new Request(
-        "http://test/api/professor/questions?status=needs_review&topicId=conditional-probability&sourceType=pattern_derived_original&generatedOnly=true",
+        "http://test/api/professor/questions?status=needs_review&topicId=conditional-probability&sourceType=generated_original&generatedOnly=true",
       ),
     );
     const payload = (await response.json()) as {
@@ -93,7 +93,7 @@ describe("professor questions API", () => {
         (question) =>
           question.review.status === "needs_review" &&
           question.topicId === "conditional-probability" &&
-          question.source.sourceType === "pattern_derived_original",
+          question.source.sourceType === "generated_original",
       ),
     ).toBe(true);
   });

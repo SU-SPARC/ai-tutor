@@ -66,12 +66,12 @@ deployments, migrations, or application startup.
 ## Correcting imported source provenance
 
 Drafts imported before the generators were reclassified claim
-`pattern_derived_original` while carrying no catalogued pattern. The
+`pattern_derived_original` while carrying no approved catalogued pattern. The
 publication quality gate requires a linked pattern ID for that source type, so
-those drafts are permanently blocked with `invalid_source_classification`. The
-truthful classification is `generated_original`: the drafts come from ad-hoc
-templates in the generator scripts, not from
-`data/demo/question-patterns.json`.
+those drafts are permanently blocked with `invalid_source_classification`.
+Without a formal link, the evidenced public-safe classification is
+`generated_original`; a descriptive `patternSource` label is not a database
+provenance relationship.
 
 The importer never updates an existing ID, and `question_versions`,
 `question_lifecycle_events`, and `audit_events` reject `DELETE`, so neither
@@ -92,11 +92,12 @@ idempotent; a second run reports every corrected draft as already correct.
 Safety model:
 
 - Only IDs whose committed fixture says `generated_original` are considered.
+  All 234 current review-candidate fixtures use that classification because
+  this importer does not invent or approve catalogued pattern relationships.
 - A draft is repaired only when the question row and its working version both
   still claim `pattern_derived_original` and no pattern ID is linked anywhere.
-  Every other state is reported as blocked and left untouched, so the twelve
-  `generated-additional-*` drafts that genuinely name a catalogued pattern are
-  never reclassified and no pattern ID is ever invented.
+  A record with a real linked pattern is reported as blocked and left untouched;
+  no pattern ID is ever invented.
 - `questions.source_type` is corrected on the mutable projection only. The
   stored snapshot of every existing version is left byte-for-byte unchanged.
 - A new immutable version is appended with parent lineage, `imported` creation

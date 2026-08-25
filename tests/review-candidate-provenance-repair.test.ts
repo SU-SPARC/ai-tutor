@@ -37,14 +37,7 @@ describe("review-candidate provenance repair", () => {
   it("unblocks the publication gate by appending a corrected version without touching the stored snapshot", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
-    const fixtures = await legacyClassifiedFixtures();
-
-    await importPublicReviewCandidates({
-      client,
-      dryRun: false,
-      fixtures,
-      target: "test",
-    });
+    await importLegacyClassifiedCandidates(database, client);
     await seedProfessor(database);
 
     const importedVersionId = await workingVersionId(
@@ -201,22 +194,19 @@ describe("review-candidate provenance repair", () => {
     ]);
   });
 
-  it("never reclassifies a draft that evidences a catalogued pattern and stays idempotent", async () => {
+  it("repairs every legacy unlinked draft and stays idempotent", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
 
-    await importPublicReviewCandidates({
-      client,
-      dryRun: false,
-      fixtures: await legacyClassifiedFixtures(),
-      target: "test",
-    });
+    await importLegacyClassifiedCandidates(database, client);
+    await seedProfessor(database);
 
     const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
     const plan = await buildProvenanceRepairPlan(client, fixtures);
     const repairableIds = plan.repairable.map((entry) => entry.id);
     expect(repairableIds).toContain(FAILING_QUESTION_ID);
-    expect(repairableIds).not.toContain(PATTERN_DERIVED_QUESTION_ID);
+    expect(repairableIds).toContain(PATTERN_DERIVED_QUESTION_ID);
+    expect(repairableIds).toHaveLength(234);
     expect(plan.blocked).toEqual([]);
     expect(plan.absent).toEqual([]);
 
@@ -235,14 +225,27 @@ describe("review-candidate provenance repair", () => {
     expect(second.repaired).toEqual([]);
     expect(second.alreadyCorrect).toBe(repairableIds.length);
 
-    const untouched = await database.query<{ count: number }>(
-      `select count(*)::int as count from question_versions
-       where question_id = $1`,
+    const corrected = await database.query<{
+      count: number;
+      source_type: string;
+    }>(
+      `select
+         count(*)::int as count,
+         max(qv.snapshot_json ->> 'sourceType') filter (
+           where qv.id = q.working_version_id
+         ) as source_type
+       from questions q
+       join question_versions qv on qv.question_id = q.id
+       where q.id = $1
+       group by q.id`,
       [PATTERN_DERIVED_QUESTION_ID],
     );
-    expect(untouched.rows[0].count).toBe(1);
+    expect(corrected.rows[0]).toEqual({
+      count: 2,
+      source_type: "generated_original",
+    });
 
-    const stillBlocked = await database.query<{ code: string }>(
+    const publicationFailures = await database.query<{ code: string }>(
       `select code from app_question_publication_gate_failures(
          $1::text,
          (select working_version_id from questions where id = $1::text),
@@ -250,21 +253,44 @@ describe("review-candidate provenance repair", () => {
        )`,
       [PATTERN_DERIVED_QUESTION_ID],
     );
-    expect(stillBlocked.rows.map((row) => row.code)).toContain(
+    expect(publicationFailures.rows.map((row) => row.code)).not.toContain(
       "invalid_source_classification",
     );
+
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const correctedVersionId = await workingVersionId(
+      database,
+      PATTERN_DERIVED_QUESTION_ID,
+    );
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: PATTERN_DERIVED_QUESTION_ID,
+      versionId: correctedVersionId,
+    });
+    await repository.transition(authorization, {
+      action: "publish",
+      expectedState: "approved",
+      questionId: PATTERN_DERIVED_QUESTION_ID,
+      versionId: correctedVersionId,
+    });
+    const studentVisibility = await database.query<{ count: number }>(
+      `select count(*)::int as count
+       from app_public_questions
+       where id = $1`,
+      [PATTERN_DERIVED_QUESTION_ID],
+    );
+    expect(studentVisibility.rows[0].count).toBe(1);
   });
 
   it("preserves a professor revision that exists only in the version snapshot", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
 
-    await importPublicReviewCandidates({
-      client,
-      dryRun: false,
-      fixtures: await legacyClassifiedFixtures(),
-      target: "test",
-    });
+    await importLegacyClassifiedCandidates(database, client);
     await seedProfessor(database);
 
     // createRevision writes edits only into question_versions and leaves the
@@ -278,7 +304,10 @@ describe("review-candidate provenance repair", () => {
       pgliteQuery(database),
     );
     const authorization = await professorAuthorization();
-    const base = await repository.getQuestion(authorization, FAILING_QUESTION_ID);
+    const base = await repository.getQuestion(
+      authorization,
+      FAILING_QUESTION_ID,
+    );
     const working = base!.workingVersion;
     await repository.createRevision(authorization, {
       baseVersionId: importedVersionId,
@@ -332,12 +361,7 @@ describe("review-candidate provenance repair", () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
 
-    await importPublicReviewCandidates({
-      client,
-      dryRun: false,
-      fixtures: await legacyClassifiedFixtures(),
-      target: "test",
-    });
+    await importLegacyClassifiedCandidates(database, client);
     await seedProfessor(database);
     await applyProvenanceRepair({
       client,
@@ -370,25 +394,79 @@ describe("review-candidate provenance repair", () => {
   });
 });
 
-/**
- * Production was seeded before the fixtures were reclassified, so every
- * imported draft still claims pattern_derived_original with no pattern ID.
- */
-async function legacyClassifiedFixtures(): Promise<PublicReviewCandidateFixtures> {
+/** Production stored these immutable snapshots before source reclassification. */
+async function importLegacyClassifiedCandidates(
+  database: PGlite,
+  client: ImportClient,
+): Promise<PublicReviewCandidateFixtures> {
   const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
-  return {
-    ...fixtures,
-    candidates: fixtures.candidates.map((entry) => ({
-      ...entry,
-      candidate: {
-        ...entry.candidate,
-        source: {
-          ...entry.candidate.source,
-          sourceType: "pattern_derived_original" as const,
-        },
-      },
-    })),
-  };
+  await importPublicReviewCandidates({
+    client,
+    dryRun: false,
+    fixtures,
+    target: "test",
+  });
+
+  await database.exec(
+    "alter table question_versions disable trigger question_versions_immutable",
+  );
+  try {
+    await database.query(
+      `with rewritten as (
+         select
+           qv.id,
+           jsonb_set(
+             qv.snapshot_json,
+             '{sourceType}',
+             to_jsonb('pattern_derived_original'::text)
+           ) as snapshot
+         from question_versions qv
+         where qv.question_id = any($1::text[])
+       )
+       update question_versions qv
+       set snapshot_json = rewritten.snapshot,
+           content_hash = md5(rewritten.snapshot::text),
+           content_sha256 = encode(
+             sha256(
+               convert_to(
+                 (
+                   rewritten.snapshot - array[
+                     'reviewStatus', 'visibility', 'trustLevel',
+                     'reviewPriority', 'reviewNotes', 'reviewedByUserId',
+                     'reviewedAt', 'archivedAt'
+                   ]::text[]
+                 )::text,
+                 'UTF8'
+               )
+             ),
+             'hex'
+           )
+       from rewritten
+       where qv.id = rewritten.id`,
+      [fixtures.candidates.map(({ candidate }) => candidate.id)],
+    );
+  } finally {
+    await database.exec(
+      "alter table question_versions enable trigger question_versions_immutable",
+    );
+  }
+
+  await database.exec(
+    "select set_config('app.suppress_question_version', 'true', false)",
+  );
+  try {
+    await database.query(
+      `update questions
+       set source_type = 'pattern_derived_original'
+       where id = any($1::text[])`,
+      [fixtures.candidates.map(({ candidate }) => candidate.id)],
+    );
+  } finally {
+    await database.exec(
+      "select set_config('app.suppress_question_version', 'false', false)",
+    );
+  }
+  return fixtures;
 }
 
 async function migratedDatabase() {

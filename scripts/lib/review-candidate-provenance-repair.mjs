@@ -317,7 +317,7 @@ async function repairOneDraft(client, entry) {
         $4,
         'draft',
         null,
-        'Provenance corrected to generated_original; these drafts come from ad-hoc generator templates, not a catalogued question pattern.',
+        'Provenance corrected to generated_original because no approved catalogued pattern ID is linked to this immutable version.',
         $5,
         null,
         $6::jsonb

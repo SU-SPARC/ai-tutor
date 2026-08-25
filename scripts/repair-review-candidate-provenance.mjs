@@ -176,9 +176,10 @@ function printUsage() {
 
 Imported drafts that claim pattern_derived_original without a linked
 catalogued pattern can never satisfy the publication quality gate. This command
-corrects them to the truthful generated_original classification by appending a
-new immutable version through the lifecycle system. It never rewrites a stored
-snapshot, never invents a pattern ID, and never relaxes the publication gate.
+corrects them to the evidenced generated_original classification by appending
+a new immutable version through the lifecycle system. It never rewrites a
+stored snapshot, never invents a pattern ID, and never relaxes the publication
+gate.
 
 Usage:
   npm run db:repair:review-candidate-provenance -- --target <env> --check

@@ -114,11 +114,13 @@ export function evaluateQuestionPublicationQualityGates(
     });
   }
 
-  if (!sourceClassificationIsValid(version.source)) {
+  const sourceClassificationFailure = sourceClassificationFailureMessage(
+    version.source,
+  );
+  if (sourceClassificationFailure) {
     blockers.push({
       code: "invalid_source_classification",
-      message:
-        "The question requires a public-safe source type, compatible trust classification, and originality note.",
+      message: sourceClassificationFailure,
     });
   }
 
@@ -213,31 +215,45 @@ function answerSchemaIsValid(answer: QuestionVersionDto["answer"]) {
   );
 }
 
-function sourceClassificationIsValid(source: SourceMetadata) {
+function sourceClassificationFailureMessage(source: SourceMetadata) {
+  if (source.visibility !== "public") {
+    return "The immutable version must have public source visibility before publication.";
+  }
+  if (!longText(source.originalityNote ?? "")) {
+    return "The immutable version requires a non-empty originality note of at most 8,000 characters.";
+  }
   if (
-    source.visibility !== "public" ||
-    !longText(source.originalityNote ?? "") ||
     source.trustLevel === "private_reference" ||
     source.sourceType === "private_reference_pattern"
   ) {
-    return false;
+    return "Private-reference source classifications cannot be published.";
   }
   if (
     source.sourceType === "generated_original" ||
     source.sourceType === "pattern_derived_original"
   ) {
-    return (
-      (source.trustLevel === "generated_unverified" ||
-        source.trustLevel === "professor_approved") &&
-      (source.sourceType !== "pattern_derived_original" ||
-        Boolean(source.patternIds?.length))
-    );
+    if (
+      source.trustLevel !== "generated_unverified" &&
+      source.trustLevel !== "professor_approved"
+    ) {
+      return "Generated questions require generated_unverified or professor_approved trust classification.";
+    }
+    if (
+      source.sourceType === "pattern_derived_original" &&
+      !source.patternIds?.length
+    ) {
+      return "A pattern-derived question requires a linked catalogued pattern ID. If no approved pattern is linked, append a corrected generated_original version and review it again.";
+    }
+    return undefined;
   }
-  return (
-    source.trustLevel === "public_original" ||
-    source.trustLevel === "course_approved" ||
-    source.trustLevel === "professor_approved"
-  );
+  if (
+    source.trustLevel !== "public_original" &&
+    source.trustLevel !== "course_approved" &&
+    source.trustLevel !== "professor_approved"
+  ) {
+    return "Professor-provided and demo-original questions require public_original, course_approved, or professor_approved trust classification.";
+  }
+  return undefined;
 }
 
 function contentStructureIsDeterministic(

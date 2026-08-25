@@ -130,6 +130,31 @@ describe("question publication quality gates", () => {
     expect(evaluateQuestionPublicationQualityGates(input)).toEqual([]);
   });
 
+  it("explains the exact missing pattern relationship instead of returning a generic source error", () => {
+    const input = validGateInput();
+    input.version.source = {
+      originalityNote: "Original generated question from a public-safe shape.",
+      sourceType: "pattern_derived_original",
+      trustLevel: "generated_unverified",
+      visibility: "public",
+    };
+
+    expect(evaluateQuestionPublicationQualityGates(input)).toContainEqual({
+      code: "invalid_source_classification",
+      message: expect.stringMatching(/linked catalogued pattern ID/i),
+    });
+  });
+
+  it("identifies a missing originality note directly", () => {
+    const input = validGateInput();
+    input.version.source.originalityNote = "";
+
+    expect(evaluateQuestionPublicationQualityGates(input)).toContainEqual({
+      code: "invalid_source_classification",
+      message: expect.stringMatching(/non-empty originality note/i),
+    });
+  });
+
   it("returns every applicable reason in stable gate order", () => {
     const input = validGateInput();
     input.activeSyllabusTopic = false;
