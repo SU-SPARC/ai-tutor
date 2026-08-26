@@ -13,7 +13,7 @@ import type { LlmGroundingContext, TutorMode, TutorProgress } from "@/lib/types"
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const MAX_LLM_ATTEMPTS = 2
-const MAX_TOTAL_DEADLINE_MS = 12_000
+const MAX_TOTAL_DEADLINE_MS = 40_000
 const RETRY_BACKOFF_MS = 250
 const MAX_USER_PROMPT_CHARACTERS = 2_400
 const MAX_STUDENT_MESSAGE_CHARACTERS = 500
@@ -189,10 +189,10 @@ export async function generateLlmTutorResponse(
             content: buildLlmTutorUserPrompt(input),
           },
         ],
-        // OpenRouter-specific: some free-tier models (e.g. reasoning-tuned
-        // Nemotron variants) otherwise leak raw chain-of-thought text into
-        // the response content instead of a clean answer.
-        reasoning: { exclude: true },
+        // OpenRouter-specific: disable reasoning generation for reasoning-tuned
+        // models. Excluding it only hides those tokens while retaining their
+        // generation latency; response guardrails still reject any leakage.
+        reasoning: { enabled: false },
       } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming, {
         timeout: Math.min(env.AI_REQUEST_TIMEOUT_MS, remainingMs),
       })
@@ -257,7 +257,12 @@ export async function generateLlmTutorResponse(
       }
 
       const retryDelay = retryDelayFor(error)
-      if (Date.now() + retryDelay >= deadline) {
+      const remainingAfterRetryDelay = deadline - Date.now() - retryDelay
+      if (
+        remainingAfterRetryDelay <= 0 ||
+        (classified.reason === "provider_timeout" &&
+          remainingAfterRetryDelay < env.AI_REQUEST_TIMEOUT_MS)
+      ) {
         lastError = "deadline_exceeded"
         break
       }
@@ -488,7 +493,7 @@ function classifyProviderError(error: unknown) {
   if (error instanceof OpenAI.APIError) {
     const status = error.status
     const isConnectionFailure = status === undefined
-    const isTimeout = /timeout/i.test(error.name)
+    const isTimeout = error instanceof OpenAI.APIConnectionTimeoutError
     return {
       kind: isConnectionFailure ? (isTimeout ? "timeout" : "network") : "api_error",
       reason:

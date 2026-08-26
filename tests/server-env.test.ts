@@ -18,7 +18,7 @@ describe("typed server environment", () => {
     expect(env).toMatchObject({
       AI_ENABLED: false,
       AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
-      AI_REQUEST_TIMEOUT_MS: 8_000,
+      AI_REQUEST_TIMEOUT_MS: 25_000,
       APP_DEMO_MODE: true,
       APP_ENV: "development",
       APP_URL: "http://localhost:3000",
@@ -84,7 +84,7 @@ describe("typed server environment", () => {
       AI_ENABLED: true,
       AI_MODEL: "approved/model",
       AI_PROVIDER: "openrouter",
-      AI_REQUEST_TIMEOUT_MS: 8_000,
+      AI_REQUEST_TIMEOUT_MS: 25_000,
       APP_DEMO_MODE: false,
       APP_ENV: "staging",
       APP_URL: "https://staging.example.edu",
@@ -277,6 +277,17 @@ describe("typed server environment", () => {
     );
   });
 
+  it("rejects an AI request timeout above the configured maximum", () => {
+    expect(() =>
+      parseServerEnv({
+        ...strictEnvironment("production"),
+        AI_REQUEST_TIMEOUT_MS: "30001",
+      }),
+    ).toThrowError(
+      /AI_REQUEST_TIMEOUT_MS must be an integer between 1000 and 30000/,
+    );
+  });
+
   it("rejects server secrets exposed through NEXT_PUBLIC aliases", () => {
     const exposedValue = "do-not-render-this-value";
 
@@ -326,7 +337,7 @@ function strictEnvironment(
     AI_ENABLED: "true",
     AI_MODEL: "approved/model",
     AI_PROVIDER: "openrouter",
-    AI_REQUEST_TIMEOUT_MS: "8000",
+    AI_REQUEST_TIMEOUT_MS: "25000",
     AI_USAGE_HMAC_SECRET: "unit-test-hmac-secret-material-1234567890",
     APP_DEMO_MODE: "false",
     APP_ENV: environment,

@@ -60,7 +60,7 @@ export type ServerEnv = ServerEnvBase &
 
 const DEFAULTS = {
   AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
-  AI_REQUEST_TIMEOUT_MS: 8_000,
+  AI_REQUEST_TIMEOUT_MS: 25_000,
   AI_USAGE_HMAC_SECRET:
     "development-ai-usage-hmac-key-not-for-deployment",
   ANONYMOUS_COOKIE_DAYS: 30,
@@ -229,7 +229,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     issues,
     {
       defaultValue: !strict ? DEFAULTS.AI_REQUEST_TIMEOUT_MS : undefined,
-      maximum: 8_000,
+      maximum: 30_000,
       minimum: 1_000,
       required: AI_ENABLED && strict,
     },

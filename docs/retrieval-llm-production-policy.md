@@ -44,17 +44,20 @@ title and the student response carries the private-reference grounding label.
   two 400-character summaries and 800 characters total. The serialized user
   prompt is valid JSON and no more than 2,400 characters.
 - The current OpenRouter integration and configured `AI_MODEL` remain in use.
-  Temperature is `0.2`, reasoning output is excluded, tools and streaming are
-  disabled, SDK retries are disabled, and output is limited to 64–400 tokens.
+  Temperature is `0.2`, reasoning generation is disabled, tools and streaming
+  are disabled, SDK retries are disabled, and output is limited to 64–400
+  tokens.
 - Provider output must be exactly schema version 1 with a matching
   `pedagogicalAction` (`hint`, `next_step`, or `concept_explanation`) and a
   1–520 character plain-text `message`. The application owns verdict, source,
   disclosure, progress, and usage fields.
 
-Each provider attempt has an eight-second limit and the whole operation has a
-twelve-second deadline. There are at most two calls. Only network failures,
-408, 429, 5xx, invalid schema, or a retryable guardrail failure receive one
-retry. Other 4xx responses are not retried.
+Each provider attempt uses the configured 1–30 second limit (25 seconds outside
+strict environments), and the whole operation has a 40-second deadline. There
+are at most two calls. Only network failures, 408, 429, 5xx, invalid schema, or
+a retryable guardrail failure receive one retry. A timed-out attempt is retried
+only when the deadline can still provide one full configured request window
+after backoff. Other 4xx responses are not retried.
 
 ## Usage, Cache, Logging, And Outages
 

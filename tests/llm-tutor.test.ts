@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import OpenAI from "openai"
 
 import {
   buildLlmTutorUserPrompt,
@@ -9,6 +10,7 @@ import {
 
 describe("server-side LLM tutor service", () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllEnvs()
   })
 
@@ -70,6 +72,7 @@ describe("server-side LLM tutor service", () => {
     expect(request.max_tokens).toBe(400)
     expect(request.messages[0]?.role).toBe("system")
     expect(request.messages[1]?.role).toBe("user")
+    expect(request.reasoning).toEqual({ enabled: false })
     expect(userPrompt).toContain("student_message")
     expect(userPrompt).toContain("current_question")
     expect(userPrompt).toContain("session_state")
@@ -278,6 +281,48 @@ describe("server-side LLM tutor service", () => {
     })
   })
 
+  it("classifies an OpenAI connection timeout as provider_timeout", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new OpenAI.APIConnectionTimeoutError({}))
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(result).toMatchObject({
+      error: "provider_timeout",
+      fallbackUsed: false,
+      providerAttempts: 2,
+    })
+  })
+
+  it("skips a timeout retry without one full request window remaining", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    let nowMs = 1_000
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs)
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => {
+      nowMs += 25_001
+      throw new OpenAI.APIConnectionTimeoutError({})
+    })
+    const sleepImpl = vi.fn(async () => undefined)
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(sleepImpl).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      error: "deadline_exceeded",
+      fallbackUsed: false,
+      providerAttempts: 1,
+    })
+  })
+
   it("uses only a reviewed private summary and replaces its source title", () => {
     const prompt = buildLlmTutorUserPrompt({
       ...baseTutorInput(),
@@ -390,6 +435,7 @@ function llmTutorRequestPayload(
     max_tokens?: number
     messages: Array<{ content?: string; role?: string }>
     model?: string
+    reasoning?: { enabled?: boolean }
   }
 }
 
