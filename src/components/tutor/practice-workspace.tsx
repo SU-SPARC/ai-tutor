@@ -141,6 +141,18 @@ export function PracticeWorkspace({
           ),
       )
     : topics;
+  // Topic-first entry (arriving from the Topics page via ?topicId=…): the user
+  // already picked a topic there, so the sidebar shows just that topic's
+  // problems as a flat list — no need to re-navigate the whole topic tree.
+  const isTopicFirstEntry =
+    !initialQuestion &&
+    Boolean(initialTopicId) &&
+    topics.some((topic) => topic.id === initialTopicId);
+  const topicFirstProblems = isSearching
+    ? topicQuestions.filter((question) =>
+        question.title.toLowerCase().includes(searchQuery),
+      )
+    : topicQuestions;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -453,7 +465,11 @@ export function PracticeWorkspace({
 
           <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <CardHeader>
-              <CardTitle className="text-base">Topics</CardTitle>
+              <CardTitle className="text-base">
+                {isTopicFirstEntry
+                  ? (selectedTopic?.title ?? "Problems")
+                  : "Topics"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
               <div className="relative mb-2">
@@ -464,8 +480,16 @@ export function PracticeWorkspace({
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search topics or problems…"
-                  aria-label="Search topics or problems"
+                  placeholder={
+                    isTopicFirstEntry
+                      ? "Search problems…"
+                      : "Search topics or problems…"
+                  }
+                  aria-label={
+                    isTopicFirstEntry
+                      ? "Search problems"
+                      : "Search topics or problems"
+                  }
                   className="h-9 px-8"
                 />
                 {search ? (
@@ -480,7 +504,35 @@ export function PracticeWorkspace({
                 ) : null}
               </div>
               <div className="flex max-h-[45vh] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
-                {visibleTopics.length === 0 ? (
+                {isTopicFirstEntry ? (
+                  topicFirstProblems.length === 0 ? (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">
+                      {isSearching
+                        ? `No matches for “${search.trim()}”.`
+                        : "No problems yet."}
+                    </p>
+                  ) : (
+                    topicFirstProblems.map((problem) => (
+                      <Button
+                        key={problem.id}
+                        type="button"
+                        size="sm"
+                        variant={
+                          problem.id === selectedQuestionId
+                            ? "default"
+                            : "ghost"
+                        }
+                        className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                        disabled={isTutorBusy}
+                        onClick={() =>
+                          selectQuestion(problem.id, selectedTopicId)
+                        }
+                      >
+                        {problem.title}
+                      </Button>
+                    ))
+                  )
+                ) : visibleTopics.length === 0 ? (
                   <p className="px-2 py-3 text-sm text-muted-foreground">
                     No matches for “{search.trim()}”.
                   </p>
