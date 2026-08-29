@@ -73,6 +73,10 @@ import type {
   ContentTransferImportResult,
   ContentTransferStorageInspection,
 } from "@/lib/content-transfer/types";
+import type {
+  QuestionIntakeDuplicate,
+  QuestionIntakeTopic,
+} from "@/lib/question-intake/types";
 
 let contentRepositoryOverride: ContentRepository | undefined;
 let contentAvailabilityRepositoryOverride:
@@ -629,6 +633,36 @@ export async function createQuestionLifecycle(
   );
 }
 
+export async function getQuestionIntakeTopics(
+  authorization: ProfessorReviewAuthorization,
+): Promise<QuestionIntakeTopic[]> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+  if (contentRepositoryOverride || policy.repositorySource === "demo") {
+    const topics = await listTopics();
+    return topics
+      .filter((topic) => topic.active)
+      .map(({ description, id, title }) => ({ description, id, title }));
+  }
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.listQuestionIntakeTopics(authorization),
+  );
+}
+
+export async function findQuestionIntakeDuplicates(
+  authorization: ProfessorReviewAuthorization,
+  input: { prompt: string; topicId: string },
+): Promise<QuestionIntakeDuplicate[]> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+  if (contentRepositoryOverride || policy.repositorySource === "demo") {
+    return [];
+  }
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.findQuestionIntakeDuplicates(authorization, input),
+  );
+}
+
 export async function inspectContentTransferStorage(
   authorization: ProfessorReviewAuthorization,
   input: {
@@ -816,7 +850,10 @@ function safeTopicOptions(topics: AdminQuestionDashboard["topics"]) {
 }
 
 async function demoContentAvailabilityDashboard(): Promise<StudentContentAvailabilityDashboard> {
-  const [topics, questions] = await Promise.all([listTopics(), listQuestions()]);
+  const [topics, questions] = await Promise.all([
+    listTopics(),
+    listQuestions(),
+  ]);
 
   return {
     assignmentScope: "global_only",

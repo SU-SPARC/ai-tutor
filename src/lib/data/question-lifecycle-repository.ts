@@ -54,12 +54,23 @@ import type {
   ContentTransferQuestion,
   ContentTransferStorageInspection,
 } from "@/lib/content-transfer/types";
+import {
+  questionIntakePromptFingerprint,
+  questionIntakeTopicsFromRows,
+  rankQuestionIntakeDuplicates,
+  type QuestionIntakeDuplicateCandidate,
+} from "@/lib/question-intake/duplicates";
+import type {
+  QuestionIntakeDuplicate,
+  QuestionIntakeTopic,
+} from "@/lib/question-intake/types";
 
 export type QuestionVersionContentInput = QuestionContent & {
   source: SourceMetadata;
 };
 
 export type CreateQuestionInput = {
+  allowDuplicatePrompt?: boolean;
   content: QuestionVersionContentInput;
   creationMethod: QuestionCreationMethod;
   submit?: boolean;
@@ -217,6 +228,62 @@ export function createDatabaseQuestionLifecycleRepository(
   query: DatabaseQueryExecutor,
 ) {
   return {
+    async listQuestionIntakeTopics(
+      authorization: ProfessorReviewAuthorization,
+    ): Promise<QuestionIntakeTopic[]> {
+      assertAuthorization(authorization, "professor");
+      const rows = await readDatabaseRows(
+        query,
+        `select id, title, description
+         from topics
+         where is_active = true
+         order by sort_order, title, id`,
+      );
+      return questionIntakeTopicsFromRows(rows);
+    },
+
+    async findQuestionIntakeDuplicates(
+      authorization: ProfessorReviewAuthorization,
+      input: { prompt: string; topicId: string },
+    ): Promise<QuestionIntakeDuplicate[]> {
+      assertAuthorization(authorization, "professor");
+      const fingerprint = questionIntakePromptFingerprint(input.prompt);
+      const rows = await readDatabaseRows(
+        query,
+        `select
+           q.id as question_id,
+           qv.snapshot_json->>'prompt' as prompt,
+           qv.snapshot_json->>'title' as title,
+           qv.snapshot_json->>'topicId' as topic_id
+         from questions q
+         join question_versions qv on qv.id = q.working_version_id
+         where q.record_state = 'active'
+           and (
+             qv.snapshot_json->>'topicId' = $1
+             or lower(regexp_replace(btrim(qv.snapshot_json->>'prompt'), '\\s+', ' ', 'g')) = $2
+           )
+         order by q.updated_at desc, q.id
+         limit 250`,
+        [input.topicId, fingerprint],
+      );
+      const candidates: QuestionIntakeDuplicateCandidate[] = rows.flatMap(
+        (row) => {
+          const questionId = String(row.question_id ?? "").trim();
+          const prompt = String(row.prompt ?? "").trim();
+          const title = String(row.title ?? "").trim();
+          const topicId = String(row.topic_id ?? "").trim();
+          return questionId && prompt && title && topicId
+            ? [{ prompt, questionId, title, topicId }]
+            : [];
+        },
+      );
+      return rankQuestionIntakeDuplicates({
+        candidates,
+        prompt: input.prompt,
+        topicId: input.topicId,
+      });
+    },
+
     async inspectContentTransferStorage(
       authorization: ProfessorReviewAuthorization,
       input: {
@@ -407,6 +474,23 @@ export function createDatabaseQuestionLifecycleRepository(
             throw new QuestionLifecycleConflictError(
               "A question with this stable ID already exists.",
             );
+          }
+          if (!input.allowDuplicatePrompt) {
+            const duplicateContent = await transactionQuery(
+              `select q.id
+               from questions q
+               join question_versions qv on qv.id = q.working_version_id
+               where q.record_state = 'active'
+                 and lower(regexp_replace(btrim(qv.snapshot_json->>'prompt'), '\\s+', ' ', 'g')) = $1
+               order by q.id
+               limit 1`,
+              [questionIntakePromptFingerprint(input.content.prompt)],
+            );
+            if (duplicateContent[0]) {
+              throw new QuestionLifecycleConflictError(
+                "Question content already exists under another stable ID.",
+              );
+            }
           }
 
           await setLifecycleActorContext(transactionQuery, {
@@ -686,7 +770,10 @@ export function createDatabaseQuestionLifecycleRepository(
               [input.questionId, input.idempotencyKey],
             );
             if (prior[0]) {
-              return requireQuestionLifecycle(transactionQuery, input.questionId);
+              return requireQuestionLifecycle(
+                transactionQuery,
+                input.questionId,
+              );
             }
           }
           if (current.record_state !== "active") {
@@ -779,8 +866,7 @@ export function createDatabaseQuestionLifecycleRepository(
             action: "submit",
             expectedState: "draft",
             metadata: correctionMetadata,
-            note:
-              "Server-derived provenance correction submitted for fresh review.",
+            note: "Server-derived provenance correction submitted for fresh review.",
             questionId: input.questionId,
             requestId: input.requestId,
             versionId,
@@ -866,9 +952,7 @@ export function createDatabaseQuestionLifecycleRepository(
           );
           const current = rows[0];
           if (!current) {
-            throw new QuestionLifecycleNotFoundError(
-              "Question was not found.",
-            );
+            throw new QuestionLifecycleNotFoundError("Question was not found.");
           }
           if (
             current.record_state !== "active" ||

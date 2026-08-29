@@ -227,6 +227,20 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireProfessor"],
   ),
   route(
+    "POST",
+    "/api/professor/question-intake",
+    "src/app/api/professor/question-intake/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "generateQuestionIntakeDraft"],
+  ),
+  route(
+    "PUT",
+    "/api/professor/question-intake",
+    "src/app/api/professor/question-intake/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "createQuestionLifecycle"],
+  ),
+  route(
     "GET",
     "/api/professor/content-transfer",
     "src/app/api/professor/content-transfer/route.ts",

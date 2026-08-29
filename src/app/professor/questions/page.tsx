@@ -1,6 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
+import { ProfessorQuestionIntakePanel } from "@/components/professor/professor-question-intake-panel";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +35,21 @@ export default async function ProfessorQuestionsPage() {
         </Badge>
       }
     >
+      <Card>
+        <CardHeader>
+          <CardTitle>Question intake</CardTitle>
+          <CardDescription>
+            Turn one submitted question into a complete, editable tutoring draft
+            before it enters the normal review lifecycle.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfessorQuestionIntakePanel
+            readOnly={initialDashboard.readOnly}
+            topics={initialDashboard.topics}
+          />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Professor question queue</CardTitle>

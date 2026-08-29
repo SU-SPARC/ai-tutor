@@ -44,6 +44,8 @@ type EnabledAiServerEnv = {
   AI_ENABLED: true;
   AI_MODEL: string;
   AI_PROVIDER: "openrouter";
+  AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS: number;
+  AI_QUESTION_INTAKE_VISION_MODEL?: string;
   AI_REQUEST_TIMEOUT_MS: number;
   AI_USAGE_HMAC_SECRET: string;
   MAX_LLM_OUTPUT_TOKENS: number;
@@ -54,6 +56,8 @@ type DisabledAiServerEnv = {
   AI_ENABLED: false;
   AI_MODEL?: string;
   AI_PROVIDER?: "openrouter";
+  AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS: number;
+  AI_QUESTION_INTAKE_VISION_MODEL?: string;
   AI_REQUEST_TIMEOUT_MS?: number;
   AI_USAGE_HMAC_SECRET?: string;
   MAX_LLM_OUTPUT_TOKENS?: number;
@@ -69,6 +73,7 @@ const DEFAULTS = {
   AI_LLM_MAX_REQUESTS_PER_SESSION: 3,
   AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: 6,
   AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS: 2_600,
   AI_REQUEST_TIMEOUT_MS: 25_000,
   AI_USAGE_HMAC_SECRET: "development-ai-usage-hmac-key-not-for-deployment",
   ANONYMOUS_COOKIE_DAYS: 30,
@@ -231,6 +236,21 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     defaultValue: !strict ? DEFAULTS.AI_MODEL : undefined,
     required: AI_ENABLED && strict,
   });
+  const AI_QUESTION_INTAKE_VISION_MODEL = parseString(
+    "AI_QUESTION_INTAKE_VISION_MODEL",
+    input.AI_QUESTION_INTAKE_VISION_MODEL,
+    issues,
+  );
+  const AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS = parseIntegerInRange(
+    "AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS",
+    input.AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS,
+    issues,
+    {
+      defaultValue: DEFAULTS.AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS,
+      maximum: 4_096,
+      minimum: 1_200,
+    },
+  );
   const AI_REQUEST_TIMEOUT_MS = parseIntegerInRange(
     "AI_REQUEST_TIMEOUT_MS",
     input.AI_REQUEST_TIMEOUT_MS,
@@ -401,6 +421,9 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       AI_ENABLED: true,
       AI_MODEL: AI_MODEL!,
       AI_PROVIDER: AI_PROVIDER!,
+      AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS:
+        AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS!,
+      AI_QUESTION_INTAKE_VISION_MODEL,
       AI_REQUEST_TIMEOUT_MS: AI_REQUEST_TIMEOUT_MS!,
       AI_USAGE_HMAC_SECRET: AI_USAGE_HMAC_SECRET!,
       MAX_LLM_OUTPUT_TOKENS: MAX_LLM_OUTPUT_TOKENS!,
@@ -413,6 +436,8 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     AI_ENABLED: false,
     AI_MODEL,
     AI_PROVIDER,
+    AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS: AI_QUESTION_INTAKE_MAX_OUTPUT_TOKENS!,
+    AI_QUESTION_INTAKE_VISION_MODEL,
     AI_REQUEST_TIMEOUT_MS,
     AI_USAGE_HMAC_SECRET,
     MAX_LLM_OUTPUT_TOKENS,
