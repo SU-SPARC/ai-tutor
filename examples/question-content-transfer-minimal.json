@@ -1,0 +1,30 @@
+{
+  "format": "professor_question_content",
+  "schemaVersion": 1,
+  "topics": [
+    {
+      "id": "introduction-probability-venn-diagrams",
+      "title": "Introduction to Probability and Venn Diagrams",
+      "order": 1
+    }
+  ],
+  "questions": [
+    {
+      "stableId": "example-minimal-fair-die-above-four",
+      "topicId": "introduction-probability-venn-diagrams",
+      "title": "Fair die result above four",
+      "prompt": "A fair six-sided die is rolled once. What is the probability that the result is greater than 4?",
+      "difficulty": "foundational",
+      "answer": {
+        "acceptedAnswers": ["1/3"],
+        "explanation": "The favorable results are 5 and 6, so two of the six equally likely results are favorable. Thus the probability is 2/6 = 1/3."
+      },
+      "hints": [],
+      "solutionSteps": [
+        "Two of the six equally likely results, 5 and 6, satisfy the condition, so the probability is 2/6 = 1/3."
+      ],
+      "misconceptions": [],
+      "reviewState": "needs_review"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "format": "professor_question_content",
+  "schemaVersion": 1,
+  "exportedAt": "2026-08-29T00:00:00Z",
+  "topics": [
+    {
+      "id": "axioms-probability-counting-methods",
+      "title": "Axioms of Probability and Counting Methods",
+      "order": 2
+    },
+    {
+      "id": "conditional-probability",
+      "title": "Conditional Probability, Independence, and Bayes' Formula",
+      "order": 3
+    }
+  ],
+  "questions": [
+    {
+      "stableId": "example-counting-noor-committee",
+      "topicId": "axioms-probability-counting-methods",
+      "title": "Noor joins a three-person committee",
+      "prompt": "Eight distinct volunteers, including Noor, are available for a three-person committee. If every three-person committee is equally likely to be selected, what is the probability that Noor is selected?",
+      "difficulty": "foundational",
+      "answer": {
+        "acceptedAnswers": ["3/8", "0.375", "37.5%"],
+        "numericValue": 0.375,
+        "tolerance": 0.000000001,
+        "explanation": "There are C(8,3) = 56 possible committees. Committees containing Noor are formed by choosing the other two members from the remaining seven volunteers, giving C(7,2) = 21 favorable committees. Therefore the probability is 21/56 = 3/8."
+      },
+      "hints": [
+        "Count all unordered three-person committees first.",
+        "For a committee that contains Noor, fix Noor and choose the other two members."
+      ],
+      "solutionSteps": [
+        "The total number of committees is C(8,3) = 56.",
+        "The number containing Noor is C(7,2) = 21.",
+        "Divide favorable committees by all committees: 21/56 = 3/8 = 0.375."
+      ],
+      "misconceptions": [
+        {
+          "id": "example-counting-noor-one-of-eight",
+          "feedback": "Noor can occupy any one of the three committee positions conceptually, so the probability is not 1/8. Count committees containing Noor, or use the symmetry result that three of eight volunteers are selected.",
+          "matchTerms": ["1/8", "0.125", "12.5%"]
+        }
+      ],
+      "reviewState": "needs_review"
+    },
+    {
+      "stableId": "example-conditional-two-draws",
+      "topicId": "conditional-probability",
+      "title": "Two red tokens given at least one red",
+      "prompt": "A bag contains three red tokens and two blue tokens. Two tokens are drawn uniformly at random without replacement. Let X be the number of red tokens drawn. Given that X is at least 1, what is the probability that X equals 2?",
+      "difficulty": "intermediate",
+      "answer": {
+        "acceptedAnswers": ["1/3", "0.3333333333", "33.33333333%"],
+        "numericValue": 0.3333333333333333,
+        "tolerance": 0.00000001,
+        "explanation": "There are C(5,2) = 10 equally likely pairs. Exactly two red tokens occurs in C(3,2) = 3 pairs. At least one red token occurs in 10 - C(2,2) = 9 pairs. Because the event X = 2 is contained in X >= 1, the conditional probability is 3/9 = 1/3."
+      },
+      "hints": [
+        "Conditioning on X being at least 1 removes the all-blue pair from the possible outcomes.",
+        "Count the pairs with two red tokens and divide by the pairs with at least one red token."
+      ],
+      "solutionSteps": [
+        "Count all unordered pairs: C(5,2) = 10.",
+        "Count pairs with at least one red token: 10 - C(2,2) = 9.",
+        "Count pairs with two red tokens: C(3,2) = 3.",
+        "Compute P(X = 2 | X >= 1) = 3/9 = 1/3."
+      ],
+      "misconceptions": [
+        {
+          "id": "example-conditional-two-draws-unconditioned",
+          "feedback": "The value 3/10 is the unconditional probability of drawing two red tokens. Once we know that at least one red token was drawn, the all-blue pair is removed and the conditional sample space has nine pairs.",
+          "matchTerms": ["3/10", "0.3", "30%"]
+        }
+      ],
+      "reviewState": "needs_review"
+    }
+  ]
+}

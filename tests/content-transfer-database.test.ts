@@ -5,6 +5,7 @@ import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { requireProfessorReview } from "@/lib/auth/authorization";
+import { validateContentTransferDocument } from "@/lib/content-transfer/schema";
 import type { ContentTransferDocument } from "@/lib/content-transfer/types";
 import { activeCanonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
@@ -25,6 +26,75 @@ afterEach(async () => {
 });
 
 describe("question content-transfer database import", () => {
+  it("validates and imports the example transfer files without publishing", async () => {
+    const database = await migratedDatabase();
+    await seedProfessorAndTopics(database, 3);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+
+    for (const filename of [
+      "question-content-transfer-sample.json",
+      "question-content-transfer-minimal.json",
+    ]) {
+      const candidate = JSON.parse(
+        readFileSync(path.join(process.cwd(), "examples", filename), "utf8"),
+      ) as unknown;
+      const validation = validateContentTransferDocument(candidate);
+
+      expect(validation.preview).toMatchObject({
+        rootErrors: [],
+        summary: { duplicates: 0, invalid: 0 },
+      });
+      expect(validation.document).toBeDefined();
+
+      const result = await repository.importContentTransfer(authorization, {
+        document: validation.document!,
+        requestId: `request:${filename}`,
+      });
+      expect(result.importedIds).toHaveLength(
+        validation.document!.questions.length,
+      );
+    }
+
+    const imported = await database.query<{
+      originality_note: string;
+      published_version_id: number | null;
+      source_type: string;
+      state: string;
+      trust_level: string;
+      visibility: string;
+    }>(`
+      select
+        q.originality_note,
+        q.published_version_id,
+        q.source_type,
+        q.trust_level,
+        q.visibility,
+        qvl.state
+      from questions q
+      join question_version_lifecycle qvl
+        on qvl.question_version_id = q.working_version_id
+      where q.id like 'example-%'
+      order by q.id
+    `);
+
+    expect(imported.rows).toHaveLength(3);
+    expect(imported.rows).toEqual(
+      imported.rows.map((row) => ({
+        ...row,
+        originality_note:
+          "Imported from a validated professor content-transfer document.",
+        published_version_id: null,
+        source_type: "professor_provided",
+        state: "needs_review",
+        trust_level: "public_original",
+        visibility: "public",
+      })),
+    );
+  });
+
   it("imports full aggregates and attributed review states without publishing", async () => {
     const database = await migratedDatabase();
     await seedProfessorAndTopics(database, 1);
