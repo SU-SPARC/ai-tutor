@@ -61,10 +61,13 @@ after backoff. Other 4xx responses are not retried.
 
 ## Usage, Cache, Logging, And Outages
 
-The project owner selected unlimited per-student LLM access: there is no daily,
-per-question, or per-session allowance. Input/output limits, owner and IP burst
-limits, idempotent event keys, and one pending generation per session remain
-abuse and reliability controls.
+Cache-miss LLM requests are limited to three per tutor session and six per
+HMAC-scoped student/question version by default. An optional UTC-day pilot
+allowance can be configured without changing code. A durable HMAC-scoped burst
+limit defaults to four requests per minute. These decisions are serialized in
+Postgres across sessions and serverless instances; cache hits do not consume an
+allowance. Input/output limits, route-level owner/IP throttles, idempotent event
+keys, and one pending generation per session provide additional controls.
 
 Successful guarded guidance is cached for 15 minutes using an HMAC key over the
 student, question version, model/prompt version, session state, disclosure,
@@ -72,8 +75,11 @@ redacted input, and grounding hashes. Cache entries are student-isolated, store
 only the safe generated response, and use `source: cache`. Cache hits use no
 provider tokens.
 
-Reservations, cache changes, aggregate HMAC-scoped usage, provider token totals,
-and the tutor transition settle in the same database transaction. Logs contain
+Reservations, cache changes, aggregate HMAC-scoped usage, provider request/call
+counts, provider token totals, and the tutor transition settle in the same
+database transaction. If the tutor transition loses a concurrency race after a
+provider call, the reservation and provider usage settle idempotently without
+caching the abandoned response. Logs contain
 only shortened HMAC keys, normalized outcome/error data, attempts, latency,
 guardrail codes, context counts, and token totals. They never contain prompts,
 answers, generated text, raw context, account identifiers, IP addresses,

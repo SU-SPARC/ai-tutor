@@ -1,5 +1,5 @@
-To control token usage, we will design the tutor so that most interactions do not use the LLM.
-Professor-approved questions, hints, solution steps, and misconceptions will be stored in the database and served directly.
-The LLM will only be used as a fallback when the stored material is not enough.
-We will also add per-student/session limits, input length limits, short AI responses, caching, and an admin dashboard to monitor usage.
+To control token usage, the tutor is designed so that most interactions do not use the LLM.
+Professor-approved questions, hints, solution steps, and misconceptions are stored in the database and served directly.
+The LLM is used only as a fallback when the stored material is not enough.
+The production path enforces per-student/question and per-session limits, an optional daily allowance, a burst limit, input length limits, short AI responses, caching, and durable usage accounting.
 This prevents students from freely consuming unlimited tokens while still giving them useful tutoring support.

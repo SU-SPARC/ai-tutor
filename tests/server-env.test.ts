@@ -17,6 +17,10 @@ describe("typed server environment", () => {
 
     expect(env).toMatchObject({
       AI_ENABLED: false,
+      AI_LLM_BURST_MAX_REQUESTS: 4,
+      AI_LLM_BURST_WINDOW_SECONDS: 60,
+      AI_LLM_MAX_REQUESTS_PER_SESSION: 3,
+      AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: 6,
       AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
       AI_REQUEST_TIMEOUT_MS: 25_000,
       APP_DEMO_MODE: true,
@@ -82,6 +86,10 @@ describe("typed server environment", () => {
 
     expect(env).toMatchObject({
       AI_ENABLED: true,
+      AI_LLM_BURST_MAX_REQUESTS: 4,
+      AI_LLM_BURST_WINDOW_SECONDS: 60,
+      AI_LLM_MAX_REQUESTS_PER_SESSION: 3,
+      AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: 6,
       AI_MODEL: "approved/model",
       AI_PROVIDER: "openrouter",
       AI_REQUEST_TIMEOUT_MS: 25_000,
@@ -285,6 +293,48 @@ describe("typed server environment", () => {
       }),
     ).toThrowError(
       /AI_REQUEST_TIMEOUT_MS must be an integer between 1000 and 30000/,
+    );
+  });
+
+  it("parses configurable pilot LLM allowances", () => {
+    const env = parseServerEnv({
+      ...strictEnvironment("production"),
+      AI_LLM_BURST_MAX_REQUESTS: "7",
+      AI_LLM_BURST_WINDOW_SECONDS: "120",
+      AI_LLM_DAILY_REQUEST_LIMIT: "25",
+      AI_LLM_MAX_REQUESTS_PER_SESSION: "4",
+      AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: "8",
+    });
+
+    expect(env).toMatchObject({
+      AI_LLM_BURST_MAX_REQUESTS: 7,
+      AI_LLM_BURST_WINDOW_SECONDS: 120,
+      AI_LLM_DAILY_REQUEST_LIMIT: 25,
+      AI_LLM_MAX_REQUESTS_PER_SESSION: 4,
+      AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: 8,
+    });
+  });
+
+  it("rejects invalid pilot LLM allowance settings", () => {
+    expect(() =>
+      parseServerEnv({
+        ...strictEnvironment("production"),
+        AI_LLM_BURST_MAX_REQUESTS: "0",
+        AI_LLM_BURST_WINDOW_SECONDS: "5",
+        AI_LLM_DAILY_REQUEST_LIMIT: "unlimited",
+        AI_LLM_MAX_REQUESTS_PER_SESSION: "21",
+        AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: "101",
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          "AI_LLM_BURST_MAX_REQUESTS must be an integer between 1 and 30.",
+          "AI_LLM_BURST_WINDOW_SECONDS must be an integer between 10 and 3600.",
+          "AI_LLM_DAILY_REQUEST_LIMIT must be an integer between 1 and 10000.",
+          "AI_LLM_MAX_REQUESTS_PER_SESSION must be an integer between 1 and 20.",
+          "AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION must be an integer between 1 and 100.",
+        ]),
+      }),
     );
   });
 

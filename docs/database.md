@@ -54,6 +54,12 @@ student/internal-review views. Student retrieval reads only approved public trus
 or approved private reference summaries; raw private book text must remain
 outside public APIs.
 
+`021_production_ai_usage_limits.sql` adds durable LLM request/provider-call
+counts, UTC usage dates, limit decisions, and idempotent settlement metadata.
+Reservation and usage keys are HMAC-derived; prompts, answers, generated text,
+retrieval context, provider payloads, account identifiers, and IP addresses are
+not stored in these cost-control records.
+
 ## Production Schema Hardening
 
 `007_production_schema_hardening.sql` is a forward-only migration that adds the

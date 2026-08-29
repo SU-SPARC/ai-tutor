@@ -166,8 +166,12 @@ describe("production schema hardening migration", () => {
     expect(constraintNames).toEqual(
       expect.arrayContaining([
         "ai_llm_reservations_session_fkey",
+        "ai_llm_reservations_limit_reason_check",
+        "ai_llm_reservations_provider_calls_check",
+        "ai_llm_reservations_status_check",
         "ai_response_cache_question_version_fkey",
         "ai_usage_counts_nonnegative",
+        "ai_usage_llm_request_counts_check",
         "attempts_question_topic_fkey",
         "attempts_question_version_fkey",
         "attempts_idempotency_key_check",
@@ -256,6 +260,59 @@ describe("production schema hardening migration", () => {
       ]),
     );
 
+    const aiCostControlColumns = await columnValues(
+      database,
+      `
+        select table_name || '.' || column_name as column_key
+        from information_schema.columns
+        where table_schema = 'public'
+          and (
+            (table_name = 'ai_usage' and column_name in (
+              'llm_provider_calls',
+              'llm_requests'
+            ))
+            or
+            (table_name = 'ai_llm_reservations' and column_name in (
+              'accounted_at',
+              'counts_toward_limit',
+              'limit_reason',
+              'provider_calls',
+              'usage_date'
+            ))
+          )
+        order by table_name, column_name
+      `,
+      "column_key",
+    );
+    expect(aiCostControlColumns).toEqual([
+      "ai_llm_reservations.accounted_at",
+      "ai_llm_reservations.counts_toward_limit",
+      "ai_llm_reservations.limit_reason",
+      "ai_llm_reservations.provider_calls",
+      "ai_llm_reservations.usage_date",
+      "ai_usage.llm_provider_calls",
+      "ai_usage.llm_requests",
+    ]);
+
+    const reservationConstraintDefinitions = await database.query<{
+      definition: string;
+      name: string;
+    }>(`
+      select conname as name, pg_get_constraintdef(oid) as definition
+      from pg_constraint
+      where conname in (
+        'ai_llm_reservations_state_check',
+        'ai_llm_reservations_status_check'
+      )
+      order by conname
+    `);
+    expect(reservationConstraintDefinitions.rows).toHaveLength(2);
+    expect(
+      reservationConstraintDefinitions.rows.every(({ definition }) =>
+        definition.includes("'blocked'::text"),
+      ),
+    ).toBe(true);
+
     const indexNames = await columnValues(
       database,
       `
@@ -271,6 +328,9 @@ describe("production schema hardening migration", () => {
       expect.arrayContaining([
         "ai_usage_reporting_idx",
         "ai_response_cache_question_version_idx",
+        "ai_llm_reservations_session_usage_idx",
+        "ai_llm_reservations_student_question_usage_idx",
+        "ai_llm_reservations_student_usage_idx",
         "anonymous_identity_claims_user_idx",
         "attempts_question_activity_idx",
         "attempts_session_timeline_idx",
@@ -533,7 +593,9 @@ describe("production schema hardening migration", () => {
       );
     `);
 
-    const retentionFunction = await database.query<{ function_name: string | null }>(`
+    const retentionFunction = await database.query<{
+      function_name: string | null;
+    }>(`
       select to_regprocedure('app_apply_tutor_session_retention(integer)')::text
         as function_name
     `);

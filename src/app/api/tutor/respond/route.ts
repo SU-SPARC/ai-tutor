@@ -30,11 +30,12 @@ import type {
 } from "@/lib/types";
 
 const MAX_CONCURRENCY_RETRIES = 3;
+const MAX_TUTOR_REQUEST_BYTES = 8_192;
 
 export async function POST(request: Request) {
   let pendingAiAccounting: TutorAiAccounting | undefined;
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (declaredLength > 8_192) {
+  if (declaredLength > MAX_TUTOR_REQUEST_BYTES) {
     return NextResponse.json(
       { error: "Tutor requests must be smaller than 8192 bytes." },
       { status: 413 },
@@ -57,15 +58,22 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: Partial<TutorRequest>;
-  try {
-    body = (await request.json()) as Partial<TutorRequest>;
-  } catch {
-    return NextResponse.json(
-      { error: "Request body must be valid JSON." },
-      { status: 400 },
-    );
+  const parsedBody = await readJsonBodyWithLimit(
+    request,
+    MAX_TUTOR_REQUEST_BYTES,
+  );
+  if (parsedBody.outcome !== "parsed") {
+    return parsedBody.outcome === "too_large"
+      ? NextResponse.json(
+          { error: "Tutor requests must be smaller than 8192 bytes." },
+          { status: 413 },
+        )
+      : NextResponse.json(
+          { error: "Request body must be valid JSON." },
+          { status: 400 },
+        );
   }
+  const body = parsedBody.body;
 
   if (
     !body.mode ||
@@ -233,7 +241,10 @@ export async function POST(request: Request) {
         await releaseReservationSafely(transition.aiAccounting);
         pendingAiAccounting = undefined;
         return NextResponse.json(
-          { error: "Tutor progress changed while AI help was being prepared. Please retry." },
+          {
+            error:
+              "Tutor progress changed while AI help was being prepared. Please retry.",
+          },
           { headers: { "Retry-After": "1" }, status: 409 },
         );
       }
@@ -254,6 +265,51 @@ export async function POST(request: Request) {
       );
     }
     return dataServiceUnavailableResponse();
+  }
+}
+
+async function readJsonBodyWithLimit(
+  request: Request,
+  maximumBytes: number,
+): Promise<
+  | { body: Partial<TutorRequest>; outcome: "parsed" }
+  | { outcome: "invalid" | "too_large" }
+> {
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return { outcome: "invalid" };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maximumBytes) {
+      await reader.cancel();
+      return { outcome: "too_large" };
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    const body = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return { outcome: "invalid" };
+    }
+    return { body: body as Partial<TutorRequest>, outcome: "parsed" };
+  } catch {
+    return { outcome: "invalid" };
   }
 }
 
@@ -305,7 +361,7 @@ function recoveredResponse(
           ? "Not quite. I found a likely misconception to check first."
           : "Not quite."
         : verdict === "blocked"
-          ? "This request could not be completed."
+          ? "AI assistance is unavailable or its allowance has been reached for now. Your saved progress is unchanged."
           : mode === "hint"
             ? "Here is the next approved hint."
             : mode === "solution" || mode === "full_solution"

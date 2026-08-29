@@ -297,6 +297,8 @@ const AUDIT_CHECKS = Object.freeze([
          or au.estimated_llm_tokens < 0
          or au.cache_hits < 0
          or au.limit_blocks < 0
+         or au.llm_requests < 0
+         or au.llm_provider_calls < au.llm_requests
          or au.llm_total_tokens <> au.llm_input_tokens + au.llm_output_tokens
       union all
       select ('session:' || s.id)::text as record_id
@@ -336,9 +338,10 @@ const AUDIT_CHECKS = Object.freeze([
       select ('reservation:' || r.id)::text as record_id
       from ai_llm_reservations r
       where r.status is null
-         or r.status not in ('pending', 'settled', 'released')
+         or r.status not in ('pending', 'settled', 'released', 'blocked')
          or r.reserved_total_tokens is null
          or r.reserved_total_tokens <= 0
+         or r.provider_calls < 0
          or coalesce(r.actual_input_tokens, 0) < 0
          or coalesce(r.actual_output_tokens, 0) < 0
          or coalesce(r.actual_total_tokens, 0) < 0
@@ -350,6 +353,14 @@ const AUDIT_CHECKS = Object.freeze([
          )
          or (r.status = 'pending' and r.actual_total_tokens is not null)
          or (r.status = 'settled' and r.actual_total_tokens is null)
+         or (
+           r.status = 'blocked'
+           and (
+             r.counts_toward_limit
+             or r.limit_reason is null
+             or r.provider_calls <> 0
+           )
+         )
     `,
   },
   {

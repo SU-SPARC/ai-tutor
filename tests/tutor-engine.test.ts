@@ -72,6 +72,10 @@ import {
   mapQuestionRow,
 } from "@/lib/data/database-repository";
 import {
+  applyTutorAiAccounting,
+  resetAiUsageControlsForTests,
+} from "@/lib/ai/usage-controls";
+import {
   mockPrincipal,
   resetAuthMocks,
   TEST_PROFESSOR,
@@ -86,6 +90,7 @@ const GENERATED_SOURCE_TYPES: readonly SourceType[] = [
 describe("tutor engine", () => {
   beforeEach(() => {
     resetTutorStateForTests();
+    resetAiUsageControlsForTests();
   });
 
   afterEach(() => {
@@ -667,6 +672,78 @@ describe("tutor engine", () => {
     expect(response.message).toContain("temporarily unavailable");
     expect(response.message).not.toMatch(/provider|openrouter|billing/i);
     expect(response.progress?.llmUsed).toBe(false);
+  });
+
+  it("blocks the provider after the production-style session allowance is exhausted", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("AI_LLM_MAX_REQUESTS_PER_SESSION", "1");
+    vi.stubEnv("AI_LLM_BURST_MAX_REQUESTS", "10");
+    const fetchImpl = mockLlmResponse(
+      "Start by defining the conditioned event before selecting a denominator.",
+    );
+    const question = await getQuestionById("dice-sum-eight");
+    if (!question) {
+      throw new Error("Expected the approved test question.");
+    }
+    const state = {
+      attemptCount: 2,
+      hintsRevealed: question.hints.length,
+      lastMisconceptionIds: [],
+      llmUsed: false,
+      questionKey: question.id,
+      retrievalUsed: true,
+      sessionId: "production-limit-path",
+      solved: false,
+      state: "working" as const,
+      stepsRevealed: 0,
+      wrongAttemptCount: 2,
+    };
+    const executionContext = {
+      eventId: "event:limit-first",
+      expectedRevision: 0,
+      mode: "check" as const,
+      owner: { anonymousId: "student-limit", kind: "anonymous" as const },
+      questionId: question.id,
+      questionVersionId: 1,
+      sessionId: state.sessionId,
+      topicId: question.topicId,
+    };
+
+    const first = await decideTutorResponse({
+      aiExecutionContext: executionContext,
+      allowLlmFallback: true,
+      answer: "I am not sure how to express this setup.",
+      mode: "check",
+      question,
+      sessionId: state.sessionId,
+      state,
+    });
+    if (!first.aiAccounting) {
+      throw new Error("Expected the first provider call to be accounted.");
+    }
+    await applyTutorAiAccounting(first.aiAccounting);
+    const blocked = await decideTutorResponse({
+      aiExecutionContext: {
+        ...executionContext,
+        eventId: "event:limit-second",
+        expectedRevision: 1,
+      },
+      allowLlmFallback: true,
+      answer: "I am still not sure how to express this setup.",
+      mode: "check",
+      question,
+      sessionId: state.sessionId,
+      state: first.state,
+    });
+
+    expect(first.response.source).toBe("llm");
+    expect(blocked.response).toMatchObject({
+      source: "blocked",
+      verdict: "blocked",
+    });
+    expect(blocked.response.message).toContain("allowance");
+    expect(blocked.response.message).not.toMatch(/token|provider|billing/i);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("records lightweight tutor attempt snapshots", async () => {

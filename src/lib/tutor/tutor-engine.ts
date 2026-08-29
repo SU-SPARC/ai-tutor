@@ -724,6 +724,29 @@ async function buildLlmResponse({
         estimatedTokens,
       )
     : undefined
+  if (prepared?.outcome === "blocked") {
+    const retrievalFallback = retrievalResult
+      ? buildRetrievalResponseFromResult(
+          retrievalResult,
+          answer,
+          state,
+          question?.id,
+        )
+      : undefined
+    if (retrievalFallback) {
+      return retrievalFallback
+    }
+
+    const unavailableState = nextStateForAttempt(state, {
+      ...stateUpdates,
+      retrievalUsed: state.retrievalUsed || Boolean(retrievalResult),
+      state: "blocked",
+    })
+    return {
+      response: blockedResponse(prepared.message, unavailableState),
+      state: unavailableState,
+    }
+  }
   const generated =
     prepared?.outcome === "cache_hit"
       ? prepared.cacheResult

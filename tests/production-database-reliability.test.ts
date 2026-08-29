@@ -449,10 +449,9 @@ describe("production database reliability", () => {
     const persisted = await database.query<{
       llm_calls: number;
       llm_total_tokens: number;
-    }>(
-      `select llm_calls, llm_total_tokens from tutor_sessions where id = $1`,
-      [session.id],
-    );
+    }>(`select llm_calls, llm_total_tokens from tutor_sessions where id = $1`, [
+      session.id,
+    ]);
     const reservation = await database.query<{ status: string }>(
       `select status from ai_llm_reservations where id = $1`,
       [accounting.reservationId],
@@ -484,7 +483,10 @@ describe("production database reliability", () => {
       "postgres://not-used.invalid/ai-release-test",
       pgliteExecutor(database),
     );
-    const owner = { kind: "anonymous" as const, anonymousId: "anon:ai-release" };
+    const owner = {
+      kind: "anonymous" as const,
+      anonymousId: "anon:ai-release",
+    };
     const session = await repository.createSession({
       owner,
       questionId: "question-1",
@@ -790,6 +792,11 @@ async function createTutorSchema(database: PGlite) {
       idempotency_key text not null,
       request_hash text not null,
       usage_is_estimate boolean not null default false,
+      provider_calls integer not null default 0,
+      usage_date date not null default (timezone('UTC', now())::date),
+      counts_toward_limit boolean not null default true,
+      limit_reason text,
+      accounted_at timestamptz,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
@@ -827,6 +834,9 @@ async function createTutorSchema(database: PGlite) {
       llm_total_tokens integer not null default 0,
       estimated_llm_tokens integer not null default 0,
       cache_hits integer not null default 0,
+      limit_blocks integer not null default 0,
+      llm_requests integer not null default 0,
+      llm_provider_calls integer not null default 0,
       updated_at timestamptz not null default now(),
       primary key (scope, scope_key, date_key)
     );

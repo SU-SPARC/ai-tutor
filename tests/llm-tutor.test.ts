@@ -209,6 +209,44 @@ describe("server-side LLM tutor service", () => {
     })
   })
 
+  it("accounts for provider tokens across a schema-repair retry", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        providerResponse("not-json", {
+          completion_tokens: 5,
+          prompt_tokens: 70,
+          total_tokens: 75,
+        }),
+      )
+      .mockResolvedValueOnce(
+        providerResponse(
+          JSON.stringify({
+            schemaVersion: 1,
+            pedagogicalAction: "hint",
+            message: "Identify the event before selecting a formula.",
+          }),
+          {
+            completion_tokens: 10,
+            prompt_tokens: 70,
+            total_tokens: 80,
+          },
+        ),
+      )
+
+    const result = await generateLlmTutorResponse(baseTutorInput(), {
+      fetchImpl,
+      sleepImpl: async () => undefined,
+    })
+
+    expect(result.estimatedTokens).toMatchObject({
+      providerCompletionTokens: 15,
+      providerPromptTokens: 140,
+      providerTotalTokens: 155,
+    })
+  })
+
   it("retries a transient provider limit once without exposing provider details", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key")
     const fetchImpl = vi
@@ -231,7 +269,9 @@ describe("server-side LLM tutor service", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(result.fallbackUsed).toBe(true)
-    expect(result.tutorMessage).not.toMatch(/openrouter|billing|credit|provider/i)
+    expect(result.tutorMessage).not.toMatch(
+      /openrouter|billing|credit|provider/i,
+    )
   })
 
   it("does not retry non-retryable provider rejections", async () => {
@@ -371,9 +411,9 @@ describe("server-side LLM tutor service", () => {
     expect(parsed.retrieved_context).toHaveLength(1)
     expect(parsed.student_message).toContain("[email redacted]")
     expect(prompt).not.toContain("student@example.edu")
-    expect(estimateLlmTutorTokens(input).estimatedInputTokens).toBeLessThanOrEqual(
-      800,
-    )
+    expect(
+      estimateLlmTutorTokens(input).estimatedInputTokens,
+    ).toBeLessThanOrEqual(800)
   })
 })
 
@@ -439,9 +479,16 @@ function llmTutorRequestPayload(
   }
 }
 
-function providerResponse(content: string) {
+function providerResponse(
+  content: string,
+  usage?: {
+    completion_tokens: number
+    prompt_tokens: number
+    total_tokens: number
+  },
+) {
   return new Response(
-    JSON.stringify({ choices: [{ message: { content } }] }),
+    JSON.stringify({ choices: [{ message: { content } }], usage }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   )
 }

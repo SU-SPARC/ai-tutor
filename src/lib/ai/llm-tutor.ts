@@ -164,7 +164,13 @@ export async function generateLlmTutorResponse(
   const deadline = startedAt + MAX_TOTAL_DEADLINE_MS
   let lastError = "request_failed"
   let providerAttempts = 0
-  let usage: OpenAI.Chat.Completions.ChatCompletion["usage"]
+  let usage:
+    | {
+        completion_tokens?: number
+        prompt_tokens?: number
+        total_tokens?: number
+      }
+    | undefined = undefined
 
   for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
     const remainingMs = deadline - Date.now()
@@ -197,7 +203,7 @@ export async function generateLlmTutorResponse(
         timeout: Math.min(env.AI_REQUEST_TIMEOUT_MS, remainingMs),
       })
 
-      usage = completion.usage
+      usage = accumulateProviderUsage(usage, completion.usage)
       const candidate = completion.choices?.[0]?.message?.content?.trim()
 
       if (!candidate) {
@@ -567,6 +573,34 @@ function withProviderUsage(
     providerCompletionTokens: usage.completion_tokens,
     providerPromptTokens: usage.prompt_tokens,
     providerTotalTokens: usage.total_tokens,
+  }
+}
+
+function accumulateProviderUsage(
+  current:
+    | {
+        completion_tokens?: number
+        prompt_tokens?: number
+        total_tokens?: number
+      }
+    | undefined,
+  next:
+    | {
+        completion_tokens?: number
+        prompt_tokens?: number
+        total_tokens?: number
+      }
+    | undefined,
+) {
+  if (!next) {
+    return current
+  }
+
+  return {
+    completion_tokens:
+      (current?.completion_tokens ?? 0) + (next.completion_tokens ?? 0),
+    prompt_tokens: (current?.prompt_tokens ?? 0) + (next.prompt_tokens ?? 0),
+    total_tokens: (current?.total_tokens ?? 0) + (next.total_tokens ?? 0),
   }
 }
 

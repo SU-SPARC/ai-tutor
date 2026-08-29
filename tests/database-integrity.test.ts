@@ -573,6 +573,8 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       estimated_llm_tokens integer,
       cache_hits integer,
       limit_blocks integer,
+      llm_requests integer default 0,
+      llm_provider_calls integer default 0,
       updated_at timestamptz default now()
     );
     create table ai_llm_reservations (
@@ -582,6 +584,9 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       actual_output_tokens integer,
       actual_total_tokens integer,
       status text,
+      provider_calls integer default 0,
+      counts_toward_limit boolean default true,
+      limit_reason text,
       updated_at timestamptz default now()
     );
     create table audit_events (

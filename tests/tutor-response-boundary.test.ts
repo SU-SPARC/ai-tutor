@@ -34,6 +34,25 @@ afterEach(() => {
 });
 
 describe("student tutor response boundary", () => {
+  it("rejects an oversized streamed body without relying on Content-Length", async () => {
+    const request = new Request("http://test/api/tutor/respond", {
+      body: JSON.stringify({
+        answer: "x".repeat(9_000),
+        eventId: "event:oversized",
+        mode: "check",
+        sessionId: "session:owned",
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+
+    expect(request.headers.get("content-length")).toBeNull();
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(mocks.getTutorSession).not.toHaveBeenCalled();
+  });
+
   it("binds responses to the owned approved question and keeps retrieval chunks server-only", async () => {
     const question = approvedQuestion();
     mockStudentOwner(TEST_ANONYMOUS_OWNER);
@@ -99,6 +118,7 @@ describe("student tutor response boundary", () => {
       }),
     );
     expect(payload.retrievedContext).toEqual([]);
+    expect(body).not.toContain("estimatedTokens");
     expect(payload.responseLabel).toBe(
       "private_reference_grounded_explanation",
     );

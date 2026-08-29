@@ -18,6 +18,11 @@ type ServerEnvBase = {
   ANONYMOUS_COOKIE_DAYS: number;
   ANONYMOUS_ID_SECRET?: string;
   ANONYMOUS_PILOT_ENABLED: boolean;
+  AI_LLM_BURST_MAX_REQUESTS: number;
+  AI_LLM_BURST_WINDOW_SECONDS: number;
+  AI_LLM_DAILY_REQUEST_LIMIT?: number;
+  AI_LLM_MAX_REQUESTS_PER_SESSION: number;
+  AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: number;
   APP_DEMO_MODE: boolean;
   APP_ENV: AppEnvironment;
   APP_URL: string;
@@ -59,10 +64,13 @@ export type ServerEnv = ServerEnvBase &
   (EnabledAiServerEnv | DisabledAiServerEnv);
 
 const DEFAULTS = {
+  AI_LLM_BURST_MAX_REQUESTS: 4,
+  AI_LLM_BURST_WINDOW_SECONDS: 60,
+  AI_LLM_MAX_REQUESTS_PER_SESSION: 3,
+  AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION: 6,
   AI_MODEL: "nvidia/nemotron-3-ultra-550b-a55b:free",
   AI_REQUEST_TIMEOUT_MS: 25_000,
-  AI_USAGE_HMAC_SECRET:
-    "development-ai-usage-hmac-key-not-for-deployment",
+  AI_USAGE_HMAC_SECRET: "development-ai-usage-hmac-key-not-for-deployment",
   ANONYMOUS_COOKIE_DAYS: 30,
   APP_URL: "http://localhost:3000",
   MAX_LLM_OUTPUT_TOKENS: 400,
@@ -256,6 +264,55 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       required: AI_ENABLED && strict,
     },
   );
+  const AI_LLM_MAX_REQUESTS_PER_SESSION = parseIntegerInRange(
+    "AI_LLM_MAX_REQUESTS_PER_SESSION",
+    input.AI_LLM_MAX_REQUESTS_PER_SESSION,
+    issues,
+    {
+      defaultValue: DEFAULTS.AI_LLM_MAX_REQUESTS_PER_SESSION,
+      maximum: 20,
+      minimum: 1,
+    },
+  );
+  const AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION = parseIntegerInRange(
+    "AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION",
+    input.AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION,
+    issues,
+    {
+      defaultValue: DEFAULTS.AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION,
+      maximum: 100,
+      minimum: 1,
+    },
+  );
+  const AI_LLM_DAILY_REQUEST_LIMIT = parseIntegerInRange(
+    "AI_LLM_DAILY_REQUEST_LIMIT",
+    input.AI_LLM_DAILY_REQUEST_LIMIT,
+    issues,
+    {
+      maximum: 10_000,
+      minimum: 1,
+    },
+  );
+  const AI_LLM_BURST_MAX_REQUESTS = parseIntegerInRange(
+    "AI_LLM_BURST_MAX_REQUESTS",
+    input.AI_LLM_BURST_MAX_REQUESTS,
+    issues,
+    {
+      defaultValue: DEFAULTS.AI_LLM_BURST_MAX_REQUESTS,
+      maximum: 30,
+      minimum: 1,
+    },
+  );
+  const AI_LLM_BURST_WINDOW_SECONDS = parseIntegerInRange(
+    "AI_LLM_BURST_WINDOW_SECONDS",
+    input.AI_LLM_BURST_WINDOW_SECONDS,
+    issues,
+    {
+      defaultValue: DEFAULTS.AI_LLM_BURST_WINDOW_SECONDS,
+      maximum: 3_600,
+      minimum: 10,
+    },
+  );
   const RATE_LIMIT_MAX_REQUESTS = parsePositiveInteger(
     "RATE_LIMIT_MAX_REQUESTS",
     input.RATE_LIMIT_MAX_REQUESTS,
@@ -315,6 +372,12 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       ANONYMOUS_COOKIE_DAYS ?? DEFAULTS.ANONYMOUS_COOKIE_DAYS,
     ANONYMOUS_ID_SECRET,
     ANONYMOUS_PILOT_ENABLED,
+    AI_LLM_BURST_MAX_REQUESTS: AI_LLM_BURST_MAX_REQUESTS!,
+    AI_LLM_BURST_WINDOW_SECONDS: AI_LLM_BURST_WINDOW_SECONDS!,
+    AI_LLM_DAILY_REQUEST_LIMIT,
+    AI_LLM_MAX_REQUESTS_PER_SESSION: AI_LLM_MAX_REQUESTS_PER_SESSION!,
+    AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION:
+      AI_LLM_MAX_REQUESTS_PER_STUDENT_QUESTION!,
     APP_DEMO_MODE,
     APP_ENV,
     APP_URL: APP_URL!,
