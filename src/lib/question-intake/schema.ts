@@ -305,7 +305,13 @@ function parseAnswer(
       "answer.explanation is required and must be at most 8,000 characters.",
     );
   }
-  const numericValue = optionalFiniteNumber(answer.numericValue);
+  const suppliedNumericValue = optionalFiniteNumber(answer.numericValue);
+  const numericValue =
+    answerType === "numeric" &&
+    suppliedNumericValue === undefined &&
+    acceptedAnswers
+      ? firstParsedAnswerNumber(acceptedAnswers)
+      : suppliedNumericValue;
   const tolerance = optionalFiniteNumber(answer.tolerance);
   if (numericValue === null || tolerance === null) {
     errors.push("numericValue and tolerance must be finite when present.");
@@ -516,6 +522,14 @@ function longText(value: unknown) {
 function optionalFiniteNumber(value: unknown) {
   if (value === undefined) return undefined;
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function firstParsedAnswerNumber(values: string[]) {
+  for (const value of values) {
+    const parsed = parseAnswerNumber(value);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
 }
 
 function confidenceNumber(value: unknown) {

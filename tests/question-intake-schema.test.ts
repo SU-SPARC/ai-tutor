@@ -143,6 +143,35 @@ describe("question intake structured schema", () => {
     ).toEqual([]);
   });
 
+  it("derives a missing numeric value from a parseable accepted fraction", () => {
+    const candidate = numericDraft();
+    candidate.answer.acceptedAnswers = ["1/221"];
+    candidate.answer.explanation =
+      "There are C(4, 2) favorable pairs among C(52, 2) total pairs, so the probability is 1/221.";
+    candidate.solutionSteps = [
+      "Count the favorable pairs as C(4, 2) = 6.",
+      "Count all pairs as C(52, 2) = 1326.",
+      "Divide to obtain 6/1326 = 1/221.",
+    ];
+    delete candidate.answer.numericValue;
+
+    const validation = validateQuestionIntakeModelDraft(candidate, topics);
+
+    expect(validation.errors).toEqual([]);
+    expect(validation.draft?.answer.numericValue).toBeCloseTo(1 / 221);
+  });
+
+  it("still rejects numeric drafts without a parseable accepted answer", () => {
+    const candidate = numericDraft();
+    candidate.answer.acceptedAnswers = ["not supplied"];
+    delete candidate.answer.numericValue;
+
+    const validation = validateQuestionIntakeModelDraft(candidate, topics);
+
+    expect(validation.draft).toBeUndefined();
+    expect(validation.errors).toContain("numeric answers require numericValue.");
+  });
+
   it("uses professor-provided provenance notes without fabricating pattern IDs", () => {
     for (const source of [
       "professor_authored",
