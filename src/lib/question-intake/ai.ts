@@ -17,6 +17,7 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const MAX_ATTEMPTS = 2;
 const MAX_TOTAL_DEADLINE_MS = 55_000;
 const RETRY_DELAY_MS = 250;
+const SUBMIT_DRAFT_TOOL_NAME = "submit_question_draft";
 
 export type GenerateQuestionIntakeInput = {
   imageDataUrl?: string;
@@ -114,14 +115,23 @@ export async function generateQuestionIntakeDraft(
           model,
           reasoning: { enabled: false },
           temperature: 0.1,
+          tool_choice: {
+            function: { name: SUBMIT_DRAFT_TOOL_NAME },
+            type: "function",
+          },
+          tools: [questionIntakeDraftTool(input.topics)],
         } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
         { timeout: Math.min(env.AI_REQUEST_TIMEOUT_MS, remaining) },
       );
-      const candidate = completion.choices[0]?.message?.content?.trim();
-      if (!candidate) {
-        validationErrors = ["The provider returned an empty response."];
+      const message = completion.choices[0]?.message;
+      const parsed = message
+        ? parseQuestionIntakeProviderPayload(message)
+        : undefined;
+      if (!parsed) {
+        validationErrors = [
+          "The provider did not return valid question-draft tool arguments or JSON.",
+        ];
       } else {
-        const parsed = parseJson(candidate);
         const validation = validateQuestionIntakeModelDraft(
           parsed,
           input.topics,
@@ -182,7 +192,8 @@ function systemPrompt() {
     "Write 2 to 4 progressive hints. Hint 1 must not reveal the answer.",
     "Write a complete ordered solutionSteps array and relevant misconceptions; misconceptions may be empty only when none are meaningful.",
     "Confidence values are numbers from 0 to 1. Use warnings for ambiguity or checks a professor must make.",
-    "Return JSON only, with no markdown fence and exactly these root keys: schemaVersion,title,prompt,topicId,questionType,answerType,difficulty,answer,hints,solutionSteps,misconceptions,confidence,warnings,unreadableSegments.",
+    `Call ${SUBMIT_DRAFT_TOOL_NAME} exactly once. Do not return free-form text.`,
+    "Submit exactly these root keys: schemaVersion,title,prompt,topicId,questionType,answerType,difficulty,answer,hints,solutionSteps,misconceptions,confidence,warnings,unreadableSegments.",
     "schemaVersion must be 1. answer keys: acceptedAnswers,explanation and optional numericValue,tolerance. misconception keys: id,feedback,matchTerms. confidence keys: extraction,topic,answer,overall.",
   ].join(" ");
 }
@@ -210,12 +221,133 @@ function userMessage(
   ];
 }
 
+export function parseQuestionIntakeProviderPayload(message: {
+  content?: string | null;
+  tool_calls?: Array<{
+    function?: { arguments?: string; name?: string };
+    type?: string;
+  }>;
+}): unknown {
+  const toolArguments = message.tool_calls?.find(
+    (call) =>
+      call.type === "function" &&
+      call.function?.name === SUBMIT_DRAFT_TOOL_NAME,
+  )?.function?.arguments;
+  return parseJson(toolArguments ?? message.content ?? "");
+}
+
 function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return undefined;
+  const candidate = value.trim();
+  if (!candidate) return undefined;
+  const variants = [candidate];
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/iu.exec(candidate)?.[1];
+  if (fenced) variants.push(fenced);
+  const objectStart = candidate.indexOf("{");
+  const objectEnd = candidate.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    variants.push(candidate.slice(objectStart, objectEnd + 1));
   }
+  for (const variant of [...new Set(variants)]) {
+    try {
+      return JSON.parse(variant) as unknown;
+    } catch {
+      // Try the next provider-compatible wrapper.
+    }
+  }
+  return undefined;
+}
+
+function questionIntakeDraftTool(topics: QuestionIntakeTopic[]) {
+  const stringArray = (minimum: number, maximum: number) => ({
+    items: { type: "string" },
+    maxItems: maximum,
+    minItems: minimum,
+    type: "array",
+  });
+  return {
+    function: {
+      description:
+        "Submit one complete professor-reviewed tutor-question draft.",
+      name: SUBMIT_DRAFT_TOOL_NAME,
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          answer: {
+            additionalProperties: false,
+            properties: {
+              acceptedAnswers: stringArray(1, 8),
+              explanation: { type: "string" },
+              numericValue: { type: "number" },
+              tolerance: { minimum: 0, type: "number" },
+            },
+            required: ["acceptedAnswers", "explanation"],
+            type: "object",
+          },
+          answerType: { enum: ["numeric", "text"], type: "string" },
+          confidence: {
+            additionalProperties: false,
+            properties: {
+              answer: { maximum: 1, minimum: 0, type: "number" },
+              extraction: { maximum: 1, minimum: 0, type: "number" },
+              overall: { maximum: 1, minimum: 0, type: "number" },
+              topic: { maximum: 1, minimum: 0, type: "number" },
+            },
+            required: ["extraction", "topic", "answer", "overall"],
+            type: "object",
+          },
+          difficulty: {
+            enum: ["foundational", "intermediate", "challenge"],
+            type: "string",
+          },
+          hints: stringArray(2, 4),
+          misconceptions: {
+            items: {
+              additionalProperties: false,
+              properties: {
+                feedback: { type: "string" },
+                id: { type: "string" },
+                matchTerms: stringArray(0, 12),
+              },
+              required: ["id", "feedback", "matchTerms"],
+              type: "object",
+            },
+            maxItems: 8,
+            minItems: 0,
+            type: "array",
+          },
+          prompt: { type: "string" },
+          questionType: { enum: ["free_response"], type: "string" },
+          schemaVersion: { enum: [1], type: "integer" },
+          solutionSteps: stringArray(1, 12),
+          title: { type: "string" },
+          topicId: {
+            enum: topics.map((topic) => topic.id),
+            type: "string",
+          },
+          unreadableSegments: stringArray(0, 12),
+          warnings: stringArray(0, 12),
+        },
+        required: [
+          "schemaVersion",
+          "title",
+          "prompt",
+          "topicId",
+          "questionType",
+          "answerType",
+          "difficulty",
+          "answer",
+          "hints",
+          "solutionSteps",
+          "misconceptions",
+          "confidence",
+          "warnings",
+          "unreadableSegments",
+        ],
+        type: "object",
+      },
+    },
+    type: "function",
+  } as const;
 }
 
 function normalizeSubmittedText(value: string) {

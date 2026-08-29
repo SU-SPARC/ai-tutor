@@ -156,6 +156,12 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof QuestionIntakeAiError) {
+      if (error.code === "invalid_provider_output") {
+        console.warn("Question intake provider output failed validation.", {
+          code: error.code,
+          validationErrors: error.details?.slice(0, 12),
+        });
+      }
       return NextResponse.json(
         {
           code: error.code,

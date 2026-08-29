@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseQuestionIntakeProviderPayload } from "@/lib/question-intake/ai";
 import {
   questionIntakePromptFingerprint,
   rankQuestionIntakeDuplicates,
@@ -32,6 +33,45 @@ const topics: QuestionIntakeTopic[] = [
     title: "Binomial Models",
   },
 ];
+
+describe("question intake provider payloads", () => {
+  it("prefers forced tool-call arguments over assistant prose", () => {
+    const draft = numericDraft();
+
+    expect(
+      parseQuestionIntakeProviderPayload({
+        content: "This text must not replace the structured tool payload.",
+        tool_calls: [
+          {
+            function: {
+              arguments: JSON.stringify(draft),
+              name: "submit_question_draft",
+            },
+            type: "function",
+          },
+        ],
+      }),
+    ).toEqual(draft);
+  });
+
+  it("accepts common JSON wrappers as a provider fallback", () => {
+    const draft = numericDraft();
+
+    expect(
+      parseQuestionIntakeProviderPayload({
+        content: `\`\`\`json\n${JSON.stringify(draft)}\n\`\`\``,
+      }),
+    ).toEqual(draft);
+    expect(
+      parseQuestionIntakeProviderPayload({
+        content: `Here is the draft: ${JSON.stringify(draft)}`,
+      }),
+    ).toEqual(draft);
+    expect(
+      parseQuestionIntakeProviderPayload({ content: "not JSON" }),
+    ).toBeUndefined();
+  });
+});
 
 describe("question intake structured schema", () => {
   it("accepts a complete typed numerical draft using only canonical values", () => {
