@@ -19,6 +19,10 @@ import {
 } from "@/lib/data/database-executor"
 import { queryPostgres } from "@/lib/data/postgres"
 import { getServerEnv } from "@/lib/env/server"
+import {
+  logPilotOperationalEvent,
+  pilotRequestId,
+} from "@/lib/observability/pilot-operations"
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 import type { TutorMode, TutorResponseLabel } from "@/lib/types"
 
@@ -320,6 +324,15 @@ export function accountingForGeneratedResponse(
     outcome: result.fallbackUsed ? "generated" : "unavailable",
     providerAttempts: result.providerAttempts ?? 0,
   })
+  if (!result.fallbackUsed && providerCalls > 0) {
+    logPilotOperationalEvent({
+      event: "llm_provider_unavailable",
+      requestId: pilotRequestId(),
+      route: "/api/tutor/respond",
+      status: 503,
+      subsystem: "ai-provider",
+    })
+  }
 
   return nextAccounting
 }

@@ -4,11 +4,15 @@ import { normalizeDetail } from "@/lib/api/question-serialization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { isPublishedContent } from "@/lib/auth/authorization";
 import { getApprovedQuestionById } from "@/lib/data/data-store";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
+
+const QUESTION_DETAIL_ROUTE = "/api/questions/[id]";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const requestId = pilotRequestId(request);
   const { id } = await params;
 
   if (!id?.trim()) {
@@ -31,7 +35,13 @@ export async function GET(
     }
 
     return NextResponse.json({ question: normalizeDetail(question) });
-  } catch {
-    return dataServiceUnavailableResponse();
+  } catch (cause) {
+    return dataServiceUnavailableResponse({
+      cause,
+      request,
+      requestId,
+      route: QUESTION_DETAIL_ROUTE,
+      subsystem: "content",
+    });
   }
 }

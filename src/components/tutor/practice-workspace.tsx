@@ -60,9 +60,46 @@ type ChatMessage = {
 };
 
 type TutorSessionPayload = {
+  code?: string;
   error?: string;
   session?: TutorSessionDto;
 };
+
+type TutorErrorPayload = {
+  code?: string;
+  error?: string;
+};
+
+const SAFE_TUTOR_ERROR_CODES = new Set([
+  "MALFORMED_TUTOR_REQUEST",
+  "MALFORMED_TUTOR_SESSION_REQUEST",
+  "QUESTION_UNAVAILABLE",
+  "TUTOR_AI_IN_PROGRESS",
+  "TUTOR_ENDPOINT_RETIRED",
+  "TUTOR_RATE_LIMITED",
+  "TUTOR_REQUEST_INTERRUPTED",
+  "TUTOR_REQUEST_TOO_LARGE",
+  "TUTOR_SESSION_COMPLETE",
+  "TUTOR_SESSION_STALE",
+  "TUTOR_SESSION_UNAVAILABLE",
+]);
+
+export class TutorClientRequestError extends Error {
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly status: number;
+
+  constructor(
+    message: string,
+    options: { code?: string; requestId?: string; status: number },
+  ) {
+    super(message);
+    this.name = "TutorClientRequestError";
+    this.code = options.code;
+    this.requestId = options.requestId;
+    this.status = options.status;
+  }
+}
 
 export function PracticeWorkspace({
   initialQuestionId,
@@ -243,6 +280,70 @@ export function PracticeWorkspace({
     ]);
   }
 
+  async function handleTutorRequestFailure(
+    error: unknown,
+    unsavedAnswer?: string,
+  ) {
+    if (
+      error instanceof TutorClientRequestError &&
+      error.code === "TUTOR_SESSION_UNAVAILABLE"
+    ) {
+      if (selectedQuestion) {
+        clearTutorSessionId(selectedQuestion.id);
+      }
+      setSession(null);
+      setSessionError(error.message);
+      return;
+    }
+
+    if (
+      session &&
+      error instanceof TutorClientRequestError &&
+      ["NETWORK_INTERRUPTED", "TUTOR_SESSION_STALE"].includes(error.code ?? "")
+    ) {
+      try {
+        const recovered = await fetchTutorSession(session.id);
+        const writeWasRecovered = recovered.revision > session.revision;
+        setSession(recovered);
+        setMessages(recoveryMessages(recovered, selectedQuestion));
+        setHintCount(
+          Math.min(
+            recovered.revealedHints,
+            selectedQuestion?.hints.length ?? 0,
+          ),
+        );
+        setHintViewIndex(
+          Math.max(
+            0,
+            Math.min(
+              recovered.revealedHints,
+              selectedQuestion?.hints.length ?? 0,
+            ) - 1,
+          ),
+        );
+        if (!writeWasRecovered && unsavedAnswer) {
+          setAnswer(unsavedAnswer);
+        }
+        setSessionError(
+          writeWasRecovered
+            ? "The connection recovered and your saved tutor progress was restored."
+            : error.code === "TUTOR_SESSION_STALE"
+              ? "Your saved tutor progress was refreshed. Please submit again."
+              : "The connection recovered, but no saved change is visible yet. Please wait a moment, then submit again.",
+        );
+        return;
+      } catch {
+        // Keep the original, already-sanitized error. The existing session ID
+        // remains stored so a later refresh can recover committed progress.
+      }
+    }
+
+    if (unsavedAnswer) {
+      setAnswer(unsavedAnswer);
+    }
+    setSessionError(errorMessageFor(error));
+  }
+
   function toggleTopic(topicId: string) {
     setExpandedTopicIds((previous) => {
       const next = new Set(previous);
@@ -294,7 +395,7 @@ export function PracticeWorkspace({
         tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
       });
     } catch (error) {
-      setSessionError(errorMessageFor(error));
+      await handleTutorRequestFailure(error, trimmed);
     } finally {
       setActiveMode(null);
     }
@@ -325,7 +426,7 @@ export function PracticeWorkspace({
       setLatestResponse(response);
       setSession((current) => sessionWithProgress(current, response));
     } catch (error) {
-      setSessionError(errorMessageFor(error));
+      await handleTutorRequestFailure(error);
     } finally {
       setActiveMode(null);
     }
@@ -370,7 +471,7 @@ export function PracticeWorkspace({
         },
       ]);
     } catch (error) {
-      setSessionError(errorMessageFor(error));
+      await handleTutorRequestFailure(error);
     } finally {
       setActiveMode(null);
     }
@@ -409,7 +510,7 @@ export function PracticeWorkspace({
         tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
       });
     } catch (error) {
-      setSessionError(errorMessageFor(error));
+      await handleTutorRequestFailure(error);
     } finally {
       setActiveMode(null);
     }
@@ -424,7 +525,9 @@ export function PracticeWorkspace({
     setSessionError(null);
 
     try {
-      const nextSession = await createTutorSession(selectedQuestion.id);
+      const nextSession = await createTutorSession(selectedQuestion.id, {
+        forceNew: true,
+      });
       storeTutorSessionId(selectedQuestion.id, nextSession.id);
       setAnswer("");
       setLatestResponse(null);
@@ -860,7 +963,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-async function createOrResumeTutorSession(
+export async function createOrResumeTutorSession(
   questionId: string,
   preferredSessionId?: string,
 ) {
@@ -872,9 +975,12 @@ async function createOrResumeTutorSession(
         storeTutorSessionId(questionId, preferredSession.id);
         return preferredSession;
       }
-    } catch {
+    } catch (error) {
       // The session may be expired, unpublished, or owned by someone else.
       // Fall back without revealing which condition applied.
+      if (!canReplaceUnavailableSession(error)) {
+        throw error;
+      }
     }
   }
 
@@ -887,7 +993,10 @@ async function createOrResumeTutorSession(
       if (session.questionId === questionId) {
         return session;
       }
-    } catch {
+    } catch (error) {
+      if (!canReplaceUnavailableSession(error)) {
+        throw error;
+      }
       clearTutorSessionId(questionId);
     }
   }
@@ -927,9 +1036,15 @@ function clearTutorSessionId(questionId: string) {
   }
 }
 
-async function createTutorSession(questionId: string) {
-  const idempotencyKey = createClientId("session");
-  const result = await retryTutorWrite(() =>
+async function createTutorSession(
+  questionId: string,
+  options: { forceNew?: boolean } = {},
+) {
+  const idempotencyKey = pendingSessionCreationKey(
+    questionId,
+    options.forceNew,
+  );
+  const result = await retryTutorRequest(() =>
     fetch("/api/tutor/session", {
       body: JSON.stringify({
         idempotencyKey,
@@ -941,16 +1056,19 @@ async function createTutorSession(questionId: string) {
       method: "POST",
     }),
   );
-
-  return readTutorSessionPayload(result);
+  const session = await readTutorSessionPayload(result);
+  clearPendingSessionCreationKey(questionId, idempotencyKey);
+  return session;
 }
 
 async function fetchTutorSession(sessionId: string) {
-  const result = await fetch(`/api/tutor/session/${sessionId}`);
+  const result = await retryTutorRequest(() =>
+    fetch(`/api/tutor/session/${sessionId}`),
+  );
   return readTutorSessionPayload(result);
 }
 
-async function requestTutorResponse(input: {
+export async function requestTutorResponse(input: {
   allowLlmFallback?: boolean;
   answer: string;
   mode: TutorMode;
@@ -958,8 +1076,8 @@ async function requestTutorResponse(input: {
   sessionId: string;
   topicId: string;
 }) {
-  const eventId = createClientId("event");
-  const result = await retryTutorWrite(() =>
+  const eventId = pendingTutorEventId(input);
+  const result = await retryTutorRequest(() =>
     fetch("/api/tutor/respond", {
       body: JSON.stringify({ ...input, eventId }),
       headers: {
@@ -970,18 +1088,24 @@ async function requestTutorResponse(input: {
   );
   const payload = (await result
     .json()
-    .catch(() => ({}))) as Partial<TutorResponse> & {
-    error?: string;
-  };
+    .catch(() => ({}))) as Partial<TutorResponse> & TutorErrorPayload;
 
   if (!result.ok || !payload.verdict) {
-    throw new Error(payload.error ?? "Tutor response request failed.");
+    if (result.status < 500) {
+      clearPendingTutorEventId(input.sessionId, eventId);
+    }
+    throw tutorClientError(
+      result,
+      payload,
+      "The tutor could not complete this request. Please try again.",
+    );
   }
 
+  clearPendingTutorEventId(input.sessionId, eventId);
   return payload as TutorResponse;
 }
 
-async function retryTutorWrite(request: () => Promise<Response>) {
+async function retryTutorRequest(request: () => Promise<Response>) {
   let lastResponse: Response | undefined;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -991,9 +1115,12 @@ async function retryTutorWrite(request: () => Promise<Response>) {
         return response;
       }
       lastResponse = response;
-    } catch (error) {
+    } catch {
       if (attempt === 1) {
-        throw error;
+        throw new TutorClientRequestError(
+          "The connection was interrupted. We could not confirm whether the request reached the tutor. Reopen this session before resubmitting so any saved progress can be recovered.",
+          { code: "NETWORK_INTERRUPTED", status: 0 },
+        );
       }
     }
   }
@@ -1007,10 +1134,130 @@ async function readTutorSessionPayload(result: Response) {
     .catch(() => ({}))) as TutorSessionPayload;
 
   if (!result.ok || !payload.session) {
-    throw new Error(payload.error ?? "Tutor session request failed.");
+    throw tutorClientError(
+      result,
+      payload,
+      "The tutor session could not be loaded safely. Please try again.",
+    );
   }
 
   return payload.session;
+}
+
+function tutorClientError(
+  response: Response,
+  payload: TutorErrorPayload,
+  fallbackMessage: string,
+) {
+  const message =
+    response.status >= 500
+      ? "The tutor service is temporarily unavailable. The tutor did not confirm a saved change. Please try again shortly."
+      : response.status >= 400 &&
+          payload.code &&
+          SAFE_TUTOR_ERROR_CODES.has(payload.code) &&
+          typeof payload.error === "string"
+        ? payload.error
+        : fallbackMessage;
+  return new TutorClientRequestError(message, {
+    code: payload.code,
+    requestId: response.headers.get("x-request-id") ?? undefined,
+    status: response.status,
+  });
+}
+
+function canReplaceUnavailableSession(error: unknown) {
+  return (
+    error instanceof TutorClientRequestError &&
+    error.status === 404 &&
+    (!error.code || error.code === "TUTOR_SESSION_UNAVAILABLE")
+  );
+}
+
+function pendingSessionCreationKey(questionId: string, forceNew = false) {
+  const storageKey = `ai-tutor:pending-session:${questionId}`;
+  try {
+    const existing = forceNew ? null : window.localStorage.getItem(storageKey);
+    const idempotencyKey = existing || createClientId("session");
+    window.localStorage.setItem(storageKey, idempotencyKey);
+    return idempotencyKey;
+  } catch {
+    return createClientId("session");
+  }
+}
+
+function clearPendingSessionCreationKey(
+  questionId: string,
+  idempotencyKey: string,
+) {
+  const storageKey = `ai-tutor:pending-session:${questionId}`;
+  try {
+    if (window.localStorage.getItem(storageKey) === idempotencyKey) {
+      window.localStorage.removeItem(storageKey);
+    }
+  } catch {
+    // A missing browser store does not affect the durable server session.
+  }
+}
+
+function pendingTutorEventId(input: {
+  allowLlmFallback?: boolean;
+  answer: string;
+  mode: TutorMode;
+  questionId: string;
+  sessionId: string;
+}) {
+  const storageKey = `ai-tutor:pending-event:${input.sessionId}`;
+  const fingerprint = clientInputFingerprint(
+    JSON.stringify({
+      allowLlmFallback: Boolean(input.allowLlmFallback),
+      answer: input.answer,
+      mode: input.mode,
+      questionId: input.questionId,
+    }),
+  );
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(storageKey) ?? "null",
+    ) as { eventId?: unknown; fingerprint?: unknown } | null;
+    if (
+      stored &&
+      stored.fingerprint === fingerprint &&
+      typeof stored.eventId === "string"
+    ) {
+      return stored.eventId;
+    }
+    const eventId = createClientId("event");
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({ eventId, fingerprint }),
+    );
+    return eventId;
+  } catch {
+    return createClientId("event");
+  }
+}
+
+function clearPendingTutorEventId(sessionId: string, eventId: string) {
+  const storageKey = `ai-tutor:pending-event:${sessionId}`;
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(storageKey) ?? "null",
+    ) as { eventId?: unknown } | null;
+    if (stored?.eventId === eventId) {
+      window.localStorage.removeItem(storageKey);
+    }
+  } catch {
+    // A missing browser store does not affect server idempotency.
+  }
+}
+
+function clientInputFingerprint(value: string) {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 export function responseUsageStatusText(
@@ -1131,7 +1378,7 @@ function recoveryMessages(
 }
 
 function errorMessageFor(error: unknown) {
-  return error instanceof Error
+  return error instanceof TutorClientRequestError
     ? error.message
-    : "The tutor session could not be updated.";
+    : "The tutor could not be reached safely. Please check your connection and try again.";
 }

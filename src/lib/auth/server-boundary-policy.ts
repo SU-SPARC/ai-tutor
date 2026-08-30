@@ -290,6 +290,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireProfessorReview", "getProfessorQuestionFeedbackDashboard"],
   ),
   route(
+    "GET",
+    "/api/professor/operations",
+    "src/app/api/professor/operations/route.ts",
+    "professor",
+    ["requireProfessor", "listPilotOperationalDiagnostics"],
+  ),
+  route(
     "PATCH",
     "/api/professor/feedback/[reportId]",
     "src/app/api/professor/feedback/[reportId]/route.ts",

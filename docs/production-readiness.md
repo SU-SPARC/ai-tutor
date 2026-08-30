@@ -6,11 +6,11 @@
 > pilot must not begin until the critical acceptance criteria in this document
 > are satisfied and the required institutional decisions are recorded.
 
-Last audited: 2026-07-31
+Last audited: 2026-08-30
 
 Maintainer: project engineering team
 
-Audit baseline: `e310048`
+Audit baseline: `Harden pilot reliability and recovery` change set
 
 ## How To Maintain This Document
 
@@ -40,8 +40,10 @@ Audit baseline: `e310048`
   deterministic regeneration, and aggregate analytics.
 - Route handlers expose question reads, tutor sessions and responses, progress,
   retrieval search, review mutations, uploads, usage, and analytics.
-- There are no production authentication, user-management, health/readiness,
-  audit-log, feedback, deletion, or export routes.
+- Authentication, sanitized database health, question feedback, lifecycle
+  audit, content transfer, and protected operational-diagnostic routes now
+  exist. External monitoring/alerting and institution-approved account,
+  deletion, and support operations remain incomplete.
 
 ### Content And Data
 
@@ -114,6 +116,9 @@ by themselves establish production readiness:
       durable; no separate professor-facing AI usage dashboard is claimed.
 - [x] Explicit operating modes prevent Preview database mode, Staging, and
       Production from falling back to demo content or in-memory sessions.
+- [x] Pilot tutor failures use stable, non-leaking errors, server-generated
+      request correlation, idempotent browser recovery, and
+      [protected operational summaries](pilot-reliability.md).
 - [x] Lint, TypeScript, unit/API tests, and the production build pass at the
       audit baseline.
 
@@ -144,19 +149,19 @@ team should replace each role before a pilot is scheduled.
 | PR-11 | High     | Harden the production schema for users, roles, review history, audit events, feedback, constraints, indexes, and deletion behavior. | Complete           | Database engineering + privacy owner          | [Migration 007](../db/migrations/007_production_schema_hardening.sql), the [schema documentation](database.md#production-schema-hardening), and [executable migration tests](../tests/production-schema-migration.test.ts) prove fresh/upgrade safety, integrity, indexes, history, and deletion behavior without row loss. |
 | PR-12 | High     | Make multi-record imports, edits, regeneration, and review actions transactional and concurrency-safe.                              | Planned            | Database engineering                          | Failure and simultaneous-review tests prove atomicity and conflict handling.                                                                                                                                                                                                                                                |
 | PR-13 | High     | Add an idempotent, dry-run production importer for approved content only.                                                           | Complete           | Content engineering + professor               | The [approved-content importer](approved-content-import.md), immutable import ledger, and executable tests prove stable IDs/order, exact no-op replay, transactional rollback, and exclusion of private, draft, retrieval, test, student, and session data.                                                                 |
-| PR-14 | High     | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks.                        | Planned            | Platform + database engineering               | Load/failure tests and health checks prove bounded, non-leaking behavior.                                                                                                                                                                                                                                                   |
+| PR-14 | High     | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks.                        | In progress        | Platform + database engineering               | [Database runtime controls](database-runtime-reliability.md) and [pilot failure tests](pilot-reliability.md#executable-evidence) prove bounded application behavior; production load evidence remains outstanding.                                                                                                          |
 | PR-15 | High     | Define and test backup, restore, RPO, RTO, and rollback procedures.                                                                 | Decision required  | University IT + database engineering          | Provider backup evidence and a successful disposable restore exercise.                                                                                                                                                                                                                                                      |
 | PR-16 | High     | Add read-only integrity checks and explicitly gated repair tools.                                                                   | Planned            | Database + content engineering                | Reports detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data.                                                                                                                                                                                                            |
 | PR-17 | High     | Replace runtime local-file private upload storage with approved private processing and storage.                                     | Decision required  | Security + platform engineering               | Threat-reviewed storage, malware/content handling, retention, deletion, and serverless deployment evidence.                                                                                                                                                                                                                 |
 | PR-18 | High     | Decide whether answer previews are necessary; implement retention, consent, and deletion accordingly.                               | Decision required  | Privacy owner + professor                     | Approved collection purpose and tested retention/deletion behavior.                                                                                                                                                                                                                                                         |
 | PR-19 | High     | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them.                              | Planned            | Application engineering + professor           | Browser/API tests prove progression is server-enforced.                                                                                                                                                                                                                                                                     |
-| PR-20 | High     | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation.                                    | Planned            | Platform engineering + security               | Staging evidence demonstrates useful diagnostics without secrets, raw private content, or student answers.                                                                                                                                                                                                                  |
+| PR-20 | High     | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation.                                    | In progress        | Platform engineering + security               | [Pilot reliability controls](pilot-reliability.md#protected-diagnostics) add redacted structured events, server-generated request IDs, and a professor-protected recent-event view. External drains, dashboards, alerts, access review, and staging evidence remain outstanding.                                            |
 | PR-21 | High     | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests.       | Planned            | Quality engineering                           | CI blocks deployment when any production gate fails.                                                                                                                                                                                                                                                                        |
 | PR-22 | Medium   | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts.                          | Partially complete | AI engineering + project owner                | The [production retrieval/LLM policy](retrieval-llm-production-policy.md), runtime deadlines, atomic allowances/reservations, HMAC-scoped accounting, and AI evaluation tests cover application controls. Provider billing alerts and a monetary ceiling remain external operational tasks.                                 |
-| PR-23 | Medium   | Add rate limits and abuse controls for session creation and public APIs.                                                            | Planned            | Security + application engineering            | Tests cover identity rotation, bursts, oversized requests, and controlled throttling.                                                                                                                                                                                                                                       |
+| PR-23 | Medium   | Add rate limits and abuse controls for session creation and public APIs.                                                            | In progress        | Security + application engineering            | Tutor response burst and request-size controls have executable tests; broader public-route and identity-rotation coverage remains outstanding.                                                                                                                                                                              |
 | PR-24 | Medium   | Correct analytics semantics and document metric definitions.                                                                        | Planned            | Data/analytics owner + professor              | Validated metrics distinguish detected misconceptions from general missed attempts.                                                                                                                                                                                                                                         |
 | PR-25 | Medium   | Complete accessibility verification and remediation.                                                                                | Planned            | Frontend engineering + accessibility reviewer | WCAG acceptance review, keyboard/screen-reader checks, and automated tests pass.                                                                                                                                                                                                                                            |
-| PR-26 | Medium   | Add global failure UI, operational status behavior, and recoverable retry paths.                                                    | Planned            | Application + platform engineering            | Browser tests cover database, network, provider, and expired-session failures.                                                                                                                                                                                                                                              |
+| PR-26 | Medium   | Add global failure UI, operational status behavior, and recoverable retry paths.                                                    | In progress        | Application + platform engineering            | [Pilot reliability and recovery](pilot-reliability.md) plus API/client tests cover database, auth, retrieval, provider, rate-limit, malformed, stale, expired, unpublished, and interrupted-network behavior. Staging browser exercises remain outstanding.                                                                 |
 | PR-27 | High     | Add deployment configuration, security headers, staging promotion, smoke checks, and rollback automation.                           | Planned            | Platform engineering                          | Staging-to-production runbook and successful rollback exercise.                                                                                                                                                                                                                                                             |
 | PR-28 | Critical | Complete institutional privacy, security, accessibility, and pilot approval.                                                        | Decision required  | Project owner + university approvers          | Written approvals and named incident/support contacts.                                                                                                                                                                                                                                                                      |
 
@@ -222,8 +227,8 @@ link it from the corresponding task above.
 - Attempt answer previews are retained without an approved retention/deletion
   policy.
 - Runtime upload processing depends on local disk, Git, and `pdftotext`.
-- There is no structured security audit log, incident alerting, or verified
-  backup/restore path.
+- Structured privacy-safe operational events and lifecycle audit records exist,
+  but no external incident alerting or verified backup/restore path is active.
 - No repository evidence establishes data-processing approval for an LLM,
   embedding, analytics, logging, or error-tracking provider.
 
@@ -359,12 +364,9 @@ must link to its evidence in the task table or accompanying documentation.
 
 ### Later Production Prompts
 
-The supplied production master context currently defines Prompts 85–103 only.
-Add Prompts 104–143 here by title when their specifications are available.
-Do not invent their scope or mark them complete without implementation and
-verification evidence.
-
-- [ ] Prompts 104–143 — Definitions and acceptance evidence pending.
+- [x] Prompt 121 — [Pilot reliability and recovery hardened](pilot-reliability.md)
+      at application boundaries; external monitoring and staging exercises
+      remain tracked by PR-20, PR-21, and PR-26.
 
 ## Internal Documentation Index
 

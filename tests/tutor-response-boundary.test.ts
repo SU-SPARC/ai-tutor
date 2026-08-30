@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createTutorResponseFromState: vi.fn(),
@@ -21,6 +21,8 @@ vi.mock("@/lib/tutor/tutor-engine", () => ({
 }));
 
 import { POST } from "@/app/api/tutor/respond/route";
+import { DataServiceUnavailableError } from "@/lib/data/service-error";
+import { resetRateLimitsForTests } from "@/lib/rate-limit";
 import type { TutorQuestion, TutorResponse } from "@/lib/types";
 import {
   mockStudentOwner,
@@ -28,9 +30,22 @@ import {
   TEST_ANONYMOUS_OWNER,
 } from "./auth-test-helpers";
 
+let originalRateLimitMaximum: string | undefined;
+
+beforeEach(() => {
+  originalRateLimitMaximum = process.env.RATE_LIMIT_MAX_REQUESTS;
+  resetRateLimitsForTests();
+});
+
 afterEach(() => {
   resetAuthMocks();
-  vi.clearAllMocks();
+  if (originalRateLimitMaximum === undefined) {
+    delete process.env.RATE_LIMIT_MAX_REQUESTS;
+  } else {
+    process.env.RATE_LIMIT_MAX_REQUESTS = originalRateLimitMaximum;
+  }
+  resetRateLimitsForTests();
+  vi.resetAllMocks();
 });
 
 describe("student tutor response boundary", () => {
@@ -126,7 +141,174 @@ describe("student tutor response boundary", () => {
       /raw private source body|approved private summary|private:chunk-id|client-controlled-private-topic/i,
     );
   });
+
+  it("returns a safe retrieval outage without calling persistence", async () => {
+    const question = approvedQuestion();
+    mockStudentOwner(TEST_ANONYMOUS_OWNER);
+    mocks.getTutorSession.mockResolvedValue(activeSession(question));
+    mocks.getApprovedQuestionById.mockResolvedValue(question);
+    mocks.createTutorResponseFromState.mockRejectedValue(
+      new DataServiceUnavailableError("retrieval", {
+        cause: new Error(
+          "select secret from private_chunks at postgres://user:password@db.invalid",
+        ),
+      }),
+    );
+
+    const response = await POST(tutorRequest("event:retrieval-outage"));
+    const body = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("3");
+    expect(JSON.parse(body)).toEqual({
+      code: "RETRIEVAL_SERVICE_UNAVAILABLE",
+      error:
+        "Additional course guidance is temporarily unavailable. Your saved progress was not changed. Please try again shortly.",
+    });
+    expect(body).not.toMatch(/select|private_chunks|password|db\.invalid/i);
+    expect(mocks.persistTutorSessionTransition).not.toHaveBeenCalled();
+  });
+
+  it("returns a recoverable conflict after repeated stale revisions", async () => {
+    const question = approvedQuestion();
+    const session = activeSession(question);
+    mockStudentOwner(TEST_ANONYMOUS_OWNER);
+    mocks.getTutorSession.mockResolvedValue(session);
+    mocks.getApprovedQuestionById.mockResolvedValue(question);
+    mocks.createTutorResponseFromState.mockResolvedValue({
+      response: privateGroundedResponse(),
+      state: engineState(),
+    });
+    mocks.persistTutorSessionTransition.mockResolvedValue({
+      outcome: "conflict",
+      session,
+    });
+
+    const response = await POST(tutorRequest("event:stale-session"));
+    const payload = (await response.json()) as {
+      code?: string;
+      error?: string;
+    };
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(payload.code).toBe("TUTOR_SESSION_STALE");
+    expect(payload.error).toContain("another tab");
+    expect(mocks.persistTutorSessionTransition).toHaveBeenCalledTimes(3);
+  });
+
+  it("conceals expired sessions and questions removed during a session", async () => {
+    const question = approvedQuestion();
+    mockStudentOwner(TEST_ANONYMOUS_OWNER);
+    mocks.getTutorSession.mockResolvedValueOnce(undefined);
+
+    const expired = await POST(tutorRequest("event:expired"));
+
+    mocks.getTutorSession.mockResolvedValueOnce(activeSession(question));
+    mocks.getApprovedQuestionById.mockResolvedValueOnce(undefined);
+    const unpublished = await POST(tutorRequest("event:unpublished"));
+    const payloads = await Promise.all([
+      expired.json() as Promise<{ code?: string; error?: string }>,
+      unpublished.json() as Promise<{ code?: string; error?: string }>,
+    ]);
+
+    expect([expired.status, unpublished.status]).toEqual([404, 404]);
+    expect(payloads.map((payload) => payload.code)).toEqual([
+      "TUTOR_SESSION_UNAVAILABLE",
+      "TUTOR_SESSION_UNAVAILABLE",
+    ]);
+    expect(
+      payloads.every((payload) => payload.error?.includes("expired")),
+    ).toBe(true);
+    expect(mocks.createTutorResponseFromState).not.toHaveBeenCalled();
+    expect(mocks.persistTutorSessionTransition).not.toHaveBeenCalled();
+  });
+
+  it("handles an interrupted request stream without exposing an exception", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"mode":"check"'));
+        controller.error(
+          new Error("socket failed with secret authorization header"),
+        );
+      },
+    });
+    const request = new Request("http://test/api/tutor/respond", {
+      body: stream,
+      duplex: "half",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    } as RequestInit & { duplex: "half" });
+
+    const response = await POST(request);
+    const body = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(JSON.parse(body)).toMatchObject({
+      code: "TUTOR_REQUEST_INTERRUPTED",
+    });
+    expect(body).not.toMatch(/socket|secret|authorization header/i);
+    expect(mocks.getTutorSession).not.toHaveBeenCalled();
+  });
+
+  it("throttles a burst with a friendly bounded response and no student details in logs", async () => {
+    process.env.RATE_LIMIT_MAX_REQUESTS = "1";
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const request = () =>
+      new Request("http://test/api/tutor/respond", {
+        body: "not-json",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "203.0.113.44",
+        },
+        method: "POST",
+      });
+
+    const malformed = await POST(request());
+    const limited = await POST(request());
+    const body = await limited.text();
+    const logs = warning.mock.calls.flat().join(" ");
+
+    expect(malformed.status).toBe(400);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
+    expect(JSON.parse(body)).toEqual({
+      code: "TUTOR_RATE_LIMITED",
+      error: "Too many tutor requests. Please wait a moment and try again.",
+    });
+    expect(logs).toContain('"event":"rate_limit_reached"');
+    expect(logs).not.toContain("203.0.113.44");
+    expect(mocks.getTutorSession).not.toHaveBeenCalled();
+  });
 });
+
+function activeSession(question: TutorQuestion) {
+  return {
+    attempts: [],
+    createdAt: "2026-08-05T00:00:00.000Z",
+    id: "session:owned",
+    lastSeenAt: "2026-08-05T00:00:00.000Z",
+    questionId: question.id,
+    questionVersionId: 7,
+    revealedHints: 0,
+    revealedSteps: 0,
+    revision: 0,
+    status: "active" as const,
+  };
+}
+
+function tutorRequest(eventId: string) {
+  return new Request("http://test/api/tutor/respond", {
+    body: JSON.stringify({
+      answer: "Please explain this.",
+      eventId,
+      mode: "hint",
+      sessionId: "session:owned",
+    }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+}
 
 function approvedQuestion(): TutorQuestion {
   return {

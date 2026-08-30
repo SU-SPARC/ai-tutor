@@ -12,6 +12,7 @@ import {
   type StudentOwner,
 } from "@/lib/auth/principal";
 import { signInPath } from "@/lib/auth/return-path";
+import { authenticationServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import type {
   RetrievalChunk,
   ReviewMetadata,
@@ -93,6 +94,12 @@ export class ResourceNotFoundError extends Error {
     this.name = "ResourceNotFoundError";
   }
 }
+
+type ApiAuthorizationOptions = {
+  request?: Request;
+  requestId?: string;
+  route?: string;
+};
 
 /**
  * Resolves the current active application account. The returned roles are for
@@ -286,6 +293,7 @@ export function assertAuthorization<Permission extends AuthorizationPermission>(
 
 export async function authorizeApi<Authorization>(
   requirement: () => Promise<Authorization>,
+  options: ApiAuthorizationOptions = {},
 ) {
   try {
     return {
@@ -308,11 +316,19 @@ export async function authorizeApi<Authorization>(
         response: Response.json({ error: error.message }, { status: 403 }),
       };
     }
-    throw error;
+    return {
+      ok: false as const,
+      response: authenticationServiceUnavailableResponse({
+        cause: error,
+        ...options,
+      }),
+    };
   }
 }
 
-export async function authorizeStudentResourceApi() {
+export async function authorizeStudentResourceApi(
+  options: ApiAuthorizationOptions = {},
+) {
   try {
     return {
       authorization: await requireStudentAccess({ allowAnonymous: true }),
@@ -332,7 +348,13 @@ export async function authorizeStudentResourceApi() {
         ),
       };
     }
-    throw error;
+    return {
+      ok: false as const,
+      response: authenticationServiceUnavailableResponse({
+        cause: error,
+        ...options,
+      }),
+    };
   }
 }
 

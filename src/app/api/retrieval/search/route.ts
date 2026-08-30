@@ -6,6 +6,8 @@ import {
   type LocalRetrievalAudience,
 } from "@/lib/ai/retrieval";
 import { authorizeApi, requireProfessor } from "@/lib/auth/authorization";
+import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,9 +34,15 @@ const MAX_QUERY_CHARACTERS = 1000;
 const MAX_FILTER_CHARACTERS = 160;
 const MAX_CHUNK_CHARACTERS = 520;
 const MAX_CONTEXT_CHARACTERS = 2400;
+const RETRIEVAL_SEARCH_ROUTE = "/api/retrieval/search";
 
 export async function POST(request: Request) {
-  const access = await authorizeApi(requireProfessor);
+  const requestId = pilotRequestId(request);
+  const access = await authorizeApi(requireProfessor, {
+    request,
+    requestId,
+    route: RETRIEVAL_SEARCH_ROUTE,
+  });
 
   if (!access.ok) {
     return access.response;
@@ -80,11 +88,14 @@ export async function POST(request: Request) {
       mode: parsed.input.mode,
       retrievalMode: "keyword" as const,
     });
-  } catch {
-    return NextResponse.json(
-      { error: "Retrieval search failed." },
-      { status: 500 },
-    );
+  } catch (cause) {
+    return dataServiceUnavailableResponse({
+      cause,
+      request,
+      requestId,
+      route: RETRIEVAL_SEARCH_ROUTE,
+      subsystem: "retrieval",
+    });
   }
 }
 

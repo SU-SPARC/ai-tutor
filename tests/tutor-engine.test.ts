@@ -561,6 +561,41 @@ describe("tutor engine", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("fails closed before LLM fallback when approved retrieval is unavailable", async () => {
+    const question = await getQuestionById("dice-sum-eight");
+    if (!question) {
+      throw new Error("Expected the approved test question.");
+    }
+    const repository = contentRepositoryWithChunks([]);
+    repository.getRetrievalChunks = async () => {
+      throw new Error(
+        "select * from private_table at postgres://operator:secret@db.invalid",
+      );
+    };
+    setContentRepositoryForTests(repository);
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchImpl);
+
+    await expect(
+      decideTutorResponse({
+        allowLlmFallback: true,
+        answer: "I am not sure how to express this setup.",
+        mode: "check",
+        question,
+        sessionId: "retrieval-outage-test",
+        state: {
+          ...getTutorSessionState("retrieval-outage-test", question.id),
+          hintsRevealed: question.hints.length,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "DataServiceUnavailableError",
+      subsystem: "retrieval",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("does not permit unbound general AI help", async () => {
     const fetchImpl = mockLlmResponse(
       "A confidence interval describes plausible values for an unknown population parameter.",

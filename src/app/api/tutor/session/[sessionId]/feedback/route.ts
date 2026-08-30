@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import {
+  dataServiceUnavailableResponse,
+  safeApiErrorResponse,
+} from "@/lib/api/service-unavailable";
 import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import {
   QuestionFeedbackNotFoundError,
@@ -13,6 +16,7 @@ import {
   QUESTION_FEEDBACK_CATEGORIES,
   type QuestionFeedbackCategory,
 } from "@/lib/types";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 type FeedbackRouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -24,7 +28,10 @@ type FeedbackBody = {
   idempotencyKey?: unknown;
 };
 
+const TUTOR_FEEDBACK_ROUTE = "/api/tutor/session/[sessionId]/feedback";
+
 export async function POST(request: Request, context: FeedbackRouteContext) {
+  const requestId = pilotRequestId(request);
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (declaredLength > 4_096) {
     return NextResponse.json(
@@ -38,13 +45,16 @@ export async function POST(request: Request, context: FeedbackRouteContext) {
     { max: 10, windowMs: 60 * 60 * 1_000 },
   );
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many reports were submitted. Please try again later." },
-      {
-        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
-        status: 429,
-      },
-    );
+    return safeApiErrorResponse({
+      code: "QUESTION_FEEDBACK_RATE_LIMITED",
+      error: "Too many reports were submitted. Please try again later.",
+      event: "rate_limit_reached",
+      requestId,
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+      route: TUTOR_FEEDBACK_ROUTE,
+      status: 429,
+      subsystem: "question-feedback",
+    });
   }
 
   let body: FeedbackBody;
@@ -68,7 +78,11 @@ export async function POST(request: Request, context: FeedbackRouteContext) {
     );
   }
 
-  const access = await authorizeStudentResourceApi();
+  const access = await authorizeStudentResourceApi({
+    request,
+    requestId,
+    route: TUTOR_FEEDBACK_ROUTE,
+  });
   if (!access.ok) return access.response;
   const { sessionId } = await context.params;
 
@@ -105,7 +119,13 @@ export async function POST(request: Request, context: FeedbackRouteContext) {
         },
       );
     }
-    return dataServiceUnavailableResponse();
+    return dataServiceUnavailableResponse({
+      cause,
+      request,
+      requestId,
+      route: TUTOR_FEEDBACK_ROUTE,
+      subsystem: "question-feedback",
+    });
   }
 }
 

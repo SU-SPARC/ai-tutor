@@ -12,6 +12,10 @@ import {
 } from "@/lib/ai/usage-controls"
 import type { LlmTutorInput } from "@/lib/ai/llm-tutor"
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor"
+import {
+  listPilotOperationalDiagnostics,
+  resetPilotOperationalDiagnosticsForTests,
+} from "@/lib/observability/pilot-operations"
 
 const openDatabases: PGlite[] = []
 
@@ -19,6 +23,7 @@ describe("production AI usage controls", () => {
   afterEach(async () => {
     vi.useRealTimers()
     resetAiUsageControlsForTests()
+    resetPilotOperationalDiagnosticsForTests()
     vi.unstubAllEnvs()
     await Promise.all(
       openDatabases.splice(0).map((database) => database.close()),
@@ -186,6 +191,14 @@ describe("production AI usage controls", () => {
       providerTotalTokens: 360,
       usageIsEstimate: true,
     })
+    expect(listPilotOperationalDiagnostics()).toEqual([
+      expect.objectContaining({
+        event: "llm_provider_unavailable",
+        route: "/api/tutor/respond",
+        status: 503,
+        subsystem: "ai-provider",
+      }),
+    ])
     await applyTutorAiAccounting(failedAccounting)
 
     const retry = await prepareTutorAiGeneration(

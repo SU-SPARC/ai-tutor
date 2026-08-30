@@ -45,3 +45,11 @@ export function getClientIp(request: Request): string {
   const firstIp = forwardedFor?.split(",")[0]?.trim()
   return firstIp || request.headers.get("x-real-ip") || "unknown"
 }
+
+export function resetRateLimitsForTests() {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("Rate-limit state can only be reset in tests.")
+  }
+
+  buckets.clear()
+}

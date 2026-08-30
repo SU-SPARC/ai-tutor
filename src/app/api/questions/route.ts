@@ -12,8 +12,12 @@ import {
   getApprovedQuestions,
   listQuestionsByTopic,
 } from "@/lib/data/data-store";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
+
+const QUESTIONS_ROUTE = "/api/questions";
 
 export async function GET(request: Request) {
+  const requestId = pilotRequestId(request);
   const { searchParams } = new URL(request.url);
 
   const topic = searchParams.get("topic")?.trim() || undefined;
@@ -57,7 +61,13 @@ export async function GET(request: Request) {
       filters: { topic, difficulty, sourceType, q: query },
       questions,
     });
-  } catch {
-    return dataServiceUnavailableResponse();
+  } catch (cause) {
+    return dataServiceUnavailableResponse({
+      cause,
+      request,
+      requestId,
+      route: QUESTIONS_ROUTE,
+      subsystem: "content",
+    });
   }
 }

@@ -1,17 +1,27 @@
-import { NextResponse } from "next/server";
-
 import { toStudentTutorSessionDto } from "@/lib/api/tutor-session-dto";
 import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
-import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import {
+  dataServiceUnavailableResponse,
+  safeApiErrorResponse,
+  tutorSessionUnavailableResponse,
+} from "@/lib/api/service-unavailable";
 import { getTutorSession } from "@/lib/data/tutor-session-repository";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 type SessionRouteContext = {
   params: Promise<{ sessionId: string }> | { sessionId: string };
 };
 
-export async function POST(_request: Request, context: SessionRouteContext) {
+const RETIRED_STEP_ROUTE = "/api/tutor/session/[sessionId]/step";
+
+export async function POST(request: Request, context: SessionRouteContext) {
+  const requestId = pilotRequestId(request);
   const sessionId = await getSessionId(context);
-  const access = await authorizeStudentResourceApi();
+  const access = await authorizeStudentResourceApi({
+    request,
+    requestId,
+    route: RETIRED_STEP_ROUTE,
+  });
   if (!access.ok) {
     return access.response;
   }
@@ -21,26 +31,29 @@ export async function POST(_request: Request, context: SessionRouteContext) {
       sessionId,
     );
     if (!currentSession || !(await toStudentTutorSessionDto(currentSession))) {
-      return sessionNotFoundResponse();
+      return tutorSessionUnavailableResponse({
+        requestId,
+        route: RETIRED_STEP_ROUTE,
+      });
     }
-  } catch {
-    return dataServiceUnavailableResponse();
+  } catch (cause) {
+    return dataServiceUnavailableResponse({
+      cause,
+      request,
+      requestId,
+      route: RETIRED_STEP_ROUTE,
+    });
   }
 
-  return NextResponse.json(
-    {
-      error:
-        "This split tutor event endpoint is retired. Submit an idempotent event to /api/tutor/respond.",
-    },
-    { status: 410 },
-  );
-}
-
-function sessionNotFoundResponse() {
-  return NextResponse.json(
-    { error: "Tutor session was not found." },
-    { status: 404 },
-  );
+  return safeApiErrorResponse({
+    code: "TUTOR_ENDPOINT_RETIRED",
+    error:
+      "This split tutor event endpoint is retired. Submit an idempotent event to /api/tutor/respond.",
+    requestId,
+    route: RETIRED_STEP_ROUTE,
+    status: 410,
+    subsystem: "tutor-session",
+  });
 }
 
 async function getSessionId(context: SessionRouteContext) {

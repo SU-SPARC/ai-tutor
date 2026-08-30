@@ -6,6 +6,7 @@ import {
   isPublishedContent,
   type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
+import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import {
   getApprovedQuestions,
   getRetrievalChunks,
@@ -98,12 +99,20 @@ export async function retrieveTutorContext(
   options: RetrievalOptions = {},
 ): Promise<TutorRetrievalResult> {
   const audience = options.audience ?? "student";
-  const includeQuestionExamples = options.includeQuestionExamples ?? true;
   if (audience === "admin_dev") {
     if (!options.professorAuthorization) {
       throw new AuthorizationDeniedError();
     }
     assertAuthorization(options.professorAuthorization, "professor");
+  }
+  let sources: Awaited<ReturnType<typeof loadRetrievalSources>>;
+  try {
+    sources = await loadRetrievalSources(query, options, audience);
+  } catch (cause) {
+    if (cause instanceof AuthorizationDeniedError) {
+      throw cause;
+    }
+    throw new DataServiceUnavailableError("retrieval", { cause });
   }
   const [
     storedChunks,
@@ -111,26 +120,11 @@ export async function retrieveTutorContext(
     reviewCandidates,
     localResults,
     availableTopics,
-  ] =
-    await Promise.all([
-      getRetrievalChunks(),
-      includeQuestionExamples ? getApprovedQuestions() : Promise.resolve([]),
-      audience === "admin_dev"
-        ? getReviewQueue(options.professorAuthorization!)
-        : Promise.resolve([]),
-      searchLocalRetrieval(query, {
-        audience: audience === "admin_dev" ? "admin_dev" : "student",
-        maxResults: options.maxResults ?? 3,
-        topicId: options.topicId,
-      }),
-      audience === "student" ? getTopics() : Promise.resolve([]),
-    ]);
+  ] = sources;
   const availableQuestionIds = new Set(
     approvedQuestions.map((question) => question.id),
   );
-  const availableTopicIds = new Set(
-    availableTopics.map((topic) => topic.id),
-  );
+  const availableTopicIds = new Set(availableTopics.map((topic) => topic.id));
   const audienceSafeLocalResults =
     audience === "student"
       ? localResults.filter(
@@ -161,6 +155,27 @@ export async function retrieveTutorContext(
   };
 }
 
+function loadRetrievalSources(
+  query: string,
+  options: RetrievalOptions,
+  audience: RetrievalAudience,
+) {
+  const includeQuestionExamples = options.includeQuestionExamples ?? true;
+  return Promise.all([
+    getRetrievalChunks(),
+    includeQuestionExamples ? getApprovedQuestions() : Promise.resolve([]),
+    audience === "admin_dev"
+      ? getReviewQueue(options.professorAuthorization!)
+      : Promise.resolve([]),
+    searchLocalRetrieval(query, {
+      audience: audience === "admin_dev" ? "admin_dev" : "student",
+      maxResults: options.maxResults ?? 3,
+      topicId: options.topicId,
+    }),
+    audience === "student" ? getTopics() : Promise.resolve([]),
+  ] as const);
+}
+
 export function rankRetrievalChunks(
   query: string,
   chunks: RetrievalChunk[],
@@ -189,14 +204,14 @@ export function rankRetrievalChunks(
         normalizedQuery,
         queryTerms,
         topicId: options.topicId,
-      })
+      });
 
       return {
         chunk,
         priorityTier: chunk.priorityTier,
         qualifies: relevance.strongMetadataMatch || relevance.textOverlap >= 2,
         score: relevance.score,
-      }
+      };
     })
     .filter((match) => match.qualifies)
     .sort((left, right) => {
@@ -401,12 +416,16 @@ function relevanceForChunk(
     input.queryTerms,
   );
 
-  score += formulaScore + conceptScore + keywordScore + titleScore + textOverlap;
+  score +=
+    formulaScore + conceptScore + keywordScore + titleScore + textOverlap;
 
   return {
     score,
     strongMetadataMatch:
-      formulaScore > 0 || conceptScore > 0 || keywordScore > 0 || titleScore > 0,
+      formulaScore > 0 ||
+      conceptScore > 0 ||
+      keywordScore > 0 ||
+      titleScore > 0,
     textOverlap,
   };
 }
