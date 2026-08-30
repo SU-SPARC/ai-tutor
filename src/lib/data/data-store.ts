@@ -35,6 +35,7 @@ import {
   createDatabaseInstructorStudentRepository,
   INSTRUCTOR_STUDENT_PAGE_SIZE,
 } from "@/lib/data/instructor-student-repository";
+import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-analytics-export-repository";
 import { queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import type {
@@ -77,6 +78,10 @@ import type {
   QuestionIntakeDuplicate,
   QuestionIntakeTopic,
 } from "@/lib/question-intake/types";
+import {
+  emptyPilotAnalyticsExport,
+  type PilotAnalyticsExport,
+} from "@/lib/analytics/pilot-export";
 
 let contentRepositoryOverride: ContentRepository | undefined;
 let contentAvailabilityRepositoryOverride:
@@ -514,6 +519,42 @@ export async function getInstructorCohortAnalytics(
   } catch (cause) {
     if (getOperatingModePolicy().allowDemoFallback) {
       return demoInstructorCohortAnalytics();
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
+function pilotAnalyticsExportRepository() {
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo") {
+    return undefined;
+  }
+
+  const env = getServerEnv();
+  if (!env.DATABASE_URL) {
+    return undefined;
+  }
+
+  return createDatabasePilotAnalyticsExportRepository(queryPostgres);
+}
+
+export async function getPilotAnalyticsExport(
+  authorization: AnalyticsAuthorization,
+): Promise<PilotAnalyticsExport> {
+  assertAuthorization(authorization, "professor");
+  const repository = pilotAnalyticsExportRepository();
+
+  if (!repository) {
+    return emptyPilotAnalyticsExport();
+  }
+
+  try {
+    return await repository.build(authorization);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return emptyPilotAnalyticsExport();
     }
 
     throw new DataServiceUnavailableError("tutor-session", { cause });

@@ -1,0 +1,211 @@
+export const PILOT_ANALYTICS_EXPORT_SCHEMA_VERSION = 1 as const;
+
+export type PilotAnalyticsCount = {
+  count: number;
+  key: string;
+};
+
+export type PilotAnalyticsPerformance = {
+  answerAttempts: number;
+  correctAnswerAttempts: number;
+  correctnessRate: number | null;
+  incorrectAnswerAttempts: number;
+  unscoredAnswerAttempts: number;
+};
+
+export type PilotAnalyticsTutorPath = {
+  blockedInteractions: number;
+  deterministicInteractions: number;
+  llmAssistanceInteractions: number;
+  llmCacheInteractions: number;
+  llmProviderInteractions: number;
+  retrievalInteractions: number;
+  totalInteractions: number;
+};
+
+export type PilotAnalyticsActivity = PilotAnalyticsPerformance &
+  PilotAnalyticsTutorPath & {
+    hintsUsed: number;
+    questionsAttempted: number;
+    sessions: number;
+    solutionStepsRevealed: number;
+  };
+
+export type PilotAnalyticsExport = {
+  schemaVersion: typeof PILOT_ANALYTICS_EXPORT_SCHEMA_VERSION;
+  exportType: "pilot_analytics";
+  generatedAt: string;
+  mode: "database" | "demo";
+  privacy: {
+    directIdentifiersIncluded: false;
+    participantIdentifier: "pseudonymous_sha256";
+    privateRetrievalContentIncluded: false;
+    rawStudentTextIncluded: false;
+  };
+  metricDefinitions: {
+    feedback: string;
+    performance: string;
+    researchOutcomes: {
+      included: false;
+      statement: string;
+    };
+    usage: string;
+  };
+  dataCoverage: {
+    earliestDate: string | null;
+    latestDate: string | null;
+  };
+  cohort: PilotAnalyticsActivity & {
+    participatingStudents: number;
+  };
+  tutorUsage: PilotAnalyticsTutorPath;
+  aiUsage: {
+    cacheHits: number;
+    estimatedRequestTokens: number;
+    estimatedTokenPortion: number;
+    generationRequests: number;
+    inputTokens: number;
+    limitBlocks: number;
+    outputTokens: number;
+    providerCalls: number;
+    successfulFallbacks: number;
+    totalTokens: number;
+  };
+  participants: Array<
+    PilotAnalyticsActivity & {
+      participantId: string;
+    }
+  >;
+  topics: Array<
+    PilotAnalyticsActivity & {
+      participatingStudents: number;
+      topicId: string;
+      topicTitle: string;
+    }
+  >;
+  questions: Array<
+    PilotAnalyticsActivity & {
+      participatingStudents: number;
+      questionId: string;
+      questionVersionsAttempted: number;
+      topicId: string;
+    }
+  >;
+  misconceptions: Array<{
+    misconceptionCode: string;
+    sessionOccurrences: number;
+  }>;
+  feedback: {
+    byCategory: PilotAnalyticsCount[];
+    byStatus: PilotAnalyticsCount[];
+    totalReports: number;
+  };
+  limitations: string[];
+};
+
+const RESEARCH_OUTCOME_STATEMENT =
+  "This export contains usage, observed answer performance, and feedback counts. It does not measure or establish learning improvement, causal impact, mastery, or other research outcomes.";
+
+export function emptyPilotAnalyticsExport(
+  generatedAt = new Date().toISOString(),
+): PilotAnalyticsExport {
+  const tutorUsage = emptyTutorPath();
+  return {
+    schemaVersion: PILOT_ANALYTICS_EXPORT_SCHEMA_VERSION,
+    exportType: "pilot_analytics",
+    generatedAt,
+    mode: "demo",
+    privacy: {
+      directIdentifiersIncluded: false,
+      participantIdentifier: "pseudonymous_sha256",
+      privateRetrievalContentIncluded: false,
+      rawStudentTextIncluded: false,
+    },
+    metricDefinitions: pilotAnalyticsMetricDefinitions(),
+    dataCoverage: { earliestDate: null, latestDate: null },
+    cohort: {
+      ...emptyActivity(),
+      participatingStudents: 0,
+    },
+    tutorUsage,
+    aiUsage: {
+      cacheHits: 0,
+      estimatedRequestTokens: 0,
+      estimatedTokenPortion: 0,
+      generationRequests: 0,
+      inputTokens: 0,
+      limitBlocks: 0,
+      outputTokens: 0,
+      providerCalls: 0,
+      successfulFallbacks: 0,
+      totalTokens: 0,
+    },
+    participants: [],
+    topics: [],
+    questions: [],
+    misconceptions: [],
+    feedback: { byCategory: [], byStatus: [], totalReports: 0 },
+    limitations: pilotAnalyticsLimitations(),
+  };
+}
+
+export function pilotAnalyticsMetricDefinitions(): PilotAnalyticsExport["metricDefinitions"] {
+  return {
+    feedback:
+      "Counts of submitted question reports by workflow category and status; report text and resolution notes are excluded.",
+    performance:
+      "Observed answer-check results recorded by the tutor. These descriptive counts are not measures of mastery or learning gain.",
+    researchOutcomes: {
+      included: false,
+      statement: RESEARCH_OUTCOME_STATEMENT,
+    },
+    usage:
+      "Participation, session, tutoring-path, hint, solution-reveal, and AI accounting activity recorded by the application.",
+  };
+}
+
+export function pilotAnalyticsLimitations() {
+  return [
+    "Participant identifiers are stable pseudonyms, not anonymous identifiers; access to exports must remain restricted.",
+    "Correctness is based only on recorded answer-check verdicts and excludes unscored or blocked checks from the numerator.",
+    "Misconception frequency counts the latest retained misconception codes per session, not every historical occurrence.",
+    "AI token values can include estimates when the provider did not return usage; estimatedTokenPortion identifies that amount.",
+  ];
+}
+
+export function correctnessRate(correct: number, attempts: number) {
+  return attempts > 0 ? correct / attempts : null;
+}
+
+function emptyPerformance(): PilotAnalyticsPerformance {
+  return {
+    answerAttempts: 0,
+    correctAnswerAttempts: 0,
+    correctnessRate: null,
+    incorrectAnswerAttempts: 0,
+    unscoredAnswerAttempts: 0,
+  };
+}
+
+function emptyTutorPath(): PilotAnalyticsTutorPath {
+  return {
+    blockedInteractions: 0,
+    deterministicInteractions: 0,
+    llmAssistanceInteractions: 0,
+    llmCacheInteractions: 0,
+    llmProviderInteractions: 0,
+    retrievalInteractions: 0,
+    totalInteractions: 0,
+  };
+}
+
+function emptyActivity(): PilotAnalyticsActivity {
+  return {
+    ...emptyPerformance(),
+    ...emptyTutorPath(),
+    hintsUsed: 0,
+    questionsAttempted: 0,
+    sessions: 0,
+    solutionStepsRevealed: 0,
+  };
+}

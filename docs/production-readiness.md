@@ -367,6 +367,9 @@ must link to its evidence in the task table or accompanying documentation.
 - [x] Prompt 121 — [Pilot reliability and recovery hardened](pilot-reliability.md)
       at application boundaries; external monitoring and staging exercises
       remain tracked by PR-20, PR-21, and PR-26.
+- [x] Prompt 122 — [Privacy-conscious pilot analytics export implemented](pilot-analytics-export.md)
+      with professor-only access, pseudonymous participant aggregates, explicit
+      metric semantics, and executable leakage tests.
 
 ## Internal Documentation Index
 
@@ -388,5 +391,6 @@ must link to its evidence in the task table or accompanying documentation.
 - [Production Schema Hardening Migration](../db/migrations/007_production_schema_hardening.sql)
 - [Approved Content Import Migration](../db/migrations/008_approved_content_import.sql)
 - [Authentication and Authorization Migration](../db/migrations/009_authentication_authorization.sql)
+- [Pilot Analytics and Research Export](pilot-analytics-export.md)
 - [Database Migration Operations](database-operations.md)
 - [Approved Content Production Import](approved-content-import.md)

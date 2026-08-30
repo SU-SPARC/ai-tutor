@@ -312,6 +312,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "GET",
+    "/api/professor/analytics/export",
+    "src/app/api/professor/analytics/export/route.ts",
+    "professor-analytics",
+    ["requireAnalyticsAccess", "getPilotAnalyticsExport"],
+  ),
+  route(
+    "GET",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
     "professor-review",

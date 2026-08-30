@@ -54,7 +54,7 @@ async function readRows<Row>(
  * The digest is computed in SQL and the raw owner never leaves this module, so
  * no instructor query can return a cookie value or a user id by accident.
  */
-const STUDENT_KEY_SQL = `
+export const STUDENT_KEY_SQL = `
   encode(
     sha256(
       convert_to(

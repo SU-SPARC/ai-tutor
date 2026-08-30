@@ -22,6 +22,7 @@ import { POST as inspectAdminQuestion } from "@/app/api/professor/questions/insp
 import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
 import { GET as getProfessorAnalytics } from "@/app/api/professor/analytics/route";
+import { GET as exportPilotAnalytics } from "@/app/api/professor/analytics/export/route";
 import {
   GET as getProfessorReview,
   PATCH as patchProfessorReview,
@@ -128,26 +129,41 @@ describe("server boundary permission matrix", () => {
     expect([...discovered].sort()).toEqual([...declared].sort());
   });
 
-  it("has no student-data export endpoint", async () => {
+  it("permits only the explicitly protected pilot analytics export", async () => {
     const files = await walkFiles(path.join(APP_ROOT, "api"));
     const apiPaths = files
       .filter((file) => file.endsWith(`${path.sep}route.ts`))
-      .map((file) => appRouteFor(file, "route.ts"));
+      .map((file) => appRouteFor(file, "route.ts"))
+      .filter((routePath) => /export|download/i.test(routePath));
 
+    expect(apiPaths).toEqual(["/api/professor/analytics/export"]);
     expect(
-      apiPaths.some((routePath) => /export|download/i.test(routePath)),
-    ).toBe(false);
-    expect(
-      SERVER_BOUNDARY_PERMISSION_MATRIX.some((entry) =>
+      SERVER_BOUNDARY_PERMISSION_MATRIX.filter((entry) =>
         /export|download/i.test(entry.boundary),
       ),
-    ).toBe(false);
+    ).toEqual([
+      expect.objectContaining({
+        access: "professor-analytics",
+        boundary: "GET /api/professor/analytics/export",
+        enforcementMarkers: expect.arrayContaining([
+          "requireAnalyticsAccess",
+          "getPilotAnalyticsExport",
+        ]),
+      }),
+    ]);
   });
 });
 
 describe("direct professor API authorization", () => {
   const boundaries = [
     ["GET /api/professor/analytics", () => getProfessorAnalytics()],
+    [
+      "GET /api/professor/analytics/export",
+      () =>
+        exportPilotAnalytics(
+          new Request("http://test/api/professor/analytics/export"),
+        ),
+    ],
     [
       "GET /api/professor/review",
       () => getProfessorReview(new Request("http://test/api/professor/review")),
