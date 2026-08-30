@@ -2,15 +2,16 @@
 
 > **Current decision: not production-ready.**
 >
-> The application is a well-tested demo foundation. A production or real-student
-> pilot must not begin until the critical acceptance criteria in this document
-> are satisfied and the required institutional decisions are recorded.
+> The release candidate passes its local engineering gate, but the current
+> Production deployment exposes answer and solution data before tutor
+> disclosure. A production or real-student pilot must not begin until the
+> blockers in the [Pilot Readiness Report](pilot-readiness-report.md) are closed.
 
-Last audited: 2026-08-30
+Last audited: 2026-08-31
 
 Maintainer: project engineering team
 
-Audit baseline: `Harden pilot reliability and recovery` change set
+Audit baseline: [Prompt 123 pilot readiness gate](pilot-readiness-report.md)
 
 ## How To Maintain This Document
 
@@ -151,12 +152,12 @@ team should replace each role before a pilot is scheduled.
 | PR-13 | High     | Add an idempotent, dry-run production importer for approved content only.                                                           | Complete           | Content engineering + professor               | The [approved-content importer](approved-content-import.md), immutable import ledger, and executable tests prove stable IDs/order, exact no-op replay, transactional rollback, and exclusion of private, draft, retrieval, test, student, and session data.                                                                 |
 | PR-14 | High     | Configure serverless-safe database pooling, timeouts, safe retries, error classification, and health checks.                        | In progress        | Platform + database engineering               | [Database runtime controls](database-runtime-reliability.md) and [pilot failure tests](pilot-reliability.md#executable-evidence) prove bounded application behavior; production load evidence remains outstanding.                                                                                                          |
 | PR-15 | High     | Define and test backup, restore, RPO, RTO, and rollback procedures.                                                                 | Decision required  | University IT + database engineering          | Provider backup evidence and a successful disposable restore exercise.                                                                                                                                                                                                                                                      |
-| PR-16 | High     | Add read-only integrity checks and explicitly gated repair tools.                                                                   | Planned            | Database + content engineering                | Reports detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data.                                                                                                                                                                                                            |
+| PR-16 | High     | Add read-only integrity checks and explicitly gated repair tools.                                                                   | Complete           | Database + content engineering                | [Database integrity controls](database-integrity.md) and executable tests detect invalid publication states, broken relations, duplicate IDs, orphan sessions, and demo/test data; Production execution still requires the separately controlled audit credential.                                                                 |
 | PR-17 | High     | Replace runtime local-file private upload storage with approved private processing and storage.                                     | Decision required  | Security + platform engineering               | Threat-reviewed storage, malware/content handling, retention, deletion, and serverless deployment evidence.                                                                                                                                                                                                                 |
 | PR-18 | High     | Decide whether answer previews are necessary; implement retention, consent, and deletion accordingly.                               | Decision required  | Privacy owner + professor                     | Approved collection purpose and tested retention/deletion behavior.                                                                                                                                                                                                                                                         |
-| PR-19 | High     | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them.                              | Planned            | Application engineering + professor           | Browser/API tests prove progression is server-enforced.                                                                                                                                                                                                                                                                     |
+| PR-19 | High     | Prevent public delivery of accepted answers and complete solution steps before the tutor reveals them.                              | In progress        | Application engineering + professor           | The [Prompt 123 release candidate](pilot-readiness-report.md#4-questionpublication-status) and API/client/session tests enforce progressive disclosure; the current Production deployment still fails the new smoke check and must be replaced.                                                                                  |
 | PR-20 | High     | Add structured privacy-safe logs, audit events, error tracking, alerts, and request correlation.                                    | In progress        | Platform engineering + security               | [Pilot reliability controls](pilot-reliability.md#protected-diagnostics) add redacted structured events, server-generated request IDs, and a professor-protected recent-event view. External drains, dashboards, alerts, access review, and staging evidence remain outstanding.                                            |
-| PR-21 | High     | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests.       | Planned            | Quality engineering                           | CI blocks deployment when any production gate fails.                                                                                                                                                                                                                                                                        |
+| PR-21 | High     | Add real Postgres integration, migration, concurrency, authorization, browser E2E, accessibility, and deployment smoke tests.       | In progress        | Quality engineering                           | The [read-only pilot smoke command](pilot-readiness-report.md#11-test-results) now covers health, public question privacy, and signed-out authorization. Full browser E2E, accessibility, and CI promotion gates remain incomplete.                                                                                              |
 | PR-22 | Medium   | Add LLM timeouts, retry policy, reservation reconciliation, monetary budgets, and provider billing alerts.                          | Partially complete | AI engineering + project owner                | The [production retrieval/LLM policy](retrieval-llm-production-policy.md), runtime deadlines, atomic allowances/reservations, HMAC-scoped accounting, and AI evaluation tests cover application controls. Provider billing alerts and a monetary ceiling remain external operational tasks.                                 |
 | PR-23 | Medium   | Add rate limits and abuse controls for session creation and public APIs.                                                            | In progress        | Security + application engineering            | Tutor response burst and request-size controls have executable tests; broader public-route and identity-rotation coverage remains outstanding.                                                                                                                                                                              |
 | PR-24 | Medium   | Correct analytics semantics and document metric definitions.                                                                        | Planned            | Data/analytics owner + professor              | Validated metrics distinguish detected misconceptions from general missed attempts.                                                                                                                                                                                                                                         |
@@ -175,7 +176,7 @@ team should replace each role before a pilot is scheduled.
 | Private object storage or approved processing environment | Durable private uploads and derived artifacts                     | Current implementation uses ignored local files                               |
 | Error tracking and log platform                           | Production diagnosis, security monitoring, and alerts             | Not configured                                                                |
 | Backup provider/process                                   | Database recovery                                                 | Not verified                                                                  |
-| CI/CD and hosting project                                 | Environment isolation, deployment gates, promotion, and rollback  | Not represented in the repository                                             |
+| CI/CD and hosting project                                 | Environment isolation, deployment gates, promotion, and rollback  | Vercel Production is linked and inspected; full CI, staged promotion, and rollback gates remain incomplete |
 | Privacy, security, accessibility, and legal review        | Real-student pilot authorization                                  | No approval evidence in the repository                                        |
 
 ## Institutional Decisions Required
@@ -222,8 +223,9 @@ link it from the corresponding task above.
 - Anonymous identifiers and session IDs are not authenticated ownership proof.
 - Clerk instance ownership, production keys, and institutional approval remain
   external prerequisites.
-- Accepted answers and solution steps are delivered to the browser before
-  progression requires them.
+- The current Production deployment delivers answers and solution steps before
+  progression requires them. The release candidate fixes this, but it has not
+  been deployed or accepted through the Production smoke gate.
 - Attempt answer previews are retained without an approved retention/deletion
   policy.
 - Runtime upload processing depends on local disk, Git, and `pdftotext`.
@@ -260,9 +262,8 @@ Production acceptance requires evidence for every item below.
       a production build.
 - [ ] Deployment includes health checks, migration status, staged promotion,
       smoke tests, rollback instructions, and security headers.
-- [ ] Resolve the current Production dependency audit findings in Next.js,
-      PostCSS, and Sharp; npm reports that the available fix requires a
-      separately tested Next.js upgrade outside the current pinned version.
+- [x] The release candidate's Production dependency audit reports zero findings
+      after the tested Next.js 16.3.3 and PostCSS 8.5.26 patch upgrades.
 
 ### Authentication And Authorization
 
@@ -370,6 +371,8 @@ must link to its evidence in the task table or accompanying documentation.
 - [x] Prompt 122 — [Privacy-conscious pilot analytics export implemented](pilot-analytics-export.md)
       with professor-only access, pseudonymous participant aggregates, explicit
       metric semantics, and executable leakage tests.
+- [x] Prompt 123 — [Final pilot readiness gate executed](pilot-readiness-report.md)
+      with an explicit **NOT READY** recommendation and deployment blockers.
 
 ## Internal Documentation Index
 

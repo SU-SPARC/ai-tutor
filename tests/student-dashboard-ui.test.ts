@@ -141,7 +141,29 @@ beforeEach(() => {
   ]);
   mocks.getApprovedQuestions.mockResolvedValue([
     {
+      answer: {
+        acceptedAnswers: ["PRIVATE-ACCEPTED-ANSWER"],
+        explanation: "PRIVATE-ANSWER-EXPLANATION",
+      },
+      difficulty: "foundational",
+      hints: ["PRIVATE-HINT-BODY"],
       id: "dice-sum-eight",
+      misconceptions: [
+        {
+          feedback: "PRIVATE-MISCONCEPTION-FEEDBACK",
+          id: "private-rule",
+          matchTerms: ["PRIVATE-MATCH-TERM"],
+        },
+      ],
+      prompt: "What is the probability?",
+      review: { status: "approved" },
+      solutionSteps: ["PRIVATE-SOLUTION-STEP"],
+      source: {
+        sourceType: "original_demo",
+        trustLevel: "public_original",
+        visibility: "public",
+      },
+      title: "Two fair dice",
       topicId: "conditional-probability",
     },
   ]);
@@ -259,6 +281,16 @@ describe("dashboard resume handoff", () => {
       initialQuestionId: "dice-sum-eight",
       initialSessionId: "session:student-owned",
     });
+    expect(mocks.practiceProps?.questions).toEqual([
+      expect.objectContaining({
+        hintCount: 1,
+        id: "dice-sum-eight",
+        stepCount: 1,
+      }),
+    ]);
+    expect(JSON.stringify(mocks.practiceProps?.questions)).not.toMatch(
+      /PRIVATE-|acceptedAnswers|answer|hints|solutionSteps|misconceptions|matchTerms/,
+    );
   });
 
   it("drops malformed session ids before the client boundary", async () => {

@@ -30,6 +30,9 @@ export type TutorSessionDto = {
   completedAt?: string;
   createdAt?: string;
   currentState: TutorState;
+  disclosedAnswerExplanation?: string;
+  disclosedHints?: string[];
+  disclosedSolutionSteps?: string[];
   expiresAt?: string;
   id: string;
   lastSeenAt?: string;
@@ -92,6 +95,22 @@ export async function toStudentTutorSessionDto(session: TutorSessionRecord) {
   if (session.status === "content_unpublished") {
     return undefined;
   }
-  const question = await getApprovedQuestionById(session.questionId);
-  return question ? toTutorSessionDto(session) : undefined;
+  const currentlyApprovedQuestion = await getApprovedQuestionById(
+    session.questionId,
+  );
+  if (!currentlyApprovedQuestion) {
+    return undefined;
+  }
+
+  const dto = toTutorSessionDto(session);
+  const question = session.questionVersion ?? currentlyApprovedQuestion;
+  return {
+    ...dto,
+    disclosedAnswerExplanation:
+      dto.solved || dto.revealedSteps >= question.solutionSteps.length
+        ? question.answer.explanation
+        : undefined,
+    disclosedHints: question.hints.slice(0, dto.revealedHints),
+    disclosedSolutionSteps: question.solutionSteps.slice(0, dto.revealedSteps),
+  };
 }

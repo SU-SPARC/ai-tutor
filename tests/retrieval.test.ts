@@ -128,6 +128,51 @@ describe("retrieval ranking and safety", () => {
     expect(matches).toEqual([])
   })
 
+  it("excludes the active question before applying the result limit", () => {
+    const activeQuestionId = "active-question"
+    const chunks = [
+      {
+        ...retrievalChunk({ id: "active-question-prompt" }),
+        body: "Transit pass union overlap for the current active question.",
+        conceptTags: ["transit pass union overlap"],
+        questionId: activeQuestionId,
+        title: "Transit pass union overlap",
+      },
+      {
+        ...retrievalChunk({ id: "active-question-hint" }),
+        body: "Current transit pass union overlap hint.",
+        conceptTags: ["transit pass union overlap"],
+        questionId: activeQuestionId,
+        title: "Transit pass union overlap hint",
+      },
+      {
+        ...retrievalChunk({ id: "related-club-question" }),
+        body: "For club membership, add both groups and subtract the overlap.",
+        conceptTags: ["club membership union overlap"],
+        questionId: "related-question",
+        title: "Club membership union",
+      },
+    ]
+    const query = "transit pass union overlap club membership"
+
+    expect(
+      rankRetrievalChunks(query, chunks, {
+        audience: "student",
+        maxResults: 2,
+        topicId: "binomial-models",
+      }).map((match) => match.chunk.questionId),
+    ).toEqual([activeQuestionId, activeQuestionId])
+
+    expect(
+      rankRetrievalChunks(query, chunks, {
+        audience: "student",
+        excludeQuestionId: activeQuestionId,
+        maxResults: 2,
+        topicId: "binomial-models",
+      }).map((match) => match.chunk.id),
+    ).toEqual(["related-club-question"])
+  })
+
   it("excludes demo sources from the production retrieval policy", () => {
     const matches = rankRetrievalChunks(
       "binomial model independent trials",

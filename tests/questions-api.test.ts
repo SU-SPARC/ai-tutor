@@ -122,17 +122,24 @@ describe("questions API", () => {
     expect(badSource.status).toBe(400)
   })
 
-  it("returns full detail for an approved question", async () => {
+  it("returns only pre-session metadata for an approved question", async () => {
     const response = await getQuestion(request("http://test/api/questions/x"), {
       params: Promise.resolve({ id: "exam-z-score" }),
     })
     const payload = (await response.json()) as {
-      question: { hints: string[]; solutionSteps: string[]; answer: unknown }
+      question: Record<string, unknown>
     }
 
     expect(response.status).toBe(200)
-    expect(payload.question.solutionSteps.length).toBeGreaterThan(0)
-    expect(payload.question.answer).toBeTruthy()
+    expect(payload.question).toMatchObject({
+      id: "exam-z-score",
+      hintCount: expect.any(Number),
+      stepCount: expect.any(Number),
+    })
+    expect(payload.question).not.toHaveProperty("answer")
+    expect(payload.question).not.toHaveProperty("hints")
+    expect(payload.question).not.toHaveProperty("solutionSteps")
+    expect(payload.question).not.toHaveProperty("misconceptions")
   })
 
   it("does not expose version or lifecycle audit metadata to students", async () => {

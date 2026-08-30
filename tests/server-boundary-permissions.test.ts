@@ -380,7 +380,13 @@ describe("direct student API authorization", () => {
           }),
         ),
     ],
-    ["GET /api/student/progress", () => getStudentProgress()],
+    [
+      "GET /api/student/progress",
+      () =>
+        getStudentProgress(
+          new Request("http://localhost/api/student/progress"),
+        ),
+    ],
     [
       "POST /api/tutor/session",
       () =>

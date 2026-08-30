@@ -616,12 +616,19 @@ describe("tutor engine", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("skips a self-referential retrieval echo and goes straight to real LLM help", async () => {
+  it("retrieves a related question before proceeding to real LLM help", async () => {
     const fetchImpl = mockLlmResponse(
       "Try listing the outcomes that satisfy the conditional probability first.",
     );
 
     await exhaustApprovedHelp("no-self-echo-test");
+    const retrieval = await createTutorResponse({
+      answer: "I still don't understand this at all.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "no-self-echo-test",
+    });
     const response = await createTutorResponse({
       answer: "I still don't understand this at all.",
       allowLlmFallback: true,
@@ -630,6 +637,12 @@ describe("tutor engine", () => {
       sessionId: "no-self-echo-test",
     });
 
+    expect(retrieval.source).toBe("retrieval");
+    expect(
+      retrieval.retrievedContext.every(
+        (chunk) => chunk.questionId !== "dice-sum-eight",
+      ),
+    ).toBe(true);
     expect(response.source).toBe("llm");
     expect(response.message).not.toContain(
       "I found an approved course pattern",
@@ -643,6 +656,13 @@ describe("tutor engine", () => {
     );
 
     await exhaustApprovedHelp("llm-low-confidence-test");
+    const retrieval = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    });
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
@@ -660,6 +680,7 @@ describe("tutor engine", () => {
     const payload = llmRequestPayload(fetchImpl);
     const userPrompt = payload.messages[1]?.content ?? "";
 
+    expect(retrieval.source).toBe("retrieval");
     expect(response.source).toBe("llm");
     expect(response.verdict).toBe("guidance");
     expect(response.responseLabel).toBe("approved_course_content");
@@ -685,7 +706,7 @@ describe("tutor engine", () => {
     });
   });
 
-  it("surfaces the LLM's own message when the provider request fails", async () => {
+  it("preserves approved retrieval guidance when the provider request fails", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response("bad request", { status: 400 }));
@@ -693,6 +714,13 @@ describe("tutor engine", () => {
     vi.stubGlobal("fetch", fetchImpl);
 
     await exhaustApprovedHelp("llm-failure-retrieval-test");
+    const retrieval = await createTutorResponse({
+      answer: "I am not sure how to express this setup.",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-failure-retrieval-test",
+    });
     const response = await createTutorResponse({
       answer: "I am not sure how to express this setup.",
       allowLlmFallback: true,
@@ -701,10 +729,11 @@ describe("tutor engine", () => {
       sessionId: "llm-failure-retrieval-test",
     });
 
+    expect(retrieval.source).toBe("retrieval");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(response.source).toBe("blocked");
+    expect(response.source).toBe("retrieval");
     expect(response.usage.fallbackUsed).toBe(false);
-    expect(response.message).toContain("temporarily unavailable");
+    expect(response.message).toContain("approved course pattern");
     expect(response.message).not.toMatch(/provider|openrouter|billing/i);
     expect(response.progress?.llmUsed).toBe(false);
   });
@@ -720,6 +749,7 @@ describe("tutor engine", () => {
     if (!question) {
       throw new Error("Expected the approved test question.");
     }
+    setContentRepositoryForTests(contentRepositoryWithChunks([]));
     const state = {
       attemptCount: 2,
       hintsRevealed: question.hints.length,

@@ -609,6 +609,7 @@ async function buildRetrievalOrLlmResponse(input: {
   topicId?: string
 }) {
   const retrievalResult = await retrieveTutorContext(input.query, {
+    excludeQuestionId: input.question?.id,
     maxResults: MAX_LLM_GROUNDING_ITEMS,
     topicId: input.topicId,
   })

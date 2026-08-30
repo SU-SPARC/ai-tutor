@@ -371,6 +371,25 @@ export type TutorQuestion = QuestionContent & {
 
 export type PracticeQuestion = TutorQuestion;
 
+/**
+ * Student-facing question metadata that may cross the browser boundary before
+ * a tutor session reveals any instructional content. Accepted answers,
+ * explanations, hint bodies, solution steps, and misconception rules stay on
+ * the server.
+ */
+export type StudentPracticeQuestion = {
+  difficulty: Difficulty;
+  difficultyLabel: string;
+  hintCount: number;
+  id: string;
+  prompt: string;
+  sourceLabel: string;
+  sourceType: SourceType;
+  stepCount: number;
+  title: string;
+  topicId: string;
+};
+
 export type RetrievalChunkType =
   | "concept"
   | "example"

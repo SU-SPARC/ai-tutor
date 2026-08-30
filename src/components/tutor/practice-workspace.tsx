@@ -36,7 +36,7 @@ import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import type {
   CourseTopic,
-  PracticeQuestion,
+  StudentPracticeQuestion,
   TutorMode,
   TutorResponse,
 } from "@/lib/types";
@@ -46,7 +46,7 @@ type PracticeWorkspaceProps = {
   initialQuestionId?: string;
   initialSessionId?: string;
   initialTopicId?: string;
-  questions: PracticeQuestion[];
+  questions: StudentPracticeQuestion[];
   topics: CourseTopic[];
 };
 
@@ -150,6 +150,7 @@ export function PracticeWorkspace({
   const [session, setSession] = useState<TutorSessionDto | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [disclosedHints, setDisclosedHints] = useState<string[]>([]);
   const [hintCount, setHintCount] = useState(0);
   const [hintViewIndex, setHintViewIndex] = useState(0);
   const [search, setSearch] = useState("");
@@ -163,7 +164,7 @@ export function PracticeWorkspace({
     !isTutorBusy &&
     answer.trim().length > 0;
   const hintsExhausted = Boolean(
-    selectedQuestion && hintCount >= selectedQuestion.hints.length,
+    selectedQuestion && hintCount >= selectedQuestion.hintCount,
   );
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
@@ -207,6 +208,7 @@ export function PracticeWorkspace({
       setSession(null);
       setSessionError(null);
       setMessages([]);
+      setDisclosedHints([]);
       setHintCount(0);
       setHintViewIndex(0);
 
@@ -228,10 +230,11 @@ export function PracticeWorkspace({
         if (!isStale) {
           setSession(nextSession);
           setMessages(recoveryMessages(nextSession, selectedQuestion));
+          setDisclosedHints(nextSession.disclosedHints ?? []);
           setHintCount(
             Math.min(
               nextSession.revealedHints,
-              selectedQuestion?.hints.length ?? 0,
+              selectedQuestion?.hintCount ?? 0,
             ),
           );
           setHintViewIndex(
@@ -239,7 +242,7 @@ export function PracticeWorkspace({
               0,
               Math.min(
                 nextSession.revealedHints,
-                selectedQuestion?.hints.length ?? 0,
+                selectedQuestion?.hintCount ?? 0,
               ) - 1,
             ),
           );
@@ -269,6 +272,7 @@ export function PracticeWorkspace({
 
   function resetChat() {
     setMessages([]);
+    setDisclosedHints([]);
     setHintCount(0);
     setHintViewIndex(0);
   }
@@ -306,18 +310,16 @@ export function PracticeWorkspace({
         const writeWasRecovered = recovered.revision > session.revision;
         setSession(recovered);
         setMessages(recoveryMessages(recovered, selectedQuestion));
+        setDisclosedHints(recovered.disclosedHints ?? []);
         setHintCount(
-          Math.min(
-            recovered.revealedHints,
-            selectedQuestion?.hints.length ?? 0,
-          ),
+          Math.min(recovered.revealedHints, selectedQuestion?.hintCount ?? 0),
         );
         setHintViewIndex(
           Math.max(
             0,
             Math.min(
               recovered.revealedHints,
-              selectedQuestion?.hints.length ?? 0,
+              selectedQuestion?.hintCount ?? 0,
             ) - 1,
           ),
         );
@@ -388,6 +390,15 @@ export function PracticeWorkspace({
 
       setLatestResponse(tutorResponse);
       setSession((current) => sessionWithProgress(current, tutorResponse));
+      if (tutorResponse.hints.length > 0) {
+        const nextHintCount = Math.min(
+          selectedQuestion.hintCount,
+          tutorResponse.progress?.hintsRevealed ?? tutorResponse.hints.length,
+        );
+        setDisclosedHints(tutorResponse.hints.slice(0, nextHintCount));
+        setHintCount(nextHintCount);
+        setHintViewIndex(Math.max(0, nextHintCount - 1));
+      }
       pushMessage({
         note: tutorResponse.misconceptions[0],
         role: "tutor",
@@ -418,9 +429,10 @@ export function PracticeWorkspace({
         topicId: selectedQuestion.topicId,
       });
       const next = Math.min(
-        selectedQuestion.hints.length,
+        selectedQuestion.hintCount,
         response.progress?.hintsRevealed ?? hintCount + 1,
       );
+      setDisclosedHints(response.hints.slice(0, next));
       setHintCount(next);
       setHintViewIndex(Math.max(0, next - 1));
       setLatestResponse(response);
@@ -819,7 +831,7 @@ export function PracticeWorkspace({
                       </div>
                       <div className="leading-6">
                         <MathText>
-                          {selectedQuestion.hints[hintViewIndex] ?? ""}
+                          {disclosedHints[hintViewIndex] ?? ""}
                         </MathText>
                       </div>
                     </div>
@@ -1325,7 +1337,7 @@ function sessionWithProgress(
 
 function recoveryMessages(
   session: TutorSessionDto,
-  question: PracticeQuestion | undefined,
+  question: StudentPracticeQuestion | undefined,
 ): ChatMessage[] {
   if (!question) {
     return [];
@@ -1342,9 +1354,8 @@ function recoveryMessages(
     }
 
     if (attempt.mode === "full_solution") {
-      question.solutionSteps
-        .slice(0, session.revealedSteps)
-        .forEach((step, stepIndex, steps) => {
+      (session.disclosedSolutionSteps ?? []).forEach(
+        (step, stepIndex, steps) => {
           messages.push({
             id: `recovered-step-${attemptIndex}-${stepIndex}`,
             role: "tutor",
@@ -1352,12 +1363,15 @@ function recoveryMessages(
             text: step,
             tone: "neutral",
           });
-        });
+        },
+      );
     } else if (attempt.verdict === "correct") {
       messages.push({
         id: `recovered-tutor-${attemptIndex}`,
         role: "tutor",
-        text: question.answer.explanation,
+        text:
+          session.disclosedAnswerExplanation ??
+          "This question was completed correctly.",
         tone: "correct",
       });
     } else if (attempt.verdict === "incorrect") {

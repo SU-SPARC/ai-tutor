@@ -158,7 +158,9 @@ describe("student progress dashboard", () => {
     mockPrincipal(undefined);
     mockStudentOwner(TEST_ANONYMOUS_OWNER);
 
-    const response = await GET();
+    const response = await GET(
+      new Request("http://localhost/api/student/progress"),
+    );
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({
@@ -183,7 +185,9 @@ describe("student progress dashboard", () => {
       sessionId: otherSession.id,
     });
 
-    const response = await GET();
+    const response = await GET(
+      new Request("http://localhost/api/student/progress"),
+    );
     const responseText = await response.text();
     const payload = JSON.parse(responseText);
 

@@ -6,8 +6,14 @@ import { GET as getSession } from "@/app/api/tutor/session/[sessionId]/route";
 import { POST as postStep } from "@/app/api/tutor/session/[sessionId]/step/route";
 import { POST as postSession } from "@/app/api/tutor/session/route";
 import { POST as postTutorResponse } from "@/app/api/tutor/respond/route";
-import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
-import { setContentRepositoryForTests } from "@/lib/data/data-store";
+import {
+  toStudentTutorSessionDto,
+  type TutorSessionDto,
+} from "@/lib/api/tutor-session-dto";
+import {
+  getApprovedQuestionById,
+  setContentRepositoryForTests,
+} from "@/lib/data/data-store";
 import type { ContentRepository } from "@/lib/data/repository";
 import {
   createTutorSession,
@@ -103,6 +109,129 @@ describe("tutor session API", () => {
     expect(fetchedPayload.session?.attempts).toEqual([]);
     expect(JSON.stringify(fetchedPayload)).not.toMatch(
       /anonymous|userId|answerPreview|retrievedContext|embedding|provider/i,
+    );
+  });
+
+  it("reveals tutor content through owned session progress without exposing answer rules", async () => {
+    const question = await getApprovedQuestionById("dice-sum-eight");
+    expect(question).toBeDefined();
+
+    const createdResponse = await postSession(
+      jsonRequest("http://localhost/api/tutor/session", {
+        idempotencyKey: "session:disclosure-boundary",
+        questionId: "dice-sum-eight",
+      }),
+    );
+    const created = (await createdResponse.json()) as SessionPayload;
+    const sessionId = created.session?.id ?? "";
+
+    const initialResponse = await getSession(
+      new Request(`http://localhost/api/tutor/session/${sessionId}`),
+      sessionContext(sessionId),
+    );
+    const initial = (await initialResponse.json()) as SessionPayload;
+
+    expect(initial.session).toMatchObject({
+      disclosedHints: [],
+      disclosedSolutionSteps: [],
+      revealedHints: 0,
+      revealedSteps: 0,
+    });
+    expect(initial.session).not.toHaveProperty("disclosedAnswerExplanation");
+
+    for (let index = 0; index < (question?.hints.length ?? 0); index += 1) {
+      const hintResponse = await postTutorResponse(
+        jsonRequest("http://localhost/api/tutor/respond", {
+          answer: "",
+          eventId: `event:disclosure-hint:${index}`,
+          mode: "hint",
+          sessionId,
+        }),
+      );
+      expect(hintResponse.status).toBe(200);
+
+      if (index === 0) {
+        const afterFirstHintResponse = await getSession(
+          new Request(`http://localhost/api/tutor/session/${sessionId}`),
+          sessionContext(sessionId),
+        );
+        const afterFirstHint =
+          (await afterFirstHintResponse.json()) as SessionPayload;
+
+        expect(afterFirstHint.session?.disclosedHints).toEqual(
+          question?.hints.slice(0, 1),
+        );
+        expect(afterFirstHint.session?.disclosedSolutionSteps).toEqual([]);
+        expect(afterFirstHint.session).not.toHaveProperty(
+          "disclosedAnswerExplanation",
+        );
+      }
+    }
+
+    const solutionResponse = await postTutorResponse(
+      jsonRequest("http://localhost/api/tutor/respond", {
+        answer: "",
+        eventId: "event:disclosure-solution",
+        mode: "full_solution",
+        sessionId,
+      }),
+    );
+    expect(solutionResponse.status).toBe(200);
+
+    const recoveredResponse = await getSession(
+      new Request(`http://localhost/api/tutor/session/${sessionId}`),
+      sessionContext(sessionId),
+    );
+    const recovered = (await recoveredResponse.json()) as SessionPayload;
+    const serialized = JSON.stringify(recovered);
+
+    expect(recovered.session?.disclosedHints).toEqual(question?.hints);
+    expect(recovered.session?.disclosedSolutionSteps).toEqual(
+      question?.solutionSteps,
+    );
+    expect(recovered.session?.disclosedAnswerExplanation).toBe(
+      question?.answer.explanation,
+    );
+    expect(serialized).not.toMatch(
+      /acceptedAnswers|numericValue|tolerance|matchTerms|private_reference|provider/i,
+    );
+  });
+
+  it("recovers disclosed content from the immutable selected question version", async () => {
+    const currentQuestion = await getApprovedQuestionById("dice-sum-eight");
+    expect(currentQuestion).toBeDefined();
+
+    const recovered = await toStudentTutorSessionDto({
+      attempts: [],
+      createdAt: "2026-08-31T00:00:00.000Z",
+      id: "session:immutable-version",
+      lastSeenAt: "2026-08-31T00:01:00.000Z",
+      questionId: "dice-sum-eight",
+      questionVersion: {
+        ...currentQuestion!,
+        answer: {
+          ...currentQuestion!.answer,
+          explanation: "SNAPSHOT-ANSWER-EXPLANATION",
+        },
+        hints: ["SNAPSHOT-HINT"],
+        solutionSteps: ["SNAPSHOT-STEP-ONE", "SNAPSHOT-STEP-TWO"],
+      },
+      revealedHints: 1,
+      revealedSteps: 1,
+      solved: false,
+      status: "active",
+    });
+
+    expect(recovered).toMatchObject({
+      disclosedHints: ["SNAPSHOT-HINT"],
+      disclosedSolutionSteps: ["SNAPSHOT-STEP-ONE"],
+    });
+    expect(recovered?.disclosedAnswerExplanation).toBeUndefined();
+    expect(JSON.stringify(recovered)).not.toContain(
+      "SNAPSHOT-ANSWER-EXPLANATION",
+    );
+    expect(JSON.stringify(recovered)).not.toContain(
+      currentQuestion?.hints[0] ?? "CURRENT-HINT",
     );
   });
 

@@ -10,7 +10,7 @@ import { getTutorSession } from "@/lib/data/tutor-session-repository";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 type SessionRouteContext = {
-  params: Promise<{ sessionId: string }> | { sessionId: string };
+  params: Promise<{ sessionId: string }>;
 };
 
 const TUTOR_SESSION_DETAIL_ROUTE = "/api/tutor/session/[sessionId]";

@@ -7,7 +7,7 @@ import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 const STUDENT_PROGRESS_ROUTE = "/api/student/progress";
 
-export async function GET(request?: Request) {
+export async function GET(request: Request) {
   const requestId = pilotRequestId(request);
   const access = await authorizeApi(requireStudent, {
     request,

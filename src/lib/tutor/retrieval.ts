@@ -33,6 +33,7 @@ export type RetrievalAudience = "admin_dev" | "student";
 
 export type RetrievalOptions = {
   audience?: RetrievalAudience;
+  excludeQuestionId?: string;
   includeQuestionExamples?: boolean;
   maxResults?: number;
   productionSourcesOnly?: boolean;
@@ -190,6 +191,11 @@ export function rankRetrievalChunks(
   }
 
   return chunks
+    .filter(
+      (chunk) =>
+        !options.excludeQuestionId ||
+        chunk.questionId !== options.excludeQuestionId,
+    )
     .map((chunk) =>
       sanitizeChunkForAudience(
         chunk,

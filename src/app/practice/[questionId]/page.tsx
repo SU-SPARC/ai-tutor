@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace"
+import { normalizeSummary } from "@/lib/api/question-serialization"
 import {
   getApprovedQuestionById,
   getApprovedQuestions,
@@ -47,7 +48,7 @@ export default async function PracticeQuestionPage({
     <PracticeWorkspace
       initialQuestionId={question.id}
       topics={topics}
-      questions={questions}
+      questions={questions.map(normalizeSummary)}
     />
   )
 }

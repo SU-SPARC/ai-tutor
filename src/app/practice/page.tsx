@@ -1,4 +1,5 @@
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace";
+import { normalizeSummary } from "@/lib/api/question-serialization";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ export default async function PracticePage({
       initialSessionId={initialSessionId}
       initialTopicId={initialTopicId}
       topics={topics}
-      questions={questions}
+      questions={questions.map(normalizeSummary)}
     />
   );
 }

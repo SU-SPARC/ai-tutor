@@ -5,6 +5,7 @@ import {
   SOURCE_TYPES,
   type Difficulty,
   type SourceType,
+  type StudentPracticeQuestion,
   type TutorQuestion,
 } from "@/lib/types"
 
@@ -14,30 +15,8 @@ export const DIFFICULTIES: readonly Difficulty[] = [
   "challenge",
 ]
 
-export type QuestionSummary = {
-  id: string
-  topicId: string
-  title: string
-  prompt: string
-  difficulty: Difficulty
-  difficultyLabel: string
-  sourceType: SourceType
-  sourceLabel: string
-  hintCount: number
-  stepCount: number
-}
-
-export type QuestionDetail = QuestionSummary & {
-  hints: string[]
-  solutionSteps: string[]
-  answer: {
-    acceptedAnswers: string[]
-    explanation: string
-    numericValue?: number
-    tolerance?: number
-  }
-  misconceptions: Array<{ id: string; feedback: string }>
-}
+export type QuestionSummary = StudentPracticeQuestion
+export type QuestionDetail = QuestionSummary
 
 /**
  * Public list shape. Deliberately omits answers, solution steps, and
@@ -59,26 +38,13 @@ export function normalizeSummary(question: TutorQuestion): QuestionSummary {
 }
 
 /**
- * Full practice detail for a single approved question. Includes hints,
- * solution steps, and accepted answers (the same approved public content the
- * practice workspace already receives), but never internal match terms.
+ * Public detail is intentionally the same pre-session metadata as the list.
+ * Hint bodies, solution steps, answer rules/explanations, and misconception
+ * feedback are disclosed only through an owned tutor session as progress
+ * permits.
  */
 export function normalizeDetail(question: TutorQuestion): QuestionDetail {
-  return {
-    ...normalizeSummary(question),
-    hints: question.hints,
-    solutionSteps: question.solutionSteps,
-    answer: {
-      acceptedAnswers: question.answer.acceptedAnswers,
-      explanation: question.answer.explanation,
-      numericValue: question.answer.numericValue,
-      tolerance: question.answer.tolerance,
-    },
-    misconceptions: question.misconceptions.map((misconception) => ({
-      id: misconception.id,
-      feedback: misconception.feedback,
-    })),
-  }
+  return normalizeSummary(question)
 }
 
 export function isValidDifficulty(value: string): value is Difficulty {
