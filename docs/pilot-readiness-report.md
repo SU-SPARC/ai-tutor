@@ -1,9 +1,9 @@
 # Pilot Readiness Report
 
-Date: 2026-09-01
+Date: 2026-09-02
 
-Release candidate: `Complete real student pilot readiness` (current report
-commit)
+Readiness evidence update: `Audit production database credentials` (current
+report commit)
 
 Production deployment reviewed: `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w` from
 `b1162a2` at `https://ai-tutor-kananguliyevs-projects.vercel.app`
@@ -64,7 +64,8 @@ archived immutable record and attributable history remained available.
 
 ## 3. Database status
 
-**Status: healthy runtime; recovery acceptance incomplete.**
+**Status: healthy runtime; credential ownership and recovery acceptance
+incomplete.**
 
 - The public, non-cached Production database health endpoint returned HTTP 200
   with `status: healthy`, `database.required: true`, and database status
@@ -77,11 +78,27 @@ archived immutable record and attributable history remained available.
 - The active Production deployment build ran `db:migrate:check` successfully
   and reported `current`, with 21 of 21 migrations applied and no checksum
   drift.
-- The repository's separately stored `MIGRATION_DATABASE_URL` does not target
-  the same current ledger: it reports 18 of 21 migrations, three pending files,
-  and checksum drift for migration 018. That credential must not be used for
-  Production operations until its target and ownership are reconciled. No
-  migration was applied during this review.
+- The [credential-topology audit](database-credential-topology-audit.md)
+  identifies the separately stored `MIGRATION_DATABASE_URL` as a local
+  Development target, not Production. It connects to database
+  `pf_xj_research_dev`; its ledger records target `development`, reports 18 of
+  21 migrations, has 019–021 pending, and retains the original 018 checksum
+  from commit `49a1336`. The current repository checksum changed in `5961ecb`.
+  The inspected ledger was not edited and no migration was applied.
+- The active Vercel Production runtime instead resolves the protected
+  `POSTGRES_URL`. Safe managed metadata identifies Supabase project hash
+  `65888f3d354b7dfd`, database `postgres`, and host hash
+  `5b9942ef57aca05a`; the local Development migration target has database
+  `pf_xj_research_dev` and host hash `12ca17b49af22894`. The different target is
+  misconfigured if treated as the Production migrator, while its Development
+  ledger is stale/drifted relative to the repository.
+- Vercel Production contains no `MIGRATION_DATABASE_URL`, which preserves the
+  application/migration separation. However, the Vercel integration-resource
+  listing was empty, no Supabase ownership record or separately controlled
+  Production migrator was available, and the protected runtime URL could not be
+  directly fingerprinted. The correct Production migration credential and
+  institutional provider ownership therefore remain unverified. The mismatch
+  is **not resolved**.
 - Migration workflow tests passed: 36 tests across four files.
 - The application runtime credential is not used as an operator migration or
   integrity credential. A separately controlled `INTEGRITY_DATABASE_URL` was
@@ -230,35 +247,36 @@ student identifiers.
 
 ## 11. Test results
 
-| Gate                                     | Result                                                         |
-| ---------------------------------------- | -------------------------------------------------------------- |
-| Full Vitest suite                        | PASS — 76 files, 634 tests                                     |
-| Lint                                     | PASS                                                           |
-| TypeScript                               | PASS                                                           |
-| Production build                         | PASS — Next.js 16.3.3, 23 pages generated                      |
-| AI/retrieval/usage focused suite         | PASS — 8 files, 111 tests                                      |
-| Migration focused suite                  | PASS — 4 files, 36 tests                                       |
-| Authorization focused suite              | PASS — 7 files, 91 tests                                       |
-| Lifecycle/publication focused suite      | PASS — 7 files, 52 tests                                       |
-| Student/professor workflow focused suite | PASS — 7 files, 44 tests                                       |
-| Release-candidate read-only smoke        | PASS — 5 checks                                                |
-| Current Production read-only smoke       | PASS — 5 checks; 9 published questions                         |
-| Production database health               | PASS — HTTP 200, required and healthy                          |
-| Production environment/runtime mode      | PASS — strict config parses; database-backed, demo not active  |
-| Production deployment migration check    | PASS — current, 21/21, no drift                                |
-| Separate maintenance credential check    | **FAIL** — 18/21 and migration 018 checksum drift              |
-| Production error logs, post-deploy scan  | No error-level entries returned                                |
-| Production dependency audit              | PASS — 0 vulnerabilities after patch upgrade                   |
-| Production Clerk test identities         | PASS — isolated student and professor roles marked `pilotTest` |
-| Controlled Production student E2E        | PASS — onboarding, tutor hierarchy, recovery, dashboard, feedback |
-| Controlled Production professor E2E      | PASS — auth, inspect, approve, publish, visibility, analytics, feedback |
-| Controlled live AI fallback              | PASS — opt-in, bounded, no accepted-answer/provider leakage    |
-| Controlled live approved retrieval       | PASS — related approved context precedes opt-in AI synthesis   |
-| Controlled live rate/request boundaries  | PASS — friendly 429 on request 21; oversized request gets 413  |
-| Public retrieval/private-content boundary | PASS — professor endpoint 401; public list metadata-only       |
-| Production integrity audit               | **NOT RUN** — separate read-only audit credential unavailable  |
-| Backup/restore exercise                  | **NOT PROVEN**                                                 |
-| Accessibility acceptance                 | **NOT PROVEN**                                                 |
+| Gate                                      | Result                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Full Vitest suite                         | PASS — 76 files, 634 tests                                                                         |
+| Lint                                      | PASS                                                                                               |
+| TypeScript                                | PASS                                                                                               |
+| Production build                          | PASS — Next.js 16.3.3, 23 pages generated                                                          |
+| AI/retrieval/usage focused suite          | PASS — 8 files, 111 tests                                                                          |
+| Migration focused suite                   | PASS — 4 files, 36 tests                                                                           |
+| Authorization focused suite               | PASS — 7 files, 91 tests                                                                           |
+| Lifecycle/publication focused suite       | PASS — 7 files, 52 tests                                                                           |
+| Student/professor workflow focused suite  | PASS — 7 files, 44 tests                                                                           |
+| Release-candidate read-only smoke         | PASS — 5 checks                                                                                    |
+| Current Production read-only smoke        | PASS — 5 checks; 9 published questions                                                             |
+| Production database health                | PASS — HTTP 200, required and healthy                                                              |
+| Production environment/runtime mode       | PASS — strict config parses; database-backed, demo not active                                      |
+| Production deployment migration check     | PASS — current, 21/21, no drift                                                                    |
+| Production credential topology audit      | **FAIL CLOSED** — stored migrator is Development; Production ownership/correct migrator unverified |
+| Separate stored migration credential      | Development target — 18/21, pending 019–021, original 018 checksum                                 |
+| Production error logs, post-deploy scan   | No error-level entries returned                                                                    |
+| Production dependency audit               | PASS — 0 vulnerabilities after patch upgrade                                                       |
+| Production Clerk test identities          | PASS — isolated student and professor roles marked `pilotTest`                                     |
+| Controlled Production student E2E         | PASS — onboarding, tutor hierarchy, recovery, dashboard, feedback                                  |
+| Controlled Production professor E2E       | PASS — auth, inspect, approve, publish, visibility, analytics, feedback                            |
+| Controlled live AI fallback               | PASS — opt-in, bounded, no accepted-answer/provider leakage                                        |
+| Controlled live approved retrieval        | PASS — related approved context precedes opt-in AI synthesis                                       |
+| Controlled live rate/request boundaries   | PASS — friendly 429 on request 21; oversized request gets 413                                      |
+| Public retrieval/private-content boundary | PASS — professor endpoint 401; public list metadata-only                                           |
+| Production integrity audit                | **NOT RUN** — separate read-only audit credential unavailable                                      |
+| Backup/restore exercise                   | **NOT PROVEN**                                                                                     |
+| Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
 
@@ -279,19 +297,26 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
   storage/processing design before that feature is used with private material.
 - External error alerting, dashboards, billing alerts, rollback automation, and
   a tested pilot shutdown procedure are not proven.
-- Direct Production integrity, backup, and restore evidence is absent.
+- Direct Production credential ownership, integrity, backup, and restore
+  evidence is absent.
 - Student account lifecycle and support processes depend on Clerk operations;
   password and new-device verification pass, but recovery and revocation are
   not yet accepted.
 
 ## 13. Remaining blockers
 
-1. Run the separately credentialed read-only Production integrity audit.
-2. Verify provider backups and complete a disposable restore/rollback exercise.
-3. Record named privacy, security, accessibility, authentication, AI-provider,
+1. Complete the owner steps in the
+   [credential-topology audit](database-credential-topology-audit.md): establish
+   institutional Supabase ownership, independently match runtime and migrator
+   to the same Production project/database/ledger, and prove least privilege.
+   Do not use or overwrite the inspected Development credential for
+   Production.
+2. Run the separately credentialed read-only Production integrity audit.
+3. Verify provider backups and complete a disposable restore/rollback exercise.
+4. Record named privacy, security, accessibility, authentication, AI-provider,
    retention/deletion, incident-response, support, and pilot approvals.
-4. Establish external monitoring/alerts and provider billing limits/alerts.
-5. Complete accessibility acceptance and broader browser E2E in an isolated staging
+5. Establish external monitoring/alerts and provider billing limits/alerts.
+6. Complete accessibility acceptance and broader browser E2E in an isolated staging
    environment before Production promotion.
 
 ## 14. Deployment status
@@ -302,6 +327,12 @@ candidate `b1162a2`. Its build passed the 21/21 migration check with no drift,
 the required Production database is healthy, the post-deployment five-check
 smoke passes, and the reviewed post-deploy error-log scans returned no entries.
 
+The build check used the Production `POSTGRES_URL` fallback because neither
+`MIGRATION_DATABASE_URL` nor `DATABASE_URL` is scoped to Vercel Production. It
+proves the active runtime ledger was current at build time; it does not prove
+provider ownership, runtime least privilege, or that a separately controlled
+Production migration credential targets the same database.
+
 Hosting `READY` and a passing smoke test do not by themselves mean pilot-ready.
 
 ## 15. Explicit recommendation
@@ -310,8 +341,10 @@ Hosting `READY` and a passing smoke test do not by themselves mean pilot-ready.
 
 Do not invite real students yet. The controlled student and professor flows,
 publication gates, retrieval hierarchy, and usage controls pass in Production,
-but the direct integrity audit, backup/restore evidence, accessibility
-acceptance, monitoring, and external approvals remain open. In particular,
-backup and restore evidence is required before accepting data-loss risk. Re-run
-this gate after every blocker in section 13 is closed; passing application and
+but Production database ownership and operator-credential topology are not
+accepted. The stored migration credential is demonstrably a drifted
+Development target, and no independently verified Production replacement is
+available. The direct integrity audit, backup/restore evidence, accessibility
+acceptance, monitoring, and external approvals also remain open. Re-run this
+gate after every blocker in section 13 is closed; passing application and
 deployment checks alone are insufficient.

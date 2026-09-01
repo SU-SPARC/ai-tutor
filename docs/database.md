@@ -13,6 +13,10 @@ See [Database Migration Operations](database-operations.md) for the checked-in
 migration commands, checksum/status workflow, safety gates, CI evidence, and
 forward-fix procedure.
 
+See [Production Database Credential Topology Audit](database-credential-topology-audit.md)
+for the safe-fingerprint comparison of runtime and operator credentials, the
+fail-closed ownership finding, and the exact project-owner remediation steps.
+
 See [Approved Content Production Import](approved-content-import.md) for the
 professor-attested manifest contract, dry-run/apply commands, exact-content
 duplicate rules, transactional behavior, and validation report.

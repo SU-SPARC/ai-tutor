@@ -52,6 +52,12 @@ The migration job must use the `app_migrator` database role. The application
 must use `app_runtime`; it must not receive `MIGRATION_DATABASE_URL` or schema
 DDL privileges.
 
+The [Production credential-topology audit](database-credential-topology-audit.md)
+defines ownership for runtime, migration, integrity-audit, backup, and restore
+principals. A matching hostname or a passing ledger check alone is not proof of
+provider ownership; Production requires independently reviewed provider,
+project, database, role, and ledger identity.
+
 ## Commands
 
 ### Inspect status
