@@ -1,0 +1,50 @@
+{
+  "actor": "Kanan Guliyev (engineering)",
+  "archive": {
+    "format": "custom",
+    "schema": "public",
+    "sha256": "8605aa5489af54edcabfeb6bef46e99cb7361bcf8b7a558759a8bc492b9f6463",
+    "sizeBytes": 251269
+  },
+  "artifact": "logical_database_backup",
+  "artifactVersion": 1,
+  "changeTicket": "RECOVERY-DRILL-2026-09-03",
+  "credential": "BACKUP_DATABASE_URL",
+  "export": {
+    "completedAt": "2026-09-03T17:55:32.486Z",
+    "durationMs": 91,
+    "startedAt": "2026-09-03T17:55:32.395Z",
+    "tool": "pg_dump",
+    "toolVersion": "16.15"
+  },
+  "generatedAt": "2026-09-03T17:55:32.486Z",
+  "migrationLedger": {
+    "appliedCount": 21,
+    "issueCount": 0,
+    "issueTypes": [],
+    "ledgerFingerprint": "7eea79e27e47e1e9",
+    "pendingCount": 0,
+    "state": "current",
+    "totalCount": 21
+  },
+  "readOnly": true,
+  "recoveryPoint": {
+    "at": "2026-09-03T17:55:32.389Z"
+  },
+  "server": {
+    "snapshotAt": "2026-09-03T17:55:32.389Z",
+    "version": "16.15 (Homebrew)"
+  },
+  "source": {
+    "databaseName": "pf_xj_recovery_source_test",
+    "endpointKind": "other",
+    "hostHash": "49960de5880e8c68",
+    "projectIdentityHash": null,
+    "provider": "local",
+    "roleHash": "e3b0c44298fc1c14"
+  },
+  "sourceLabel": "local disposable drill source (synthetic data only)",
+  "status": "exported",
+  "target": "test",
+  "writesAttempted": 0
+}

@@ -2,7 +2,7 @@
 
 Date: 2026-09-03
 
-Readiness evidence update: `Add production integrity audit evidence` (current
+Readiness evidence update: `Prove production backup and recovery` (current
 report commit)
 
 Production deployment reviewed: `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w` from
@@ -64,8 +64,8 @@ archived immutable record and attributable history remained available.
 
 ## 3. Database status
 
-**Status: healthy runtime; credential ownership and recovery acceptance
-incomplete.**
+**Status: healthy runtime; credential ownership, runtime least privilege,
+provider backup verification, and Production recovery acceptance incomplete.**
 
 - The public, non-cached Production database health endpoint returned HTTP 200
   with `status: healthy`, `database.required: true`, and database status
@@ -93,12 +93,15 @@ incomplete.**
   misconfigured if treated as the Production migrator, while its Development
   ledger is stale/drifted relative to the repository.
 - Vercel Production contains no `MIGRATION_DATABASE_URL`, which preserves the
-  application/migration separation. However, the Vercel integration-resource
-  listing was empty, no Supabase ownership record or separately controlled
-  Production migrator was available, and the protected runtime URL could not be
-  directly fingerprinted. The correct Production migration credential and
-  institutional provider ownership therefore remain unverified. The mismatch
-  is **not resolved**.
+  application/migration separation. A separate audit credential directly
+  verified the Production technical target as Supabase project hash
+  `65888f3d354b7dfd`, database `postgres`, pooler host hash
+  `3932d873511760d0`, and ledger fingerprint `18b5a636a4e3ac41`. However, the
+  Vercel integration-resource listing was empty, no institutional Supabase
+  ownership/recovery record or separately controlled Production migrator was
+  available, and runtime privileges remain unverified. The correct Production
+  migration credential and institutional provider ownership therefore remain
+  unverified. The mismatch is **not resolved**.
 - The repeatable Production integrity command now requires the expected
   provider/project/database fingerprint, proves the login has no effective
   write/DDL/admin privileges, verifies the checksum ledger, rolls back its
@@ -106,18 +109,61 @@ incomplete.**
   integrity classes including foreign keys, required owners, immutable version
   links, sessions, feedback, AI accounting, idempotency, publication state, and
   cross-student ownership.
-- The `INTEGRITY_DATABASE_URL` variable name was absent from the audit process,
-  ignored local credential files, and current Vercel Production metadata. The
-  command exited `3`, made no database connection, and saved the sanitized
-  [`2026-09-03T16-23-10-760Z-production-not_run.json`](evidence/database-integrity/2026-09-03T16-23-10-760Z-production-not_run.json)
-  evidence. The Production integrity audit remains **NOT RUN**; no integrity
-  finding or clean result can be claimed.
+- The first audit attempt had no dedicated credential, exited `3` without a
+  connection, and retained the historical sanitized
+  [`not_run` evidence](evidence/database-integrity/2026-09-03T16-23-10-760Z-production-not_run.json).
+  A later explicitly authorized short-lived audit login matched the expected
+  Production fingerprint, attested default-read-only and zero persistent
+  write/admin capabilities, read the complete 21/21 checksum-clean ledger, and
+  ran all 18 checks in a rolled-back repeatable-read transaction. The sanitized
+  [`findings artifact`](evidence/database-integrity/2026-09-03T17-12-56-535Z-production-findings.json)
+  reports 17 passed checks and one critical finding: one archived,
+  non-student-visible professor-provided question with an explicit
+  synthetic/test marker. The audit is complete but **not clean**.
+- The initial live run falsely classified nine published generated questions
+  by reading legacy base-row metadata. Read-only comparison showed the
+  canonical student-facing lifecycle view marks all nine `published`,
+  `approved`, and `professor_approved`. The corrected check reads that view, a
+  regression test covers the distinction, and the rerun reports zero
+  student-visible generated drafts.
 - Migration/integrity workflow tests passed: 45 tests across five files.
 - The application runtime credential is not used as an operator migration or
   integrity credential. Neither the runtime `POSTGRES_URL` nor the drifted
   Development migrator was substituted for the missing audit credential.
-- Provider backup existence and a disposable restore exercise have no retained
-  evidence. This is a launch blocker.
+- The [backup and recovery runbook](database-recovery.md) now has named
+  engineering ownership, explicit vacancies for the professor, provider owner,
+  backup operator, and restore executor roles, a rollback procedure, retirement
+  steps, and three commands: `db:backup:verify` (provider configuration through
+  the Supabase Management API), `db:backup:export` (read-only custom-format
+  export with a sanitized manifest and recovery point), and `db:recovery:test`
+  (disposable restore, ledger/table/constraint/referential/sequence validation,
+  the full 18-check integrity audit, RPO/RTO measurement, and evidence). The
+  recovery-tooling suite passes: 4 files, 22 tests.
+- A disposable restore drill ran on 2026-09-03 against a local, migration-built
+  database seeded with public-safe content and synthetic student state only.
+  The export took 91 ms, the `pg_restore` into an empty disposable target took
+  143 ms, validation took 30 ms, the integrity audit on the restored copy was
+  clean 18/18, and the whole automated exercise took 219 ms, within the 24 h
+  RPO and RTO objectives. The retained
+  [export manifest](evidence/database-recovery/2026-09-03T17-55-32-486Z-test-exported.json)
+  and [restore evidence](evidence/database-recovery/2026-09-03T17-55-32-911Z-test-passed.json)
+  contain hashes, counts, and durations only. Both drill databases and archives
+  were deleted afterwards.
+- Provider backup verification is **NOT RUN**: no institutional Supabase access
+  token exists on the audit workstation, so the command connected to nothing
+  and retained the sanitized
+  [`not_run` artifact](evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json).
+  Automated backup schedule, retention, ownership, and the most recent
+  successful backup therefore remain unverified.
+- The Production disposable restore is **blocked**. No dedicated read-only
+  backup credential exists, and the only Production credential on the
+  workstation is the Vercel-managed runtime secret. Safe-hash comparison shows
+  that its role hash `a942b37ccfaf5a81` is the hash of the literal role name
+  `postgres` and that its host is the provider's direct endpoint: the deployed
+  application runs as the provider owner role. That is a least-privilege
+  finding in its own right, and policy forbids reusing it for backup or restore
+  work; the attempt was refused before any connection. Recovery readiness is
+  **not proven** for Production. This remains a launch blocker.
 
 ## 4. Question/publication status
 
@@ -262,7 +308,7 @@ student identifiers.
 
 | Gate                                      | Result                                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Full Vitest suite                         | PASS — 77 files, 643 tests                                                                         |
+| Full Vitest suite                         | PASS — 80 files, 660 tests                                                                         |
 | Lint                                      | PASS                                                                                               |
 | TypeScript                                | PASS                                                                                               |
 | Production build                          | PASS — Next.js 16.3.3, 23 pages generated                                                          |
@@ -287,8 +333,12 @@ student identifiers.
 | Controlled live approved retrieval        | PASS — related approved context precedes opt-in AI synthesis                                       |
 | Controlled live rate/request boundaries   | PASS — friendly 429 on request 21; oversized request gets 413                                      |
 | Public retrieval/private-content boundary | PASS — professor endpoint 401; public list metadata-only                                           |
-| Production integrity audit                | **NOT RUN** — dedicated credential unavailable; sanitized timestamped evidence retained            |
-| Backup/restore exercise                   | **NOT PROVEN**                                                                                     |
+| Production integrity audit                | **FINDING** — 17/18 pass; one archived, non-visible synthetic-marked question; sanitized evidence  |
+| Production runtime least privilege        | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
+| Recovery tooling focused suite            | PASS — 4 files, 22 tests                                                                           |
+| Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired         |
+| Provider backup verification              | **NOT RUN** — no institutional Supabase access token; sanitized `not_run` artifact retained        |
+| Production backup/restore exercise        | **NOT PROVEN** — blocked on a dedicated backup credential; runtime owner credential refused        |
 | Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
@@ -310,8 +360,10 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
   storage/processing design before that feature is used with private material.
 - External error alerting, dashboards, billing alerts, rollback automation, and
   a tested pilot shutdown procedure are not proven.
-- Direct Production credential ownership, integrity, backup, and restore
-  evidence is absent.
+- Institutional Production credential ownership, a clean integrity result,
+  provider backup evidence, and a Production restore exercise remain absent;
+  only a local synthetic tooling drill is retained, and the deployed runtime
+  currently uses the provider owner database role.
 - Student account lifecycle and support processes depend on Clerk operations;
   password and new-device verification pass, but recovery and revocation are
   not yet accepted.
@@ -324,11 +376,23 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    to the same Production project/database/ledger, and prove least privilege.
    Do not use or overwrite the inspected Development credential for
    Production.
-2. Provision the dedicated SELECT-only `INTEGRITY_DATABASE_URL`, independently
-   verify its Supabase project/database fingerprint, and run
-   `npm run db:integrity:audit:production`. Require a clean 18-check artifact;
-   the retained `not_run` artifact does not close this blocker.
-3. Verify provider backups and complete a disposable restore/rollback exercise.
+2. Resolve the one archived synthetic-marker finding under a named
+   data-governance/change ticket. Verify its exact scope in a read-only query;
+   obtain professor/data-owner, retention/privacy, IT-operator, and
+   second-reviewer approval; rehearse either a narrow explicit exception or a
+   complete graph cleanup on a disposable restore; execute only with the
+   separate approved change credential; then rerun
+   `npm run db:integrity:audit:production` and require a clean 18/18 artifact.
+3. Prove Production backup and recovery: record two institutional Supabase
+   organization owners and issue a provider access token; run
+   `npm run db:backup:verify` until it exits `0`; create a dedicated read-only
+   `BACKUP_DATABASE_URL` login with `BYPASSRLS`; run
+   `npm run db:backup:export -- --target production`; restore the archive into
+   an isolated disposable target with `npm run db:recovery:test -- --restore
+   --evidence-dir docs/evidence/database-recovery`; complete the operator
+   comparisons; retire the target; and record measured RPO/RTO in the runbook.
+   Replace the runtime credential with a least-privilege `app_runtime` role as
+   part of the same change.
 4. Record named privacy, security, accessibility, authentication, AI-provider,
    retention/deletion, incident-response, support, and pilot approvals.
 5. Establish external monitoring/alerts and provider billing limits/alerts.
@@ -360,7 +424,11 @@ publication gates, retrieval hierarchy, and usage controls pass in Production,
 but Production database ownership and operator-credential topology are not
 accepted. The stored migration credential is demonstrably a drifted
 Development target, and no independently verified Production replacement is
-available. The direct integrity audit, backup/restore evidence, accessibility
-acceptance, monitoring, and external approvals also remain open. Re-run this
-gate after every blocker in section 13 is closed; passing application and
-deployment checks alone are insufficient.
+available. The direct integrity audit completed but is not clean because one
+archived synthetic-marker finding remains. The backup and recovery tooling is
+proven only on a local synthetic drill: provider backups are unverified, the
+Production disposable restore is blocked on a dedicated backup credential, and
+the deployed runtime uses the provider owner role. Accessibility acceptance,
+monitoring, and external approvals also remain open.
+Re-run this gate after every blocker in section 13 is closed; passing
+application and deployment checks alone are insufficient.

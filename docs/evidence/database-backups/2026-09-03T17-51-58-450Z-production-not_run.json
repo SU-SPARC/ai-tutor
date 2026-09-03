@@ -1,0 +1,15 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_backups",
+  "credential": "SUPABASE_ACCESS_TOKEN",
+  "generatedAt": "2026-09-03T17:51:58.450Z",
+  "provider": "supabase",
+  "readOnly": true,
+  "reason": {
+    "code": "credential_unavailable",
+    "message": "Provider access token or project reference was unavailable; no provider request was attempted."
+  },
+  "status": "not_run",
+  "target": "production",
+  "writesAttempted": 0
+}

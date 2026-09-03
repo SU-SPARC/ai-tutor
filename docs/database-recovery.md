@@ -1,73 +1,99 @@
-# Database Backup And Recovery Process
+# Database Backup And Recovery Runbook
 
-> **Evidence status: proposed and testable, not provider-verified.** No active
-> Production PostgreSQL provider, backup schedule, recovery point, retention
-> setting, or successful provider restore is evidenced in this repository. Do
-> not state that Production backups exist until University IT attaches provider
-> evidence and a successful restore report.
+> **Evidence status (2026-09-03): the repository backup, restore, validation,
+> and evidence tooling is exercised end to end on a local disposable restore
+> that passed a clean 18/18 integrity audit. Production provider backups remain
+> not provider-verified, and the Production disposable restore is blocked until
+> an institutional provider access token and a dedicated read-only backup
+> credential exist.** Do not state that Production backups exist or that
+> Production recovery is proven. Backup existence alone never establishes
+> recovery readiness; only a successful disposable restore of a Production
+> backup does.
 
-This runbook defines the ownership decisions, backup policy proposal, restore
-checklist, validation checklist, and disposable recovery exercise for the
-PostgreSQL database. It does not access Production credentials, provision a
-database, create a backup, or authorize a Production restore.
+This runbook defines named ownership, the backup policy, the provider
+verification command, the logical export command, the disposable restore-test
+procedure, validation, rollback, retirement of the disposable target, and the
+retained evidence. It does not provision a database, authorize a Production
+restore, or run any command automatically.
 
-## Proposed Backup Policy
+## Operational Ownership
 
-The professor is the academic/service owner and authorizes recovery of student
-or course data. University IT is the backup operator, credential-recovery
-administrator, and restore executor. Engineering may maintain and test the
-repository tooling but must not receive Production provider-owner credentials.
+Every role below is a separate accountable person. A vacancy is a launch
+blocker, not a formality.
 
-| Control                  | Proposed baseline pending owner/IT approval                                                                                                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Provider-native recovery | Continuous point-in-time recovery when offered, plus one provider-native snapshot per day                                                                                                                    |
-| Native retention         | 30 days, or the shorter period required by the approved student-data retention policy                                                                                                                        |
-| Logical recovery copy    | Weekly PostgreSQL custom-format archive retained eight weeks, plus a checkpoint immediately before a schema change or approved-content import                                                                |
-| Staging                  | Daily backup retained seven days; synthetic data only                                                                                                                                                        |
-| Recovery point objective | No more than 24 hours of committed Production data loss; owner must decide whether pilot operations require a shorter objective                                                                              |
-| Recovery time objective  | Service restored or an approved status issued within one business day; owner must decide whether class schedules require a shorter objective                                                                 |
-| Encryption               | Provider-managed encryption at rest and in transit; logical archives encrypted in an institution-approved store with keys recoverable by IT                                                                  |
-| Region                   | Approved institutional region; backup replicas must not silently move data to an unapproved region                                                                                                           |
-| Access                   | Named University IT operators using institutional SSO/MFA; no personal accounts or shared passwords                                                                                                          |
-| Restore exercise         | Before pilot, after material provider/schema changes, and at least quarterly during an active pilot                                                                                                          |
-| Evidence                 | Backup ID/type, database fingerprint, start/completion times, recovery point, retention expiry, encryption/region, archive SHA-256 when applicable, restore ticket, validation report, and deletion evidence |
+| Role                                   | Named owner                                                                                    | Backup / second person                                | Responsibilities                                                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Engineering owner of recovery tooling  | Kanan Guliyev (repository maintainer; Vercel `ai-tutor` project owner)                         | To be named by the project owner                      | Maintains `db:backup:verify`, `db:backup:export`, `db:recovery:test`, their tests, this runbook, and the retained evidence; executes rehearsal drills   |
+| Academic / service owner (professor)   | **Vacant — must be named in the ownership ticket before pilot start**                          | —                                                     | Authorizes any recovery of student or course data, accepts the recovery point, and signs the RPO/RTO objectives                                        |
+| Provider owner / recovery administrator | **Vacant — institutional Supabase organization owners (minimum two) must be recorded**         | Second institutional owner                            | Holds Supabase organization ownership, backup/PITR settings, billing, and the provider access token used by `db:backup:verify`                          |
+| Backup operator                        | **Vacant — University IT**                                                                     | Second IT operator                                    | Confirms provider backup status, runs the weekly logical export with `BACKUP_DATABASE_URL`, stores archives in the approved encrypted location          |
+| Restore executor                       | **Vacant — University IT**                                                                     | Second reviewer confirms target fingerprint          | Creates the disposable target, runs `db:recovery:test`, attaches evidence, and retires the target under two-person confirmation                       |
+| Change / incident approver             | Professor plus University IT lead                                                              | —                                                     | Approves a Production restore, the cutover, and the rollback decision                                                                                  |
 
-Provider-native backup and a logical archive are complementary. Native recovery
-is usually the fastest way to meet RTO and PITR; a custom-format archive offers
-provider-independent recovery evidence. Neither replaces institutional copies
-of provider configuration, application secrets, DNS, database-role grants, or
-the Git migration history.
+Until the vacant roles are named, the engineering owner may rehearse the
+procedure only on disposable data that contains no real student records, which
+is exactly what the retained 2026-09-03 exercise did.
+
+## Backup Policy
+
+The policy below is the baseline the professor and University IT must sign. It
+is already enforced by the repository tooling where a command can enforce it.
+
+| Control                  | Baseline                                                                                                                                                                                                                                      | Enforced by                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Provider-native recovery | Supabase point-in-time recovery when the plan offers it, plus the provider's daily backup                                                                                                                                                     | `db:backup:verify` reports `pitr_enabled`, daily backup status and age |
+| Native retention         | At least 7 days (Supabase Pro default); 30 days or the approved student-data retention period when the plan allows it                                                                                                                         | `db:backup:verify` finding `retention_below_policy` / `retention_unverified` |
+| Freshness                | Newest successful provider recovery point no older than 36 hours                                                                                                                                                                              | `db:backup:verify` finding `latest_backup_stale`                       |
+| Logical recovery copy    | Weekly `pg_dump` custom-format archive of the `public` schema, retained eight weeks, plus a checkpoint immediately before a schema change, approved-content import, data repair, or restore                                                     | `db:backup:export` manifest with SHA-256 and recovery point            |
+| Recovery point objective | No more than 24 hours of committed Production data loss (`RECOVERY_TEST_RPO_HOURS`)                                                                                                                                                           | `db:recovery:test` evidence `recoveryPoint.withinObjective`            |
+| Recovery time objective  | Service restored or an approved status issued within one business day, 24 hours (`RECOVERY_TEST_RTO_HOURS`)                                                                                                                                   | `db:recovery:test` evidence `recoveryTime.withinObjective`             |
+| Ownership                | At least two institutional organization owners, all members with multi-factor authentication                                                                                                                                                   | `db:backup:verify` findings `insufficient_recovery_administrators`, `mfa_not_enforced` |
+| Encryption and region    | Provider-managed encryption at rest and in transit; archives stored only in the institution-approved encrypted location in the approved region                                                                                                | Operator checklist; `db:backup:verify` records the provider region      |
+| Access                   | Named operators with institutional SSO/MFA; separate credentials for runtime, migration, integrity, backup, and disposable restore                                                                                                              | [Credential-topology audit](database-credential-topology-audit.md)     |
+| Restore exercise         | Before pilot, after material provider or schema changes, and at least quarterly during an active pilot                                                                                                                                         | Retained evidence under `docs/evidence/database-recovery/`             |
+| Evidence                 | Sanitized JSON artifacts only: safe hashes, timestamps, counts, durations, archive SHA-256, and redacted references. Never a URL, host, username, password, provider reference, student identity, answer, or feedback text                      | All three commands write with `wx` and mode `0600`                     |
 
 Backup jobs must fail visibly and alert University IT. A dashboard setting or a
-successful dump command is not enough: a backup is considered verified only
-after its provider status is successful, its retention/region/encryption are
-recorded, and a disposable restore passes this runbook.
+successful dump command is not enough: a backup is verified only after its
+provider status is successful, its retention, region, and ownership are
+recorded, and a disposable restore of it passes this runbook.
+
+## Recovery Point And Recovery Time Expectations
+
+Objectives are defaults in the tooling and can be tightened per exercise with
+`RECOVERY_TEST_RPO_HOURS` and `RECOVERY_TEST_RTO_HOURS`.
+
+| Measure                              | Objective       | Measured on 2026-09-03 (local disposable drill)                     | Expectation for Production                                                                                                                              |
+| ------------------------------------ | --------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery point objective (RPO)       | ≤ 24 hours      | Recovery point age at exercise: 6.4 minutes; backup captured every committed record | Provider daily backup gives ≤ 24 h; PITR gives minutes. The declared recovery point is the provider backup timestamp or the export snapshot time |
+| Logical export                       | —               | 571 ms for a 251 KB archive (21 migrations, 8 questions, synthetic student rows) | Seconds to low minutes for the pilot dataset (nine published questions plus pilot-scale student rows)                                          |
+| Restore into a disposable target     | —               | 142 ms (`pg_restore`, 364 restored entries, 2 provider-independent schema entries skipped) | Seconds to low minutes                                                                                                                       |
+| Automated validation and audit       | —               | 31 ms validation plus a clean 18/18 read-only integrity audit        | Under one minute                                                                                                                                       |
+| Recovery time objective (RTO)        | ≤ 24 hours      | Whole automated exercise 212 ms                                     | Dominated by people, not tooling: detection and authorization (≤ 2 h), provider or logical restore (≤ 1 h), validation review (≤ 1 h), cutover and smoke (≤ 1 h) |
+
+Rows for Production remain expectations until the Production disposable
+restore in the "Production Exercise Status" section is completed and its
+artifact is retained.
 
 ## Project-Owner RPO And RTO Questions
 
 The professor/project owner and University IT must answer and sign these before
-the pilot. Until then, the proposed 24-hour RPO and one-business-day RTO are
-planning assumptions, not accepted objectives.
+the pilot. Until then, the 24-hour objectives are planning assumptions, not
+accepted objectives.
 
-- [ ] What is the maximum acceptable loss of student attempts, progress, and feedback: 24 hours, four hours, one hour, or less?
-- [ ] Is losing a professor approval or approved-content import ever acceptable, or must those events have a near-zero RPO?
-- [ ] Does the RPO apply continuously, only during scheduled classes, or only while the pilot is open?
-- [ ] How quickly must read-only course content return, and how quickly must student write capability return?
-- [ ] What is the maximum outage during a class, assignment deadline, evening, weekend, and university holiday?
-- [ ] May the service return in read-only mode while student writes remain unavailable?
-- [ ] Who may declare a disaster, enter maintenance mode, authorize a restore, and declare recovery complete?
-- [ ] Who decides between point-in-time recovery, latest snapshot, logical archive, and forward repair?
+- [ ] What is the maximum acceptable loss of student attempts, hints, sessions, and feedback, in hours?
+- [ ] How quickly must the service be restored or an official status issued to students?
 - [ ] Which known-bad events must be excluded from the chosen recovery point, such as accidental deletion, corrupted import, or compromised credentials?
 - [ ] How will a restore reconcile writes accepted after the chosen recovery point?
-- [ ] Does the approved deletion/retention policy require expired or deleted student data to age out of backups sooner than the proposed retention?
+- [ ] Does the approved deletion/retention policy require expired or deleted student data to age out of backups sooner than the retention window?
 - [ ] Are legal holds possible, and who documents an exception to normal backup expiry?
 - [ ] What evidence and notification timeline are required for students, the professor, privacy staff, security staff, and provider support?
 - [ ] Which class dates or deadlines require a stricter temporary recovery posture?
 
 ## Recoverable Data Inventory
 
-All tables are included in a full database recovery copy. The classifications
-below determine validation priority, not whether `pg_dump` may omit a table.
+All `public` tables are included in a logical archive. The classifications
+below determine validation priority.
 
 | Recovery class                | Tables/content                                                                                              | Requirement                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -80,38 +106,95 @@ below determine validation priority, not whether `pg_dump` may omit a table.
 | Operational evidence          | `audit_events`, `feedback_reports`                                                                          | Preserve audit chronology, actor snapshots, feedback status, and privacy-safe reporter identifiers                 |
 | Rebuildable cache             | `ai_response_cache`                                                                                         | Included in a full backup but may be emptied after authorization; it must never be treated as the source of record |
 
-`retrieval_chunks` can be regenerated from approved course content, but the
-restored copy should still be counted and reference-validated. If regenerated,
-record the source release and compare derived hashes before replacing it.
+Database login roles, provider users, connection-pool settings, backup
+policies, encryption keys, domains, and application secrets are not rows in
+these tables. University IT must retain their definitions and recovery owners
+separately in the approved platform configuration system. Do not put passwords
+in a manifest or this repository.
 
-Database login roles (`app_runtime`, `app_migrator`, optional read-only, and
-break-glass), provider users, connection-pool settings, backup policies,
-encryption keys, domains, and application secrets are not rows in these tables.
-University IT must retain their definitions and recovery owners separately in
-the approved platform configuration system. Do not put passwords in a backup
-manifest or this repository.
-
-## Logical Archive Creation Requirements
-
-If the approved provider permits logical export, University IT runs `pg_dump`
-from the institution-controlled backup job with a dedicated read-only backup
-credential. Use custom format, include pre-data/data/post-data, and suppress
-ownership and ACL replay. The conceptual command is:
+## Command 1: Verify Provider Backups
 
 ```bash
-pg_dump --format=custom --no-owner --no-acl --file <protected-output.dump>
+SUPABASE_ACCESS_TOKEN=<institutional provider token from the approved secret store> \
+BACKUP_PROVIDER_PROJECT_REF=<Supabase project reference> \
+BACKUP_EXPECTED_PROVIDER=supabase \
+BACKUP_EXPECTED_PROJECT_HASH=65888f3d354b7dfd \
+BACKUP_EXPECTED_DATABASE_NAME=postgres \
+  npm run db:backup:verify
 ```
 
-The actual connection must be injected through the backup job's protected
-PostgreSQL environment/service configuration, not a command argument. It
-must not appear in a ticket, shell history, CI configuration, or this
-repository. Do not use `--data-only`, `--schema-only`, or table exclusions: the
-archive must contain every source-of-record and rebuildable table, functions,
-triggers, constraints, sequences, and views. Record the `pg_dump` client/server
-major versions, consistent-snapshot completion, byte size, SHA-256, encryption
-object/key identifiers, and retention expiry. Encrypt and transfer the archive
-into approved storage before removing temporary plaintext. A successful dump
-still does not prove restorability; only the disposable restore exercise does.
+The command performs read-only `GET` requests against the Supabase Management
+API for the project, its backup listing, the organization plan, and the
+organization membership. It refuses to run unless the project reference hashes
+to the expected Production project fingerprint from the
+[credential-topology audit](database-credential-topology-audit.md). The token
+and reference are never printed; the evidence records only safe hashes.
+
+The artifact under `docs/evidence/database-backups/` records: provider region,
+project status and PostgreSQL version, PITR and WAL archiving flags, daily
+backup count and latest successful timestamp, earliest and latest physical
+recovery points, recovery-point age, retention derived from the organization
+plan, and organization owner, administrator, and MFA counts.
+
+| Exit code | Meaning                                                            |
+| --------- | ------------------------------------------------------------------ |
+| `0`       | Verified: no findings                                              |
+| `1`       | Token invalid, provider unreachable, or project mismatch           |
+| `2`       | Completed with findings (listed below)                             |
+| `3`       | Not run: token, reference, or expected target missing; artifact retained |
+
+| Finding code                          | Severity | Meaning                                                            |
+| ------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `no_successful_provider_backup`       | critical | Neither a completed daily backup nor a physical recovery point exists |
+| `latest_backup_stale`                 | critical | Newest recovery point is older than 36 hours                       |
+| `retention_below_policy`              | critical | Plan retains fewer than seven days                                 |
+| `retention_unverified`                | high     | Plan did not map to a documented retention window                  |
+| `project_not_healthy`                 | high     | Provider project status is not `ACTIVE_HEALTHY`                    |
+| `ownership_unverified`                | high     | Organization membership could not be read                          |
+| `insufficient_recovery_administrators`| high     | Fewer than two organization owners                                 |
+| `mfa_not_enforced`                    | high     | A member without multi-factor authentication can administer backups |
+
+Retention is derived from the provider's published plan defaults and must be
+confirmed in the provider console by the recovery administrator.
+
+## Command 2: Export A Logical Backup
+
+```bash
+BACKUP_DATABASE_URL=<dedicated read-only backup credential> \
+BACKUP_ACTOR=<named operator or institutional job> \
+BACKUP_CHANGE_TICKET=<ticket/evidence ID> \
+BACKUP_SOURCE_LABEL="weekly logical copy" \
+  npm run db:backup:export -- \
+    --output /approved/encrypted-workspace/<date>-production.dump \
+    --target production \
+    --manifest-dir docs/evidence/database-recovery
+```
+
+Requirements:
+
+- `BACKUP_DATABASE_URL` is a dedicated login with `CONNECT`, `USAGE` on
+  `public`, `SELECT` on every `public` table and sequence, and `BYPASSRLS` so
+  the three row-level-security tables are exported completely. It must not be
+  the runtime, migration, import, integrity, or restore credential.
+- The `pg_dump` client major version must be at least the server major
+  version. On the audit workstation, Homebrew `libpq` provides
+  `/opt/homebrew/opt/libpq/bin/pg_dump` (18.6); pass it with `--pg-dump` or
+  `PG_DUMP_COMMAND`.
+- The archive path must end in `.dump`, must be outside the repository, and
+  must not already exist. Archives never enter Git.
+- The command opens a read-only transaction first, records the server snapshot
+  time as the recovery point, verifies the ledger target matches `--target`,
+  summarizes the migration ledger, then runs
+  `pg_dump --format=custom --compress=6 --no-owner --no-acl --schema=public`
+  with the credential injected only through the child environment and
+  `default_transaction_read_only=on`.
+- The manifest records the source safe fingerprint, server version, snapshot
+  time, ledger summary, archive SHA-256 and size, and export duration. It never
+  records the archive path, URL, host, user, or password.
+
+Only the `public` schema is exported. Every application table, view, function,
+trigger, constraint, and sequence lives there; provider-managed schemas are not
+restorable into an ordinary PostgreSQL target and are not application data.
 
 ## Schema Migrations Must Be Retained Separately
 
@@ -127,40 +210,39 @@ contains schema definitions.
   upgrade the supported prior state.
 - Never edit a migration whose checksum appears in any environment, delete or
   manufacture a `schema_migrations` row, or use a backup to redefine history.
-- Retain role/grant definitions and provider configuration outside the data
-  archive; the repository migrations intentionally do not contain credentials.
 
-After a full physical/native or custom-format restore, first run the code release
-that is compatible with the restored `schema_migrations` ledger. Compare that
-ledger with the corresponding Git migration set. Only then apply reviewed,
-forward-only pending migrations through the normal migration job. Never restore
-only the ledger or apply newer migrations merely to hide a checksum mismatch.
+After a restore, first run the code release compatible with the restored
+`schema_migrations` ledger, compare that ledger with the Git migration set, and
+only then apply reviewed forward-only pending migrations through the normal
+migration job.
 
 ## Restore Authorization And Preparation Checklist
 
 - [ ] Incident/recovery ticket names the professor owner, IT executor, second reviewer, reason, and desired recovery point.
 - [ ] Owner confirms the approved RPO/RTO and whether the exercise or incident contains real student data.
-- [ ] Provider console evidence identifies the source backup/snapshot as successful; repository tooling cannot establish this fact.
+- [ ] Provider console evidence, or a `db:backup:verify` artifact with exit `0`, identifies the source backup as successful.
 - [ ] IT records the source database fingerprint, backup ID/type, recovery timestamp, region, encryption, retention expiry, and provider support case.
 - [ ] Exact compatible application Git SHA and immutable migration files are available independently of the backup.
-- [ ] Target is a newly created, Production-controlled disposable database/branch with no application traffic, integrations, or general Staging access.
-- [ ] Target name or hostname contains `restore`, `recovery`, `disposable`, `sandbox`, `scratch`, or `test`.
-- [ ] Target uses a short-lived recovery credential, distinct encryption/backup identifiers, network restrictions, and the smallest sufficient privileges.
-- [ ] `RECOVERY_TEST_DATABASE_URL` is injected only from the approved recovery secret store. `DATABASE_URL`, `MIGRATION_DATABASE_URL`, and `CONTENT_IMPORT_DATABASE_URL` are not supplied to the command.
-- [ ] Logical restore host has a compatible `pg_restore` version and enough encrypted temporary storage; the archive never enters Git or a developer laptop.
+- [ ] Target is a newly created, empty, isolated disposable database with no application traffic, integrations, or general Staging access. **Never restore over Production.**
+- [ ] Target host or database name contains `restore`, `recovery`, `disposable`, `sandbox`, `scratch`, or `test`; the wrapper refuses anything else.
+- [ ] Target uses a short-lived recovery credential and the smallest sufficient privileges.
+- [ ] `RECOVERY_TEST_DATABASE_URL` is injected only from the approved recovery secret store. No runtime, migration, import, backup, or integrity URL is supplied to the command.
+- [ ] Restore host has a `pg_restore` client at least as new as the archive's server major version (`--pg-restore` or `PG_RESTORE_COMMAND`).
 - [ ] Monitoring/logging for the exercise is restricted because restored data may be Production student data.
 - [ ] Cleanup owner and deletion deadline are recorded before restoration begins.
 
 ## Disposable Restore-Test Procedure
 
-The repository wrapper supports PostgreSQL providers that either permit direct
-`pg_restore` into a separate empty database or can create a provider-native
-restored clone that accepts a normal PostgreSQL connection. Provider support is
-not currently verified.
+Supabase's console "Restore" actions for daily backups and PITR are in-place
+operations on the Production project. They must never be used for an
+exercise. A disposable exercise uses one of two sources:
+
+- **A** the logical archive from `db:backup:export`, restored with the wrapper;
+- **B** the provider's downloadable daily backup (plain SQL), loaded into the
+  empty disposable target with `psql --single-transaction --set ON_ERROR_STOP=1
+  -f <file>` by University IT, then validated with `--validate-only`.
 
 ### 1. Prepare the target and variables
-
-University IT creates the disposable target. Inject only:
 
 ```text
 RECOVERY_TEST_DATABASE_URL=<disposable target URL from the approved secret store>
@@ -168,102 +250,129 @@ RECOVERY_TEST_ACTOR=<named operator or institutional job>
 RECOVERY_TEST_CHANGE_TICKET=<ticket/evidence ID>
 ```
 
-The wrapper does not read runtime, migration, content-import, or Production
-connection variables.
-
 ### 2. Plan and confirm the exact target
 
 ```bash
 npm run db:recovery:test -- --plan --json
 ```
 
-Record the SHA-256 target fingerprint. Have the second reviewer compare the
-non-secret provider target identity with the ticket. Copy only the fingerprint,
-not the URL, into `--confirm-target`.
+Record the SHA-256 target fingerprint and the reported disposable marker. The
+second reviewer compares the non-secret provider target identity with the
+ticket. Copy only the fingerprint, not the URL, into `--confirm-target`.
 
-### 3A. Restore a PostgreSQL custom-format archive
-
-The target must have zero public tables. The wrapper inspects the archive with
-`pg_restore --list`, then restores with `--exit-on-error`,
-`--single-transaction`, `--no-owner`, and `--no-privileges`. It never uses
-`--create`, `--clean`, `DROP DATABASE`, or a Production credential.
+### 3A. Restore a custom-format archive
 
 ```bash
 npm run db:recovery:test -- \
   --restore \
-  --archive /approved/encrypted-workspace/backup.dump \
+  --archive /approved/encrypted-workspace/<date>-production.dump \
   --confirm-target <fingerprint> \
+  --recovery-point <recoveryPoint.at from the export manifest> \
+  --source-label "weekly logical copy" \
+  --evidence-dir docs/evidence/database-recovery \
   --json
 ```
 
-The command passes connection values to `pg_restore` through a minimal child
-environment so the credential does not appear in command arguments. The report
-records archive size and SHA-256, not its credential or source data.
+The wrapper requires zero public tables in the target, inspects the archive
+with `pg_restore --list`, skips only the `CREATE SCHEMA public` entry that
+every new database already contains, refuses an empty entry list, and restores
+with `--exit-on-error --single-transaction --no-owner --no-privileges` through
+a `--use-list` file. It never uses `--create`, `--clean`, `DROP DATABASE`, or a
+Production credential. The credential reaches `pg_restore` only through the
+child environment.
 
-### 3B. Validate a provider-native restored clone
-
-After University IT completes the provider-native restore into the disposable
-target, run:
+### 3B. Validate a provider-restored or SQL-loaded clone
 
 ```bash
 npm run db:recovery:test -- \
   --validate-only \
   --confirm-target <fingerprint> \
+  --recovery-point <provider backup timestamp> \
+  --source-label "provider daily backup" \
+  --evidence-dir docs/evidence/database-recovery \
   --json
 ```
 
-Validation-only performs no restore or mutation. It is the required path when
-the provider exposes snapshots/PITR only through its console or API.
+### 4. What the wrapper validates and records
 
-### 4. Attach evidence and destroy the target
+Automated, read-only, inside a repeatable-read transaction:
 
-- [ ] Attach the wrapper's JSON report and provider restore completion evidence to the ticket.
-- [ ] Record restore start, database-available, application-validated, and exercise-complete times; compare them to RTO.
-- [ ] Record source backup timestamp and the latest recovered committed record; compare them to RPO.
-- [ ] University IT deletes the disposable database/branch and short-lived credential using two-person confirmation.
-- [ ] Record provider deletion ID/time and the expiry of any temporary provider backup created for the exercise.
-- [ ] Confirm no archive, unredacted output, or restored student data remains on runner disks, tickets, chat, or general Staging.
+- migration ledger state is `current` with no checksum mismatch, unknown
+  migration, gap, or pending migration for the release;
+- every critical and rebuildable table and every application view exists;
+- no unexpected `NOT VALID` constraint; the known deferred
+  `questions_pattern_id_fkey` is reported separately;
+- eight cross-table referential checks (questions/topics, question children,
+  versions and approval history, identity roles, sessions/attempts/progress,
+  retrieval chunks, patterns and approved imports, LLM reservations);
+- every `bigserial` sequence is ahead of its table maximum;
+- row counts for all 21 critical tables and the latest committed record
+  timestamp (aggregate only; expiry deadlines are ignored);
+- the complete 18-check read-only integrity audit from
+  [database-integrity.md](database-integrity.md) when the restored ledger
+  declares exactly one auditable target, covering immutable question-version
+  references, tutor-session ownership, feedback linkage, AI reservation and
+  usage accounting, idempotency keys, cross-student ownership, publication
+  state, and test/demo markers. Sample references are HMAC-redacted per run.
 
-The wrapper deliberately does not delete the target. Automated deletion in a
-provider-neutral script would be less safe than the institution's reviewed,
-provider-specific deletion workflow.
+The evidence artifact records the target fingerprint, archive SHA-256 and
+size, restore start/end/duration, restored and skipped entry counts, validation
+duration, ledger summary, row counts, the declared recovery point, the latest
+committed record, recovery-point age versus RPO, whole-exercise duration versus
+RTO, and the integrity audit summary and checks. It never contains a URL, host,
+username, password, student content, answer, or feedback text.
+
+Exit codes: `0` passed, `1` refused or failed (a failed validation still writes
+a `failed` artifact when `--evidence-dir` is set), `2` passed with integrity
+findings.
+
+### 5. Operator comparisons
+
+- [ ] Archive SHA-256, provider backup ID, recovery timestamp, and expected release match the ticket and manifest.
+- [ ] Critical table counts match the pre-backup manifest or explain expected differences.
+- [ ] `topics.sort_order`, `hints.hint_order`, and `solution_steps.step_order` match the approved content manifest.
+- [ ] Approved question/content hashes and `approved_content_imports` hashes match signed release evidence.
+- [ ] Named professors have `publicMetadata.role = "professor"` in the matching Clerk instance and the restored projection agrees.
+- [ ] Sample student sessions, attempts, progress, and deletion state match the recovery point without exposing them in the ticket.
+- [ ] `ai_usage` totals and reservation state are internally consistent; expired pending reservations are handled through an approved forward action.
+- [ ] Read-only API smoke checks return approved course content. Do not create a fake student, session, or attempt in a recovered Production copy.
+- [ ] No raw private PDFs, extracted text, answer keys, embeddings, development logs, demo identities, or test rows appear.
 
 ## Data Validation Checklist
 
-The wrapper verifies migration checksums/status, required tables and views,
-validated foreign/check constraints, critical row counts, and cross-table
-references. Operators must complete the evidence checks that require an
-expected backup manifest or provider knowledge.
+Use the automated list in step 4 and the operator comparisons in step 5. A
+restore is accepted only when the artifact status is `passed`, the integrity
+audit is `clean` or its findings are already known and ticketed, and every
+operator comparison is signed by the second reviewer.
 
-### Automated checks
+## Rollback Procedure
 
-- [ ] Migration state is `current`; no checksum mismatch, unknown migration, gap, or pending migration exists for the selected release.
-- [ ] Every critical and rebuildable table and every application view exists.
-- [ ] No unexpected public foreign-key or check constraint is left `NOT VALID`; the known deferred `questions_pattern_id_fkey` is reported and its existing rows pass an explicit orphan check.
-- [ ] Questions reference topics; question children reference questions.
-- [ ] Versions/approval history reference the correct question and reviewer identity.
-- [ ] Application roles reference existing users and roles.
-- [ ] Sessions, attempts, and progress reference valid identities, questions, topics, and immutable question versions.
-- [ ] Retrieval chunks reference the matching topic/question.
-- [ ] Question patterns and approved imports reference valid topics and signer/reviewer identities.
-- [ ] LLM reservations reference existing sessions.
-- [ ] Row counts are emitted for every critical table.
+Rollback exists at three levels. In every case the pre-change state is
+preserved, never overwritten.
 
-### Operator comparisons
+1. **Disposable exercise.** Rollback is retirement: drop the disposable
+   database and delete the archive copy after evidence is retained (next
+   section). Nothing else changed.
+2. **Failed Production change (migration, import, repair).** Before the change,
+   the operator takes a checkpoint: a `db:backup:export` archive plus the
+   provider's latest recovery point, both recorded in the ticket. If the change
+   fails or validation finds damage, put the application in maintenance mode,
+   restore the checkpoint into a **new** Production-controlled database using
+   the disposable procedure, validate it, and switch the application
+   connection to the validated copy. Never edit `schema_migrations`, never
+   "roll back" a migration by hand, and never restore in place.
+3. **Failed Production restore or cutover.** The original Production database
+   is preserved during a restore because the restore targets a new database.
+   Rollback is to switch the application connection variable back to the
+   preserved original (or, if the original was lost, to the most recent
+   validated restored copy), rerun `db:migrate:check` (`current`, no drift),
+   the database health endpoint, and the read-only pilot smoke, then lift
+   maintenance mode. Record the rollback time against RTO and the resulting
+   data-loss window against RPO.
 
-- [ ] Archive SHA-256, provider backup ID, recovery timestamp, and expected release match the ticket.
-- [ ] Critical table counts match the pre-backup manifest or explain expected post-recovery differences.
-- [ ] `topics.sort_order`, `hints.hint_order`, and `solution_steps.step_order` values and gaps match the approved content manifest.
-- [ ] Approved question/content hashes and `approved_content_imports` hashes match signed release evidence.
-- [ ] Latest `question_versions` and approval-history decisions match their parent questions.
-- [ ] Named professors have `publicMetadata.role = "professor"` in the matching Clerk instance and the restored projection agrees; disabled/deleted users remain disabled/deleted.
-- [ ] Sample student sessions, attempts, progress, answer-preview retention, and deletion state match the selected recovery point without exposing them in the ticket.
-- [ ] `ai_usage` totals and reservation state are internally consistent; expired pending reservations are handled through an approved forward action.
-- [ ] Audit chronology and feedback status/timestamps are plausible through the recovery point.
-- [ ] Sequences backing `bigserial` IDs are ahead of table maxima; verify by read-only sequence inspection, not by inserting test rows into the recovered copy.
-- [ ] Application runtime role can perform required DML but cannot run DDL, manage roles, change backups, or access provider administration.
-- [ ] Read-only API smoke checks return approved course content. Do not create a fake student, session, or attempt in the recovered Production copy.
-- [ ] No raw private PDFs, extracted text, answer keys, embeddings, development logs, demo identities, or test rows appear.
+The application reads a single connection variable, so cutover and rollback are
+configuration changes, not data operations. Rotate any credential that was
+exposed during the incident before traffic resumes.
 
 ## Production Restore Checklist
 
@@ -273,15 +382,92 @@ passed. The repository wrapper does not execute a Production restore.
 - [ ] Professor/IT authorize the exact recovery point and record expected data loss against RPO.
 - [ ] Put the application in maintenance mode and block all writes before restore/cutover.
 - [ ] Preserve the failed database and logs under incident retention; do not overwrite or delete evidence.
-- [ ] Restore into a new Production-controlled database/branch whenever the provider supports it; avoid in-place destructive restore.
+- [ ] Restore into a new Production-controlled database whenever the provider supports it; avoid in-place destructive restore.
 - [ ] Run the complete validation checklist with read-only credentials and compare against backup/change manifests.
 - [ ] Deploy the last database-compatible application SHA; apply only approved forward migrations after checksum verification.
 - [ ] Rotate runtime, migration, import, recovery, and break-glass credentials before traffic if compromise is possible.
-- [ ] Switch the application connection/alias only after professor and IT acceptance.
+- [ ] Switch the application connection only after professor and IT acceptance.
 - [ ] Monitor database errors, student writes, authorization, usage accounting, and provider health during the agreed observation window.
 - [ ] Reconcile or communicate writes lost after the recovery point; never merge student records ad hoc.
 - [ ] Record actual RPO/RTO, approvals, validation report, provider IDs, deployment SHA, and follow-up actions.
 - [ ] Delete or quarantine the failed/temporary database only after evidence retention and two-person authorization.
+
+## Retire The Disposable Target
+
+The wrapper deliberately does not delete anything. Retirement is a reviewed
+step with its own record.
+
+1. Confirm the evidence artifact exists in `docs/evidence/database-recovery/`
+   and its `archive.sha256` matches the export manifest.
+2. Drop the disposable database (`dropdb <name>` for a workstation or
+   institutional PostgreSQL target; the provider's deletion workflow with
+   two-person confirmation for a provider-hosted target).
+3. Delete the archive copy from the restore host using the approved secure
+   deletion method; the retained archive stays only in the approved encrypted
+   store until its retention expiry.
+4. Revoke the short-lived recovery credential.
+5. Verify the database no longer exists and record the deletion time, the
+   verifier, and the credential revocation in the ticket and in the exercise
+   log below.
+
+## Disposable Restore Exercise Log
+
+### 2026-09-03 — Local disposable drill (tooling proof, no Production data)
+
+Executor: Kanan Guliyev (engineering). Ticket label: `RECOVERY-DRILL-2026-09-03`.
+Environment: workstation PostgreSQL 16.15, `pg_dump`/`pg_restore` 16.15. No
+Production credential, provider backup, or real student record was used.
+
+| Step                                                            | Time (UTC)              | Result                                                                                                          |
+| --------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Create disposable source database and apply migrations 001–021  | 17:31–17:36             | `current`, 21/21, ledger target `test`                                                                          |
+| Seed public-safe content and synthetic student state             | 17:44                   | 8 questions, 11 topics, 2 tutor sessions, 4 attempts, 1 progress row, 4 usage rows, 1 reservation, 1 feedback, 1 audit event |
+| `db:backup:export --target test`                                | 17:55:32.389 (snapshot) | 91 ms; archive 251,269 bytes; SHA-256 `8605aa5489af54edcabfeb6bef46e99cb7361bcf8b7a558759a8bc492b9f6463`      |
+| Create empty disposable target, `--plan`, second-look fingerprint | 17:55                 | fingerprint `b8570ce5…e6190cd`, marker `test`                                                                   |
+| `db:recovery:test --restore` into the empty target              | 17:55:32.7–17:55:32.9   | `pg_restore` 143 ms; 366 archive entries, 364 restored, 2 schema entries skipped                                |
+| Automated validation                                            | 17:55:32.9              | 30 ms; ledger `current` 21/21; 21 critical tables counted; 8 referential checks and 11 sequence checks clean    |
+| Read-only integrity audit on the restored copy                  | 17:55:32.9              | clean, 18/18 checks, ledger target `test`                                                                       |
+| Whole automated exercise                                        | —                       | 219 ms; recovery-point age 0.5 s at exercise; within the 24 h RPO and 24 h RTO objectives                       |
+| Retire: drop target and source databases, delete both archives  | 17:56:28                | Verified no disposable database remains on the workstation                                                      |
+
+Retained evidence:
+
+- export manifest `docs/evidence/database-recovery/2026-09-03T17-55-32-486Z-test-exported.json`
+- restore evidence `docs/evidence/database-recovery/2026-09-03T17-55-32-911Z-test-passed.json`
+- provider verification `docs/evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json`
+
+The first restore attempt failed because the archive carried the
+`CREATE SCHEMA public` entry that a new database already contains; the wrapper
+now skips only that entry through a `--use-list` file, refuses an empty list,
+and reports restored/skipped counts. Both drill databases and archives were
+deleted after the artifacts were written, and the `archive.sha256` in the
+restore evidence matches the export manifest.
+
+This exercise proves the repository tooling end to end on the real schema with
+synthetic data. It does not prove Production backups, Production restore
+duration, or Production data fidelity.
+
+## Production Exercise Status
+
+**Blocked on 2026-09-03.** The Production exercise could not be run from the
+audit workstation because:
+
+1. No institutional Supabase access token exists for `db:backup:verify`; the
+   Supabase CLI on the workstation is not authenticated, and the sanitized
+   `not_run` artifact is retained under `docs/evidence/database-backups/`.
+2. No dedicated read-only `BACKUP_DATABASE_URL` exists for the Production
+   project. The only Production credential on the workstation is the
+   Vercel-managed runtime secret, which is the provider `postgres` owner role;
+   policy forbids using the runtime or owner credential for backup jobs, and
+   the attempt to reuse it was refused.
+
+To close this section University IT must, in order: create two institutional
+organization owners and a provider access token; run `db:backup:verify` and
+attach an exit-`0` artifact; create the `BACKUP_DATABASE_URL` login; run
+`db:backup:export --target production`; create an isolated disposable target;
+run `db:recovery:test --restore` with `--evidence-dir`; complete the operator
+comparisons; retire the target; and record the measured RPO/RTO in the table
+above.
 
 ## Provider Verification Record
 
@@ -299,5 +485,6 @@ University IT must complete this record before anyone says backups exist:
 - [ ] Measured RPO and RTO:
 - [ ] Professor acceptance and University IT acceptance:
 
-Until every applicable line has evidence, status remains **backup process
-proposed; provider backup and restore capability unverified**.
+Until every applicable line has evidence, status remains **repository
+tooling exercised; provider backup and Production restore capability
+unverified**.

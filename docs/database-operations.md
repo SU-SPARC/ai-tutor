@@ -169,7 +169,9 @@ recovery point.
 
 1. CI applies the complete history to an empty embedded PostgreSQL database.
 2. Apply and verify the same commit in isolated Staging.
-3. Take the required Production backup/restore checkpoint.
+3. Take the required Production backup/restore checkpoint with
+   `npm run db:backup:export -- --target production` and record the provider
+   recovery point, as described in [database-recovery.md](database-recovery.md).
 4. Run `db:migrate:check` against Production. Drift is an incident; pending is
    expected only inside the approved change window.
 5. Run `db:migrate` once with the `app_migrator` credential.

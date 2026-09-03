@@ -1,38 +1,43 @@
-import { readFile, realpath, writeFile } from "node:fs/promises"
-import path from "node:path"
+import { readFile, realpath, writeFile } from "node:fs/promises";
+import path from "node:path";
 
-import { PGlite } from "@electric-sql/pglite"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { PGlite } from "@electric-sql/pglite";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CRITICAL_RECOVERY_TABLES,
   RecoverySafetyError,
   assertEmptyDisposableDatabase,
   assertRecoveryExecutionAuthorization,
+  auditRestoredDatabaseIntegrity,
+  detectLedgerTarget,
   recoveryTargetFromUrl,
   resolveRecoveryArchive,
   runPgRestore,
+  selectRestorableEntries,
   validateRestoredDatabase,
-} from "../scripts/lib/database-recovery.mjs"
+} from "../scripts/lib/database-recovery.mjs";
 import {
   loadMigrations,
   runPendingMigrations,
-} from "../scripts/lib/database-migrations.mjs"
-import { parseArguments } from "../scripts/test-database-restore.mjs"
+} from "../scripts/lib/database-migrations.mjs";
+import { parseArguments } from "../scripts/test-database-restore.mjs";
 
-const openDatabases: PGlite[] = []
-const temporaryFiles: string[] = []
+const openDatabases: PGlite[] = [];
+const temporaryFiles: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(openDatabases.splice(0).map((database) => database.close()))
+  await Promise.all(
+    openDatabases.splice(0).map((database) => database.close()),
+  );
   await Promise.all(
     temporaryFiles.splice(0).map(async (file) => {
-      const temporaryRoot = path.dirname(file)
-      const { rm } = await import("node:fs/promises")
-      await rm(temporaryRoot, { force: true, recursive: true })
+      const temporaryRoot = path.dirname(file);
+      const { rm } = await import("node:fs/promises");
+      await rm(temporaryRoot, { force: true, recursive: true });
     }),
-  )
-})
+  );
+});
 
 describe("database recovery workflow", () => {
   it("requires an explicitly disposable target and exact fingerprint confirmation", () => {
@@ -40,18 +45,19 @@ describe("database recovery workflow", () => {
       recoveryTargetFromUrl(
         "postgres://operator:secret@production.db.example.edu/ai_tutor",
       ),
-    ).toThrow(RecoverySafetyError)
+    ).toThrow(RecoverySafetyError);
 
     const target = recoveryTargetFromUrl(
       "postgres://operator:secret@restore-db.example.edu/ai_tutor_recovery",
-    )
+    );
 
     expect(target).toMatchObject({
       database: "ai_tutor_recovery",
+      disposableMarker: "restore",
       host: "restore-db.example.edu",
       port: "5432",
-    })
-    expect(target.fingerprint).toMatch(/^[0-9a-f]{64}$/)
+    });
+    expect(target.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(() =>
       assertRecoveryExecutionAuthorization({
         actor: "it.operator@example.edu",
@@ -59,7 +65,7 @@ describe("database recovery workflow", () => {
         confirmation: "wrong-target",
         target,
       }),
-    ).toThrow(/exactly match/i)
+    ).toThrow(/exactly match/i);
     expect(() =>
       assertRecoveryExecutionAuthorization({
         actor: "it.operator@example.edu",
@@ -67,14 +73,37 @@ describe("database recovery workflow", () => {
         confirmation: target.fingerprint,
         target,
       }),
-    ).not.toThrow()
-  })
+    ).not.toThrow();
+  });
 
   it("accepts one explicit mode and limits archives to restore mode", () => {
     expect(parseArguments(["--plan", "--json"])).toEqual({
       json: true,
       mode: "plan",
-    })
+    });
+    expect(
+      parseArguments([
+        "--validate-only",
+        "--confirm-target",
+        "abc",
+        "--evidence-dir",
+        "docs/evidence/database-recovery",
+        "--recovery-point",
+        "2026-09-03T10:00:00Z",
+        "--source-label",
+        "provider clone",
+        "--pg-restore",
+        "/opt/pg18/bin/pg_restore",
+      ]),
+    ).toEqual({
+      confirmation: "abc",
+      evidenceDir: "docs/evidence/database-recovery",
+      json: false,
+      mode: "validate-only",
+      pgRestore: "/opt/pg18/bin/pg_restore",
+      recoveryPoint: "2026-09-03T10:00:00Z",
+      sourceLabel: "provider clone",
+    });
     expect(
       parseArguments([
         "--restore",
@@ -88,28 +117,42 @@ describe("database recovery workflow", () => {
       confirmation: "abc",
       json: false,
       mode: "restore",
-    })
-    expect(() => parseArguments(["--restore"])).toThrow(/archive/i)
+    });
+    expect(() => parseArguments(["--restore"])).toThrow(/archive/i);
     expect(() =>
       parseArguments(["--validate-only", "--archive", "backup.dump"]),
-    ).toThrow(/only with --restore/i)
+    ).toThrow(/only with --restore/i);
     expect(() => parseArguments(["--plan", "--restore"])).toThrow(
       /exactly one/i,
-    )
-  })
+    );
+  });
 
   it("passes only the disposable credential to pg_restore and never puts it in command arguments", () => {
     const calls: Array<{
-      args: string[]
-      command: string
-      options: { env: NodeJS.ProcessEnv }
-    }> = []
+      args: string[];
+      command: string;
+      options: { env: NodeJS.ProcessEnv };
+    }> = [];
     const spawnSyncImpl = vi.fn((command, args, options) => {
-      calls.push({ command, args, options })
-      return { status: 0, stderr: "", stdout: "" }
-    })
+      calls.push({ command, args, options });
+      return {
+        status: 0,
+        stderr: "",
+        stdout: args.includes("--list")
+          ? [
+              ";",
+              "; Archive created at 2026-09-03 13:45:09 EDT",
+              "5; 2615 16389 SCHEMA - public pg_database_owner",
+              "3000; 0 0 COMMENT - SCHEMA public pg_database_owner",
+              "221; 1259 16390 TABLE public topics app_migrator",
+              "3200; 0 16390 TABLE DATA public topics app_migrator",
+              "",
+            ].join("\n")
+          : "",
+      };
+    });
     const recoveryUrl =
-      "postgres://restore_user:restore_secret@restore-db.example.edu:5433/ai_tutor_recovery?sslmode=require"
+      "postgres://restore_user:restore_secret@restore-db.example.edu:5433/ai_tutor_recovery?sslmode=require";
 
     const result = runPgRestore({
       archive: {
@@ -126,24 +169,62 @@ describe("database recovery workflow", () => {
         PATH: "/usr/bin",
       },
       spawnSyncImpl,
-    })
+    });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       archiveSha256: "a".repeat(64),
       archiveSizeBytes: 512,
       restoreTool: "pg_restore",
-    })
-    expect(calls).toHaveLength(2)
-    expect(calls[0].args).toEqual(["--list", "/secure/recovery.dump"])
-    expect(calls[1].args).toEqual([
+      restoreToolVersion: "unknown",
+    });
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    expect(Date.parse(result.completedAt)).toBeGreaterThanOrEqual(
+      Date.parse(result.startedAt),
+    );
+    expect(result).toMatchObject({
+      archiveEntries: 4,
+      restoredEntries: 2,
+      skippedEntries: 2,
+    });
+    expect(calls).toHaveLength(3);
+    expect(calls[0].args).toEqual(["--list", "/secure/recovery.dump"]);
+    expect(calls[2].args).toEqual(["--version"]);
+    expect(calls[2].options.env).not.toHaveProperty("PGPASSWORD");
+    expect(calls[1].args.slice(0, 5)).toEqual([
       "--exit-on-error",
       "--single-transaction",
       "--no-owner",
       "--no-privileges",
+      "--use-list",
+    ]);
+    expect(calls[1].args[5]).toMatch(/\.list$/);
+    expect(calls[1].args.slice(6)).toEqual([
       "--dbname",
       "ai_tutor_recovery",
       "/secure/recovery.dump",
-    ])
+    ]);
+    expect(
+      selectRestorableEntries(
+        "1; 0 0 SCHEMA - public owner\n2; 0 0 TABLE public topics owner\n",
+      ),
+    ).toEqual({
+      list: ";1; 0 0 SCHEMA - public owner\n2; 0 0 TABLE public topics owner\n\n",
+      restored: 1,
+      skipped: 1,
+      total: 2,
+    });
+    expect(() =>
+      runPgRestore({
+        archive: {
+          path: "/secure/recovery.dump",
+          sha256: "a".repeat(64),
+          sizeBytes: 512,
+        },
+        databaseUrl: recoveryUrl,
+        inheritedEnvironment: { PATH: "/usr/bin" },
+        spawnSyncImpl: vi.fn(() => ({ status: 0, stderr: "", stdout: "" })),
+      }),
+    ).toThrow(/no restorable entries/);
     expect(calls[1].options.env).toMatchObject({
       PGCONNECT_TIMEOUT: "10",
       PGDATABASE: "ai_tutor_recovery",
@@ -152,49 +233,49 @@ describe("database recovery workflow", () => {
       PGPORT: "5433",
       PGSSLMODE: "require",
       PGUSER: "restore_user",
-    })
-    expect(calls[1].options.env).not.toHaveProperty("DATABASE_URL")
-    expect(calls[1].options.env).not.toHaveProperty("MIGRATION_DATABASE_URL")
+    });
+    expect(calls[1].options.env).not.toHaveProperty("DATABASE_URL");
+    expect(calls[1].options.env).not.toHaveProperty("MIGRATION_DATABASE_URL");
     expect(calls[1].options.env).not.toHaveProperty(
       "CONTENT_IMPORT_DATABASE_URL",
-    )
+    );
     expect(JSON.stringify(calls.map((call) => call.args))).not.toMatch(
       /restore_secret|postgres:\/\//,
-    )
-  })
+    );
+  });
 
   it("requires a non-empty archive and an empty restore target", async () => {
-    const { mkdtemp } = await import("node:fs/promises")
+    const { mkdtemp } = await import("node:fs/promises");
     const temporaryRoot = await mkdtemp(
       path.join(process.env.TMPDIR ?? "/tmp", "database-recovery-test-"),
-    )
-    const archivePath = path.join(temporaryRoot, "backup.dump")
-    temporaryFiles.push(archivePath)
-    await writeFile(archivePath, "safe test archive")
+    );
+    const archivePath = path.join(temporaryRoot, "backup.dump");
+    temporaryFiles.push(archivePath);
+    await writeFile(archivePath, "safe test archive");
 
-    const archive = await resolveRecoveryArchive(archivePath)
+    const archive = await resolveRecoveryArchive(archivePath);
     expect(archive).toMatchObject({
       path: await realpath(archivePath),
       sizeBytes: 17,
-    })
-    expect(archive.sha256).toMatch(/^[0-9a-f]{64}$/)
+    });
+    expect(archive.sha256).toMatch(/^[0-9a-f]{64}$/);
 
     await expect(
       assertEmptyDisposableDatabase({
         async query() {
-          return { rows: [{ object_count: 1 }] }
+          return { rows: [{ object_count: 1 }] };
         },
       }),
-    ).rejects.toThrow(/newly created empty disposable/i)
-  })
+    ).rejects.toThrow(/newly created empty disposable/i);
+  });
 
   it("validates the complete migrated schema and emits critical table counts", async () => {
-    const database = new PGlite()
-    openDatabases.push(database)
-    const client = pgliteClient(database)
+    const database = new PGlite();
+    openDatabases.push(database);
+    const client = pgliteClient(database);
     const migrations = await loadMigrations(
       path.resolve(process.cwd(), "db/migrations"),
-    )
+    );
     await runPendingMigrations({
       actor: "recovery-test",
       allowDestructive: true,
@@ -204,9 +285,9 @@ describe("database recovery workflow", () => {
       destructiveApprovedBy: "independent-recovery-approver",
       migrations,
       target: "test",
-    })
+    });
 
-    const report = await validateRestoredDatabase({ client, migrations })
+    const report = await validateRestoredDatabase({ client, migrations });
 
     expect(report).toMatchObject({
       deferredConstraints: ["questions_pattern_id_fkey"],
@@ -220,21 +301,44 @@ describe("database recovery workflow", () => {
         rebuildableTables: 1,
         requiredViews: 4,
       },
-    })
+    });
+    expect(report.validations.sequenceChecks).toBeGreaterThan(0);
+    expect(report.latestCommittedRecordAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(
+      Date.parse(report.latestCommittedRecordAt as string),
+    ).toBeLessThanOrEqual(Date.now() + 60_000);
+    expect(report.migrationStatus.state).toBe("current");
     expect(Object.keys(report.criticalRowCounts)).toHaveLength(
       CRITICAL_RECOVERY_TABLES.length,
-    )
-    expect(report.criticalRowCounts.schema_migrations).toBe(migrations.length)
+    );
+    expect(report.criticalRowCounts.schema_migrations).toBe(migrations.length);
 
-    await database.exec("drop view app_admin_retrieval_chunks")
+    await expect(detectLedgerTarget(client)).resolves.toBe("test");
+    const audit = await auditRestoredDatabaseIntegrity(client);
+    expect(audit).toMatchObject({ status: "clean", target: "test" });
+    expect(JSON.stringify(audit)).not.toMatch(/postgres(?:ql)?:\/\//);
+
+    await database.exec(
+      "select setval('audit_events_id_seq', 1, true); insert into audit_events (id, actor_subject, action, entity_type) values (5, 'system:test', 'recovery.sequence', 'audit_event')",
+    );
+    await expect(
+      validateRestoredDatabase({ client, migrations }),
+    ).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        { code: "sequence_behind_table", detail: "audit_events_id_seq" },
+      ]),
+    });
+    await database.exec("select setval('audit_events_id_seq', 5, true)");
+
+    await database.exec("drop view app_admin_retrieval_chunks");
     await expect(
       validateRestoredDatabase({ client, migrations }),
     ).rejects.toMatchObject({
       issues: expect.arrayContaining([
         { code: "missing_view", detail: "app_admin_retrieval_chunks" },
       ]),
-    })
-  })
+    });
+  });
 
   it("documents every required recovery decision and does not claim backups exist", async () => {
     const [runbook, cli, packageJson] = await Promise.all([
@@ -247,35 +351,46 @@ describe("database recovery workflow", () => {
         "utf8",
       ),
       readFile(path.resolve(process.cwd(), "package.json"), "utf8"),
-    ])
+    ]);
 
-    expect(runbook).toMatch(/proposed and testable, not provider-verified/i)
-    expect(runbook).toMatch(/recovery point objective/i)
-    expect(runbook).toMatch(/recovery time objective/i)
-    expect(runbook).toMatch(/Restore Authorization And Preparation Checklist/i)
-    expect(runbook).toMatch(/Data Validation Checklist/i)
-    expect(runbook).toMatch(/Schema Migrations Must Be Retained Separately/i)
-    expect(runbook).toMatch(/Disposable Restore-Test Procedure/i)
-    expect(runbook).toMatch(/Recoverable Data Inventory/i)
-    expect(runbook).toMatch(/Provider Verification Record/i)
-    expect(runbook).toContain("npm run db:recovery:test")
-    expect(runbook).not.toMatch(/Production backups (are|have been) verified/i)
+    expect(runbook).toMatch(/not provider-verified/i);
+    expect(runbook).toMatch(/recovery point objective/i);
+    expect(runbook).toMatch(/recovery time objective/i);
+    expect(runbook).toMatch(/Operational Ownership/i);
+    expect(runbook).toMatch(/Rollback Procedure/i);
+    expect(runbook).toContain("npm run db:backup:verify");
+    expect(runbook).toContain("npm run db:backup:export");
+    expect(runbook).toMatch(/Restore Authorization And Preparation Checklist/i);
+    expect(runbook).toMatch(/Data Validation Checklist/i);
+    expect(runbook).toMatch(/Schema Migrations Must Be Retained Separately/i);
+    expect(runbook).toMatch(/Disposable Restore-Test Procedure/i);
+    expect(runbook).toMatch(/Recoverable Data Inventory/i);
+    expect(runbook).toMatch(/Provider Verification Record/i);
+    expect(runbook).toContain("npm run db:recovery:test");
+    expect(runbook).not.toMatch(/Production backups (are|have been) verified/i);
     expect(cli).not.toMatch(
-      /process\.env\.(DATABASE_URL|MIGRATION_DATABASE_URL|CONTENT_IMPORT_DATABASE_URL)/,
-    )
+      /process\.env\.(DATABASE_URL|MIGRATION_DATABASE_URL|CONTENT_IMPORT_DATABASE_URL|BACKUP_DATABASE_URL|POSTGRES_URL)/,
+    );
+    const exportCli = await readFile(
+      path.resolve(process.cwd(), "scripts/export-database-backup.mjs"),
+      "utf8",
+    );
+    expect(exportCli).not.toMatch(
+      /process\.env\.(DATABASE_URL|MIGRATION_DATABASE_URL|CONTENT_IMPORT_DATABASE_URL|INTEGRITY_DATABASE_URL|RECOVERY_TEST_DATABASE_URL|POSTGRES_URL)/,
+    );
     expect(JSON.parse(packageJson).scripts["db:recovery:test"]).toBe(
       "node scripts/test-database-restore.mjs",
-    )
-  })
-})
+    );
+  });
+});
 
 function pgliteClient(database: PGlite) {
   return {
     async exec(sql: string) {
-      return database.exec(sql)
+      return database.exec(sql);
     },
     async query(sql: string, params?: unknown[]) {
-      return database.query<Record<string, unknown>>(sql, params)
+      return database.query<Record<string, unknown>>(sql, params);
     },
-  }
+  };
 }
