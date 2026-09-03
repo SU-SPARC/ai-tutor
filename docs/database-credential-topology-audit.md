@@ -208,3 +208,16 @@ Do not close this finding until all of the following are retained as evidence:
 
 Until then, the correct Production target is not independently verified and
 the pilot remains **NOT READY**.
+
+## Integrity Audit Attempt — 2026-09-03
+
+The audit preflight checked only credential variable names in the process,
+ignored local credential files, and current Vercel Production metadata. No
+dedicated `INTEGRITY_DATABASE_URL` was available. In accordance with the stop
+condition, it did not substitute the runtime or migration credential and made
+no database connection.
+
+The sanitized evidence is
+[`2026-09-03T16-23-10-760Z-production-not_run.json`](evidence/database-integrity/2026-09-03T16-23-10-760Z-production-not_run.json).
+Status remains **NOT RUN**. This artifact does not satisfy the clean-integrity
+closure condition above.

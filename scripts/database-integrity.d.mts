@@ -10,6 +10,7 @@ export function parseArguments(args: string[]):
       actions: IntegrityRepairAction[];
       confirmProduction: boolean;
       confirmRepair: boolean;
+      evidenceDir?: string;
       help?: false;
       json: boolean;
       mode: "audit" | "repair";

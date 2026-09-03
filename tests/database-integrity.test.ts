@@ -28,8 +28,9 @@ afterEach(async () => {
 });
 
 describe("production data integrity", () => {
-  it("runs all eleven checks in a repeatable-read, read-only audit and formats a human report", async () => {
+  it("runs all eighteen checks in a repeatable-read, read-only audit and formats a human report", async () => {
     const database = await integrityDatabase("test");
+    await seedValidBlockedReservation(database);
     const report = await runReadOnlyIntegrityAudit(clientFor(database), {
       target: "test",
     });
@@ -41,8 +42,8 @@ describe("production data integrity", () => {
       summary: {
         failedChecks: 0,
         findings: 0,
-        passedChecks: 11,
-        totalChecks: 11,
+        passedChecks: 18,
+        totalChecks: 18,
       },
       target: "test",
     });
@@ -59,7 +60,7 @@ describe("production data integrity", () => {
     const topics = await database.query<{ count: number }>(
       "select count(*)::int as count from topics",
     );
-    expect(topics.rows[0].count).toBe(1);
+    expect(topics.rows[0].count).toBe(2);
   });
 
   it("reports every requested corruption class without changing records", async () => {
@@ -87,29 +88,33 @@ describe("production data integrity", () => {
         "generated_drafts_student_visible",
         "topic_order_conflicts",
         "orphaned_tutor_sessions",
+        "required_ownership_relationships",
+        "immutable_question_version_references",
+        "feedback_linkage",
+        "ai_reservation_accounting",
+        "duplicate_idempotency_keys",
+        "cross_student_ownership_anomalies",
         "impossible_usage_counts",
         "test_demo_records_in_production",
       ]),
     );
-    expect(check(report, "duplicate_question_ids").sampleIds).toContain(
-      "duplicate-id",
-    );
-    expect(check(report, "generated_drafts_student_visible").sampleIds).toEqual(
-      expect.arrayContaining([
-        "question:generated-draft",
-        "retrieval:generated-retrieval-draft",
-      ]),
-    );
+    const serialized = JSON.stringify(report);
+    expect(serialized).not.toContain("duplicate-id");
+    expect(serialized).not.toContain("generated-draft");
+    expect(check(report, "duplicate_question_ids").sampleIds).toEqual([
+      expect.stringMatching(/^ref_[0-9a-f]{16}$/),
+    ]);
+    expect(
+      check(report, "generated_drafts_student_visible").sampleIds,
+    ).toHaveLength(2);
     expect(
       check(report, "generated_drafts_student_visible").repairAction,
     ).toBeNull();
-    expect(check(report, "test_demo_records_in_production").sampleIds).toEqual(
-      expect.arrayContaining([
-        "content_import:demo-release",
-        "schema_migration:1",
-        "session:orphan-session",
-      ]),
-    );
+    expect(
+      check(report, "test_demo_records_in_production").sampleIds.every((id) =>
+        /^ref_[0-9a-f]{16}$/.test(id),
+      ),
+    ).toBe(true);
     expect(formatIntegrityReport(report)).toContain(
       "Repair: report-only; owner decision required",
     );
@@ -138,7 +143,28 @@ describe("production data integrity", () => {
     });
     expect(
       check(report, "invalid_question_lifecycle_pointers").sampleIds,
-    ).toEqual(["lifecycle-pointer-drift"]);
+    ).toEqual([expect.stringMatching(/^ref_[0-9a-f]{16}$/)]);
+  });
+
+  it("reports an unvalidated foreign key without exposing its name", async () => {
+    const database = await integrityDatabase("test");
+    await database.exec(`
+      create table integrity_parent (id text primary key);
+      create table integrity_child (parent_id text);
+      alter table integrity_child
+        add constraint integrity_unvalidated_fkey
+        foreign key (parent_id) references integrity_parent(id) not valid;
+    `);
+
+    const report = await auditDatabaseIntegrity(clientFor(database), {
+      target: "test",
+    });
+    const finding = check(report, "foreign_key_enforcement");
+    expect(finding.count).toBe(1);
+    expect(finding.sampleIds).toEqual([
+      expect.stringMatching(/^ref_[0-9a-f]{16}$/),
+    ]);
+    expect(JSON.stringify(report)).not.toContain("integrity_unvalidated_fkey");
   });
 
   it("binds the requested target to the immutable migration ledger", async () => {
@@ -210,7 +236,7 @@ describe("production data integrity", () => {
       }),
       expect.objectContaining({
         action: "reconcile-usage-totals",
-        changedRows: 3,
+        changedRows: 4,
       }),
     ]);
 
@@ -362,7 +388,7 @@ describe("production data integrity", () => {
 
     const before = await runReadOnlyIntegrityAudit(client, { target: "test" });
     expect(check(before, "missing_solution_steps").sampleIds).toEqual([
-      "integrity-question",
+      expect.stringMatching(/^ref_[0-9a-f]{16}$/),
     ]);
 
     const repair = await repairDatabaseIntegrity(client, {
@@ -439,6 +465,12 @@ describe("production data integrity", () => {
     expect(packageJson.scripts["db:integrity"]).toBe(
       "node scripts/database-integrity.mjs",
     );
+    expect(packageJson.scripts["db:integrity:audit:production"]).toContain(
+      "--target production",
+    );
+    expect(packageJson.scripts["db:integrity:audit:production"]).toContain(
+      "--evidence-dir docs/evidence/database-integrity",
+    );
   });
 });
 
@@ -465,7 +497,8 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
 
     create table approved_content_imports (
       release_id text,
-      target text
+      target text,
+      signed_by_user_id text
     );
     create table topics (
       id text,
@@ -474,6 +507,7 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
     create table questions (
       id text,
       topic_id text,
+      pattern_id text,
       title text,
       source_type text,
       trust_level text,
@@ -489,6 +523,9 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       review_notes text,
       updated_at timestamptz default now()
     );
+    create table question_patterns (
+      id text
+    );
     create table solution_steps (
       question_id text,
       step_order integer,
@@ -500,10 +537,17 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       body text
     );
     create table question_approval_history (
+      id bigserial,
       question_id text,
+      question_version_id bigint,
       decision text,
       reviewer_user_id text,
       decided_at timestamptz
+    );
+    create table question_versions (
+      id bigint,
+      question_id text,
+      created_by_user_id text
     );
     create table question_version_lifecycle (
       question_version_id bigint,
@@ -542,6 +586,8 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       user_id text,
       anonymous_user_id text,
       question_id text,
+      question_version_id bigint,
+      creation_idempotency_key text,
       revealed_hints integer default 0,
       revealed_steps integer default 0,
       llm_calls integer default 0,
@@ -552,10 +598,20 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
     );
     create table attempts (
       id bigserial,
+      session_id text,
+      question_id text,
+      topic_id text,
+      question_version_id bigint,
+      idempotency_key text,
       estimated_tokens integer
     );
     create table student_progress (
       id bigserial,
+      user_id text,
+      topic_id text,
+      question_id text,
+      question_version_id bigint,
+      last_attempt_id bigint,
       attempts_count integer,
       hints_revealed integer,
       steps_revealed integer
@@ -579,6 +635,10 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
     );
     create table ai_llm_reservations (
       id text,
+      session_id text,
+      student_key_hash text,
+      usage_date date,
+      idempotency_key text,
       reserved_total_tokens integer,
       actual_input_tokens integer,
       actual_output_tokens integer,
@@ -587,7 +647,18 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       provider_calls integer default 0,
       counts_toward_limit boolean default true,
       limit_reason text,
+      accounted_at timestamptz,
       updated_at timestamptz default now()
+    );
+    create table feedback_reports (
+      id bigserial,
+      reporter_user_id text,
+      reporter_subject_hash text,
+      tutor_session_id text,
+      question_id text,
+      question_version_id bigint,
+      assigned_to_user_id text,
+      idempotency_key text
     );
     create table audit_events (
       id bigserial,
@@ -603,10 +674,58 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
   return database;
 }
 
+async function seedValidBlockedReservation(database: PGlite) {
+  await database.exec(`
+    insert into topics (id, sort_order)
+    values ('baseline-topic', 0);
+    insert into users (
+      id, identity_provider, external_subject, email, display_name,
+      user_type, status
+    ) values (
+      'baseline-user', 'university', 'baseline-user',
+      'valid@university.edu', 'Valid User', 'human', 'active'
+    );
+    insert into questions (
+      id, topic_id, title, source_type, trust_level, review_status,
+      visibility
+    ) values (
+      'baseline-question', 'baseline-topic', 'Baseline question',
+      'professor_provided', 'public_original', 'needs_review', 'private'
+    );
+    insert into question_versions (id, question_id, created_by_user_id)
+    values (900, 'baseline-question', 'baseline-user');
+    insert into tutor_sessions (
+      id, user_id, question_id, question_version_id,
+      creation_idempotency_key
+    ) values (
+      'baseline-session', 'baseline-user', 'baseline-question', 900,
+      'baseline-session-key'
+    );
+    insert into ai_usage (
+      scope, scope_key, date_key, interactions, estimated_tokens,
+      llm_fallbacks, llm_input_tokens, llm_output_tokens, llm_total_tokens,
+      estimated_llm_tokens, cache_hits, limit_blocks
+    ) values (
+      'student', 'baseline-student-hash', current_date, 0, 0,
+      0, 0, 0, 0, 0, 0, 1
+    );
+    insert into ai_llm_reservations (
+      id, session_id, student_key_hash, usage_date, idempotency_key,
+      reserved_total_tokens, status, provider_calls, counts_toward_limit,
+      limit_reason, accounted_at
+    ) values (
+      'baseline-blocked-reservation', 'baseline-session',
+      'baseline-student-hash', current_date, 'baseline-reservation-key',
+      1, 'blocked', 0, false, 'session_limit', null
+    );
+  `);
+}
+
 async function seedEveryIntegrityViolation(database: PGlite) {
   await database.exec(`
-    insert into approved_content_imports (release_id, target)
-    values ('demo-release', 'development');
+    insert into approved_content_imports (
+      release_id, target, signed_by_user_id
+    ) values ('demo-release', 'development', 'missing-signer');
     insert into topics (id, sort_order) values
       ('topic-a', 1),
       ('topic-b', 1),
@@ -616,6 +735,8 @@ async function seedEveryIntegrityViolation(database: PGlite) {
     ) values
       ('professor-1', 'university', 'professor-1', 'professor@example.edu', 'Professor One', 'human', 'active'),
       ('fake-student', 'fixture', 'test-student', 'fake@example.edu', 'Demo Student', 'human', 'active');
+    insert into user_roles (user_id, role_id)
+    values ('professor-1', 'professor');
 
     insert into questions (
       id, topic_id, title, source_type, trust_level, review_status,
@@ -629,6 +750,8 @@ async function seedEveryIntegrityViolation(database: PGlite) {
       ('no-history', 'topic-a', 'No history', 'professor_provided', 'public_original', 'approved', 'public', 'professor-1', '2026-01-02T00:00:00Z'),
       ('generated-draft', 'topic-a', 'Generated draft', 'generated_original', 'generated_unverified', 'needs_review', 'public', null, null),
       ('demo-question', 'topic-a', 'Demo fixture question', 'original_demo', 'public_original', 'needs_review', 'private', 'system:schema-migration', null);
+    insert into question_versions (id, question_id, created_by_user_id)
+    values (1, 'no-history', 'missing-creator');
     insert into solution_steps (question_id, step_order, body)
     values ('no-history', 1, 'A valid step.');
     insert into question_approval_history (
@@ -644,22 +767,47 @@ async function seedEveryIntegrityViolation(database: PGlite) {
     );
 
     insert into tutor_sessions (
-      id, anonymous_user_id, question_id, llm_input_tokens,
-      llm_output_tokens, llm_total_tokens
-    ) values ('orphan-session', 'demo-student', 'missing-question', 2, 3, 99);
+      id, user_id, anonymous_user_id, question_id, question_version_id,
+      creation_idempotency_key, llm_input_tokens, llm_output_tokens,
+      llm_total_tokens
+    ) values
+      ('orphan-session', null, 'demo-student', 'missing-question', null, 'orphan-key', 2, 3, 99),
+      ('owner-session-1', 'professor-1', null, 'no-history', 1, 'duplicate-session-key', 0, 0, 0),
+      ('owner-session-2', 'professor-1', null, 'no-history', 1, 'duplicate-session-key', 0, 0, 0);
     insert into ai_usage (
       scope, scope_key, date_key, interactions, estimated_tokens,
       llm_fallbacks, llm_input_tokens, llm_output_tokens, llm_total_tokens,
       estimated_llm_tokens, cache_hits, limit_blocks
     ) values ('global', 'global', current_date, 1, 1, 0, 2, 4, 99, 0, 0, 0);
-    insert into attempts (estimated_tokens) values (-1);
+    insert into attempts (
+      session_id, question_id, topic_id, question_version_id,
+      idempotency_key, estimated_tokens
+    ) values
+      ('owner-session-1', 'no-history', 'topic-a', 1, 'duplicate-attempt-key', -1),
+      ('owner-session-1', 'no-history', 'topic-a', 1, 'duplicate-attempt-key', 0);
     insert into student_progress (
+      user_id, topic_id, question_id, question_version_id, last_attempt_id,
       attempts_count, hints_revealed, steps_revealed
-    ) values (-1, 0, 0);
+    ) values (
+      'fake-student', 'topic-a', 'no-history', 1, 1, -1, 0, 0
+    );
     insert into ai_llm_reservations (
-      id, reserved_total_tokens, actual_input_tokens, actual_output_tokens,
-      actual_total_tokens, status
-    ) values ('bad-reservation', 10, 1, 0, 1, 'pending');
+      id, session_id, student_key_hash, usage_date, idempotency_key,
+      reserved_total_tokens, actual_input_tokens, actual_output_tokens,
+      actual_total_tokens, status, accounted_at
+    ) values
+      ('bad-reservation', 'owner-session-1', 'student-hash-a', current_date,
+       'duplicate-reservation-key', 10, 1, 0, 1, 'pending', now()),
+      ('cross-owner-reservation', 'owner-session-1', 'student-hash-b', current_date,
+       'duplicate-reservation-key', 10, null, null, null, 'pending', null);
+    insert into feedback_reports (
+      reporter_subject_hash, tutor_session_id, question_id,
+      question_version_id, idempotency_key
+    ) values
+      ('incorrect-owner-hash', 'owner-session-1', 'broken-topic', 1,
+       'duplicate-feedback-key'),
+      ('incorrect-owner-hash', 'owner-session-1', 'broken-topic', 1,
+       'duplicate-feedback-key');
     insert into audit_events (
       actor_subject, action, entity_type, entity_id, outcome, metadata_json
     ) values ('fixture-operator', 'seed', 'database', 'production', 'success', '{}'::jsonb);
@@ -685,19 +833,31 @@ async function seedRepairableViolations(database: PGlite) {
       'public_original', 'approved', 'public', 'Professor One',
       'professor-1', '2026-01-01T00:00:00Z'
     );
+    insert into question_versions (id, question_id, created_by_user_id)
+    values (1, 'unsafe-question', 'professor-1');
     insert into tutor_sessions (
-      id, anonymous_user_id, question_id, llm_input_tokens,
-      llm_output_tokens, llm_total_tokens
-    ) values ('session-1', 'anonymous-1', 'unsafe-question', 3, 4, 88);
+      id, anonymous_user_id, question_id, question_version_id,
+      creation_idempotency_key, llm_input_tokens, llm_output_tokens,
+      llm_total_tokens
+    ) values (
+      'session-1', 'anonymous-1', 'unsafe-question', 1,
+      'session-key-1', 3, 4, 88
+    );
     insert into ai_usage (
       scope, scope_key, date_key, interactions, estimated_tokens,
       llm_fallbacks, llm_input_tokens, llm_output_tokens, llm_total_tokens,
       estimated_llm_tokens, cache_hits, limit_blocks
-    ) values ('global', 'global', current_date, 1, 1, 0, 5, 7, 88, 0, 0, 0);
+    ) values
+      ('global', 'global', current_date, 1, 1, 0, 5, 7, 88, 0, 0, 0),
+      ('student', 'student-hash-1', current_date, 1, 1, 0, 5, 7, 88, 0, 0, 0);
     insert into ai_llm_reservations (
-      id, reserved_total_tokens, actual_input_tokens, actual_output_tokens,
-      actual_total_tokens, status
-    ) values ('reservation-1', 10, 4, 5, 88, 'settled');
+      id, session_id, student_key_hash, usage_date, idempotency_key,
+      reserved_total_tokens, actual_input_tokens, actual_output_tokens,
+      actual_total_tokens, status, accounted_at
+    ) values (
+      'reservation-1', 'session-1', 'student-hash-1', current_date,
+      'reservation-key-1', 10, 4, 5, 88, 'settled', now()
+    );
   `);
 }
 

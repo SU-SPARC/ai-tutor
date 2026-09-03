@@ -1,8 +1,8 @@
 # Pilot Readiness Report
 
-Date: 2026-09-02
+Date: 2026-09-03
 
-Readiness evidence update: `Audit production database credentials` (current
+Readiness evidence update: `Add production integrity audit evidence` (current
 report commit)
 
 Production deployment reviewed: `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w` from
@@ -99,10 +99,23 @@ incomplete.**
   directly fingerprinted. The correct Production migration credential and
   institutional provider ownership therefore remain unverified. The mismatch
   is **not resolved**.
-- Migration workflow tests passed: 36 tests across four files.
+- The repeatable Production integrity command now requires the expected
+  provider/project/database fingerprint, proves the login has no effective
+  write/DDL/admin privileges, verifies the checksum ledger, rolls back its
+  read-only snapshot, hashes every sampled record reference, and covers 18
+  integrity classes including foreign keys, required owners, immutable version
+  links, sessions, feedback, AI accounting, idempotency, publication state, and
+  cross-student ownership.
+- The `INTEGRITY_DATABASE_URL` variable name was absent from the audit process,
+  ignored local credential files, and current Vercel Production metadata. The
+  command exited `3`, made no database connection, and saved the sanitized
+  [`2026-09-03T16-23-10-760Z-production-not_run.json`](evidence/database-integrity/2026-09-03T16-23-10-760Z-production-not_run.json)
+  evidence. The Production integrity audit remains **NOT RUN**; no integrity
+  finding or clean result can be claimed.
+- Migration/integrity workflow tests passed: 45 tests across five files.
 - The application runtime credential is not used as an operator migration or
-  integrity credential. A separately controlled `INTEGRITY_DATABASE_URL` was
-  not available, so a direct read-only Production integrity audit was not run.
+  integrity credential. Neither the runtime `POSTGRES_URL` nor the drifted
+  Development migrator was substituted for the missing audit credential.
 - Provider backup existence and a disposable restore exercise have no retained
   evidence. This is a launch blocker.
 
@@ -249,12 +262,12 @@ student identifiers.
 
 | Gate                                      | Result                                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Full Vitest suite                         | PASS — 76 files, 634 tests                                                                         |
+| Full Vitest suite                         | PASS — 77 files, 643 tests                                                                         |
 | Lint                                      | PASS                                                                                               |
 | TypeScript                                | PASS                                                                                               |
 | Production build                          | PASS — Next.js 16.3.3, 23 pages generated                                                          |
 | AI/retrieval/usage focused suite          | PASS — 8 files, 111 tests                                                                          |
-| Migration focused suite                   | PASS — 4 files, 36 tests                                                                           |
+| Migration/integrity focused suite         | PASS — 5 files, 45 tests                                                                           |
 | Authorization focused suite               | PASS — 7 files, 91 tests                                                                           |
 | Lifecycle/publication focused suite       | PASS — 7 files, 52 tests                                                                           |
 | Student/professor workflow focused suite  | PASS — 7 files, 44 tests                                                                           |
@@ -274,7 +287,7 @@ student identifiers.
 | Controlled live approved retrieval        | PASS — related approved context precedes opt-in AI synthesis                                       |
 | Controlled live rate/request boundaries   | PASS — friendly 429 on request 21; oversized request gets 413                                      |
 | Public retrieval/private-content boundary | PASS — professor endpoint 401; public list metadata-only                                           |
-| Production integrity audit                | **NOT RUN** — separate read-only audit credential unavailable                                      |
+| Production integrity audit                | **NOT RUN** — dedicated credential unavailable; sanitized timestamped evidence retained            |
 | Backup/restore exercise                   | **NOT PROVEN**                                                                                     |
 | Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
 
@@ -311,7 +324,10 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    to the same Production project/database/ledger, and prove least privilege.
    Do not use or overwrite the inspected Development credential for
    Production.
-2. Run the separately credentialed read-only Production integrity audit.
+2. Provision the dedicated SELECT-only `INTEGRITY_DATABASE_URL`, independently
+   verify its Supabase project/database fingerprint, and run
+   `npm run db:integrity:audit:production`. Require a clean 18-check artifact;
+   the retained `not_run` artifact does not close this blocker.
 3. Verify provider backups and complete a disposable restore/rollback exercise.
 4. Record named privacy, security, accessibility, authentication, AI-provider,
    retention/deletion, incident-response, support, and pilot approvals.

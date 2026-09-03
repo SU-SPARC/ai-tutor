@@ -16,6 +16,7 @@
     "db:import:review-candidates": "node scripts/import-review-candidates.mjs",
     "db:repair:review-candidate-provenance": "node scripts/repair-review-candidate-provenance.mjs",
     "db:integrity": "node scripts/database-integrity.mjs",
+    "db:integrity:audit:production": "node scripts/database-integrity.mjs audit --target production --json --evidence-dir docs/evidence/database-integrity",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",
     "syllabus:sync": "node scripts/synchronize-syllabus-topics.mjs",
@@ -39,7 +40,7 @@
     "test": "vitest run",
     "pilot:smoke": "node scripts/pilot-smoke.mjs",
     "test:ai-production": "vitest run tests/ai-production-evaluation.test.ts tests/ai-usage-controls.test.ts tests/llm-tutor.test.ts tests/retrieval.test.ts tests/response-guardrails.test.ts tests/tutor-engine.test.ts tests/tutor-respond-api.test.ts tests/tutor-response-boundary.test.ts",
-    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts"
+    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.0",

@@ -5,10 +5,13 @@ its narrowly scoped, explicitly authorized repair workflow. It does not connect
 to a database during application startup, provision infrastructure, schedule a
 job, or run a repair automatically.
 
-The command requires the complete, checksum-clean migration history and checks
-that the requested target exactly matches the target recorded in the immutable
-`schema_migrations` ledger. This prevents an operator from labeling a Production
-database as Test to bypass the Production confirmation gate.
+The command requires the complete, checksum-clean migration history, proves
+that the credential has no effective database/schema/table/sequence write or
+administrative privileges, and checks that the requested target exactly matches
+both the expected safe Production fingerprint and the target recorded in the
+immutable `schema_migrations` ledger. This prevents an operator from labeling a
+different database as Production or using a write-capable credential for the
+audit.
 
 ## What The Audit Checks
 
@@ -22,7 +25,14 @@ database as Test to bypass the Production confirmation gate.
 | Approved questions without reviewer history | No immutable approval event matches the question's reviewer and review timestamp                                                                                                   | Quarantine is available; history is never fabricated              |
 | Generated drafts student-visible            | An unapproved/untrusted generated question or retrieval chunk is actually returned by a student-facing view                                                                        | None; treat as view/schema drift and forward-fix it               |
 | Topic-order conflicts                       | `sort_order` is negative or shared by multiple topics                                                                                                                              | None; a professor must choose syllabus order                      |
-| Orphaned tutor sessions                     | A session lacks exactly one valid identity or has no valid question                                                                                                                | None; retention and student-data ownership decisions are required |
+| Orphaned tutor sessions                     | A session lacks exactly one valid identity, question, or immutable question version                                                                                                | None; retention and student-data ownership decisions are required |
+| Foreign-key enforcement                     | A public foreign key is unvalidated or has a disabled enforcement trigger; the intentionally deferred question-pattern relation is checked directly for orphans                    | None; preserve evidence and use a reviewed migration              |
+| Required ownership relationships            | A reviewed question, immutable version, approval decision, or approved import lacks its required user owner                                                                        | None; ownership must never be inferred                            |
+| Immutable question-version references       | A question pointer, lifecycle row, tutor session, attempt, progress row, or feedback report references no matching immutable version of the same question                          | None; use a reviewed forward fix                                  |
+| Feedback linkage                            | Feedback disagrees with its tutor session's question, immutable version, or reporter ownership fingerprint                                                                         | None; investigate the owning workflow                             |
+| AI reservation/accounting linkage           | A reservation lacks its session or dated student-usage row, has invalid accounted timing, or a session has multiple student fingerprints/pending reservations                      | None; preserve usage evidence                                     |
+| Duplicate idempotency keys                  | Session, attempt, feedback, or reservation keys repeat inside the same owner/session scope despite the unique-index contract                                                       | None; investigate constraint loss and retry history               |
+| Cross-student ownership anomalies           | A progress/attempt, feedback/session, or AI reservation/session relationship crosses the owning student's authenticated, anonymous, or pseudonymous boundary                       | None; treat as a privacy/security incident                        |
 | Impossible usage counts                     | Negative counters, inconsistent token totals, reveals beyond available hints/steps, or invalid reservation state                                                                   | Only consistent token totals can be reconciled                    |
 | Test/demo records in Production-shaped data | Production contains a non-Production migration/import ledger, explicit demo/test/fake/fixture/synthetic identity marker, schema-migration-reviewed question, or marked audit actor | None; do not guess whether Production student data may be deleted |
 
@@ -34,39 +44,63 @@ prove that the access boundary is fixed.
 
 The test/demo detector is deliberately conservative and reports explicit word
 markers only. It does not search answer text or return student content. The
-human report shows counts and at most 20 record IDs per check; `--json` provides
-the same bounded evidence for a ticket. Findings are evidence to review, not
-deletion authorization.
+human and JSON reports show aggregate counts and at most 20 per-run HMAC-redacted
+references per check. The random redaction key is never printed or retained, so
+the references cannot be joined across reports. Findings are evidence to review,
+not deletion authorization.
 
 ## Read-Only Audit
 
-Use a dedicated PostgreSQL login with `CONNECT`, `USAGE`, and `SELECT` only. It
-must not have table-write, DDL, role-management, backup, or provider-owner
-privileges. Inject its URL from the approved institutional secret store as
-`INTEGRITY_DATABASE_URL`; do not put the URL in a local environment file,
-ticket, command argument, or shell transcript.
+Use a dedicated PostgreSQL login with `CONNECT`, schema `USAGE`, and `SELECT`
+only. It must not have database `CREATE`/`TEMP`, schema creation, table write,
+sequence `USAGE`/`UPDATE`, superuser, database/role creation, replication,
+row-level-security bypass, executable public `SECURITY DEFINER` routines,
+backup, or provider-owner privileges. Inject its URL from the approved
+institutional secret store as `INTEGRITY_DATABASE_URL`; do not put the URL in a
+local environment file, ticket, command argument, or shell transcript.
 
 ```bash
 INTEGRITY_DATABASE_URL=<read-only credential> \
   npm run db:integrity -- audit --target staging
-
-INTEGRITY_DATABASE_URL=<read-only credential> \
-  npm run db:integrity -- audit --target production --json
 ```
 
+For Production, inject `INTEGRITY_DATABASE_URL` through the protected audit job,
+then set only these non-secret comparison values from the independently reviewed
+[credential-topology audit](database-credential-topology-audit.md):
+
+```bash
+INTEGRITY_EXPECTED_PROVIDER=supabase \
+INTEGRITY_EXPECTED_PROJECT_HASH=65888f3d354b7dfd \
+INTEGRITY_EXPECTED_DATABASE_NAME=postgres \
+  npm run db:integrity:audit:production
+```
+
+The command saves a timestamped JSON file under
+`docs/evidence/database-integrity/`. It contains safe database hashes, a
+SELECT-only credential attestation, migration counts and an ordered-ledger hash,
+aggregate integrity counts, and redacted references. It never contains the URL,
+host, username, password, student identity, answer, feedback text, or redaction
+key.
+
 `audit` is the default, so the first command may also omit the word `audit`.
-The command opens a `REPEATABLE READ READ ONLY` transaction, sets a 60-second
-statement timeout, runs only `SELECT` statements, and commits the read-only
-snapshot. Errors roll it back. It never reads `DATABASE_URL`,
+Every audit connection sets `default_transaction_read_only=on`. The integrity
+checks open a `REPEATABLE READ READ ONLY` transaction, set a 60-second statement
+timeout, run only `SELECT` statements, and roll back the snapshot even on
+success. Errors also roll it back. It never reads `DATABASE_URL`,
 `MIGRATION_DATABASE_URL`, `CONTENT_IMPORT_DATABASE_URL`, or the repair URL.
 
 Exit codes are stable:
 
-| Exit code | Meaning                                                                       | Action                                                       |
-| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `0`       | All checks passed                                                             | Attach the report to the change/pilot ticket                 |
-| `1`       | Configuration, credential, migration drift, target mismatch, or query failure | Stop and investigate; no clean attestation exists            |
-| `2`       | Audit completed with one or more findings                                     | Keep traffic blocked or follow the approved incident process |
+| Exit code | Meaning                                                                         | Action                                                                             |
+| --------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `0`       | All checks passed                                                               | Attach the report to the change/pilot ticket                                       |
+| `1`       | Configuration, credential, migration drift, target mismatch, or query failure   | Stop and investigate; no clean attestation exists                                  |
+| `2`       | Audit completed with one or more findings                                       | Keep traffic blocked or follow the approved incident process                       |
+| `3`       | Audit not run because its credential or expected target evidence is unavailable | Supply the missing independently owned input; do not substitute another credential |
+
+If the dedicated credential is absent, the Production command makes no database
+connection, writes a sanitized `not_run` artifact, and exits `3`. That artifact
+is evidence of a blocked gate, not a successful integrity audit.
 
 Run the audit after a Staging import, immediately before first Production
 traffic, after a restore, after an approved data repair, and during incident
@@ -160,16 +194,19 @@ approved backup/recovery process and a forward migration where required.
 
 ## Test Evidence
 
-`tests/database-integrity.test.ts` uses isolated embedded PostgreSQL databases
-to prove all eleven finding classes, bounded human reporting, read-only behavior,
-target binding, CLI and library confirmation gates, selected repairs, audit-event
-evidence, rollback when evidence recording fails, and compatibility with the
-complete migration chain and its immutable review/version triggers.
+`tests/database-integrity.test.ts` and
+`tests/database-integrity-evidence.test.ts` use isolated embedded PostgreSQL
+databases and synthetic credentials to prove all eighteen finding classes,
+foreign-key enforcement, redacted references, read-only rollback, safe target
+fingerprints, SELECT-only privilege rejection, migration-ledger summarization,
+the no-credential exit, timestamped sanitized evidence, target binding, repair
+confirmation gates, rollback, and compatibility with the complete migration
+chain and its immutable review/version triggers.
 
 Run:
 
 ```bash
-npx vitest run tests/database-integrity.test.ts
+npx vitest run tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts
 npm test
 npm run typecheck
 npm run lint

@@ -1,3 +1,5 @@
+import { createHmac, randomBytes } from "node:crypto";
+
 export const INTEGRITY_REPAIR_LOCK_ID = 7_241_903_152;
 export const SUPPORTED_INTEGRITY_TARGETS = Object.freeze([
   "production",
@@ -270,10 +272,272 @@ const AUDIT_CHECKS = Object.freeze([
       from tutor_sessions s
       left join users u on u.id = s.user_id
       left join questions q on q.id = s.question_id
+      left join question_versions qv
+        on qv.id = s.question_version_id
+       and qv.question_id = s.question_id
       where num_nonnulls(s.user_id, s.anonymous_user_id) <> 1
          or (s.user_id is not null and u.id is null)
          or s.question_id is null
          or q.id is null
+         or s.question_version_id is null
+         or qv.id is null
+    `,
+  },
+  {
+    description:
+      "Every declared public foreign key must remain validated and have enabled PostgreSQL enforcement triggers.",
+    id: "foreign_key_enforcement",
+    repairAction: null,
+    severity: "critical",
+    title: "Foreign-key enforcement",
+    violationsSql: `
+      select (
+        constraint_record.conrelid::regclass::text || ':' ||
+        constraint_record.conname
+      )::text as record_id
+      from pg_constraint constraint_record
+      where constraint_record.contype = 'f'
+        and constraint_record.connamespace = 'public'::regnamespace
+        and (
+          (
+            not constraint_record.convalidated
+            and constraint_record.conname <> 'questions_pattern_id_fkey'
+          )
+          or exists (
+            select 1
+            from pg_trigger trigger_record
+            where trigger_record.tgconstraint = constraint_record.oid
+              and trigger_record.tgenabled not in ('O', 'A')
+          )
+        )
+      union all
+      select ('question-pattern:' || q.id)::text as record_id
+      from questions q
+      left join question_patterns pattern on pattern.id = q.pattern_id
+      where q.pattern_id is not null and pattern.id is null
+    `,
+  },
+  {
+    description:
+      "Questions, immutable versions, approval decisions, and approved imports must retain their required user owners.",
+    id: "required_ownership_relationships",
+    repairAction: null,
+    severity: "critical",
+    title: "Required ownership relationships",
+    violationsSql: `
+      select ('question:' || q.id)::text as record_id
+      from questions q
+      left join users reviewer on reviewer.id = q.reviewed_by_user_id
+      where q.reviewed_by_user_id is not null and reviewer.id is null
+      union all
+      select ('version:' || qv.id::text)::text as record_id
+      from question_versions qv
+      left join users creator on creator.id = qv.created_by_user_id
+      where creator.id is null
+      union all
+      select ('approval:' || qah.id::text)::text as record_id
+      from question_approval_history qah
+      left join users reviewer on reviewer.id = qah.reviewer_user_id
+      where reviewer.id is null
+      union all
+      select ('content_import:' || aci.release_id)::text as record_id
+      from approved_content_imports aci
+      left join users signer on signer.id = aci.signed_by_user_id
+      where signer.id is null
+    `,
+  },
+  {
+    description:
+      "Every persisted question-version pointer must resolve to an immutable version of the same question.",
+    id: "immutable_question_version_references",
+    repairAction: null,
+    severity: "critical",
+    title: "Immutable question-version references",
+    violationsSql: `
+      select ('question-working:' || q.id)::text as record_id
+      from questions q
+      left join question_versions qv
+        on qv.id = q.working_version_id and qv.question_id = q.id
+      where q.working_version_id is not null and qv.id is null
+      union all
+      select ('question-published:' || q.id)::text as record_id
+      from questions q
+      left join question_versions qv
+        on qv.id = q.published_version_id and qv.question_id = q.id
+      where q.published_version_id is not null and qv.id is null
+      union all
+      select ('lifecycle:' || qvl.question_version_id::text)::text as record_id
+      from question_version_lifecycle qvl
+      left join question_versions qv
+        on qv.id = qvl.question_version_id
+       and qv.question_id = qvl.question_id
+      where qv.id is null
+      union all
+      select ('session:' || s.id)::text as record_id
+      from tutor_sessions s
+      left join question_versions qv
+        on qv.id = s.question_version_id
+       and qv.question_id = s.question_id
+      where s.question_version_id is null or qv.id is null
+      union all
+      select ('attempt:' || a.id::text)::text as record_id
+      from attempts a
+      left join question_versions qv
+        on qv.id = a.question_version_id
+       and qv.question_id = a.question_id
+      where a.question_version_id is null or qv.id is null
+      union all
+      select ('progress:' || sp.id::text)::text as record_id
+      from student_progress sp
+      left join question_versions qv
+        on qv.id = sp.question_version_id
+       and qv.question_id = sp.question_id
+      where sp.question_version_id is null or qv.id is null
+      union all
+      select ('feedback:' || f.id::text)::text as record_id
+      from feedback_reports f
+      left join question_versions qv
+        on qv.id = f.question_version_id
+       and qv.question_id = f.question_id
+      where (f.question_version_id is null) <> (f.question_id is null)
+         or (f.question_version_id is not null and qv.id is null)
+    `,
+  },
+  {
+    description:
+      "Feedback must retain a matching tutor session, question, immutable version, and reporter ownership fingerprint.",
+    id: "feedback_linkage",
+    repairAction: null,
+    severity: "high",
+    title: "Feedback linkage",
+    violationsSql: `
+      select ('feedback:' || f.id::text)::text as record_id
+      from feedback_reports f
+      left join tutor_sessions s on s.id = f.tutor_session_id
+      where f.tutor_session_id is not null
+        and (
+          s.id is null
+          or f.question_id is distinct from s.question_id
+          or f.question_version_id is distinct from s.question_version_id
+          or f.reporter_subject_hash is distinct from encode(
+            sha256(
+              convert_to(
+                case
+                  when s.user_id is not null
+                    then 'question-feedback:v1:user:' || s.user_id
+                  else
+                    'question-feedback:v1:anonymous:' || s.anonymous_user_id
+                end,
+                'UTF8'
+              )
+            ),
+            'hex'
+          )
+        )
+    `,
+  },
+  {
+    description:
+      "AI reservations must resolve to one session, one student fingerprint per session, and matching dated student accounting.",
+    id: "ai_reservation_accounting",
+    repairAction: null,
+    severity: "high",
+    title: "AI reservation/accounting linkage",
+    violationsSql: `
+      select ('reservation:' || r.id)::text as record_id
+      from ai_llm_reservations r
+      left join tutor_sessions s on s.id = r.session_id
+      where s.id is null
+         or not exists (
+           select 1
+           from ai_usage au
+           where au.scope = 'student'
+             and au.scope_key = r.student_key_hash
+             and au.date_key = r.usage_date
+         )
+         or (r.status = 'pending' and r.accounted_at is not null)
+         or (r.status in ('settled', 'released') and r.accounted_at is null)
+      union all
+      select ('reservation-session:' || r.session_id)::text as record_id
+      from ai_llm_reservations r
+      group by r.session_id
+      having count(distinct r.student_key_hash) > 1
+         or count(*) filter (where r.status = 'pending') > 1
+    `,
+  },
+  {
+    description:
+      "Session creation, attempts, feedback, and AI reservations must not reuse an idempotency key inside the same owner scope.",
+    id: "duplicate_idempotency_keys",
+    repairAction: null,
+    severity: "critical",
+    title: "Duplicate idempotency keys",
+    violationsSql: `
+      select ('session-user:' || min(s.id))::text as record_id
+      from tutor_sessions s
+      where s.user_id is not null
+      group by s.user_id, s.creation_idempotency_key
+      having count(*) > 1
+      union all
+      select ('session-anonymous:' || min(s.id))::text as record_id
+      from tutor_sessions s
+      where s.anonymous_user_id is not null
+      group by s.anonymous_user_id, s.creation_idempotency_key
+      having count(*) > 1
+      union all
+      select ('attempt:' || min(a.id)::text)::text as record_id
+      from attempts a
+      group by a.session_id, a.idempotency_key
+      having count(*) > 1
+      union all
+      select ('feedback:' || min(f.id)::text)::text as record_id
+      from feedback_reports f
+      group by f.reporter_subject_hash, f.idempotency_key
+      having count(*) > 1
+      union all
+      select ('reservation:' || min(r.id))::text as record_id
+      from ai_llm_reservations r
+      group by r.session_id, r.idempotency_key
+      having count(*) > 1
+    `,
+  },
+  {
+    description:
+      "Progress, feedback, and AI rows linked to one tutor session must not cross authenticated or anonymous student ownership boundaries.",
+    id: "cross_student_ownership_anomalies",
+    repairAction: null,
+    severity: "critical",
+    title: "Cross-student ownership anomalies",
+    violationsSql: `
+      select ('progress:' || sp.id::text)::text as record_id
+      from student_progress sp
+      join attempts a on a.id = sp.last_attempt_id
+      join tutor_sessions s on s.id = a.session_id
+      where sp.user_id is distinct from s.user_id
+         or s.anonymous_user_id is not null
+      union all
+      select ('feedback:' || f.id::text)::text as record_id
+      from feedback_reports f
+      join tutor_sessions s on s.id = f.tutor_session_id
+      where f.reporter_subject_hash is distinct from encode(
+        sha256(
+          convert_to(
+            case
+              when s.user_id is not null
+                then 'question-feedback:v1:user:' || s.user_id
+              else
+                'question-feedback:v1:anonymous:' || s.anonymous_user_id
+            end,
+            'UTF8'
+          )
+        ),
+        'hex'
+      )
+      union all
+      select ('ai-session:' || r.session_id)::text as record_id
+      from ai_llm_reservations r
+      group by r.session_id
+      having count(distinct r.student_key_hash) > 1
     `,
   },
   {
@@ -424,7 +688,10 @@ export class IntegrityWorkflowError extends Error {
   }
 }
 
-export async function auditDatabaseIntegrity(client, { target }) {
+export async function auditDatabaseIntegrity(
+  client,
+  { redactionKey = randomBytes(32), target },
+) {
   validateTarget(target);
   const checks = [];
 
@@ -444,7 +711,9 @@ export async function auditDatabaseIntegrity(client, { target }) {
          select record_id from violations order by record_id limit ${SAMPLE_LIMIT}`,
         params,
       );
-      sampleIds = samples.rows.map((row) => String(row.record_id));
+      sampleIds = samples.rows.map((row) =>
+        redactRecordIdentifier(redactionKey, row.record_id),
+      );
     }
 
     checks.push({
@@ -485,7 +754,7 @@ export async function runReadOnlyIntegrityAudit(client, { target }) {
   try {
     await client.query("set local statement_timeout = '60s'");
     const report = await auditDatabaseIntegrity(client, { target });
-    await client.query("commit");
+    await client.query("rollback");
     return report;
   } catch (error) {
     try {
@@ -495,6 +764,13 @@ export async function runReadOnlyIntegrityAudit(client, { target }) {
     }
     throw error;
   }
+}
+
+function redactRecordIdentifier(redactionKey, recordId) {
+  return `ref_${createHmac("sha256", redactionKey)
+    .update(String(recordId))
+    .digest("hex")
+    .slice(0, 16)}`;
 }
 
 export async function assertIntegrityDatabaseTarget(client, target) {
@@ -627,7 +903,7 @@ function formatAuditChecks(audit) {
     const label = check.count === 0 ? "PASS" : check.severity.toUpperCase();
     lines.push(`- [${label}] ${check.title}: ${check.count}`);
     if (check.sampleIds.length > 0) {
-      lines.push(`  Sample IDs: ${check.sampleIds.join(", ")}`);
+      lines.push(`  Sample refs: ${check.sampleIds.join(", ")}`);
     }
     if (check.count > 0) {
       lines.push(`  ${check.description}`);

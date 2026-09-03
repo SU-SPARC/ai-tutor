@@ -13,6 +13,16 @@ import {
   runReadOnlyIntegrityAudit,
 } from "./lib/database-integrity.mjs";
 import {
+  assertDatabaseTargetFingerprint,
+  attestSelectOnlyCredential,
+  connectedDatabaseFingerprint,
+  createCompletedEvidence,
+  createNotRunEvidence,
+  expectedTargetFingerprint,
+  fingerprintDatabaseUrl,
+  writeIntegrityEvidence,
+} from "./lib/database-integrity-evidence.mjs";
+import {
   getMigrationStatus,
   loadMigrations,
 } from "./lib/database-migrations.mjs";
@@ -30,8 +40,39 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
 
-  const databaseUrl = resolveDatabaseUrl(options.mode);
+  const databaseUrl = resolveDatabaseUrl(options.mode, { required: false });
+  if (!databaseUrl) {
+    if (options.mode === "audit" && options.evidenceDir) {
+      await emitNotRunEvidence(options, "credential_unavailable");
+      process.exitCode = 3;
+      return;
+    }
+    throw new Error(
+      `${databaseVariable(options.mode)} is required for ${options.mode} mode.`,
+    );
+  }
+
+  let expectedFingerprint;
+  if (options.mode === "audit" && options.target === "production") {
+    try {
+      expectedFingerprint = expectedTargetFingerprint(process.env);
+    } catch (error) {
+      if (options.evidenceDir) {
+        await emitNotRunEvidence(
+          options,
+          error?.code === "expected_target_unavailable"
+            ? error.code
+            : "expected_target_unavailable",
+        );
+        process.exitCode = 3;
+        return;
+      }
+      throw error;
+    }
+  }
+
   validatePostgresUrl(databaseUrl);
+  const urlFingerprint = fingerprintDatabaseUrl(databaseUrl);
   const pool = new Pool({
     application_name: `ai-tutor-database-integrity-${options.mode}`,
     connectionString: databaseUrl,
@@ -40,10 +81,43 @@ export async function main(args = process.argv.slice(2)) {
     max: 1,
     query_timeout: 65_000,
     statement_timeout: 60_000,
+    ...(options.mode === "audit"
+      ? {
+          options:
+            "-c default_transaction_read_only=on -c statement_timeout=60000",
+        }
+      : {}),
   });
   const client = await pool.connect();
 
   try {
+    const credentialAttestation =
+      options.mode === "audit"
+        ? await attestSelectOnlyCredential(client)
+        : undefined;
+    const databaseFingerprint =
+      options.mode === "audit"
+        ? await connectedDatabaseFingerprint(client, urlFingerprint)
+        : undefined;
+    if (
+      databaseFingerprint &&
+      databaseFingerprint.connectedDatabaseName !==
+        databaseFingerprint.databaseName
+    ) {
+      throw new Error(
+        "Connected database name differs from the credential safe fingerprint.",
+      );
+    }
+    if (databaseFingerprint && expectedFingerprint) {
+      assertDatabaseTargetFingerprint(
+        {
+          ...databaseFingerprint,
+          databaseName: databaseFingerprint.connectedDatabaseName,
+        },
+        expectedFingerprint,
+      );
+    }
+
     const migrations = await loadMigrations(
       path.resolve(repositoryRoot, "db/migrations"),
     );
@@ -69,7 +143,20 @@ export async function main(args = process.argv.slice(2)) {
             target: options.target,
           });
 
-    printReport(report, options.json);
+    const output =
+      options.mode === "audit"
+        ? createCompletedEvidence({
+            audit: report,
+            credentialAttestation,
+            databaseFingerprint,
+            expectedFingerprint,
+            migrationStatus,
+          })
+        : report;
+    if (options.evidenceDir) {
+      await writeIntegrityEvidence(options.evidenceDir, output);
+    }
+    printReport(output, options.json);
     const findings =
       report.mode === "repair"
         ? report.after.summary.findings
@@ -92,6 +179,7 @@ export function parseArguments(args) {
     actions: [],
     confirmProduction: false,
     confirmRepair: false,
+    evidenceDir: undefined,
     json: false,
     mode: "audit",
   };
@@ -105,6 +193,8 @@ export function parseArguments(args) {
     const argument = args[index];
     if (argument === "--action") {
       options.actions.push(requiredArgumentValue(args, ++index, argument));
+    } else if (argument === "--evidence-dir") {
+      options.evidenceDir = requiredArgumentValue(args, ++index, argument);
     } else if (argument === "--confirm-production") {
       options.confirmProduction = true;
     } else if (argument === "--confirm-repair") {
@@ -132,6 +222,11 @@ export function parseArguments(args) {
       );
     }
   } else {
+    if (options.evidenceDir) {
+      throw new Error(
+        "--evidence-dir is accepted only in read-only audit mode.",
+      );
+    }
     if (!options.confirmRepair) {
       throw new Error("Repair mode requires --confirm-repair.");
     }
@@ -142,13 +237,16 @@ export function parseArguments(args) {
   return options;
 }
 
-function resolveDatabaseUrl(mode) {
-  const variable =
-    mode === "repair"
-      ? "INTEGRITY_REPAIR_DATABASE_URL"
-      : "INTEGRITY_DATABASE_URL";
+function databaseVariable(mode) {
+  return mode === "repair"
+    ? "INTEGRITY_REPAIR_DATABASE_URL"
+    : "INTEGRITY_DATABASE_URL";
+}
+
+function resolveDatabaseUrl(mode, { required = true } = {}) {
+  const variable = databaseVariable(mode);
   const value = process.env[variable];
-  if (!value) {
+  if (!value && required) {
     throw new Error(`${variable} is required for ${mode} mode.`);
   }
   return value;
@@ -162,9 +260,7 @@ function validatePostgresUrl(value) {
     throw new Error("Integrity database URL must be a valid PostgreSQL URL.");
   }
   if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) {
-    throw new Error(
-      "Integrity database URL must use postgres:// or postgresql://.",
-    );
+    throw new Error("Integrity database URL must use a PostgreSQL protocol.");
   }
 }
 
@@ -173,7 +269,23 @@ function printReport(report, json) {
     console.log(JSON.stringify(report, null, 2));
     return;
   }
+  if (report.status === "not_run") {
+    console.log("Database integrity audit: NOT RUN");
+    console.log(`Target: ${report.target}`);
+    console.log(`Reason: ${report.reason.message}`);
+    return;
+  }
   console.log(formatIntegrityReport(report));
+}
+
+async function emitNotRunEvidence(options, reasonCode) {
+  const evidence = createNotRunEvidence({
+    generatedAt: new Date().toISOString(),
+    reasonCode,
+    target: options.target,
+  });
+  await writeIntegrityEvidence(options.evidenceDir, evidence);
+  printReport(evidence, options.json);
 }
 
 function requiredArgumentValue(args, index, option) {
@@ -187,11 +299,15 @@ function requiredArgumentValue(args, index, option) {
 function printUsage() {
   console.log(`Usage:
   npm run db:integrity -- audit --target <test|staging|production> [--json]
+    [--evidence-dir <directory>]
   npm run db:integrity -- repair --target <test|staging|production> \\
     --action <action> --confirm-repair [--confirm-production] [--json]
 
 Audit environment:
   INTEGRITY_DATABASE_URL              Read-only audit credential
+  INTEGRITY_EXPECTED_PROVIDER         Expected Production provider name
+  INTEGRITY_EXPECTED_PROJECT_HASH     Expected safe provider-project hash
+  INTEGRITY_EXPECTED_DATABASE_NAME    Expected Production database name
 
 Repair environment:
   INTEGRITY_REPAIR_DATABASE_URL       Separately controlled repair credential
@@ -208,7 +324,27 @@ actor, ticket, and separate credential. Production repair also requires
 }
 
 function redactError(error) {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = error instanceof Error ? error.message : String(error);
+  for (const variable of [
+    "INTEGRITY_DATABASE_URL",
+    "INTEGRITY_REPAIR_DATABASE_URL",
+  ]) {
+    const value = process.env[variable];
+    if (!value) continue;
+    message = message.replaceAll(value, "[REDACTED_DATABASE_URL]");
+    try {
+      const parsed = new URL(value);
+      for (const secretPart of [
+        parsed.password,
+        parsed.username,
+        parsed.hostname,
+      ]) {
+        if (secretPart) message = message.replaceAll(secretPart, "[REDACTED]");
+      }
+    } catch {
+      // The generic URL pattern below still handles a malformed inline URL.
+    }
+  }
   return message.replace(
     /postgres(?:ql)?:\/\/[^\s]+/gi,
     "[REDACTED_DATABASE_URL]",
