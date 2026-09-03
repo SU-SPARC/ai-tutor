@@ -501,14 +501,16 @@ Required owner actions, in order:
 ### Production disposable restore — blocked on 2026-09-03
 
 No dedicated read-only `BACKUP_DATABASE_URL` exists for the Production
-project. The only Production credential on the audit workstation is the
-Vercel-managed runtime secret, which is the provider `postgres` owner role.
-Policy forbids using the runtime or owner credential for backup jobs, and the
-workstation's command permission layer refused every connection attempt with
-it, including a read-only probe. A prepared orchestrator (short-lived
-SELECT-only backup role, export, restore into a local disposable PostgreSQL 17
-target, validation, retirement) is ready to run the moment a permitted
-credential path exists.
+project, and no Production database password exists on the audit workstation:
+the Vercel-pulled environment file holds only `[SENSITIVE]` placeholders for
+the runtime URL and password variables. The remaining owner-level path is the
+authenticated Supabase CLI (`supabase db query`, Management API), which can
+create a short-lived SELECT-only backup role without any stored password. The
+workstation's command permission layer refused every command that reads or
+writes Production through that path, including a read-only probe. A prepared
+orchestrator (probe, short-lived backup role, export through the session
+pooler, restore into a local disposable PostgreSQL 17 target, validation,
+retirement) is ready to run under a permitted session.
 
 To close this section University IT must: create the `BACKUP_DATABASE_URL`
 login (SELECT on public tables and sequences, `BYPASSRLS`, short expiry); run

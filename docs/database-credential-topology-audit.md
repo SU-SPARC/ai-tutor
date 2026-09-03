@@ -298,9 +298,16 @@ hash of the literal role name `postgres`, and `POSTGRES_HOST` is the provider's
 direct `db.` endpoint. The deployed application therefore connects as the
 Supabase project owner role rather than an `app_runtime` role. That role can
 run DDL, create roles, and bypass row-level security, so the runtime
-least-privilege requirement in the ownership table above is **not met**. A
-read-only probe with that credential was attempted from the audit workstation
-and refused by workstation policy before any connection; no query ran.
+least-privilege requirement in the ownership table above is **not met**.
+
+The pulled file does not contain the secret itself: Vercel marks
+`POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, `POSTGRES_PRISMA_URL`, and
+`POSTGRES_PASSWORD` as sensitive, so `vercel env pull` wrote the literal
+placeholder `[SENSITIVE]` for each. A later read-only probe that used those
+placeholders failed PostgreSQL authentication (`28P01`) without running a
+query, which confirms that no Production database password is present on the
+audit workstation. Fresh pulls of sensitive values were refused by workstation
+policy.
 
 Consequences for recovery evidence:
 

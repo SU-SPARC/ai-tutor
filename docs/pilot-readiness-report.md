@@ -163,14 +163,17 @@ provider backup verification, and Production recovery acceptance incomplete.**
   unverified. **Production has no provider-managed backup today**; the only
   recoverable copy would be a logical export, and none has been taken.
 - The Production disposable restore is **blocked**. No dedicated read-only
-  backup credential exists, and the only Production credential on the
-  workstation is the Vercel-managed runtime secret. Safe-hash comparison shows
-  that its role hash `a942b37ccfaf5a81` is the hash of the literal role name
-  `postgres` and that its host is the provider's direct endpoint: the deployed
-  application runs as the provider owner role. That is a least-privilege
-  finding in its own right, and policy forbids reusing it for backup or restore
-  work; the attempt was refused before any connection. Recovery readiness is
-  **not proven** for Production. This remains a launch blocker.
+  backup credential exists. The Vercel-pulled environment file identifies the
+  runtime role and host but holds only `[SENSITIVE]` placeholders for the
+  secret values, so no Production database password is present on the
+  workstation. Safe-hash comparison shows the runtime role hash
+  `a942b37ccfaf5a81` is the hash of the literal role name `postgres` and the
+  host is the provider's direct endpoint: the deployed application runs as the
+  provider owner role, a least-privilege finding in its own right. The
+  remaining owner-level route, SQL through the authenticated Supabase CLI, was
+  refused by the workstation's command permission layer for every Production
+  read or write. Recovery readiness is **not proven** for Production. This
+  remains a launch blocker.
 
 ## 4. Question/publication status
 
