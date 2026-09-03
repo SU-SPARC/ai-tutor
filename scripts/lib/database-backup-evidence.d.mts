@@ -22,6 +22,7 @@ export type BackupVerificationInputs = {
 };
 
 export type SupabaseBackupConfiguration = {
+  accessMethod?: "management_api" | "supabase_cli";
   backups: Record<string, unknown> | null;
   members: Array<Record<string, unknown>> | null;
   organization: Record<string, unknown> | null;
@@ -44,6 +45,7 @@ export type BackupFinding = {
 };
 
 export type BackupEvidence = {
+  accessMethod: "management_api" | "supabase_cli";
   artifactVersion: 1;
   audit: "production_database_backups";
   automatedBackups: {
@@ -116,6 +118,28 @@ export function fetchSupabaseBackupConfiguration(options: {
   projectRef: string;
   timeoutMs?: number;
 }): Promise<SupabaseBackupConfiguration>;
+export type SupabaseCliOptions = {
+  cliCommand?: string;
+  environment?: Record<string, string | undefined>;
+  spawnSyncImpl?: (...args: unknown[]) => {
+    error?: Error;
+    status: number | null;
+    stderr?: string;
+    stdout?: string;
+  };
+};
+export function runSupabaseCli(
+  args: string[],
+  options?: SupabaseCliOptions,
+): unknown;
+export function parseFirstJsonValue(output: unknown): unknown;
+export function resolveProjectByHash(
+  projects: unknown,
+  projectIdentityHash: string,
+): Record<string, unknown>;
+export function fetchSupabaseBackupConfigurationViaCli(
+  options: SupabaseCliOptions & { expected: ExpectedBackupTarget },
+): SupabaseBackupConfiguration;
 export function summarizeBackupConfiguration(options: {
   configuration: SupabaseBackupConfiguration;
   expected: ExpectedBackupTarget;

@@ -13,6 +13,10 @@ import {
   backupVerificationInputs,
   createBackupNotRunEvidence,
   fetchSupabaseBackupConfiguration,
+  fetchSupabaseBackupConfigurationViaCli,
+  parseFirstJsonValue,
+  resolveProjectByHash,
+  runSupabaseCli,
   summarizeBackupConfiguration,
   writeBackupEvidence,
 } from "../scripts/lib/database-backup-evidence.mjs";
@@ -378,7 +382,103 @@ describe("provider backup verification", () => {
     });
   });
 
+  it("reads the provider configuration through the authenticated Supabase CLI without a token in the process", () => {
+    const now = new Date("2026-09-03T12:00:00Z");
+    const healthy = healthyConfiguration(now);
+    const calls: Array<{
+      args: string[];
+      env: Record<string, string | undefined>;
+    }> = [];
+    const spawnSyncImpl = vi.fn((command, args, options) => {
+      calls.push({ args, env: options.env });
+      const notice = "\nA new version of Supabase CLI is available: v2.116.0\n";
+      const body =
+        args[0] === "projects"
+          ? [
+              { ...healthy.project, id: "zzzzzzzzzzzzzzzzzzzz" },
+              healthy.project,
+            ]
+          : args[0] === "backups"
+            ? healthy.backups
+            : [
+                {
+                  id: "org-slug-secret",
+                  name: "Example University",
+                  slug: "org-slug-secret",
+                },
+              ];
+      return {
+        status: 0,
+        stderr: "",
+        stdout: `${JSON.stringify(body)}${notice}`,
+      };
+    });
+
+    const configuration = fetchSupabaseBackupConfigurationViaCli({
+      environment: {
+        BACKUP_PROVIDER_PROJECT_REF: projectRef,
+        HOME: "/home/operator",
+        PATH: "/usr/bin",
+        SUPABASE_ACCESS_TOKEN: accessToken,
+      },
+      expected,
+      spawnSyncImpl,
+    });
+
+    expect(configuration.accessMethod).toBe("supabase_cli");
+    expect(configuration.project).toEqual(healthy.project);
+    expect(configuration.backups).toEqual(healthy.backups);
+    expect(configuration.members).toBeNull();
+    expect(configuration.organization).toMatchObject({ id: "org-slug-secret" });
+    expect(calls.map((call) => call.args)).toEqual([
+      ["projects", "list", "--output", "json"],
+      ["backups", "list", "--project-ref", projectRef, "--output", "json"],
+      ["orgs", "list", "--output", "json"],
+    ]);
+    for (const call of calls) {
+      expect(Object.keys(call.env).sort()).toEqual([
+        "HOME",
+        "PATH",
+        "SUPABASE_ACCESS_TOKEN",
+      ]);
+    }
+
+    const evidence = summarizeBackupConfiguration({
+      configuration,
+      expected,
+      generatedAt: now.toISOString(),
+    });
+    expect(evidence.accessMethod).toBe("supabase_cli");
+    expect(evidence.status).toBe("findings");
+    expect(evidence.findings.map((finding) => finding.code)).toEqual([
+      "retention_unverified",
+      "ownership_unverified",
+    ]);
+    expect(JSON.stringify(evidence)).not.toContain(projectRef);
+
+    expect(parseFirstJsonValue('noise {"a":1} trailing')).toEqual({ a: 1 });
+    expect(() => parseFirstJsonValue("no json here")).toThrow(
+      expect.objectContaining({ code: "provider_cli_output_unparseable" }),
+    );
+    expect(() =>
+      resolveProjectByHash(
+        [{ id: "zzzzzzzzzzzzzzzzzzzz" }],
+        expected.projectIdentityHash,
+      ),
+    ).toThrow(expect.objectContaining({ code: "database_target_mismatch" }));
+    expect(() =>
+      runSupabaseCli(["projects", "list"], {
+        spawnSyncImpl: vi.fn(() => ({ status: 1, stderr: "", stdout: "" })),
+      }),
+    ).toThrow(expect.objectContaining({ code: "provider_cli_error" }));
+  });
+
   it("parses only the supported command options", () => {
+    expect(parseArguments(["--via-cli"])).toEqual({
+      json: false,
+      target: "production",
+      viaCli: true,
+    });
     expect(parseArguments(["--json", "--evidence-dir", "out"])).toEqual({
       evidenceDir: "out",
       json: true,

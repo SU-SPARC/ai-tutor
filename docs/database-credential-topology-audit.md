@@ -335,3 +335,21 @@ Exact owner remediation, in addition to steps 1–12 above:
     migration, integrity, or restore credential.
 15. **Run the Production recovery exercise** exactly as described in the
     runbook's "Production Exercise Status" section and retain the artifacts.
+
+## Provider Backup Verification — 2026-09-03
+
+With the project owner's Supabase CLI session, `npm run db:backup:verify --
+--via-cli` selected the listed project whose safe hash equals
+`65888f3d354b7dfd` and read its backup listing read-only; the token stayed in
+the operating-system keychain. The project is `ACTIVE_HEALTHY` in `us-east-1`
+on PostgreSQL 17.6 and belongs to the organization that the Vercel integration
+created for the personal account (organization hash `a640b55a1a21a7cd`). The
+listing contains no daily backup, point-in-time recovery is disabled, and no
+physical recovery point exists. The organization plan and membership are not
+exposed by the CLI. Evidence:
+`docs/evidence/database-backups/2026-09-03T18-53-14-816Z-production-findings.json`.
+
+This adds a closure condition: the Production project must be moved under an
+institutionally owned organization on a plan with daily backups or
+point-in-time recovery, with at least two owners and MFA, before any backup
+claim can be made.

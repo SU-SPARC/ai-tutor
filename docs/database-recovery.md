@@ -2,13 +2,15 @@
 
 > **Evidence status (2026-09-03): the repository backup, restore, validation,
 > and evidence tooling is exercised end to end on a local disposable restore
-> that passed a clean 18/18 integrity audit. Production provider backups remain
-> not provider-verified, and the Production disposable restore is blocked until
-> an institutional provider access token and a dedicated read-only backup
-> credential exist.** Do not state that Production backups exist or that
-> Production recovery is proven. Backup existence alone never establishes
-> recovery readiness; only a successful disposable restore of a Production
-> backup does.
+> that passed a clean 18/18 integrity audit. Provider verification of the
+> Production project completed with a critical finding: the provider lists no
+> daily backup and point-in-time recovery is disabled, so Production has no
+> provider-managed backup. Retention and ownership are not provider-verified,
+> and the Production disposable restore is blocked until a dedicated read-only
+> backup credential exists.** Do not state that Production
+> backups exist or that Production recovery is proven. Backup existence alone
+> never establishes recovery readiness; only a successful disposable restore of
+> a Production backup does.
 
 This runbook defines named ownership, the backup policy, the provider
 verification command, the logical export command, the disposable restore-test
@@ -129,6 +131,16 @@ organization membership. It refuses to run unless the project reference hashes
 to the expected Production project fingerprint from the
 [credential-topology audit](database-credential-topology-audit.md). The token
 and reference are never printed; the evidence records only safe hashes.
+
+When the operator has already run `supabase login`, add `--via-cli` and omit
+the token and reference. The command then drives the authenticated CLI
+(`projects list`, `backups list`, `orgs list`), selects the project whose safe
+hash matches `BACKUP_EXPECTED_PROJECT_HASH`, and keeps the token in the
+operating-system keychain. The CLI does not expose the organization plan or
+membership, so retention and ownership are reported as unverified findings
+until an owner confirms them in the console or the Management API path is
+used. The artifact records `accessMethod` as `management_api` or
+`supabase_cli`.
 
 The artifact under `docs/evidence/database-backups/` records: provider region,
 project status and PostgreSQL version, PITR and WAL archiving flags, daily
@@ -434,7 +446,10 @@ Retained evidence:
 
 - export manifest `docs/evidence/database-recovery/2026-09-03T17-55-32-486Z-test-exported.json`
 - restore evidence `docs/evidence/database-recovery/2026-09-03T17-55-32-911Z-test-passed.json`
-- provider verification `docs/evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json`
+- provider verification, first attempt without a token
+  `docs/evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json`
+- provider verification through the authenticated CLI
+  `docs/evidence/database-backups/2026-09-03T18-53-14-816Z-production-findings.json`
 
 The first restore attempt failed because the archive carried the
 `CREATE SCHEMA public` entry that a new database already contains; the wrapper
@@ -449,21 +464,54 @@ duration, or Production data fidelity.
 
 ## Production Exercise Status
 
-**Blocked on 2026-09-03.** The Production exercise could not be run from the
-audit workstation because:
+### Provider verification — 2026-09-03, FINDINGS
 
-1. No institutional Supabase access token exists for `db:backup:verify`; the
-   Supabase CLI on the workstation is not authenticated, and the sanitized
-   `not_run` artifact is retained under `docs/evidence/database-backups/`.
-2. No dedicated read-only `BACKUP_DATABASE_URL` exists for the Production
-   project. The only Production credential on the workstation is the
-   Vercel-managed runtime secret, which is the provider `postgres` owner role;
-   policy forbids using the runtime or owner credential for backup jobs, and
-   the attempt to reuse it was refused.
+After the project owner authenticated the Supabase CLI, `db:backup:verify
+--via-cli` matched the listed project to the expected fingerprint
+`65888f3d354b7dfd` and read its backup listing. The retained artifact is
+`docs/evidence/database-backups/2026-09-03T18-53-14-816Z-production-findings.json`.
 
-To close this section University IT must, in order: create two institutional
-organization owners and a provider access token; run `db:backup:verify` and
-attach an exit-`0` artifact; create the `BACKUP_DATABASE_URL` login; run
+| Control                         | Provider state                                                                                   | Verdict                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Project                         | `ACTIVE_HEALTHY`, region `us-east-1`, PostgreSQL 17.6, release channel `ga`                       | Healthy                                    |
+| Daily provider backups          | None listed (`backups: null`)                                                                    | **Critical: no successful provider backup** |
+| Point-in-time recovery          | Disabled; WAL archiving flag on but no physical recovery point available                         | **Critical**                               |
+| Most recent successful backup   | None                                                                                             | **Critical**                               |
+| Retention window                | Unknown: the CLI does not expose the organization plan; the project lives in the organization the Vercel integration created for the personal account | High: unverified               |
+| Ownership                       | Organization membership not readable through the CLI; no institutional owner recorded            | High: unverified                           |
+
+Interpretation: **Production currently has no provider-managed backup at
+all.** The only recoverable copy of the Production database is a logical
+export taken with `db:backup:export`, and none has been taken yet. This is a
+launch blocker independent of the restore exercise.
+
+Required owner actions, in order:
+
+1. Move the project to a Supabase plan with daily backups (Pro or higher) or
+   enable point-in-time recovery, under an institutionally owned organization
+   with at least two owners and MFA. Record the plan and retention in the
+   Provider Verification Record.
+2. Rerun `db:backup:verify --via-cli` (or the Management API path) and require
+   exit `0`.
+3. Until step 1 is complete, take a `db:backup:export --target production`
+   archive at least daily and before every change, store it in the approved
+   encrypted location, and treat its `recoveryPoint.at` as the effective
+   recovery point.
+
+### Production disposable restore — blocked on 2026-09-03
+
+No dedicated read-only `BACKUP_DATABASE_URL` exists for the Production
+project. The only Production credential on the audit workstation is the
+Vercel-managed runtime secret, which is the provider `postgres` owner role.
+Policy forbids using the runtime or owner credential for backup jobs, and the
+workstation's command permission layer refused every connection attempt with
+it, including a read-only probe. A prepared orchestrator (short-lived
+SELECT-only backup role, export, restore into a local disposable PostgreSQL 17
+target, validation, retirement) is ready to run the moment a permitted
+credential path exists.
+
+To close this section University IT must: create the `BACKUP_DATABASE_URL`
+login (SELECT on public tables and sequences, `BYPASSRLS`, short expiry); run
 `db:backup:export --target production`; create an isolated disposable target;
 run `db:recovery:test --restore` with `--evidence-dir`; complete the operator
 comparisons; retire the target; and record the measured RPO/RTO in the table

@@ -5,6 +5,7 @@ export type BackupVerificationOptions =
       help?: false;
       json: boolean;
       target: string;
+      viaCli?: boolean;
     };
 
 export function parseArguments(args: string[]): BackupVerificationOptions;

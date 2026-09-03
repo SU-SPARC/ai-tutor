@@ -149,12 +149,19 @@ provider backup verification, and Production recovery acceptance incomplete.**
   and [restore evidence](evidence/database-recovery/2026-09-03T17-55-32-911Z-test-passed.json)
   contain hashes, counts, and durations only. Both drill databases and archives
   were deleted afterwards.
-- Provider backup verification is **NOT RUN**: no institutional Supabase access
-  token exists on the audit workstation, so the command connected to nothing
-  and retained the sanitized
-  [`not_run` artifact](evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json).
-  Automated backup schedule, retention, ownership, and the most recent
-  successful backup therefore remain unverified.
+- Provider backup verification first recorded a sanitized
+  [`not_run` artifact](evidence/database-backups/2026-09-03T17-51-58-450Z-production-not_run.json)
+  because no access token existed. After the project owner authenticated the
+  Supabase CLI, `db:backup:verify --via-cli` matched the listed project to the
+  expected fingerprint and read its backup listing without the token entering
+  the process. The retained
+  [findings artifact](evidence/database-backups/2026-09-03T18-53-14-816Z-production-findings.json)
+  shows the project healthy in `us-east-1` on PostgreSQL 17.6, but with **no
+  daily provider backup listed, point-in-time recovery disabled, and no
+  physical recovery point**. The organization plan and membership are not
+  readable through the CLI, so retention and institutional ownership remain
+  unverified. **Production has no provider-managed backup today**; the only
+  recoverable copy would be a logical export, and none has been taken.
 - The Production disposable restore is **blocked**. No dedicated read-only
   backup credential exists, and the only Production credential on the
   workstation is the Vercel-managed runtime secret. Safe-hash comparison shows
@@ -337,7 +344,7 @@ student identifiers.
 | Production runtime least privilege        | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
 | Recovery tooling focused suite            | PASS — 4 files, 22 tests                                                                           |
 | Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired         |
-| Provider backup verification              | **NOT RUN** — no institutional Supabase access token; sanitized `not_run` artifact retained        |
+| Provider backup verification              | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
 | Production backup/restore exercise        | **NOT PROVEN** — blocked on a dedicated backup credential; runtime owner credential refused        |
 | Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
 
@@ -383,9 +390,12 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    complete graph cleanup on a disposable restore; execute only with the
    separate approved change credential; then rerun
    `npm run db:integrity:audit:production` and require a clean 18/18 artifact.
-3. Prove Production backup and recovery: record two institutional Supabase
-   organization owners and issue a provider access token; run
-   `npm run db:backup:verify` until it exits `0`; create a dedicated read-only
+3. Prove Production backup and recovery: first move the Supabase project to a
+   plan with daily backups or enable point-in-time recovery under an
+   institutionally owned organization, because the provider currently holds
+   no backup of Production at all; record two institutional organization
+   owners; run `npm run db:backup:verify -- --via-cli` until it exits `0`;
+   until then take a `db:backup:export` archive daily; create a dedicated read-only
    `BACKUP_DATABASE_URL` login with `BYPASSRLS`; run
    `npm run db:backup:export -- --target production`; restore the archive into
    an isolated disposable target with `npm run db:recovery:test -- --restore
@@ -426,9 +436,11 @@ accepted. The stored migration credential is demonstrably a drifted
 Development target, and no independently verified Production replacement is
 available. The direct integrity audit completed but is not clean because one
 archived synthetic-marker finding remains. The backup and recovery tooling is
-proven only on a local synthetic drill: provider backups are unverified, the
-Production disposable restore is blocked on a dedicated backup credential, and
-the deployed runtime uses the provider owner role. Accessibility acceptance,
+proven only on a local synthetic drill. Provider verification shows that
+Production has no daily backup and no point-in-time recovery, so there is
+currently no recoverable copy of the Production database; the Production
+disposable restore is blocked on a dedicated backup credential, and the
+deployed runtime uses the provider owner role. Accessibility acceptance,
 monitoring, and external approvals also remain open.
 Re-run this gate after every blocker in section 13 is closed; passing
 application and deployment checks alone are insufficient.

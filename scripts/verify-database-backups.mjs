@@ -7,7 +7,9 @@ import {
   BackupVerificationError,
   backupVerificationInputs,
   createBackupNotRunEvidence,
+  expectedBackupTarget,
   fetchSupabaseBackupConfiguration,
+  fetchSupabaseBackupConfigurationViaCli,
   summarizeBackupConfiguration,
   writeBackupEvidence,
 } from "./lib/database-backup-evidence.mjs";
@@ -26,7 +28,9 @@ export async function main(args = process.argv.slice(2)) {
 
   let inputs;
   try {
-    inputs = backupVerificationInputs(process.env);
+    inputs = options.viaCli
+      ? { expected: expectedBackupTarget(process.env) }
+      : backupVerificationInputs(process.env);
   } catch (error) {
     if (
       error instanceof BackupVerificationError &&
@@ -46,7 +50,9 @@ export async function main(args = process.argv.slice(2)) {
     throw error;
   }
 
-  const configuration = await fetchSupabaseBackupConfiguration(inputs);
+  const configuration = options.viaCli
+    ? fetchSupabaseBackupConfigurationViaCli({ expected: inputs.expected })
+    : await fetchSupabaseBackupConfiguration(inputs);
   const evidence = summarizeBackupConfiguration({
     configuration,
     expected: inputs.expected,
@@ -75,6 +81,8 @@ export function parseArguments(args) {
       options.evidenceDir = requiredArgumentValue(args, ++index, argument);
     } else if (argument === "--target") {
       options.target = requiredArgumentValue(args, ++index, argument);
+    } else if (argument === "--via-cli") {
+      options.viaCli = true;
     } else {
       throw new Error(`Unknown backup verification option: ${argument}.`);
     }
@@ -108,6 +116,7 @@ function printReport(report, json) {
     `Provider backup verification: ${report.status === "verified" ? "verified" : "FINDINGS"}`,
   );
   console.log(`Target: ${report.target}`);
+  console.log(`Access method: ${report.accessMethod}`);
   console.log(`Project hash: ${report.project.identityHash}`);
   console.log(`PITR enabled: ${report.automatedBackups.pitrEnabled}`);
   console.log(
@@ -127,18 +136,24 @@ function printReport(report, json) {
 function printUsage() {
   console.log(`Usage:
   npm run db:backup:verify
-  node scripts/verify-database-backups.mjs [--json] [--evidence-dir <dir>] [--target production]
+  node scripts/verify-database-backups.mjs [--json] [--evidence-dir <dir>] [--target production] [--via-cli]
 
 Environment (read-only provider access only):
-  SUPABASE_ACCESS_TOKEN           Personal/institutional Supabase Management API token
-  BACKUP_PROVIDER_PROJECT_REF     Supabase project reference; only its safe hash is recorded
+  SUPABASE_ACCESS_TOKEN           Management API token (not needed with --via-cli)
+  BACKUP_PROVIDER_PROJECT_REF     Supabase project reference (not needed with --via-cli)
   BACKUP_EXPECTED_PROVIDER        supabase
   BACKUP_EXPECTED_PROJECT_HASH    Expected 16-character project safe hash
   BACKUP_EXPECTED_DATABASE_NAME   Expected database name
 
-The command performs GET requests only, never prints the token or reference,
-and writes a sanitized evidence artifact. Exit codes: 0 verified, 1 error,
-2 findings, 3 not run because the credential or expected target is missing.`);
+--via-cli drives the already authenticated Supabase CLI (projects list,
+backups list, orgs list) so the token stays in the operating-system keychain;
+the project is selected by matching the expected safe hash. Organization
+membership is not available through the CLI and is reported as unverified.
+
+The command performs read-only requests only, never prints the token or
+reference, and writes a sanitized evidence artifact. Exit codes: 0 verified,
+1 error, 2 findings, 3 not run because the credential or expected target is
+missing.`);
 }
 
 function redactError(error, environment = process.env) {

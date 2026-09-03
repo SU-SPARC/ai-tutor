@@ -1,0 +1,70 @@
+{
+  "accessMethod": "supabase_cli",
+  "artifactVersion": 1,
+  "audit": "production_database_backups",
+  "automatedBackups": {
+    "dailyBackupCount": 0,
+    "earliestPhysicalBackupAt": null,
+    "freshnessLimitHours": 36,
+    "latestDailyBackupStatus": null,
+    "latestPhysicalBackupAt": null,
+    "latestRecoveryPointAt": null,
+    "latestSuccessfulDailyBackupAt": null,
+    "pitrEnabled": false,
+    "recoveryPointAgeHours": null,
+    "retentionDays": null,
+    "retentionSource": "unknown",
+    "successfulDailyBackupCount": 0,
+    "walgEnabled": true
+  },
+  "credential": "SUPABASE_ACCESS_TOKEN",
+  "expectedFingerprint": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "findings": [
+    {
+      "code": "no_successful_provider_backup",
+      "detail": "The provider reports neither a completed daily backup nor a physical recovery point.",
+      "severity": "critical"
+    },
+    {
+      "code": "retention_unverified",
+      "detail": "The organization plan did not map to a documented provider retention window; confirm retention in the provider console.",
+      "severity": "high"
+    },
+    {
+      "code": "ownership_unverified",
+      "detail": "The organization membership could not be read; institutional recovery administrators are unverified.",
+      "severity": "high"
+    }
+  ],
+  "generatedAt": "2026-09-03T18:53:14.816Z",
+  "organization": {
+    "identityHash": "a640b55a1a21a7cd",
+    "plan": null,
+    "administratorCount": null,
+    "memberCount": null,
+    "mfaEnabledCount": null,
+    "ownerCount": null,
+    "verified": false
+  },
+  "project": {
+    "identityHash": "65888f3d354b7dfd",
+    "postgresEngine": "17",
+    "postgresVersion": "17.6.1.155",
+    "region": "us-east-1",
+    "releaseChannel": "ga",
+    "status": "ACTIVE_HEALTHY"
+  },
+  "provider": "supabase",
+  "readOnly": true,
+  "status": "findings",
+  "summary": {
+    "criticalFindings": 1,
+    "findingCount": 3
+  },
+  "target": "production",
+  "writesAttempted": 0
+}

@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import {
   safeHash,
   writeIntegrityEvidence,
@@ -138,6 +140,110 @@ export async function fetchSupabaseBackupConfiguration({
   return { backups, members, organization, project };
 }
 
+// The authenticated Supabase CLI keeps its access token in the operating
+// system keychain. Driving the CLI lets the verification run without the token
+// ever entering this process or a shell variable.
+export function runSupabaseCli(
+  args,
+  { cliCommand = "supabase", environment = process.env, spawnSyncImpl } = {},
+) {
+  const spawn = spawnSyncImpl ?? spawnSync;
+  const result = spawn(cliCommand, [...args, "--output", "json"], {
+    encoding: "utf8",
+    env: Object.fromEntries(
+      ["HOME", "LANG", "PATH", "SUPABASE_ACCESS_TOKEN", "TMPDIR"].flatMap(
+        (name) => (environment[name] ? [[name, environment[name]]] : []),
+      ),
+    ),
+    stdio: "pipe",
+  });
+  if (result?.error) {
+    throw new BackupVerificationError(
+      "Supabase CLI is unavailable on this host.",
+      "provider_cli_unavailable",
+    );
+  }
+  if (result?.status !== 0) {
+    throw new BackupVerificationError(
+      `Supabase CLI ${args.slice(0, 2).join(" ")} command failed with exit ${result?.status ?? "unknown"}.`,
+      "provider_cli_error",
+    );
+  }
+  return parseFirstJsonValue(result.stdout);
+}
+
+export function parseFirstJsonValue(output) {
+  const text = String(output ?? "");
+  const starts = ["[", "{"]
+    .map((character) => text.indexOf(character))
+    .filter((index) => index >= 0);
+  const ends = ["]", "}"]
+    .map((character) => text.lastIndexOf(character))
+    .filter((index) => index >= 0);
+  if (starts.length === 0 || ends.length === 0) {
+    throw new BackupVerificationError(
+      "Supabase CLI returned no JSON output.",
+      "provider_cli_output_unparseable",
+    );
+  }
+  try {
+    return JSON.parse(text.slice(Math.min(...starts), Math.max(...ends) + 1));
+  } catch {
+    throw new BackupVerificationError(
+      "Supabase CLI returned output that is not valid JSON.",
+      "provider_cli_output_unparseable",
+    );
+  }
+}
+
+export function resolveProjectByHash(projects, projectIdentityHash) {
+  const matches = (Array.isArray(projects) ? projects : []).filter(
+    (project) => safeHash(String(project?.id ?? "")) === projectIdentityHash,
+  );
+  if (matches.length !== 1) {
+    throw new BackupVerificationError(
+      matches.length === 0
+        ? "No listed provider project matches the expected Production project fingerprint."
+        : "More than one listed provider project matches the expected fingerprint.",
+      "database_target_mismatch",
+    );
+  }
+  return matches[0];
+}
+
+export function fetchSupabaseBackupConfigurationViaCli({
+  cliCommand,
+  environment,
+  expected,
+  spawnSyncImpl,
+}) {
+  const options = { cliCommand, environment, spawnSyncImpl };
+  const projects = runSupabaseCli(["projects", "list"], options);
+  const project = resolveProjectByHash(projects, expected.projectIdentityHash);
+  const backups = runSupabaseCli(
+    ["backups", "list", "--project-ref", String(project.id)],
+    options,
+  );
+  let organization = null;
+  try {
+    const organizations = runSupabaseCli(["orgs", "list"], options);
+    organization =
+      (Array.isArray(organizations) ? organizations : []).find(
+        (entry) =>
+          String(entry?.id ?? "") === String(project?.organization_id ?? ""),
+      ) ?? null;
+  } catch {
+    organization = null;
+  }
+  return {
+    accessMethod: "supabase_cli",
+    backups,
+    members: null,
+    organization,
+    project,
+  };
+}
+
 export function summarizeBackupConfiguration({
   configuration,
   expected,
@@ -258,6 +364,7 @@ export function summarizeBackupConfiguration({
   }
 
   return {
+    accessMethod: configuration.accessMethod ?? "management_api",
     artifactVersion: 1,
     audit: "production_database_backups",
     automatedBackups: {
