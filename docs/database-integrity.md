@@ -51,13 +51,19 @@ not deletion authorization.
 
 ## Read-Only Audit
 
-Use a dedicated PostgreSQL login with `CONNECT`, schema `USAGE`, and `SELECT`
-only. It must not have database `CREATE`/`TEMP`, schema creation, table write,
-sequence `USAGE`/`UPDATE`, superuser, database/role creation, replication,
-row-level-security bypass, executable public `SECURITY DEFINER` routines,
-backup, or provider-owner privileges. Inject its URL from the approved
-institutional secret store as `INTEGRITY_DATABASE_URL`; do not put the URL in a
-local environment file, ticket, command argument, or shell transcript.
+Use a dedicated PostgreSQL login with `CONNECT`, schema `USAGE`, and persistent
+table `SELECT` only. It must not have database `CREATE`, schema creation, table
+write, sequence `USAGE`/`UPDATE`, superuser, database/role creation,
+replication, executable public `SECURITY DEFINER` routines, backup, or
+provider-owner privileges. A separately controlled, short-lived audit role may
+have `BYPASSRLS` so the audit can verify the complete Production dataset; that
+capability does not grant table writes and is reported explicitly in the
+artifact. PostgreSQL may also grant temporary-table capability through the
+database's default `PUBLIC` ACL. Neither capability permits writes to
+persistent Production relations, and every audit session and transaction is
+forced read-only. Inject the URL from the approved institutional secret store
+as `INTEGRITY_DATABASE_URL`; do not put the URL in a repository file, ticket,
+command argument, or shell transcript.
 
 ```bash
 INTEGRITY_DATABASE_URL=<read-only credential> \

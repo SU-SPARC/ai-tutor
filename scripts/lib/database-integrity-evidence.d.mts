@@ -41,8 +41,11 @@ export type CompletedIntegrityEvidence = {
   audit: "production_database_integrity";
   checks: IntegrityCheck[];
   credentialAttestation: {
+    databaseTemporaryObjects: boolean;
     defaultTransactionReadOnly: true;
     forbiddenPrivilegeCount: 0;
+    persistentDataSelectOnly: true;
+    rowLevelSecurityBypass: boolean;
     selectOnly: true;
   };
   databaseFingerprint: SafeDatabaseFingerprint;
@@ -80,8 +83,11 @@ export function connectedDatabaseFingerprint(
   urlFingerprint: SafeDatabaseFingerprint,
 ): Promise<SafeDatabaseFingerprint>;
 export function attestSelectOnlyCredential(client: MigrationClient): Promise<{
+  databaseTemporaryObjects: boolean;
   defaultTransactionReadOnly: true;
   forbiddenPrivilegeCount: 0;
+  persistentDataSelectOnly: true;
+  rowLevelSecurityBypass: boolean;
   selectOnly: true;
 }>;
 export function summarizeMigrationStatus(status: MigrationStatus): {

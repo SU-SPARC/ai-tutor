@@ -199,9 +199,7 @@ export async function attestSelectOnlyCredential(client) {
     ["create_database", row.rolcreatedb],
     ["create_role", row.rolcreaterole],
     ["replication", row.rolreplication],
-    ["bypass_rls", row.rolbypassrls],
     ["database_create", row.database_create],
-    ["database_temp", row.database_temp],
     ["schema_create", row.schema_create],
     ["relation_write", row.relation_write],
     ["sequence_write", row.sequence_write],
@@ -218,8 +216,11 @@ export async function attestSelectOnlyCredential(client) {
   }
 
   return {
+    databaseTemporaryObjects: Boolean(row.database_temp),
     defaultTransactionReadOnly: true,
     forbiddenPrivilegeCount: 0,
+    persistentDataSelectOnly: true,
+    rowLevelSecurityBypass: Boolean(row.rolbypassrls),
     selectOnly: true,
   };
 }

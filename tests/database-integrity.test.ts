@@ -121,6 +121,36 @@ describe("production data integrity", () => {
     expect(await snapshotCorruptData(database)).toEqual(before);
   });
 
+  it("uses canonical lifecycle metadata for student-visible generated questions", async () => {
+    const database = await integrityDatabase("test");
+    await database.exec(`
+      drop view app_public_questions;
+      create view app_public_questions as
+        select
+          id,
+          source_type,
+          'professor_approved'::text as trust_level,
+          'approved'::text as review_status
+        from questions
+        where visibility = 'public';
+      insert into topics (id, sort_order) values ('generated-topic', 1);
+      insert into questions (
+        id, topic_id, title, source_type, trust_level, review_status,
+        visibility
+      ) values (
+        'published-generated-question', 'generated-topic',
+        'Published generated question', 'generated_original',
+        'generated_unverified', 'needs_review', 'public'
+      );
+    `);
+
+    const report = await runReadOnlyIntegrityAudit(clientFor(database), {
+      target: "test",
+    });
+
+    expect(check(report, "generated_drafts_student_visible").count).toBe(0);
+  });
+
   it("detects lifecycle pointer and published-state drift", async () => {
     const database = await integrityDatabase("test");
     await database.exec(`
@@ -562,9 +592,11 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       visibility text
     );
     create view app_public_questions as
-      select id from questions where visibility = 'public';
+      select id, source_type, trust_level, review_status
+      from questions where visibility = 'public';
     create view app_student_retrieval_chunks as
-      select id from retrieval_chunks where visibility = 'public';
+      select id, source_type, trust_level, review_status
+      from retrieval_chunks where visibility = 'public';
 
     create table users (
       id text,

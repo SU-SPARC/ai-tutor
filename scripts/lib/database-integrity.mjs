@@ -216,28 +216,26 @@ const AUDIT_CHECKS = Object.freeze([
     severity: "critical",
     title: "Generated drafts accidentally student-visible",
     violationsSql: `
-      select ('question:' || q.id)::text as record_id
-      from questions q
-      join app_public_questions visible on visible.id = q.id
-      where q.source_type in (
+      select ('question:' || visible.id)::text as record_id
+      from app_public_questions visible
+      where visible.source_type in (
           'generated_original',
           'pattern_derived_original'
         )
         and (
-          q.review_status <> 'approved'
-          or q.trust_level <> 'professor_approved'
+          visible.review_status <> 'approved'
+          or visible.trust_level <> 'professor_approved'
         )
       union all
-      select ('retrieval:' || rc.id)::text as record_id
-      from retrieval_chunks rc
-      join app_student_retrieval_chunks visible on visible.id = rc.id
-      where rc.source_type in (
+      select ('retrieval:' || visible.id)::text as record_id
+      from app_student_retrieval_chunks visible
+      where visible.source_type in (
           'generated_original',
           'pattern_derived_original'
         )
         and (
-          rc.review_status <> 'approved'
-          or rc.trust_level = 'generated_unverified'
+          visible.review_status <> 'approved'
+          or visible.trust_level = 'generated_unverified'
         )
     `,
   },

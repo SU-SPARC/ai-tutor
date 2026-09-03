@@ -96,10 +96,10 @@ describe("database integrity evidence", () => {
           rows: [
             {
               database_create: false,
-              database_temp: false,
+              database_temp: true,
               default_transaction_read_only: true,
               relation_write: false,
-              rolbypassrls: false,
+              rolbypassrls: true,
               rolcreatedb: false,
               rolcreaterole: false,
               rolreplication: false,
@@ -126,10 +126,10 @@ describe("database integrity evidence", () => {
           rows: [
             {
               database_create: false,
-              database_temp: false,
+              database_temp: true,
               default_transaction_read_only: true,
               relation_write: false,
-              rolbypassrls: false,
+              rolbypassrls: true,
               rolcreatedb: false,
               rolcreaterole: false,
               rolreplication: false,
@@ -144,8 +144,11 @@ describe("database integrity evidence", () => {
     };
 
     await expect(attestSelectOnlyCredential(client)).resolves.toEqual({
+      databaseTemporaryObjects: true,
       defaultTransactionReadOnly: true,
       forbiddenPrivilegeCount: 0,
+      persistentDataSelectOnly: true,
+      rowLevelSecurityBypass: true,
       selectOnly: true,
     });
   });

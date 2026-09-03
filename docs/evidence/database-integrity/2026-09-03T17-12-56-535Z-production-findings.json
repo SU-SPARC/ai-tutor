@@ -1,0 +1,230 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_integrity",
+  "checks": [
+    {
+      "count": 0,
+      "description": "Questions must reference an existing topic; topic inference is never automatic.",
+      "id": "broken_question_topic_relationships",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Broken question-topic relationships"
+    },
+    {
+      "count": 0,
+      "description": "Approved public questions must include at least one nonblank ordered solution step.",
+      "id": "missing_solution_steps",
+      "repairAction": "quarantine-unsafe-questions",
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "Missing solution steps"
+    },
+    {
+      "count": 0,
+      "description": "Question identifiers must be globally unique even if a primary-key constraint was disabled or lost.",
+      "id": "duplicate_question_ids",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Duplicate question IDs"
+    },
+    {
+      "count": 0,
+      "description": "Publication metadata must agree on visibility, approval, trust, reviewer identity, timestamps, and archive state.",
+      "id": "invalid_publication_states",
+      "repairAction": "quarantine-unsafe-questions",
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Invalid publication states"
+    },
+    {
+      "count": 0,
+      "description": "Every approved question must have immutable approval history attributed to its recorded reviewer.",
+      "id": "approved_questions_without_reviewer_history",
+      "repairAction": "quarantine-unsafe-questions",
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Approved questions without reviewer history"
+    },
+    {
+      "count": 0,
+      "description": "Every lifecycle question must have a valid working pointer and at most one matching published pointer/state.",
+      "id": "invalid_question_lifecycle_pointers",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Invalid question lifecycle pointers"
+    },
+    {
+      "count": 0,
+      "description": "Generated drafts and unverified generated retrieval chunks must never appear in student-facing views.",
+      "id": "generated_drafts_student_visible",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Generated drafts accidentally student-visible"
+    },
+    {
+      "count": 0,
+      "description": "Topic syllabus positions must be nonnegative and unique, including after constraint drift.",
+      "id": "topic_order_conflicts",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "Topic-order conflicts"
+    },
+    {
+      "count": 0,
+      "description": "Tutor sessions must retain exactly one valid identity and a recoverable question reference.",
+      "id": "orphaned_tutor_sessions",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "Orphaned tutor sessions"
+    },
+    {
+      "count": 0,
+      "description": "Every declared public foreign key must remain validated and have enabled PostgreSQL enforcement triggers.",
+      "id": "foreign_key_enforcement",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Foreign-key enforcement"
+    },
+    {
+      "count": 0,
+      "description": "Questions, immutable versions, approval decisions, and approved imports must retain their required user owners.",
+      "id": "required_ownership_relationships",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Required ownership relationships"
+    },
+    {
+      "count": 0,
+      "description": "Every persisted question-version pointer must resolve to an immutable version of the same question.",
+      "id": "immutable_question_version_references",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Immutable question-version references"
+    },
+    {
+      "count": 0,
+      "description": "Feedback must retain a matching tutor session, question, immutable version, and reporter ownership fingerprint.",
+      "id": "feedback_linkage",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "Feedback linkage"
+    },
+    {
+      "count": 0,
+      "description": "AI reservations must resolve to one session, one student fingerprint per session, and matching dated student accounting.",
+      "id": "ai_reservation_accounting",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "AI reservation/accounting linkage"
+    },
+    {
+      "count": 0,
+      "description": "Session creation, attempts, feedback, and AI reservations must not reuse an idempotency key inside the same owner scope.",
+      "id": "duplicate_idempotency_keys",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Duplicate idempotency keys"
+    },
+    {
+      "count": 0,
+      "description": "Progress, feedback, and AI rows linked to one tutor session must not cross authenticated or anonymous student ownership boundaries.",
+      "id": "cross_student_ownership_anomalies",
+      "repairAction": null,
+      "sampleIds": [],
+      "severity": "critical",
+      "status": "passed",
+      "title": "Cross-student ownership anomalies"
+    },
+    {
+      "count": 0,
+      "description": "Usage, token, attempt, progress, and reservation counters must be nonnegative and internally consistent.",
+      "id": "impossible_usage_counts",
+      "repairAction": "reconcile-usage-totals",
+      "sampleIds": [],
+      "severity": "high",
+      "status": "passed",
+      "title": "Impossible usage counts"
+    },
+    {
+      "count": 1,
+      "description": "Production-shaped data must not contain non-Production ledgers or explicit demo/test/fake/fixture/synthetic markers.",
+      "id": "test_demo_records_in_production",
+      "repairAction": null,
+      "sampleIds": ["ref_47a41c5149556716"],
+      "severity": "critical",
+      "status": "findings",
+      "title": "Test/demo records in production-shaped data"
+    }
+  ],
+  "credentialAttestation": {
+    "databaseTemporaryObjects": true,
+    "defaultTransactionReadOnly": true,
+    "forbiddenPrivilegeCount": 0,
+    "persistentDataSelectOnly": true,
+    "rowLevelSecurityBypass": true,
+    "selectOnly": true
+  },
+  "databaseFingerprint": {
+    "databaseName": "postgres",
+    "endpointKind": "pooler",
+    "hostHash": "3932d873511760d0",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase",
+    "roleHash": "69cc5f0489e4a7ba",
+    "connectedDatabaseName": "postgres",
+    "connectedRoleHash": "5982cada2a36410b"
+  },
+  "expectedFingerprint": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-03T17:12:56.535Z",
+  "migrationLedger": {
+    "appliedCount": 21,
+    "issueCount": 0,
+    "issueTypes": [],
+    "ledgerFingerprint": "18b5a636a4e3ac41",
+    "pendingCount": 0,
+    "state": "current",
+    "totalCount": 21
+  },
+  "mode": "audit",
+  "readOnly": true,
+  "status": "findings",
+  "summary": {
+    "failedChecks": 1,
+    "findings": 1,
+    "passedChecks": 17,
+    "totalChecks": 18
+  },
+  "target": "production",
+  "writesAttempted": 0
+}
