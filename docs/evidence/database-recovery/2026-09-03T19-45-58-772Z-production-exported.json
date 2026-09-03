@@ -1,0 +1,50 @@
+{
+  "actor": "Kanan Guliyev (project owner, engineering)",
+  "archive": {
+    "format": "custom",
+    "schema": "public",
+    "sha256": "fc7035bd42976bf8c092408abe845531471b89804c9aa2c28142dcd5fdb971d7",
+    "sizeBytes": 826300
+  },
+  "artifact": "logical_database_backup",
+  "artifactVersion": 1,
+  "changeTicket": "RECOVERY-PROD-2026-09-03",
+  "credential": "BACKUP_DATABASE_URL",
+  "export": {
+    "completedAt": "2026-09-03T19:45:58.772Z",
+    "durationMs": 6098,
+    "startedAt": "2026-09-03T19:45:52.674Z",
+    "tool": "pg_dump",
+    "toolVersion": "18.6"
+  },
+  "generatedAt": "2026-09-03T19:45:58.772Z",
+  "migrationLedger": {
+    "appliedCount": 21,
+    "issueCount": 0,
+    "issueTypes": [],
+    "ledgerFingerprint": "18b5a636a4e3ac41",
+    "pendingCount": 0,
+    "state": "current",
+    "totalCount": 21
+  },
+  "readOnly": true,
+  "recoveryPoint": {
+    "at": "2026-09-03T19:45:52.522Z"
+  },
+  "server": {
+    "snapshotAt": "2026-09-03T19:45:52.522Z",
+    "version": "17.6"
+  },
+  "source": {
+    "databaseName": "postgres",
+    "endpointKind": "pooler",
+    "hostHash": "3932d873511760d0",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase",
+    "roleHash": "b3ccb44d349e7138"
+  },
+  "sourceLabel": "production logical export via short-lived SELECT-only role",
+  "status": "exported",
+  "target": "production",
+  "writesAttempted": 0
+}

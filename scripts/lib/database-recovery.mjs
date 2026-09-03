@@ -707,9 +707,17 @@ async function latestCommittedRecord(client, tables) {
 
 export function minimalPostgresEnvironment(environment) {
   return Object.fromEntries(
-    ["LANG", "LC_ALL", "PATH", "SYSTEMROOT", "TMPDIR"].flatMap((name) =>
-      environment[name] ? [[name, environment[name]]] : [],
-    ),
+    // USER/LOGNAME carry no secret; libpq needs one of them to pick a default
+    // role name when the URL omits the user.
+    [
+      "LANG",
+      "LC_ALL",
+      "LOGNAME",
+      "PATH",
+      "SYSTEMROOT",
+      "TMPDIR",
+      "USER",
+    ].flatMap((name) => (environment[name] ? [[name, environment[name]]] : [])),
   );
 }
 

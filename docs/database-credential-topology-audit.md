@@ -5,8 +5,9 @@ Date: 2026-09-03
 Status: **FAIL CLOSED — the Production technical target is independently
 fingerprinted, but institutional provider ownership and a valid Production
 migration credential are not established; the integrity audit has one critical
-finding; the runtime credential is the provider owner role; provider backups
-and the Production restore exercise are unverified.**
+finding; the runtime credential is the provider owner role; the provider holds
+no backup of Production; a Production logical export was restored, validated,
+and audited in an isolated disposable database and then retired.**
 
 This audit compares database targets without retaining or printing connection
 strings, passwords, raw hosts, or raw provider project references. It did not
@@ -360,3 +361,35 @@ This adds a closure condition: the Production project must be moved under an
 institutionally owned organization on a plan with daily backups or
 point-in-time recovery, with at least two owners and MFA, before any backup
 claim can be made.
+
+## Production Recovery Exercise And Role Hygiene — 2026-09-03
+
+With the project owner's Supabase CLI session, owner SQL ran through the
+Management API (`supabase db query --linked --project-ref`) with no stored
+database password. A read-only probe confirmed the live target: PostgreSQL
+17.6, 17.9 MB, ledger 21/21, the owner role `postgres` (not superuser, can
+create roles, bypasses row-level security), and row-level security enabled on
+all 29 public tables. A short-lived `backup_export_*` login (SELECT-only,
+`BYPASSRLS`, two-hour expiry, connection limit 2) exported the database
+through the session pooler (host hash `3932d873511760d0`) and was dropped
+immediately afterwards (`remaining: 0`). The archive restored cleanly into an
+isolated local PostgreSQL 17 database with the identical ledger fingerprint
+`18b5a636a4e3ac41`; see [database-recovery.md](database-recovery.md).
+
+The probe also found the login `integrity_audit_99d8dc84256121f8` still
+present with `BYPASSRLS`, no expiry, and 36 grant dependencies, contradicting
+the earlier statement that the audit login "is removed during audit cleanup".
+A removal was attempted in the same session: the revokes succeeded inside a
+`DO` block, but `DROP OWNED` failed with PostgreSQL `42501` because the owner
+role is not a member of the audit role, and the whole block rolled back, so
+the login **still exists**. The corrected owner script (grant membership to
+`postgres`, `DROP OWNED`, `DROP ROLE`, then count remaining temporary roles)
+is prepared; subsequent attempts to run it from the audit workstation were
+refused by the command permission layer. Closing this item requires the
+project owner to run that script and record the zero-count result. The
+provider-managed `cli_login_postgres` role, which the Supabase CLI creates
+with a short expiry for its own queries, is left in place.
+
+Because row-level security covers every public table, `db/roles/app_runtime.sql`
+now creates its `app_runtime_full_access` policy on every row-level-security
+table dynamically instead of on three fixed tables.

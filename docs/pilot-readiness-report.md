@@ -162,18 +162,38 @@ provider backup verification, and Production recovery acceptance incomplete.**
   readable through the CLI, so retention and institutional ownership remain
   unverified. **Production has no provider-managed backup today**; the only
   recoverable copy would be a logical export, and none has been taken.
-- The Production disposable restore is **blocked**. No dedicated read-only
-  backup credential exists. The Vercel-pulled environment file identifies the
-  runtime role and host but holds only `[SENSITIVE]` placeholders for the
-  secret values, so no Production database password is present on the
-  workstation. Safe-hash comparison shows the runtime role hash
-  `a942b37ccfaf5a81` is the hash of the literal role name `postgres` and the
-  host is the provider's direct endpoint: the deployed application runs as the
-  provider owner role, a least-privilege finding in its own right. The
-  remaining owner-level route, SQL through the authenticated Supabase CLI, was
-  refused by the workstation's command permission layer for every Production
-  read or write. Recovery readiness is **not proven** for Production. This
-  remains a launch blocker.
+- A **Production disposable restore passed** on 2026-09-03. With no stored
+  database password (the Vercel-pulled file holds only `[SENSITIVE]`
+  placeholders), owner SQL ran through the project owner's authenticated
+  Supabase CLI to create a two-hour SELECT-only backup role, the repository
+  export took an 826 KB custom-format archive through the session pooler in
+  6.1 s (ledger `current` 21/21, fingerprint `18b5a636a4e3ac41`), the role was
+  dropped, and the archive was restored into an empty local PostgreSQL 17.11
+  database in 178 ms. Validation passed (identical ledger fingerprint, 21
+  critical tables, referential and sequence checks clean) and the 18-check
+  integrity audit on the restored copy reproduced exactly the one known
+  archived synthetic-marker finding. The whole automated exercise took 254 ms
+  with a recovery-point age of 148 s; the target and archive were retired and
+  the evidence hashes cross-checked. Retained:
+  [export manifest](evidence/database-recovery/2026-09-03T19-45-58-772Z-production-exported.json)
+  and [restore evidence](evidence/database-recovery/2026-09-03T19-48-20-975Z-production-passed.json).
+  Production row counts on the restored copy: 235 questions, 462 immutable
+  versions, 38 tutor sessions, 126 attempts, 7 users, 551 audit events.
+- The runtime least-privilege finding stands: the runtime role hash
+  `a942b37ccfaf5a81` is the hash of the literal role name `postgres` on the
+  provider's direct host. The probe also showed row-level security enabled on
+  all 29 public tables, so the committed `db/roles/app_runtime.sql` now adds
+  its policy to every such table dynamically. A leftover
+  `integrity_audit_…` login with `BYPASSRLS` and no expiry from the earlier
+  audit session was found; the first removal attempt failed on a
+  `DROP OWNED` privilege check and rolled back, and the corrected removal
+  script awaits the project owner. The short-lived `backup_export_…` role
+  from this exercise was dropped (`remaining: 0`).
+- Recovery readiness for Production is therefore **partially proven**: the
+  logical export path restores and validates, but the provider holds no
+  backup, no institutional custody of a weekly archive exists yet, and the
+  operator comparisons and RPO/RTO acceptance are not signed. Those remain
+  launch blockers.
 
 ## 4. Question/publication status
 
@@ -348,7 +368,8 @@ student identifiers.
 | Recovery tooling focused suite            | PASS — 4 files, 22 tests                                                                           |
 | Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired         |
 | Provider backup verification              | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
-| Production backup/restore exercise        | **NOT PROVEN** — blocked on a dedicated backup credential; runtime owner credential refused        |
+| Production backup/restore exercise        | PASS — logical export, isolated restore, clean validation, 17/18 audit (known finding), retired   |
+| Institutional archive custody             | **NOT PROVEN** — no weekly logical copy under IT custody; provider holds no backup                 |
 | Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
@@ -438,12 +459,11 @@ but Production database ownership and operator-credential topology are not
 accepted. The stored migration credential is demonstrably a drifted
 Development target, and no independently verified Production replacement is
 available. The direct integrity audit completed but is not clean because one
-archived synthetic-marker finding remains. The backup and recovery tooling is
-proven only on a local synthetic drill. Provider verification shows that
-Production has no daily backup and no point-in-time recovery, so there is
-currently no recoverable copy of the Production database; the Production
-disposable restore is blocked on a dedicated backup credential, and the
-deployed runtime uses the provider owner role. Accessibility acceptance,
-monitoring, and external approvals also remain open.
+archived synthetic-marker finding remains. A Production logical export was
+restored into an isolated database, validated, and audited, which proves the
+recovery path, but provider verification shows that Production has no daily
+backup and no point-in-time recovery, no institutional custody of an archive
+exists, and the deployed runtime uses the provider owner role. Accessibility
+acceptance, monitoring, and external approvals also remain open.
 Re-run this gate after every blocker in section 13 is closed; passing
 application and deployment checks alone are insufficient.

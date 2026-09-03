@@ -59,12 +59,14 @@ describe("least-privilege runtime role provisioning", () => {
         has_table_privilege('app_runtime', 'question_versions', 'SELECT') as version_select,
         has_sequence_privilege('app_runtime', 'attempts_id_seq', 'USAGE') as sequence_usage,
         has_function_privilege('app_runtime', 'app_set_updated_at()', 'EXECUTE') as trigger_execute,
-        (select count(*)::int from pg_policies where policyname = 'app_runtime_full_access') as availability_policies
+        (select count(*)::int from pg_policies where policyname = 'app_runtime_full_access') as runtime_policies,
+        (select count(*)::int from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' and relrowsecurity) as row_level_security_tables
       from pg_roles
       where rolname = 'app_runtime'
     `);
     expect(verification.rows[0]).toEqual({
-      availability_policies: 3,
+      row_level_security_tables: 3,
+      runtime_policies: 3,
       rolbypassrls: false,
       rolcanlogin: false,
       rolcreatedb: false,

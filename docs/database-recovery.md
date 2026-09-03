@@ -5,9 +5,9 @@
 > that passed a clean 18/18 integrity audit. Provider verification of the
 > Production project completed with a critical finding: the provider lists no
 > daily backup and point-in-time recovery is disabled, so Production has no
-> provider-managed backup. Retention and ownership are not provider-verified,
-> and the Production disposable restore is blocked until a dedicated read-only
-> backup credential exists.** Do not state that Production
+> provider-managed backup. Retention and ownership are not provider-verified.
+> A Production logical export was restored into an isolated local disposable
+> database, validated, and audited on 2026-09-03, then retired.** Do not state that Production
 > backups exist or that Production recovery is proven. Backup existence alone
 > never establishes recovery readiness; only a successful disposable restore of
 > a Production backup does.
@@ -73,9 +73,11 @@ Objectives are defaults in the tooling and can be tightened per exercise with
 | Automated validation and audit       | —               | 31 ms validation plus a clean 18/18 read-only integrity audit        | Under one minute                                                                                                                                       |
 | Recovery time objective (RTO)        | ≤ 24 hours      | Whole automated exercise 212 ms                                     | Dominated by people, not tooling: detection and authorization (≤ 2 h), provider or logical restore (≤ 1 h), validation review (≤ 1 h), cutover and smoke (≤ 1 h) |
 
-Rows for Production remain expectations until the Production disposable
-restore in the "Production Exercise Status" section is completed and its
-artifact is retained.
+Measured on the Production exercise of 2026-09-03 (17.9 MB database, 235
+questions, 38 sessions): logical export 6,098 ms through the session pooler,
+`pg_restore` 178 ms, validation 35 ms plus the 18-check audit, whole
+automated exercise 254 ms, recovery-point age 148 s. The human steps in the
+last row remain the binding RTO constraint.
 
 ## Project-Owner RPO And RTO Questions
 
@@ -498,26 +500,46 @@ Required owner actions, in order:
    encrypted location, and treat its `recoveryPoint.at` as the effective
    recovery point.
 
-### Production disposable restore — blocked on 2026-09-03
+### Production logical export and disposable restore — 2026-09-03, PASSED
 
-No dedicated read-only `BACKUP_DATABASE_URL` exists for the Production
-project, and no Production database password exists on the audit workstation:
-the Vercel-pulled environment file holds only `[SENSITIVE]` placeholders for
-the runtime URL and password variables. The remaining owner-level path is the
-authenticated Supabase CLI (`supabase db query`, Management API), which can
-create a short-lived SELECT-only backup role without any stored password. The
-workstation's command permission layer refused every command that reads or
-writes Production through that path, including a read-only probe. A prepared
-orchestrator (probe, short-lived backup role, export through the session
-pooler, restore into a local disposable PostgreSQL 17 target, validation,
-retirement) is ready to run under a permitted session.
+No stored Production database password was used: the Vercel-pulled
+environment file holds only `[SENSITIVE]` placeholders. Owner-level SQL ran
+through the project owner's authenticated Supabase CLI (`supabase db query
+--linked --project-ref`, Management API). The exercise, executed by Kanan
+Guliyev under ticket label `RECOVERY-PROD-2026-09-03`:
 
-To close this section University IT must: create the `BACKUP_DATABASE_URL`
-login (SELECT on public tables and sequences, `BYPASSRLS`, short expiry); run
-`db:backup:export --target production`; create an isolated disposable target;
-run `db:recovery:test --restore` with `--evidence-dir`; complete the operator
-comparisons; retire the target; and record the measured RPO/RTO in the table
-above.
+| Step                                                        | Time (UTC)      | Result                                                                                                                       |
+| ----------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Owner read-only probe                                       | 19:45:47        | PostgreSQL 17.6, database 17.9 MB, ledger 21/21, 235 questions, 38 tutor sessions, 126 attempts, 7 users; row-level security enabled on all 29 public tables |
+| Create short-lived backup role                              | 19:45:50        | `LOGIN`, `SELECT` on public tables and sequences, `BYPASSRLS`, connection limit 2, `VALID UNTIL` two hours                    |
+| `db:backup:export --target production` via session pooler   | 19:45:52.522 (snapshot) | 6,098 ms; ledger target `production`, state `current`, fingerprint `18b5a636a4e3ac41`; archive 826,300 bytes; SHA-256 `fc7035bd42976bf8c092408abe845531471b89804c9aa2c28142dcd5fdb971d7` |
+| Drop backup role                                            | 19:45:59        | `remaining: 0`                                                                                                               |
+| `db:recovery:test --restore` into empty local PostgreSQL 17.11 target | 19:48:20.752–19:48:20.930 | `pg_restore` 18.6, 178 ms; 392 archive entries, 390 restored, 2 schema entries skipped                                |
+| Automated validation                                        | 19:48:20.9      | 35 ms; ledger `current` 21/21 with fingerprint `18b5a636a4e3ac41` (identical to the live Production ledger); 8 referential and 11 sequence checks clean; 21 critical tables counted |
+| Read-only integrity audit on the restored copy              | 19:48:20.9      | 17/18 passed; the single finding is the already-ticketed archived synthetic-marker question, reproduced exactly              |
+| Whole automated exercise                                    | —               | 254 ms; recovery-point age 148 s at exercise; within the 24 h objectives                                                     |
+| Retire: drop target, delete archive, verify                 | 19:48:21        | Target absent, archive removed, hash in restore evidence matches the manifest                                                |
+
+Retained evidence:
+
+- export manifest
+  `docs/evidence/database-recovery/2026-09-03T19-45-58-772Z-production-exported.json`
+- restore evidence
+  `docs/evidence/database-recovery/2026-09-03T19-48-20-975Z-production-passed.json`
+
+Latest committed record in the restored copy: `2026-09-01T10:18:32Z`, so no
+Production write between the last activity and the snapshot was lost. The
+first restore attempt failed before writing anything because the target URL
+omitted a user name and `pg_restore` 18 does not infer one; the wrapper now
+passes `USER`/`LOGNAME` through to the client and the rerun passed.
+
+What this proves: a Production backup taken by the repository export command
+can be restored into an isolated database and passes every automated
+validation and the full integrity audit. What it does not prove: provider
+backups (none exist; see above), operator comparisons against a signed content
+manifest, and a professor/IT-accepted RPO/RTO. The archive was a workstation
+copy retired after the exercise; the weekly logical copy under institutional
+custody still has to be established.
 
 ## Provider Verification Record
 

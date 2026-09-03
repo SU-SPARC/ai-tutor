@@ -2,17 +2,18 @@
 --
 -- Run this as the database owner (the Supabase `postgres` role) from the
 -- approved change job, never from the application or a migration. It is
--- idempotent. It does not set a password: University IT sets the login
--- password separately through the provider's audited process and stores the
+-- idempotent. It does not set a login secret: University IT sets the login
+-- credential separately through the provider's audited process and stores the
 -- resulting URL only as the Vercel Production `DATABASE_URL` secret.
 --
 -- The role receives exactly the data-manipulation, sequence, view, and
 -- function access the server needs. It cannot run DDL, create or manage
 -- roles, bypass row-level security, administer backups, or reach provider
--- administration. The three row-level-security tables are locked to
--- everything except this role and the owner through explicit policies; the
--- Data API roles (`anon`, `authenticated`) still receive no policy and no
--- privileges.
+-- administration. Every public table with row-level security enabled gets an
+-- explicit policy for this role only, so the Data API roles (`anon`,
+-- `authenticated`) still receive no policy and no privileges. Production
+-- currently has row-level security enabled on every public table, so the
+-- policy loop is dynamic rather than a fixed list.
 
 do $$
 begin
@@ -38,30 +39,33 @@ alter default privileges for role postgres in schema public
 alter default privileges for role postgres in schema public
   grant execute on functions to app_runtime;
 
--- Row-level security is enabled without policies on the availability tables so
--- that provider Data API roles see nothing. The runtime role needs full
--- access to those rows; policies scoped to the role keep the lockout intact
--- for every other non-owner role.
+-- Row-level security is enabled without policies so that provider Data API
+-- roles see nothing. The runtime role needs full access to those rows;
+-- policies scoped to the role keep the lockout intact for every other
+-- non-owner role. Tables that later enable row-level security must be re-run
+-- through this script.
 do $$
 declare
-  availability_table text;
+  secured_table text;
 begin
-  foreach availability_table in array array[
-    'topic_student_availability',
-    'question_student_availability',
-    'student_content_availability_events'
-  ]
+  for secured_table in
+    select c.relname
+    from pg_class c
+    where c.relnamespace = 'public'::regnamespace
+      and c.relkind = 'r'
+      and c.relrowsecurity
+    order by c.relname
   loop
     if not exists (
       select 1
       from pg_policies
       where schemaname = 'public'
-        and tablename = availability_table
+        and tablename = secured_table
         and policyname = 'app_runtime_full_access'
     ) then
       execute format(
         'create policy app_runtime_full_access on %I for all to app_runtime using (true) with check (true)',
-        availability_table
+        secured_table
       );
     end if;
   end loop;
@@ -73,10 +77,12 @@ revoke create on schema public from app_runtime;
 revoke create on database postgres from app_runtime;
 
 -- Verification (read-only): expect nosuperuser, nocreaterole, nocreatedb,
--- nobypassrls, no schema CREATE, and three app_runtime_full_access policies.
+-- nobypassrls, no schema CREATE, and one app_runtime_full_access policy per
+-- row-level-security table.
 select
   rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, rolcanlogin,
   has_schema_privilege('app_runtime', 'public', 'CREATE') as schema_create,
-  (select count(*) from pg_policies where policyname = 'app_runtime_full_access') as availability_policies
+  (select count(*) from pg_policies where policyname = 'app_runtime_full_access') as runtime_policies,
+  (select count(*) from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' and relrowsecurity) as row_level_security_tables
 from pg_roles
 where rolname = 'app_runtime';
