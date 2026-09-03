@@ -316,11 +316,18 @@ Consequences for recovery evidence:
 
 Exact owner remediation, in addition to steps 1–12 above:
 
-13. **Replace the runtime credential.** Create a least-privilege `app_runtime`
-    role in the verified project, grant only the DML, sequence, and view access
-    the server requires, store its URL as the Vercel Production runtime secret,
-    redeploy, and require a fresh `current` 21/21 build check, health, and
-    smoke pass. Revoke application use of the `postgres` role.
+13. **Replace the runtime credential.** Run `db/roles/app_runtime.sql` as the
+    owner in the verified project. It creates a `nologin`, non-superuser,
+    non-`BYPASSRLS` `app_runtime` role with only DML, sequence, view, and
+    function access, adds the three availability-table policies the runtime
+    needs (row-level security is enabled there with no policies today, so a
+    non-owner role would otherwise see no rows), and keeps Data API roles
+    locked out. IT then sets the login password through the provider's audited
+    process, stores the URL only as the Vercel Production `DATABASE_URL`
+    secret, redeploys, and requires a fresh `current` 21/21 build check,
+    health, and smoke pass. Revoke application use of the `postgres` role. The
+    script is exercised against the migrated schema by
+    `tests/app-runtime-role.test.ts`.
 14. **Create the backup and provider-verification principals.** Issue a
     provider access token owned by an institutional organization owner for
     `db:backup:verify`, and a dedicated read-only `BACKUP_DATABASE_URL` login
