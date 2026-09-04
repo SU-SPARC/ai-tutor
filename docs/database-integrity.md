@@ -42,6 +42,10 @@ audit.
 the views must filter. If one leaks through a view, changing one row would not
 prove that the access boundary is fixed.
 
+Pre-pilot synthetic and trial records are removed only through the
+explicit-identifier workflow in [pilot-data-cleanup.md](pilot-data-cleanup.md);
+this audit never deletes anything.
+
 The test/demo detector is deliberately conservative and reports explicit word
 markers only. It does not search answer text or return student content. The
 human and JSON reports show aggregate counts and at most 20 per-run HMAC-redacted

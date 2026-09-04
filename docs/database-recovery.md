@@ -519,6 +519,27 @@ Required owner actions, in order:
    encrypted location, and treat its `recoveryPoint.at` as the effective
    recovery point.
 
+### Pre-cleanup export and disposable restore — 2026-09-04, PASSED
+
+Taken as the recoverable backup required before the pilot-data cleanup in
+[pilot-data-cleanup.md](pilot-data-cleanup.md), with the same owner-SQL route
+(short-lived `SELECT`-only export role through the authenticated Supabase CLI,
+export through the session pooler, role dropped with `remaining: 0`).
+Executor: Kanan Guliyev; ticket label `PILOT-CLEANUP-2026-09-04`.
+
+| Step                                                        | Time (UTC)       | Result                                                                                                                                                    |
+| ----------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db:backup:export --target production`                      | 21:43:27 (snapshot) | 6,138 ms; ledger `current` 21/21; archive 826,300 bytes; SHA-256 `19688c50b9a3314e7133a0cc00ffb9049cae375752898b158c8a06fe40c6ec35`                       |
+| `db:recovery:test --restore` into empty local PostgreSQL 17 | 21:45:08–21:45:09 | `pg_restore` 138 ms; 390 of 392 entries; validation valid; ledger fingerprint `18b5a636a4e3ac41`; 21 critical tables; 17/18 audit with the known finding |
+| Whole automated exercise                                    | —                | 213 ms; recovery-point age 101 s; within objectives                                                                                                        |
+| Cleanup rehearsal on the restored copy                      | 21:49:18         | Exact 259-record SQL, verification passed, clean 18/18 audit; see the cleanup runbook                                                                     |
+| Retire                                                      | 21:50:59         | Disposable database dropped; archive retained under `0600` on the workstation as the recovery point until the Production cleanup and post-audit complete |
+
+Retained evidence:
+`docs/evidence/database-recovery/2026-09-04T21-43-34-196Z-production-exported.json`
+and
+`docs/evidence/database-recovery/2026-09-04T21-45-09-058Z-production-passed.json`.
+
 ### Production logical export and disposable restore — 2026-09-03, PASSED
 
 No stored Production database password was used: the Vercel-pulled

@@ -2,8 +2,8 @@
 
 Date: 2026-09-04
 
-Readiness evidence update: `Prove production backup and recovery` (current
-report commit)
+Readiness evidence update: `Clean production pilot data` (current report
+commit)
 
 Production deployment reviewed:
 `https://ai-tutor-fxl6lv9u5-kananguliyevs-projects.vercel.app` from `bd35a44`;
@@ -216,6 +216,18 @@ do not satisfy the missing external approvals or custody state.
   `DROP OWNED` privilege check and rolled back, and the corrected removal
   script awaits the project owner. The short-lived `backup_export_…` role
   from this exercise was dropped (`remaining: 0`).
+- The pre-pilot data cleanup was prepared on 2026-09-04 without touching
+  Production data: a single read-only owner `SELECT` inventoried one archived
+  synthetic-marked question, one `pilotTest` student account, 38 staff and
+  synthetic sessions with 126 attempts, 44 AI usage counters, 10 cache rows,
+  one test feedback report, and the leftover temporary audit login; every
+  session owner is a known staff or synthetic identity and no anonymous
+  session, claim, or real student record exists. The plan enumerates 259
+  records by primary key, a fresh Production export was restored and
+  validated locally, and the exact cleanup SQL ran on that copy in 21 ms
+  leaving the nine published questions, all 551 audit rows, and every review
+  candidate intact with a clean 18/18 audit. Production execution waits for
+  the four named approvals; see [pilot-data-cleanup.md](pilot-data-cleanup.md).
 - Recovery readiness for Production is therefore **partially proven**: the
   logical export path restores and validates, but the provider holds no
   backup, no institutional custody of a weekly archive exists yet, and the
@@ -391,6 +403,7 @@ student identifiers.
 | Controlled live rate/request boundaries     | PASS — friendly 429 on request 21; oversized request gets 413                                      |
 | Public retrieval/private-content boundary   | PASS — professor endpoint 401; public list metadata-only                                           |
 | Production integrity audit                  | **FINDING** — 17/18 pass; one archived, non-visible synthetic-marked question; sanitized evidence  |
+| Pre-pilot data cleanup                      | **REHEARSED** — explicit 259-record plan, fresh verified backup, exact SQL clean 18/18 on restored copy; Production execution gated on four named approvals |
 | Production runtime least privilege          | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
 | Recovery tooling focused suite              | PASS — 4 files, 22 tests                                                                           |
 | Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired           |
@@ -440,13 +453,17 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    in their separate approved stores, run
    `npm run db:custody:verify -- --phase pre-rotation` and require a `passed`
    artifact before changing Vercel or revoking the old owner credential.
-2. Resolve the one archived synthetic-marker finding under a named
-   data-governance/change ticket. Verify its exact scope in a read-only query;
-   obtain professor/data-owner, retention/privacy, IT-operator, and
-   second-reviewer approval; rehearse either a narrow explicit exception or a
-   complete graph cleanup on a disposable restore; execute only with the
-   separate approved change credential; then rerun
-   `npm run db:integrity:audit:production` and require a clean 18/18 artifact.
+2. Execute the rehearsed pre-pilot data cleanup in
+   [pilot-data-cleanup.md](pilot-data-cleanup.md). The read-only inspection,
+   the 259-record explicit-identifier plan, a fresh verified backup, and a
+   rehearsal of the exact SQL on a disposable restore (clean 18/18 on the
+   copy) are complete under ticket label `PILOT-CLEANUP-2026-09-04`. Record
+   four different named approvals (professor/data owner, privacy/retention
+   reviewer, IT operator, independent second reviewer), take a fresh backup
+   if the retained one is older than 24 hours, run
+   `npm run db:pilot-cleanup:execute`, then rerun
+   `npm run db:integrity:audit:production` with a SELECT-only credential and
+   require a clean 18/18 artifact.
 3. Prove Production backup and recovery: first move the Supabase project to a
    plan with daily backups or enable point-in-time recovery under an
    institutionally owned organization, because the provider currently holds
@@ -492,7 +509,9 @@ but Production database ownership and operator-credential topology are not
 accepted. The stored migration credential is demonstrably a drifted
 Development target, and no independently verified Production replacement is
 available. The direct integrity audit completed but is not clean because one
-archived synthetic-marker finding remains. A Production logical export was
+archived synthetic-marker finding remains; its explicit-identifier cleanup is
+planned, backed up, and rehearsed cleanly, and waits only for the four named
+approvals before Production execution. A Production logical export was
 restored into an isolated database, validated, and audited, which proves the
 recovery path, but provider verification shows that Production has no daily
 backup and no point-in-time recovery, no institutional custody of an archive

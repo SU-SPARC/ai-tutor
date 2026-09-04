@@ -396,6 +396,22 @@ Exact owner remediation for the remaining finding:
    21/21 ledger. Until that independent result exists, do not call the
    integrity gate clean.
 
+### Remediation status — 2026-09-04
+
+Steps 1–4 above are complete under ticket label `PILOT-CLEANUP-2026-09-04`
+through [pilot-data-cleanup.md](pilot-data-cleanup.md): a read-only owner
+inventory confirmed the finding is exactly one archived, private, hidden,
+professor-provided question with an explicit marker; the retention decision
+`retain-audit-events-remove-synthetic-graph` removes its synthetic history and
+the `pilotTest` activity while keeping every audit row; a fresh verified backup
+was restored locally; and the exact 259-record cleanup SQL ran on that copy
+with a clean 18/18 audit. Step 5 (Production execution and the clean re-audit)
+has not run because the professor/data-owner, privacy/retention, IT-operator,
+and second-reviewer approvals are not yet recorded. The same gated execution
+removes the leftover temporary audit login by exact fingerprint
+`5982cada2a36410b`, so custody step 6 becomes a verification that zero
+temporary roles remain.
+
 ## Runtime Role Identity And Backup Exercise — 2026-09-03
 
 While preparing the backup and recovery evidence, the stored Vercel Production

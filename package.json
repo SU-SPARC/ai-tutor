@@ -23,6 +23,10 @@
     "db:custody:verify": "node scripts/verify-production-database-custody.mjs --json --evidence-dir docs/evidence/database-custody",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:recovery:test:evidence": "node scripts/test-database-restore.mjs --json --evidence-dir docs/evidence/database-recovery",
+    "db:pilot-cleanup:inspect": "node scripts/clean-production-pilot-data.mjs inspect --target production --json --evidence-dir docs/evidence/pilot-data-cleanup",
+    "db:pilot-cleanup:plan": "node scripts/clean-production-pilot-data.mjs plan --target production --json --evidence-dir docs/evidence/pilot-data-cleanup",
+    "db:pilot-cleanup:rehearse": "node scripts/clean-production-pilot-data.mjs rehearse --json --evidence-dir docs/evidence/pilot-data-cleanup",
+    "db:pilot-cleanup:execute": "node scripts/clean-production-pilot-data.mjs execute --target production --json --evidence-dir docs/evidence/pilot-data-cleanup",
     "db:seed": "node scripts/prepare-public-db-seed.mjs",
     "syllabus:sync": "node scripts/synchronize-syllabus-topics.mjs",
     "extract:pdf": "node scripts/extract-private-pdfs.mjs",
@@ -46,7 +50,7 @@
     "pilot:smoke": "node scripts/pilot-smoke.mjs",
     "pilot:smoke:evidence": "node scripts/pilot-smoke.mjs --evidence-dir docs/evidence/database-custody",
     "test:ai-production": "vitest run tests/ai-production-evaluation.test.ts tests/ai-usage-controls.test.ts tests/llm-tutor.test.ts tests/retrieval.test.ts tests/response-guardrails.test.ts tests/tutor-engine.test.ts tests/tutor-respond-api.test.ts tests/tutor-response-boundary.test.ts",
-    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts tests/app-runtime-role.test.ts tests/database-custody.test.ts",
+    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts tests/app-runtime-role.test.ts tests/database-custody.test.ts tests/pilot-data-cleanup.test.ts",
     "test:recovery": "vitest run tests/database-recovery.test.ts tests/database-recovery-evidence.test.ts tests/database-backup-export.test.ts tests/database-backup-verification.test.ts"
   },
   "dependencies": {

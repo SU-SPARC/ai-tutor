@@ -1,0 +1,286 @@
+{
+  "after": {
+    "anonymousSessions": 0,
+    "archivedQuestions": 0,
+    "auditHistory": {
+      "contentHash": "16371f3450d0f9da",
+      "rowCount": 552
+    },
+    "cleanupAuditRows": 1,
+    "counts": {
+      "ai_llm_reservations": 0,
+      "ai_response_cache": 0,
+      "ai_usage": 0,
+      "anonymous_identity_claims": 0,
+      "approved_content_imports": 0,
+      "attempts": 0,
+      "audit_events": 552,
+      "feedback_reports": 0,
+      "hints": 522,
+      "misconceptions": 234,
+      "question_approval_history": 0,
+      "question_lifecycle_events": 954,
+      "question_patterns": 0,
+      "question_student_availability": 0,
+      "question_version_inspections": 9,
+      "question_version_lifecycle": 461,
+      "question_versions": 461,
+      "questions": 234,
+      "retrieval_chunks": 0,
+      "roles": 2,
+      "schema_migrations": 21,
+      "solution_steps": 705,
+      "student_content_availability_events": 0,
+      "student_progress": 0,
+      "topic_student_availability": 0,
+      "topics": 11,
+      "tutor_sessions": 0,
+      "user_roles": 8,
+      "users": 6
+    },
+    "databaseName": "pf_xj_pilot_cleanup_restore_test",
+    "disabledConstraintTriggers": 0,
+    "disabledTriggers": 0,
+    "humanUserFingerprints": [
+      "131ff3fded7227c3",
+      "177a34f149bc0b7b",
+      "de2e29002166f054",
+      "f6b5d9cefe36fb81"
+    ],
+    "ledger": {
+      "count": 21,
+      "fingerprint": "18b5a636a4e3ac41",
+      "targets": [
+        "production"
+      ]
+    },
+    "managedTriggerCount": 8,
+    "markerFindings": {
+      "anonymousSessions": 0,
+      "auditActors": 0,
+      "humanUsers": 0,
+      "nonProductionLedgers": 0,
+      "questions": 0
+    },
+    "observedAt": "2026-09-04T17:49:18.09959-04:00",
+    "publishedCatalog": {
+      "count": 9,
+      "fingerprint": "bcb9fcf45ce3d686"
+    },
+    "sessionOwnerCount": 0,
+    "temporaryRoles": []
+  },
+  "artifactVersion": 1,
+  "audit": "production_pilot_data_cleanup",
+  "backup": {
+    "archiveSha256": "19688c50b9a3314e7133a0cc00ffb9049cae375752898b158c8a06fe40c6ec35",
+    "integrityAuditStatus": "findings",
+    "recoveryPointAt": "2026-09-04T21:43:27.855Z",
+    "restoreEvidenceGeneratedAt": "2026-09-04T21:45:09.058Z",
+    "validationStatus": "valid"
+  },
+  "before": {
+    "anonymousSessions": 0,
+    "archivedQuestions": 1,
+    "auditHistory": {
+      "contentHash": "4b8f483e252ba9f5",
+      "rowCount": 551
+    },
+    "cleanupAuditRows": 0,
+    "counts": {
+      "ai_llm_reservations": 17,
+      "ai_response_cache": 10,
+      "ai_usage": 44,
+      "anonymous_identity_claims": 0,
+      "approved_content_imports": 0,
+      "attempts": 126,
+      "audit_events": 551,
+      "feedback_reports": 1,
+      "hints": 526,
+      "misconceptions": 235,
+      "question_approval_history": 0,
+      "question_lifecycle_events": 960,
+      "question_patterns": 0,
+      "question_student_availability": 0,
+      "question_version_inspections": 10,
+      "question_version_lifecycle": 462,
+      "question_versions": 462,
+      "questions": 235,
+      "retrieval_chunks": 0,
+      "roles": 2,
+      "schema_migrations": 21,
+      "solution_steps": 711,
+      "student_content_availability_events": 0,
+      "student_progress": 0,
+      "topic_student_availability": 0,
+      "topics": 11,
+      "tutor_sessions": 38,
+      "user_roles": 9,
+      "users": 7
+    },
+    "databaseName": "pf_xj_pilot_cleanup_restore_test",
+    "disabledConstraintTriggers": 0,
+    "disabledTriggers": 0,
+    "humanUserFingerprints": [
+      "131ff3fded7227c3",
+      "177a34f149bc0b7b",
+      "de2e29002166f054",
+      "e62b6bb43685c368",
+      "f6b5d9cefe36fb81"
+    ],
+    "ledger": {
+      "count": 21,
+      "fingerprint": "18b5a636a4e3ac41",
+      "targets": [
+        "production"
+      ]
+    },
+    "managedTriggerCount": 8,
+    "markerFindings": {
+      "anonymousSessions": 0,
+      "auditActors": 0,
+      "humanUsers": 0,
+      "nonProductionLedgers": 0,
+      "questions": 1
+    },
+    "observedAt": "2026-09-04T17:49:18.066255-04:00",
+    "publishedCatalog": {
+      "count": 9,
+      "fingerprint": "bcb9fcf45ce3d686"
+    },
+    "sessionOwnerCount": 4,
+    "temporaryRoles": []
+  },
+  "changeTicket": "PILOT-CLEANUP-2026-09-04",
+  "cleanupDurationMs": 21,
+  "cleanupSqlSha256": "422922d8f2650b1ba48b17f11012ad4dac1ef9f093b2dd0355bed7a61c712199",
+  "disposableMarker": "restore",
+  "exerciseCompletedAt": "2026-09-04T21:49:18.111Z",
+  "exerciseStartedAt": "2026-09-04T21:49:18.056Z",
+  "generatedAt": "2026-09-04T21:49:18.111Z",
+  "integrityAudit": {
+    "findings": [],
+    "generatedAt": "2026-09-04T21:49:18.111Z",
+    "status": "clean",
+    "summary": {
+      "failedChecks": 0,
+      "findings": 0,
+      "passedChecks": 18,
+      "totalChecks": 18
+    },
+    "target": "production"
+  },
+  "manifest": {
+    "actorFingerprint": "f6b5d9cefe36fb81",
+    "changeTicket": "PILOT-CLEANUP-2026-09-04",
+    "expectedBeforeCounts": {
+      "ai_llm_reservations": 17,
+      "ai_response_cache": 10,
+      "ai_usage": 44,
+      "anonymous_identity_claims": 0,
+      "approved_content_imports": 0,
+      "attempts": 126,
+      "audit_events": 551,
+      "feedback_reports": 1,
+      "hints": 526,
+      "misconceptions": 235,
+      "question_approval_history": 0,
+      "question_lifecycle_events": 960,
+      "question_patterns": 0,
+      "question_student_availability": 0,
+      "question_version_inspections": 10,
+      "question_version_lifecycle": 462,
+      "question_versions": 462,
+      "questions": 235,
+      "retrieval_chunks": 0,
+      "roles": 2,
+      "schema_migrations": 21,
+      "solution_steps": 711,
+      "student_content_availability_events": 0,
+      "student_progress": 0,
+      "topic_student_availability": 0,
+      "topics": 11,
+      "tutor_sessions": 38,
+      "user_roles": 9,
+      "users": 7
+    },
+    "identities": {
+      "pilotTestUserFingerprints": [
+        "e62b6bb43685c368"
+      ],
+      "retainedUserCount": 6,
+      "staffTrialUserFingerprints": [
+        "131ff3fded7227c3",
+        "f6b5d9cefe36fb81",
+        "de2e29002166f054"
+      ],
+      "syntheticQuestionFingerprints": [
+        "675569c10de228f2"
+      ],
+      "temporaryRoleHashes": [
+        "5982cada2a36410b"
+      ]
+    },
+    "ledger": {
+      "count": 21,
+      "fingerprint": "18b5a636a4e3ac41",
+      "target": "production"
+    },
+    "protectedCatalog": {
+      "count": 9,
+      "fingerprint": "bcb9fcf45ce3d686"
+    },
+    "recordCounts": {
+      "feedback_reports": 1,
+      "ai_llm_reservations": 17,
+      "student_progress": 0,
+      "attempts": 126,
+      "tutor_sessions": 38,
+      "ai_usage": 44,
+      "ai_response_cache": 10,
+      "user_roles": 1,
+      "users": 1,
+      "question_version_inspections": 1,
+      "question_lifecycle_events": 6,
+      "question_version_lifecycle": 1,
+      "hints": 4,
+      "solution_steps": 6,
+      "misconceptions": 1,
+      "question_versions": 1,
+      "questions": 1
+    },
+    "recordFingerprints": {
+      "feedback_reports": "6b86b273ff34fce1",
+      "ai_llm_reservations": "e841baa231951f7f",
+      "student_progress": "e3b0c44298fc1c14",
+      "attempts": "2f5d1f100c0879b5",
+      "tutor_sessions": "613c113bce9391e8",
+      "ai_usage": "8c1670cdb2076a0a",
+      "ai_response_cache": "b410b8b5ff106272",
+      "user_roles": "c74dc97efc5dffbb",
+      "users": "e62b6bb43685c368",
+      "question_version_inspections": "b12e83175ee0bf02",
+      "question_lifecycle_events": "d10f524a14fd3534",
+      "question_version_lifecycle": "da4d43f295ce9263",
+      "hints": "f3270d8e16650bd9",
+      "solution_steps": "dcd89d9b2ba5715b",
+      "misconceptions": "83ae8006b8735417",
+      "question_versions": "da4d43f295ce9263",
+      "questions": "675569c10de228f2"
+    },
+    "retentionDecision": "retain-audit-events-remove-synthetic-graph",
+    "sha256": "d430a1604f92492cb94f966fafa430920fa654470255c6874b17321ffaa2b7c8",
+    "totalRecords": 259
+  },
+  "phase": "rehearsed",
+  "retentionDecision": "retain-audit-events-remove-synthetic-graph",
+  "status": "passed",
+  "target": "rehearsal",
+  "targetFingerprint": "3f929ae5dd6b4e12cd99d22dfbbadfa4a7064b0ed85e0a54241d4ab0ee16726b",
+  "temporaryRoles": "not_applicable_to_logical_restore",
+  "verification": {
+    "problems": [],
+    "status": "passed"
+  },
+  "writesAttempted": 1
+}

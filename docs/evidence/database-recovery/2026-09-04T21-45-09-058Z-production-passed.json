@@ -1,0 +1,284 @@
+{
+  "actor": "Kanan Guliyev (project owner, engineering)",
+  "archive": {
+    "sha256": "19688c50b9a3314e7133a0cc00ffb9049cae375752898b158c8a06fe40c6ec35",
+    "sizeBytes": 826300
+  },
+  "artifactVersion": 1,
+  "changeTicket": "PILOT-CLEANUP-2026-09-04",
+  "credential": "RECOVERY_TEST_DATABASE_URL",
+  "exercise": "disposable_database_restore",
+  "generatedAt": "2026-09-04T21:45:09.058Z",
+  "integrityAudit": {
+    "checks": [
+      {
+        "count": 0,
+        "description": "Questions must reference an existing topic; topic inference is never automatic.",
+        "id": "broken_question_topic_relationships",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Broken question-topic relationships"
+      },
+      {
+        "count": 0,
+        "description": "Approved public questions must include at least one nonblank ordered solution step.",
+        "id": "missing_solution_steps",
+        "repairAction": "quarantine-unsafe-questions",
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "Missing solution steps"
+      },
+      {
+        "count": 0,
+        "description": "Question identifiers must be globally unique even if a primary-key constraint was disabled or lost.",
+        "id": "duplicate_question_ids",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Duplicate question IDs"
+      },
+      {
+        "count": 0,
+        "description": "Publication metadata must agree on visibility, approval, trust, reviewer identity, timestamps, and archive state.",
+        "id": "invalid_publication_states",
+        "repairAction": "quarantine-unsafe-questions",
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Invalid publication states"
+      },
+      {
+        "count": 0,
+        "description": "Every approved question must have immutable approval history attributed to its recorded reviewer.",
+        "id": "approved_questions_without_reviewer_history",
+        "repairAction": "quarantine-unsafe-questions",
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Approved questions without reviewer history"
+      },
+      {
+        "count": 0,
+        "description": "Every lifecycle question must have a valid working pointer and at most one matching published pointer/state.",
+        "id": "invalid_question_lifecycle_pointers",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Invalid question lifecycle pointers"
+      },
+      {
+        "count": 0,
+        "description": "Generated drafts and unverified generated retrieval chunks must never appear in student-facing views.",
+        "id": "generated_drafts_student_visible",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Generated drafts accidentally student-visible"
+      },
+      {
+        "count": 0,
+        "description": "Topic syllabus positions must be nonnegative and unique, including after constraint drift.",
+        "id": "topic_order_conflicts",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "Topic-order conflicts"
+      },
+      {
+        "count": 0,
+        "description": "Tutor sessions must retain exactly one valid identity and a recoverable question reference.",
+        "id": "orphaned_tutor_sessions",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "Orphaned tutor sessions"
+      },
+      {
+        "count": 0,
+        "description": "Every declared public foreign key must remain validated and have enabled PostgreSQL enforcement triggers.",
+        "id": "foreign_key_enforcement",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Foreign-key enforcement"
+      },
+      {
+        "count": 0,
+        "description": "Questions, immutable versions, approval decisions, and approved imports must retain their required user owners.",
+        "id": "required_ownership_relationships",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Required ownership relationships"
+      },
+      {
+        "count": 0,
+        "description": "Every persisted question-version pointer must resolve to an immutable version of the same question.",
+        "id": "immutable_question_version_references",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Immutable question-version references"
+      },
+      {
+        "count": 0,
+        "description": "Feedback must retain a matching tutor session, question, immutable version, and reporter ownership fingerprint.",
+        "id": "feedback_linkage",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "Feedback linkage"
+      },
+      {
+        "count": 0,
+        "description": "AI reservations must resolve to one session, one student fingerprint per session, and matching dated student accounting.",
+        "id": "ai_reservation_accounting",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "AI reservation/accounting linkage"
+      },
+      {
+        "count": 0,
+        "description": "Session creation, attempts, feedback, and AI reservations must not reuse an idempotency key inside the same owner scope.",
+        "id": "duplicate_idempotency_keys",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Duplicate idempotency keys"
+      },
+      {
+        "count": 0,
+        "description": "Progress, feedback, and AI rows linked to one tutor session must not cross authenticated or anonymous student ownership boundaries.",
+        "id": "cross_student_ownership_anomalies",
+        "repairAction": null,
+        "sampleIds": [],
+        "severity": "critical",
+        "status": "passed",
+        "title": "Cross-student ownership anomalies"
+      },
+      {
+        "count": 0,
+        "description": "Usage, token, attempt, progress, and reservation counters must be nonnegative and internally consistent.",
+        "id": "impossible_usage_counts",
+        "repairAction": "reconcile-usage-totals",
+        "sampleIds": [],
+        "severity": "high",
+        "status": "passed",
+        "title": "Impossible usage counts"
+      },
+      {
+        "count": 1,
+        "description": "Production-shaped data must not contain non-Production ledgers or explicit demo/test/fake/fixture/synthetic markers.",
+        "id": "test_demo_records_in_production",
+        "repairAction": null,
+        "sampleIds": [
+          "ref_9f5dd854e4501555"
+        ],
+        "severity": "critical",
+        "status": "findings",
+        "title": "Test/demo records in production-shaped data"
+      }
+    ],
+    "generatedAt": "2026-09-04T21:45:09.058Z",
+    "status": "findings",
+    "summary": {
+      "failedChecks": 1,
+      "findings": 1,
+      "passedChecks": 17,
+      "totalChecks": 18
+    },
+    "target": "production"
+  },
+  "mode": "restore",
+  "objectives": {
+    "recoveryPointObjectiveHours": 24,
+    "recoveryTimeObjectiveHours": 24
+  },
+  "productionWritesAttempted": 0,
+  "recoveryPoint": {
+    "ageAtExerciseMs": 101203,
+    "declaredAt": "2026-09-04T21:43:27.855Z",
+    "latestCommittedRecordAt": "2026-09-01T10:18:32.579Z",
+    "ledgerLatestAppliedAt": "2026-08-29T21:24:14.013Z",
+    "withinObjective": true
+  },
+  "recoveryTime": {
+    "exerciseCompletedAt": "2026-09-04T21:45:09.058Z",
+    "exerciseStartedAt": "2026-09-04T21:45:08.845Z",
+    "measuredMs": 213,
+    "withinObjective": true
+  },
+  "restore": {
+    "archiveEntries": 392,
+    "completedAt": "2026-09-04T21:45:09.015Z",
+    "durationMs": 138,
+    "restoredEntries": 390,
+    "skippedEntries": 2,
+    "startedAt": "2026-09-04T21:45:08.877Z",
+    "tool": "pg_restore",
+    "toolVersion": "18.6"
+  },
+  "sourceLabel": "production pre-cleanup logical export",
+  "status": "passed",
+  "target": "production",
+  "targetFingerprint": "3f929ae5dd6b4e12cd99d22dfbbadfa4a7064b0ed85e0a54241d4ab0ee16726b",
+  "validation": {
+    "criticalRowCounts": {
+      "schema_migrations": 21,
+      "topics": 11,
+      "questions": 235,
+      "hints": 526,
+      "solution_steps": 711,
+      "misconceptions": 235,
+      "question_patterns": 0,
+      "question_versions": 462,
+      "question_approval_history": 0,
+      "approved_content_imports": 0,
+      "retrieval_chunks": 0,
+      "users": 7,
+      "roles": 2,
+      "user_roles": 9,
+      "tutor_sessions": 38,
+      "attempts": 126,
+      "student_progress": 0,
+      "ai_usage": 44,
+      "ai_llm_reservations": 17,
+      "audit_events": 551,
+      "feedback_reports": 1
+    },
+    "deferredConstraints": [
+      "questions_pattern_id_fkey"
+    ],
+    "durationMs": 33,
+    "integrityChecks": 8,
+    "issues": [],
+    "migrationLedger": {
+      "appliedCount": 21,
+      "issueCount": 0,
+      "issueTypes": [],
+      "ledgerFingerprint": "18b5a636a4e3ac41",
+      "pendingCount": 0,
+      "state": "current",
+      "totalCount": 21
+    },
+    "migrationState": "current",
+    "schemaMigrationCount": 21,
+    "sequenceChecks": 11,
+    "status": "valid"
+  }
+}
