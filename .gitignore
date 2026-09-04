@@ -34,3 +34,9 @@ data/**/*generated-private*
 
 # Public-safe generated retrieval chunks.
 !data/processed/demo-question-chunks.json
+
+# Database archives and recovery keys never enter Git.
+*.dump
+*.dump.enc
+*.backup-key
+ops/backup/*.env

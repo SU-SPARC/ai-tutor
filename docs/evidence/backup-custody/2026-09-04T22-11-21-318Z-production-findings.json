@@ -1,0 +1,74 @@
+{
+  "approvedKeyFingerprint": "e81b07a766b979da",
+  "artifactVersion": 1,
+  "audit": "production_backup_custody_status",
+  "counts": {
+    "completed": 1,
+    "failed": 0,
+    "overdueForPruning": 0,
+    "runs": 2
+  },
+  "findings": [
+    {
+      "code": "ownership_not_recorded",
+      "detail": "Two institutional owners and a named backup operator are not recorded.",
+      "severity": "high"
+    },
+    {
+      "code": "provider_backups_inactive",
+      "detail": "The provider does not report an active daily backup or point-in-time recovery; the encrypted logical export is the only recovery point.",
+      "severity": "critical"
+    }
+  ],
+  "generatedAt": "2026-09-04T22:11:21.318Z",
+  "latestBackup": {
+    "ageHours": 0.007,
+    "archiveSha256": "bf298ab7cf386a38f327aab6d236ef11d1960cc7f3ad311753d004b3baf76b94",
+    "encryptedBytes": 826648,
+    "plaintextSha256": "d409064c91591bf143db868b9a0ce9965e1c4254ce32db3a8e6bea99643f676a",
+    "recipientKeyFingerprint": "e81b07a766b979da",
+    "recoveryPointAt": "2026-09-04T22:10:55.448Z",
+    "runId": "2026-09-04T22-10-55-041Z"
+  },
+  "missingDays": [],
+  "ownership": {
+    "institutionalOwnerFingerprints": [],
+    "missing": [
+      "institutionalOwner1",
+      "institutionalOwner2",
+      "operator"
+    ],
+    "operatorFingerprint": null,
+    "status": "not_recorded"
+  },
+  "policy": {
+    "cadenceHours": 24,
+    "encryption": "x25519-hkdf-sha256+aes-256-gcm",
+    "freshnessLimitHours": 36,
+    "minimumInstitutionalOwners": 2,
+    "providerEvidenceMaxAgeDays": 7,
+    "recoveryPointObjectiveHours": 24,
+    "recoveryTimeObjectiveHours": 24,
+    "retentionDays": 35
+  },
+  "provider": {
+    "findingCodes": [
+      "no_successful_provider_backup",
+      "retention_unverified",
+      "ownership_unverified"
+    ],
+    "generatedAt": "2026-09-04T21:59:02.933Z",
+    "latestRecoveryPointAt": null,
+    "pitrEnabled": false,
+    "region": "us-east-1",
+    "status": "findings"
+  },
+  "readOnly": true,
+  "status": "findings",
+  "summary": {
+    "criticalFindings": 1,
+    "findingCount": 2
+  },
+  "target": "production",
+  "writesAttempted": 0
+}

@@ -412,6 +412,22 @@ removes the leftover temporary audit login by exact fingerprint
 `5982cada2a36410b`, so custody step 6 becomes a verification that zero
 temporary roles remain.
 
+### Dedicated backup identity — 2026-09-04
+
+The Production project now holds the dedicated `backup_export` role from
+`db/roles/production_operator_roles.sql`: `NOLOGIN` at rest, `SELECT` on every
+`public` table and sequence, `BYPASSRLS` for complete exports,
+`default_transaction_read_only=on`, connection limit 2, and no write, DDL,
+role, or provider privilege. It was created with owner SQL through the
+authenticated CLI, with LOGIN and a two-hour password enabled only for the
+daily encrypted export run and disabled again afterwards; no credential is
+stored anywhere. The provider's owner role is refused `ALTER ROLE` attribute
+changes on a `BYPASSRLS` role (`permission denied to alter role`), so the
+operator role script now reasserts attributes only when a role actually
+drifted, and University IT should expect the same restriction when enabling
+LOGIN through the provider workflow. The `integrity_audit` and `app_migrator`
+roles remain unprovisioned pending the custody prerequisites.
+
 ## Runtime Role Identity And Backup Exercise — 2026-09-03
 
 While preparing the backup and recovery evidence, the stored Vercel Production

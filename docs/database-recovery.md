@@ -1,16 +1,18 @@
 # Database Backup And Recovery Runbook
 
-> **Evidence status (2026-09-04): the repository backup, restore, validation,
-> and evidence tooling is exercised end to end on a local disposable restore
-> that passed a clean 18/18 integrity audit. Provider verification of the
-> Production project completed with a critical finding: the provider lists no
-> daily backup and point-in-time recovery is disabled, so Production has no
-> provider-managed backup. Retention and ownership are not provider-verified.
-> A Production logical export was restored into an isolated local disposable
-> database, validated, and audited on 2026-09-03, then retired.** Do not state that Production
-> backups exist or that Production recovery is proven. Backup existence alone
-> never establishes recovery readiness; only a successful disposable restore of
-> a Production backup does.
+> **Evidence status (2026-09-04): Production now has a dedicated read-only
+> `backup_export` identity, a daily encrypted logical export path under a
+> custody ledger, an automatic stale/missing/failed detector, and a
+> decrypt-and-restore drill that passed full validation on the same day
+> (see the exercise log). Provider verification still reports no daily
+> backup and no point-in-time recovery, retention and ownership remain
+> not provider-verified, the custody store is an interim workstation
+> location rather than an institutional one, and two institutional owners, a
+> named backup operator, and RPO/RTO acceptance are not recorded.**
+> Do not state that provider-managed Production backups exist. The encrypted
+> logical export is the only recovery point until the provider plan and
+> institutional custody are established, and only a successful disposable
+> restore proves any backup.
 
 The 2026-09-04 provider recheck is retained as
 `docs/evidence/database-backups/2026-09-04T17-24-31-367Z-production-findings.json`.
@@ -53,7 +55,14 @@ blocker, not a formality.
 
 Until the vacant roles are named, the engineering owner may rehearse the
 procedure only on disposable data that contains no real student records, which
-is exactly what the retained 2026-09-03 exercise did.
+is exactly what the retained 2026-09-03 and 2026-09-04 exercises did.
+
+Names are recorded as safe fingerprints only, through
+`BACKUP_INSTITUTIONAL_OWNER_1`, `BACKUP_INSTITUTIONAL_OWNER_2`, and
+`BACKUP_OPERATOR` on the backup host and `RECOVERY_ACCEPTED_BY` with
+`RECOVERY_ACCEPTANCE_ROLE` for objective acceptance. `db:backup:status`
+reports `ownership_not_recorded` until all three custody names exist and
+differ.
 
 ## Backup Policy
 
@@ -65,7 +74,11 @@ is already enforced by the repository tooling where a command can enforce it.
 | Provider-native recovery | Supabase point-in-time recovery when the plan offers it, plus the provider's daily backup                                                                                                                                  | `db:backup:verify` reports `pitr_enabled`, daily backup status and age                 |
 | Native retention         | At least 7 days (Supabase Pro default); 30 days or the approved student-data retention period when the plan allows it                                                                                                      | `db:backup:verify` finding `retention_below_policy` / `retention_unverified`           |
 | Freshness                | Newest successful provider recovery point no older than 36 hours                                                                                                                                                           | `db:backup:verify` finding `latest_backup_stale`                                       |
-| Logical recovery copy    | Weekly `pg_dump` custom-format archive of the `public` schema, retained eight weeks, plus a checkpoint immediately before a schema change, approved-content import, data repair, or restore                                | `db:backup:export` manifest with SHA-256 and recovery point                            |
+| Logical recovery copy    | Until provider backups are verified: a **daily** `pg_dump` custom-format archive of the `public` schema, encrypted on the backup host to the recovery public key, recorded in an append-only custody ledger, retained 35 days (never pruning the newest), plus a checkpoint immediately before a schema change, approved-content import, data repair, or restore | `db:backup:daily` manifest and ledger; `db:backup:status` findings `no_completed_backup`, `latest_backup_stale`, `missing_daily_backup`, `retention_prune_due` |
+| Archive encryption       | Envelope encryption: ephemeral X25519 agreement with the approved recovery public key, HKDF-SHA256, AES-256-GCM with the header as authenticated data; the private key exists only with the recovery administrators (mode `0600`, never on the backup host, never in Git or hosting) | `db:backup:daily` refuses without the public key; `db:backup:status` finding `encryption_key_mismatch`; decrypt fails closed on tampering |
+| Custody location         | `BACKUP_CUSTODY_DIR` must be absolute, outside the repository, and outside any hosting/build path; directories `0700`, files `0600`; region attested per run with `BACKUP_CUSTODY_REGION` (provider region `us-east-1`) | `db:backup:daily` refuses other paths; `db:backup:status` finding `custody_region_not_recorded`; `.gitignore` excludes `*.dump`, `*.dump.enc`, and keys |
+| Detection and alerting   | Every run appends `started`, `completed`, or `failed`; the status check runs after each export and on a schedule, verifies the newest archive's digest and size on disk, and posts finding codes (never paths, digests, or credentials) to `BACKUP_ALERT_WEBHOOK_URL` | `db:backup:status` exit `2`/`3`, findings `latest_run_failed`, `run_incomplete`, `archive_missing`, `archive_hash_mismatch`, `ledger_malformed`, `provider_backups_inactive` |
+| Backup identity          | Dedicated `backup_export` role: `NOLOGIN` at rest, `SELECT` on every `public` table and sequence, `BYPASSRLS`, `default_transaction_read_only=on`, no write, DDL, role, or provider privilege; LOGIN is enabled only for a run with a two-hour password and disabled again | Owner SQL in the run orchestrator; read-only verification query after each run |
 | Recovery point objective | No more than 24 hours of committed Production data loss (`RECOVERY_TEST_RPO_HOURS`)                                                                                                                                        | `db:recovery:test` evidence `recoveryPoint.withinObjective`                            |
 | Recovery time objective  | Service restored or an approved status issued within one business day, 24 hours (`RECOVERY_TEST_RTO_HOURS`)                                                                                                                | `db:recovery:test` evidence `recoveryTime.withinObjective`                             |
 | Ownership                | At least two institutional organization owners, all members with multi-factor authentication                                                                                                                               | `db:backup:verify` findings `insufficient_recovery_administrators`, `mfa_not_enforced` |
@@ -95,8 +108,14 @@ Objectives are defaults in the tooling and can be tightened per exercise with
 Measured on the Production exercise of 2026-09-03 (17.9 MB database, 235
 questions, 38 sessions): logical export 6,098 ms through the session pooler,
 `pg_restore` 178 ms, validation 35 ms plus the 18-check audit, whole
-automated exercise 254 ms, recovery-point age 148 s. The human steps in the
-last row remain the binding RTO constraint.
+automated exercise 254 ms, recovery-point age 148 s. Measured again on the
+2026-09-04 custody exercise with the dedicated `backup_export` identity:
+export 5,311 ms, encryption 6 ms, decryption 5 ms, `pg_restore` 134 ms,
+validation 33 ms plus the audit, whole automated exercise 196 ms,
+recovery-point age 36.8 s. The human steps in the last row remain the binding
+RTO constraint. These measurements are recorded; they are **accepted** only
+when `npm run db:recovery:accept` has been run by a named professor, IT
+operator, or recovery administrator and its `accepted` artifact is retained.
 
 ## Project-Owner RPO And RTO Questions
 
@@ -228,6 +247,122 @@ Requirements:
 Only the `public` schema is exported. Every application table, view, function,
 trigger, constraint, and sequence lives there; provider-managed schemas are not
 restorable into an ordinary PostgreSQL target and are not application data.
+
+## Command 3: Daily Encrypted Export Under Custody
+
+```bash
+BACKUP_DATABASE_URL=<dedicated backup_export credential> \
+BACKUP_CUSTODY_DIR=/institutional/custody/pf-xj-backups \
+BACKUP_ENCRYPTION_PUBLIC_KEY=<approved recovery public key, base64 DER> \
+BACKUP_CUSTODY_REGION="us-east-1 institutional custody" \
+BACKUP_ACTOR="University IT backup job" \
+BACKUP_CHANGE_TICKET=<standing backup ticket> \
+BACKUP_EXPECTED_PROVIDER=supabase \
+BACKUP_EXPECTED_PROJECT_HASH=65888f3d354b7dfd \
+BACKUP_EXPECTED_DATABASE_NAME=postgres \
+BACKUP_INSTITUTIONAL_OWNER_1="<owner one>" \
+BACKUP_INSTITUTIONAL_OWNER_2="<owner two>" \
+BACKUP_OPERATOR="<named operator>" \
+  npm run db:backup:daily -- --prune
+```
+
+The command refuses to start unless the credential's safe fingerprint matches
+the expected Production project and database and the recovery public key is
+valid. It appends a `started` ledger entry, exports in a read-only session,
+proves the archive lists restorable entries with `pg_restore --list`,
+encrypts it to the recovery key, deletes the plaintext from staging, appends a
+`completed` entry with plaintext and ciphertext digests, writes a sanitized
+manifest (`...-production-encrypted.json`) to `docs/evidence/database-recovery/`
+and to the custody store, and with `--prune` removes archives older than 35
+days except the newest. Any failure appends a `failed` entry with a sanitized
+code and exits non-zero. The backup host never holds the private key, so it
+cannot read its own archives.
+
+## Command 4: Custody Status And Alerting
+
+```bash
+BACKUP_CUSTODY_DIR=/institutional/custody/pf-xj-backups \
+BACKUP_ENCRYPTION_PUBLIC_KEY=<approved recovery public key> \
+BACKUP_INSTITUTIONAL_OWNER_1=... BACKUP_INSTITUTIONAL_OWNER_2=... BACKUP_OPERATOR=... \
+BACKUP_ALERT_WEBHOOK_URL=<institutional alert endpoint> \
+  npm run db:backup:status
+```
+
+Read-only. It parses the ledger, hashes the archives on disk, reads the newest
+provider verification artifact under `docs/evidence/database-backups/`, and
+writes `docs/evidence/backup-custody/<timestamp>-production-<status>.json`.
+
+| Exit code | Meaning                                                        |
+| --------- | -------------------------------------------------------------- |
+| `0`       | Verified: fresh, intact, correctly keyed, owned, provider active |
+| `2`       | Findings (codes below); alert posted when a webhook is configured |
+| `3`       | Custody store unavailable; `not_run` artifact retained         |
+
+| Finding code                  | Severity | Meaning                                                              |
+| ----------------------------- | -------- | -------------------------------------------------------------------- |
+| `no_completed_backup`         | critical | The store holds no completed export                                  |
+| `latest_backup_stale`         | critical | Newest export is older than 36 hours                                 |
+| `archive_missing`             | critical | Newest archive file is absent                                        |
+| `archive_hash_mismatch`       | critical | Newest archive digest differs from the ledger                        |
+| `archive_size_mismatch`       | critical | Newest archive size differs from the ledger                          |
+| `encryption_key_mismatch`     | critical | Newest export is encrypted to a key other than the approved one      |
+| `provider_backups_inactive`   | critical | Provider reports no daily backup or PITR                             |
+| `latest_run_failed`           | high     | Most recent run recorded `failed`                                    |
+| `run_incomplete`              | high     | A run started more than two hours ago without completing             |
+| `missing_daily_backup`        | high     | A calendar day inside the retention window has no completed export   |
+| `custody_region_not_recorded` | high     | Newest export has no attested custody region                         |
+| `ownership_not_recorded`      | high     | Two institutional owners and a named operator are not recorded       |
+| `provider_evidence_missing`   | high     | No provider verification artifact exists                             |
+| `provider_evidence_stale`     | high     | Provider verification artifact is older than seven days              |
+| `ledger_malformed`            | high     | A ledger line could not be parsed                                    |
+| `retention_prune_due`         | medium   | Archives past retention await reviewed pruning                       |
+
+## Command 5: Recovery Keys And Decryption
+
+```bash
+node scripts/backup-keys.mjs keygen --private-key-file /recovery-admin/pf-xj-recovery.backup-key
+BACKUP_ENCRYPTION_PRIVATE_KEY_FILE=/recovery-admin/pf-xj-recovery.backup-key \
+  node scripts/backup-keys.mjs decrypt --archive <archive.dump.enc> --output /restore-workspace/<date>.dump
+```
+
+`keygen` prints the public key and its fingerprint and writes the private key
+once with mode `0600`; the key never appears on stdout. The recovery
+administrators hold the private key in the institutional secret store and
+escrow a second copy under two-person control; losing it makes every archive
+unrecoverable, so key generation is itself a ticketed change. `decrypt`
+refuses a key file readable by group or others, authenticates the envelope,
+verifies the recorded plaintext digest, and only then writes the archive that
+`db:recovery:test --restore` consumes. `inspect` prints header metadata only.
+
+## Command 6: Objective Acceptance
+
+```bash
+RECOVERY_ACCEPTED_BY="<named person>" RECOVERY_ACCEPTANCE_ROLE=it_operator \
+RECOVERY_ACCEPTANCE_TICKET=<ticket> \
+  npm run db:recovery:accept -- --restore-evidence docs/evidence/database-recovery/<passed restore>.json
+```
+
+Records the acceptor's fingerprint and role, the measured recovery-point age
+and recovery time from the passed restore artifact, and the objectives. The
+artifact is `accepted` only when both measurements are within the objectives;
+otherwise it is `rejected` and the command exits `2`.
+
+## Scheduling The Daily Job
+
+`ops/backup/backup-daily.sh` runs the export and then the status check,
+refuses an environment file that is not mode `0600`, writes JSON logs to a
+private log directory, and exits non-zero on failure or findings so the
+scheduler alerts. `ops/backup/com.pf-xj.backup-daily.plist` is a launchd
+template (03:15 daily); the equivalent cron line is:
+
+```text
+15 3 * * * /bin/sh /path/to/repo/ops/backup/backup-daily.sh /path/to/private/backup.env
+```
+
+The environment file, custody directory, logs, and recovery key live outside
+the repository and outside application hosting; the credential is the
+dedicated `backup_export` login issued by University IT, never the runtime,
+migration, or owner credential.
 
 ## Schema Migrations Must Be Retained Separately
 
@@ -407,6 +542,38 @@ The application reads a single connection variable, so cutover and rollback are
 configuration changes, not data operations. Rotate any credential that was
 exposed during the incident before traffic resumes.
 
+## Failed Restore Procedure
+
+A disposable restore can fail at decryption, `pg_restore`, validation, or the
+integrity audit. Each failure leaves the previous state intact and is handled
+without touching Production:
+
+1. **Decryption fails** (`envelope_authentication_failed`, `key_mismatch`,
+   `plaintext_digest_mismatch`): the archive is corrupt, tampered, or
+   encrypted to another key. No plaintext is written. Run
+   `db:backup:status`; if the newest archive reports `archive_hash_mismatch`
+   treat the custody store as compromised, use the previous completed archive,
+   and open an incident. Never retry with a different key "to see".
+2. **`pg_restore` fails**: the wrapper restores in a single transaction with
+   `--exit-on-error`, so the disposable target is left empty. Preserve the
+   sanitized stderr, confirm the client major version is at least the server
+   version, and retry into a newly created empty target. If the same archive
+   fails twice, fall back to the previous completed archive and record the
+   failed archive's digest in the ticket.
+3. **Validation fails** (`failed` artifact with `issues`): keep the target for
+   inspection, do not retry blindly, and compare the issues with the export
+   manifest. A `migration_history_not_current` issue means the archive predates
+   or postdates the checked-out migration set: restore with the matching Git
+   SHA, never by editing `schema_migrations`.
+4. **Integrity audit reports findings**: the restore itself succeeded. Known,
+   ticketed findings are acceptable evidence; unknown findings block use of
+   that recovery point until the professor and IT decide.
+5. In every case append the outcome to the exercise log, retire the target
+   under the retirement procedure, and re-run `db:backup:status` so the next
+   scheduled export is confirmed healthy. A Production incident during which
+   both the newest and the previous archive fail is escalated to the provider
+   support route recorded in the Provider Verification Record.
+
 ## Production Restore Checklist
 
 Use this only for an authorized incident after the disposable procedure has
@@ -519,6 +686,30 @@ Required owner actions, in order:
    encrypted location, and treat its `recoveryPoint.at` as the effective
    recovery point.
 
+### Daily encrypted export under custody and disposable restore — 2026-09-04, PASSED
+
+Executor: Kanan Guliyev (engineering; interim operator until University IT is
+named). Ticket label `BACKUP-CUSTODY-2026-09-04`. Provider verification rerun
+first (`docs/evidence/database-backups/2026-09-04T21-59-02-933Z-production-findings.json`):
+still no daily backup, PITR disabled, retention and ownership unverified.
+
+| Step                                                                  | Time (UTC)                | Result                                                                                                                                                                               |
+| --------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Provision dedicated `backup_export` identity (owner SQL via CLI)      | 22:10                     | `NOLOGIN`, `BYPASSRLS`, `SELECT` on 34 tables/sequences, zero non-SELECT grants, `default_transaction_read_only=on`; the owner is refused ALTER ROLE attribute changes on a BYPASSRLS role, so attributes are set at CREATE only |
+| Enable LOGIN for the run                                              | 22:10                     | Random password, `VALID UNTIL` two hours                                                                                                                                             |
+| `db:backup:daily --prune` (session pooler, dedicated identity)        | 22:10:55 (snapshot)       | Export 5,311 ms; archive 826,300 bytes, plaintext SHA-256 `d409064c…3f676a`; `pg_restore --list` 392 entries; encrypted in 6 ms to key `e81b07a766b979da`; 826,648 bytes, ciphertext SHA-256 `bf298ab7…f76b94`; plaintext removed; ledger `started` → `completed` |
+| Disable LOGIN and clear the password                                  | 22:11                     | `rolcanlogin=false`, `VALID UNTIL infinity`; one pooled read-only backend lingered and was signalled                                                                               |
+| `db:backup:status`                                                    | 22:11:21                  | Findings: `ownership_not_recorded`, `provider_backups_inactive`; freshness, digest, size, key, region, ledger, and cadence checks passed                                              |
+| Decrypt with the recovery key                                         | 22:11                     | 5 ms; digest verified                                                                                                                                                                |
+| `db:recovery:test --restore` into empty local PostgreSQL 17           | 22:11:32                  | `pg_restore` 18.6, 134 ms, 390 of 392 entries; validation valid in 33 ms; ledger `current` 21/21 fingerprint `18b5a636a4e3ac41`; 8 referential and 11 sequence checks clean; audit 17/18 with the known ticketed synthetic-marker finding |
+| Whole automated exercise                                              | —                         | 196 ms; recovery-point age 36.8 s; within the 24 h objectives; acceptance **not recorded** (no named institutional acceptor)                                                        |
+| Retire                                                                | 22:12                     | Disposable database dropped, decrypted archive and the earlier plaintext archive deleted; the encrypted archive and recovery key remain in the interim workstation custody store (`0700`/`0600`) |
+
+Retained evidence:
+`docs/evidence/database-recovery/2026-09-04T22-11-00-878Z-production-encrypted.json`,
+`docs/evidence/backup-custody/2026-09-04T22-11-21-318Z-production-findings.json`,
+and `docs/evidence/database-recovery/2026-09-04T22-11-32-291Z-production-passed.json`.
+
 ### Pre-cleanup export and disposable restore — 2026-09-04, PASSED
 
 Taken as the recoverable backup required before the pilot-data cleanup in
@@ -597,6 +788,16 @@ University IT must complete this record before anyone says backups exist:
 - [ ] Measured RPO and RTO:
 - [ ] Professor acceptance and University IT acceptance:
 
+Known on 2026-09-04 (safe values only): provider Supabase, project fingerprint
+`65888f3d354b7dfd`, database `postgres`, region `us-east-1`, PostgreSQL 17.6,
+release channel `ga`, project `ACTIVE_HEALTHY`; provider daily backups none,
+PITR disabled; interim encrypted logical exports under workstation custody with
+recovery key fingerprint `e81b07a766b979da`; successful disposable restores on
+2026-09-03 and 2026-09-04; measured RPO age 36.8 s and RTO 196 ms on
+2026-09-04. Not yet known: institutional tenant, backup-storage region,
+service tier, provider recovery points, retention behaviour, key-recovery
+owner, restore operators and escalation route, professor and IT acceptance.
+
 Until every applicable line has evidence, status remains **repository
-tooling exercised; provider backup and Production restore capability
-unverified**.
+tooling exercised and interim encrypted custody running; provider backup and
+institutional custody unverified**.

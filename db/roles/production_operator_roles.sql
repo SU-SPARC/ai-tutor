@@ -24,12 +24,32 @@ end;
 $$;
 
 -- Reassert the non-administrative attributes without changing LOGIN state.
+-- The provider's owner role may CREATE a BYPASSRLS role but is refused ALTER
+-- ROLE attribute changes on one (verified on 2026-09-04), so the two read-only
+-- roles are altered only when an attribute actually drifted; a compliant role
+-- is left untouched and a drifted one fails loudly instead of silently.
 alter role app_migrator nosuperuser nocreatedb nocreaterole noinherit
   noreplication nobypassrls connection limit 2;
-alter role integrity_audit nosuperuser nocreatedb nocreaterole noinherit
-  noreplication bypassrls connection limit 2;
-alter role backup_export nosuperuser nocreatedb nocreaterole noinherit
-  noreplication bypassrls connection limit 2;
+do $$
+declare
+  drifted text;
+begin
+  for drifted in
+    select rolname
+    from pg_roles
+    where rolname in ('integrity_audit', 'backup_export')
+      and (
+        rolsuper or rolcreatedb or rolcreaterole or rolinherit
+        or rolreplication or not rolbypassrls or rolconnlimit <> 2
+      )
+  loop
+    execute format(
+      'alter role %I nosuperuser nocreatedb nocreaterole noinherit noreplication bypassrls connection limit 2',
+      drifted
+    );
+  end loop;
+end;
+$$;
 
 alter role integrity_audit set default_transaction_read_only = on;
 alter role backup_export set default_transaction_read_only = on;

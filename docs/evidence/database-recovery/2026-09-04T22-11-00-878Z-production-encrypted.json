@@ -1,0 +1,74 @@
+{
+  "actor": "Kanan Guliyev project owner engineering",
+  "archive": {
+    "format": "custom",
+    "schema": "public",
+    "sha256": "d409064c91591bf143db868b9a0ce9965e1c4254ce32db3a8e6bea99643f676a",
+    "sizeBytes": 826300
+  },
+  "artifact": "encrypted_logical_database_backup",
+  "artifactVersion": 1,
+  "changeTicket": "BACKUP-CUSTODY-2026-09-04",
+  "credential": "BACKUP_DATABASE_URL",
+  "export": {
+    "completedAt": "2026-09-04T22:11:00.878Z",
+    "durationMs": 5311,
+    "startedAt": "2026-09-04T22:10:55.567Z",
+    "tool": "pg_dump",
+    "toolVersion": "18.6"
+  },
+  "generatedAt": "2026-09-04T22:11:00.878Z",
+  "migrationLedger": {
+    "appliedCount": 21,
+    "issueCount": 0,
+    "issueTypes": [],
+    "ledgerFingerprint": "18b5a636a4e3ac41",
+    "pendingCount": 0,
+    "state": "current",
+    "totalCount": 21
+  },
+  "readOnly": true,
+  "recoveryPoint": {
+    "at": "2026-09-04T22:10:55.448Z"
+  },
+  "server": {
+    "snapshotAt": "2026-09-04T22:10:55.448Z",
+    "version": "17.6"
+  },
+  "source": {
+    "databaseName": "postgres",
+    "endpointKind": "pooler",
+    "hostHash": "3932d873511760d0",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase",
+    "roleHash": "b72cefc894f441e6"
+  },
+  "sourceLabel": "daily encrypted logical export via dedicated backup-export identity alter-login",
+  "status": "encrypted",
+  "target": "production",
+  "writesAttempted": 0,
+  "custody": {
+    "archiveEntries": 392,
+    "archiveName": "2026-09-04T22-10-55-041Z-production.dump.enc",
+    "ciphertextSha256": "bf298ab7cf386a38f327aab6d236ef11d1960cc7f3ad311753d004b3baf76b94",
+    "encryptedBytes": 826648,
+    "encryption": "x25519-hkdf-sha256+aes-256-gcm",
+    "encryptionDurationMs": 6,
+    "plaintextRemovedFromStaging": true,
+    "recipientKeyFingerprint": "e81b07a766b979da",
+    "region": "us-east-1 interim workstation custody",
+    "retentionDays": 35,
+    "runId": "2026-09-04T22-10-55-041Z",
+    "store": "institutional_custody_directory"
+  },
+  "ownership": {
+    "institutionalOwnerFingerprints": [],
+    "missing": [
+      "institutionalOwner1",
+      "institutionalOwner2",
+      "operator"
+    ],
+    "operatorFingerprint": null,
+    "status": "not_recorded"
+  }
+}

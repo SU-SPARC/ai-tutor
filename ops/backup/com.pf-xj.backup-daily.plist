@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd template for the daily encrypted Production export on a macOS backup
+  host. Install as the backup operator's LaunchAgent (or a LaunchDaemon run
+  as a dedicated service account), replace the two placeholder paths, and load
+  with `launchctl bootstrap`. The environment file referenced below must be
+  mode 0600 and outside any repository or application hosting path. A Linux
+  host uses an equivalent cron line documented in docs/database-recovery.md.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pf-xj.backup-daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>/PATH/TO/REPO/ops/backup/backup-daily.sh</string>
+    <string>/PATH/TO/PRIVATE/backup.env</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/PATH/TO/PRIVATE/logs/backup-daily.launchd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/PATH/TO/PRIVATE/logs/backup-daily.launchd.err</string>
+</dict>
+</plist>

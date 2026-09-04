@@ -2,8 +2,8 @@
 
 Date: 2026-09-04
 
-Readiness evidence update: `Clean production pilot data` (current report
-commit)
+Readiness evidence update: `Establish production backup recovery` (current
+report commit)
 
 Production deployment reviewed:
 `https://ai-tutor-fxl6lv9u5-kananguliyevs-projects.vercel.app` from `bd35a44`;
@@ -228,6 +228,22 @@ do not satisfy the missing external approvals or custody state.
   leaving the nine published questions, all 551 audit rows, and every review
   candidate intact with a clean 18/18 audit. Production execution waits for
   the four named approvals; see [pilot-data-cleanup.md](pilot-data-cleanup.md).
+- Backup custody was established on 2026-09-04 as far as engineering can take
+  it: a dedicated read-only `backup_export` identity now exists in Production
+  (`NOLOGIN` at rest, `SELECT`-only, `BYPASSRLS`, read-only default, login
+  enabled only for a run with a two-hour password); `db:backup:daily` produced
+  an encrypted logical export (X25519/AES-256-GCM envelope to a recovery key
+  the backup host cannot use) into an append-only custody ledger;
+  `db:backup:status` automatically detects stale, missing, failed, corrupted,
+  mis-keyed, unowned, or unpruned exports and inactive provider backups; the
+  archive was decrypted with the recovery key and restored into an isolated
+  disposable target with valid migrations, tables, constraints, references,
+  sequences, and the complete integrity audit (17/18, known finding); the
+  target and every plaintext copy were retired. Provider verification was
+  rerun and still shows **no provider-managed backup**, the custody store is
+  an interim workstation location, and two institutional owners, a named
+  operator, and RPO/RTO acceptance are still unrecorded; see
+  [database-recovery.md](database-recovery.md).
 - Recovery readiness for Production is therefore **partially proven**: the
   logical export path restores and validates, but the provider holds no
   backup, no institutional custody of a weekly archive exists yet, and the
@@ -409,7 +425,9 @@ student identifiers.
 | Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired           |
 | Provider backup verification                | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
 | Production backup/restore exercise          | PASS — logical export, isolated restore, clean validation, 17/18 audit (known finding), retired    |
-| Institutional archive custody               | **NOT PROVEN** — no weekly logical copy under IT custody; provider holds no backup                 |
+| Daily encrypted export and custody detection | PASS — dedicated identity, encrypted export, ledger, status findings only for provider/ownership |
+| Encrypted archive decrypt and restore       | PASS — recovery-key decrypt, isolated restore, valid ledger/tables/references/sequences, 17/18 audit |
+| Institutional archive custody               | **NOT PROVEN** — exports run under interim workstation custody; institutional store, two owners, operator, and acceptance unrecorded |
 | Accessibility acceptance                    | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
@@ -464,19 +482,20 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    `npm run db:pilot-cleanup:execute`, then rerun
    `npm run db:integrity:audit:production` with a SELECT-only credential and
    require a clean 18/18 artifact.
-3. Prove Production backup and recovery: first move the Supabase project to a
-   plan with daily backups or enable point-in-time recovery under an
-   institutionally owned organization, because the provider currently holds
-   no backup of Production at all; record two institutional organization
-   owners; run `npm run db:backup:verify -- --via-cli` until it exits `0`;
-   until then take a `db:backup:export` archive daily; create a dedicated read-only
-   `BACKUP_DATABASE_URL` login with `BYPASSRLS`; run
-   `npm run db:backup:export -- --target production`; restore the archive into
-   an isolated disposable target with `npm run db:recovery:test -- --restore
---evidence-dir docs/evidence/database-recovery`; complete the operator
-   comparisons; retire the target; and record measured RPO/RTO in the runbook.
-   Replace the runtime credential with a least-privilege `app_runtime` role as
-   part of the same change.
+3. Close Production backup custody: move the Supabase project to a plan with
+   daily backups or point-in-time recovery under an institutionally owned
+   organization and rerun `npm run db:backup:verify -- --via-cli` until it
+   exits `0`; move the custody store, recovery key, and the scheduled
+   `ops/backup/backup-daily.sh` job to University IT with
+   `BACKUP_INSTITUTIONAL_OWNER_1/2` and `BACKUP_OPERATOR` recorded so
+   `npm run db:backup:status` exits `0`; have University IT issue the
+   permanent `backup_export` credential into its secret store; and run
+   `npm run db:recovery:accept` with a named professor or IT acceptor against
+   the retained passed restore artifact. The tooling, the dedicated identity,
+   the daily encrypted export, detection, and the disposable restore are
+   already proven; see [database-recovery.md](database-recovery.md). Replace
+   the runtime credential with a least-privilege `app_runtime` role as part of
+   the same change.
 4. Record named privacy, security, accessibility, authentication, AI-provider,
    retention/deletion, incident-response, support, and pilot approvals.
 5. Establish external monitoring/alerts and provider billing limits/alerts.
@@ -513,9 +532,12 @@ archived synthetic-marker finding remains; its explicit-identifier cleanup is
 planned, backed up, and rehearsed cleanly, and waits only for the four named
 approvals before Production execution. A Production logical export was
 restored into an isolated database, validated, and audited, which proves the
-recovery path, but provider verification shows that Production has no daily
-backup and no point-in-time recovery, no institutional custody of an archive
-exists, and the deployed runtime uses the provider owner role. Accessibility
+recovery path, and a daily encrypted export under a custody ledger with
+automatic staleness detection now runs from a dedicated read-only identity,
+but provider verification shows that Production still has no daily backup and
+no point-in-time recovery, custody is an interim workstation location without
+institutional owners or acceptance, and the deployed runtime uses the provider
+owner role. Accessibility
 acceptance, monitoring, and external approvals also remain open.
 Re-run this gate after every blocker in section 13 is closed; passing
 application and deployment checks alone are insufficient.

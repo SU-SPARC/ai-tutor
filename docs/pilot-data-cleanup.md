@@ -82,7 +82,7 @@ and read the expected Production fingerprint from `CUSTODY_EXPECTED_PROVIDER`,
    role is fingerprint-matched, inactive, unowned, and non-administrative. It
    writes the explicit-identifier manifest with mode `0600` and prints its
    SHA-256 and the SHA-256 of the generated SQL.
-3. **Backup and verify:** take `db:backup:export --target production` and
+3. **Backup and verify:** take `db:backup:daily` (or `db:backup:export`) for `production`, decrypt with the recovery key where applicable, and
    restore it with `db:recovery:test --restore` into an empty disposable
    target (see `database-recovery.md`). The restore evidence must be younger
    than 24 hours when the cleanup runs.

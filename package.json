@@ -19,6 +19,10 @@
     "db:integrity:audit:production": "node scripts/database-integrity.mjs audit --target production --json --evidence-dir docs/evidence/database-integrity",
     "db:backup:verify": "node scripts/verify-database-backups.mjs --json --evidence-dir docs/evidence/database-backups",
     "db:backup:export": "node scripts/export-database-backup.mjs",
+    "db:backup:daily": "node scripts/backup-daily.mjs --target production --manifest-dir docs/evidence/database-recovery --json",
+    "db:backup:status": "node scripts/backup-status.mjs --evidence-dir docs/evidence/backup-custody",
+    "db:backup:keys": "node scripts/backup-keys.mjs",
+    "db:recovery:accept": "node scripts/accept-recovery-objectives.mjs --evidence-dir docs/evidence/database-recovery",
     "db:custody:apply": "node scripts/apply-production-database-custody.mjs",
     "db:custody:verify": "node scripts/verify-production-database-custody.mjs --json --evidence-dir docs/evidence/database-custody",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
@@ -51,7 +55,7 @@
     "pilot:smoke:evidence": "node scripts/pilot-smoke.mjs --evidence-dir docs/evidence/database-custody",
     "test:ai-production": "vitest run tests/ai-production-evaluation.test.ts tests/ai-usage-controls.test.ts tests/llm-tutor.test.ts tests/retrieval.test.ts tests/response-guardrails.test.ts tests/tutor-engine.test.ts tests/tutor-respond-api.test.ts tests/tutor-response-boundary.test.ts",
     "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts tests/app-runtime-role.test.ts tests/database-custody.test.ts tests/pilot-data-cleanup.test.ts",
-    "test:recovery": "vitest run tests/database-recovery.test.ts tests/database-recovery-evidence.test.ts tests/database-backup-export.test.ts tests/database-backup-verification.test.ts"
+    "test:recovery": "vitest run tests/database-recovery.test.ts tests/database-recovery-evidence.test.ts tests/database-backup-export.test.ts tests/database-backup-verification.test.ts tests/backup-custody.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.0",
