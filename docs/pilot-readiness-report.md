@@ -1,12 +1,24 @@
 # Pilot Readiness Report
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 Readiness evidence update: `Prove production backup and recovery` (current
 report commit)
 
-Production deployment reviewed: `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w` from
-`b1162a2` at `https://ai-tutor-kananguliyevs-projects.vercel.app`
+Production deployment reviewed:
+`https://ai-tutor-fxl6lv9u5-kananguliyevs-projects.vercel.app` from `bd35a44`;
+canonical alias `https://ai-tutor-kananguliyevs-projects.vercel.app`
+
+Database-custody recheck: the 2026-09-04 active deployment is READY from
+`bd35a44` and its build reports `current`, 21/21. Read-only provider and
+database checks confirm that the custody blocker is unchanged: a personal Free
+Supabase organization has one owner with MFA disabled, no provider backup or
+PITR, no `app_runtime` role, no runtime policies on the 29 RLS-enabled public
+tables, and one temporary audit login remaining. Vercel still uses the owner
+credential topology and has no `DATABASE_URL`. No Production mutation was
+performed because a named owner, distinct second reviewer, institutional
+custody, two MFA recovery administrators, and a real change ticket are not
+recorded.
 
 This is an engineering readiness record, not a legal, institutional, privacy,
 security, or accessibility approval.
@@ -66,6 +78,21 @@ archived immutable record and attributable history remained available.
 
 **Status: healthy runtime; credential ownership, runtime least privilege,
 provider backup verification, and Production recovery acceptance incomplete.**
+
+The repository now includes a gated custody operation and four-credential
+read-only verifier. `db:custody:apply` cannot mutate Production without the
+exact project fingerprint, a checksum-clean 21/21 ledger, institutional
+ownership, at least two MFA recovery administrators, distinct named owner and
+second-reviewer confirmations, a matching ticket, and explicit Production
+confirmation. The two administrators and institutional organization are
+retained only as safe fingerprints. `db:custody:verify` requires four distinct
+least-privilege roles, identical target and ledger fingerprints, complete
+RLS/application-policy
+coverage, Data API lockout, and names-and-scopes-only proof that operator
+credentials are absent from every Vercel application environment. The
+post-rotation phase additionally requires legacy owner credentials to be absent
+and `DATABASE_URL` to be Production-only. These controls prepare the change but
+do not satisfy the missing external approvals or custody state.
 
 - The public, non-cached Production database health endpoint returned HTTP 200
   with `status: healthy`, `database.required: true`, and database status
@@ -336,41 +363,41 @@ student identifiers.
 
 ## 11. Test results
 
-| Gate                                      | Result                                                                                             |
+| Gate                                        | Result                                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Full Vitest suite                         | PASS — 80 files, 660 tests                                                                         |
-| Lint                                      | PASS                                                                                               |
-| TypeScript                                | PASS                                                                                               |
-| Production build                          | PASS — Next.js 16.3.3, 23 pages generated                                                          |
-| AI/retrieval/usage focused suite          | PASS — 8 files, 111 tests                                                                          |
-| Migration/integrity focused suite         | PASS — 5 files, 45 tests                                                                           |
-| Authorization focused suite               | PASS — 7 files, 91 tests                                                                           |
-| Lifecycle/publication focused suite       | PASS — 7 files, 52 tests                                                                           |
-| Student/professor workflow focused suite  | PASS — 7 files, 44 tests                                                                           |
-| Release-candidate read-only smoke         | PASS — 5 checks                                                                                    |
-| Current Production read-only smoke        | PASS — 5 checks; 9 published questions                                                             |
-| Production database health                | PASS — HTTP 200, required and healthy                                                              |
-| Production environment/runtime mode       | PASS — strict config parses; database-backed, demo not active                                      |
-| Production deployment migration check     | PASS — current, 21/21, no drift                                                                    |
-| Production credential topology audit      | **FAIL CLOSED** — stored migrator is Development; Production ownership/correct migrator unverified |
-| Separate stored migration credential      | Development target — 18/21, pending 019–021, original 018 checksum                                 |
-| Production error logs, post-deploy scan   | No error-level entries returned                                                                    |
-| Production dependency audit               | PASS — 0 vulnerabilities after patch upgrade                                                       |
-| Production Clerk test identities          | PASS — isolated student and professor roles marked `pilotTest`                                     |
-| Controlled Production student E2E         | PASS — onboarding, tutor hierarchy, recovery, dashboard, feedback                                  |
-| Controlled Production professor E2E       | PASS — auth, inspect, approve, publish, visibility, analytics, feedback                            |
-| Controlled live AI fallback               | PASS — opt-in, bounded, no accepted-answer/provider leakage                                        |
-| Controlled live approved retrieval        | PASS — related approved context precedes opt-in AI synthesis                                       |
-| Controlled live rate/request boundaries   | PASS — friendly 429 on request 21; oversized request gets 413                                      |
-| Public retrieval/private-content boundary | PASS — professor endpoint 401; public list metadata-only                                           |
-| Production integrity audit                | **FINDING** — 17/18 pass; one archived, non-visible synthetic-marked question; sanitized evidence  |
-| Production runtime least privilege        | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
-| Recovery tooling focused suite            | PASS — 4 files, 22 tests                                                                           |
-| Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired         |
-| Provider backup verification              | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
-| Production backup/restore exercise        | PASS — logical export, isolated restore, clean validation, 17/18 audit (known finding), retired   |
-| Institutional archive custody             | **NOT PROVEN** — no weekly logical copy under IT custody; provider holds no backup                 |
-| Accessibility acceptance                  | **NOT PROVEN**                                                                                     |
+| Full Vitest suite                           | PASS — 82 files, 675 tests                                                                         |
+| Lint                                        | PASS                                                                                               |
+| TypeScript                                  | PASS                                                                                               |
+| Production build                            | PASS — Next.js 16.3.3, 23 pages generated                                                          |
+| AI/retrieval/usage focused suite            | PASS — 8 files, 111 tests                                                                          |
+| Migration/integrity focused suite           | PASS — 7 files, 60 tests                                                                           |
+| Authorization focused suite                 | PASS — 7 files, 91 tests                                                                           |
+| Lifecycle/publication focused suite         | PASS — 7 files, 52 tests                                                                           |
+| Student/professor workflow focused suite    | PASS — 7 files, 44 tests                                                                           |
+| Release-candidate read-only smoke           | PASS — 5 checks                                                                                    |
+| Current Production read-only smoke          | PASS — 5 checks; 9 published questions                                                             |
+| Production database health                  | PASS — HTTP 200, required and healthy                                                              |
+| Production environment/runtime mode         | PASS — strict config parses; database-backed, demo not active                                      |
+| Production deployment migration check       | PASS — current, 21/21, no drift                                                                    |
+| Production credential topology audit        | **FAIL CLOSED** — stored migrator is Development; Production ownership/correct migrator unverified |
+| Separate stored migration credential        | Development target — 18/21, pending 019–021, original 018 checksum                                 |
+| Production error logs, post-deploy scan     | No error-level entries returned                                                                    |
+| Production dependency audit                 | PASS — 0 vulnerabilities after patch upgrade                                                       |
+| Production Clerk test identities            | PASS — isolated student and professor roles marked `pilotTest`                                     |
+| Controlled Production student E2E           | PASS — onboarding, tutor hierarchy, recovery, dashboard, feedback                                  |
+| Controlled Production professor E2E         | PASS — auth, inspect, approve, publish, visibility, analytics, feedback                            |
+| Controlled live AI fallback                 | PASS — opt-in, bounded, no accepted-answer/provider leakage                                        |
+| Controlled live approved retrieval          | PASS — related approved context precedes opt-in AI synthesis                                       |
+| Controlled live rate/request boundaries     | PASS — friendly 429 on request 21; oversized request gets 413                                      |
+| Public retrieval/private-content boundary   | PASS — professor endpoint 401; public list metadata-only                                           |
+| Production integrity audit                  | **FINDING** — 17/18 pass; one archived, non-visible synthetic-marked question; sanitized evidence  |
+| Production runtime least privilege          | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
+| Recovery tooling focused suite              | PASS — 4 files, 22 tests                                                                           |
+| Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired           |
+| Provider backup verification                | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
+| Production backup/restore exercise          | PASS — logical export, isolated restore, clean validation, 17/18 audit (known finding), retired    |
+| Institutional archive custody               | **NOT PROVEN** — no weekly logical copy under IT custody; provider holds no backup                 |
+| Accessibility acceptance                    | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
 
@@ -407,6 +434,12 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    to the same Production project/database/ledger, and prove least privilege.
    Do not use or overwrite the inspected Development credential for
    Production.
+   Use `npm run db:custody:apply` only after the institutional owner record,
+   two MFA recovery administrators, named owner, independent second reviewer,
+   and change ticket exist. After provider-issued login credentials are stored
+   in their separate approved stores, run
+   `npm run db:custody:verify -- --phase pre-rotation` and require a `passed`
+   artifact before changing Vercel or revoking the old owner credential.
 2. Resolve the one archived synthetic-marker finding under a named
    data-governance/change ticket. Verify its exact scope in a read-only query;
    obtain professor/data-owner, retention/privacy, IT-operator, and
@@ -423,7 +456,7 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    `BACKUP_DATABASE_URL` login with `BYPASSRLS`; run
    `npm run db:backup:export -- --target production`; restore the archive into
    an isolated disposable target with `npm run db:recovery:test -- --restore
-   --evidence-dir docs/evidence/database-recovery`; complete the operator
+--evidence-dir docs/evidence/database-recovery`; complete the operator
    comparisons; retire the target; and record measured RPO/RTO in the runbook.
    Replace the runtime credential with a least-privilege `app_runtime` role as
    part of the same change.
@@ -435,9 +468,9 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
 
 ## 14. Deployment status
 
-The active Production deployment `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w` is READY
-at the hosting layer, serves the canonical alias, and was built from release
-candidate `b1162a2`. Its build passed the 21/21 migration check with no drift,
+The 2026-09-04 active Production deployment is READY at the hosting layer,
+serves the canonical alias, and was built from `bd35a44`. Its build passed the
+21/21 migration check with no drift,
 the required Production database is healthy, the post-deployment five-check
 smoke passes, and the reviewed post-deploy error-log scans returned no entries.
 

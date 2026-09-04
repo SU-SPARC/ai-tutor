@@ -1,0 +1,42 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody",
+  "changeTicket": null,
+  "fingerprints": {
+    "databaseName": "postgres",
+    "organizationIdentityHash": "a640b55a1a21a7cd",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-04T18:09:00.813Z",
+  "readOnly": true,
+  "results": {
+    "authorization": "not_recorded",
+    "backupRecoveryPointCount": 0,
+    "institutionalOwnership": "not_verified",
+    "migrationCount": 21,
+    "migrationState": "current",
+    "mfaEnabledRecoveryAdministratorCount": 0,
+    "operatorCredentialsInVercelCount": 0,
+    "providerStatus": "ACTIVE_HEALTHY",
+    "recoveryAdministratorCount": 1,
+    "rlsEnabledTableCount": 29,
+    "runtimeCredentialInVercelCount": 0,
+    "runtimePolicyCount": 0,
+    "temporaryAuditRoleCount": 1,
+    "vercelLegacyOwnerVariableCount": 5
+  },
+  "roles": {
+    "expected": [
+      "app_runtime",
+      "app_migrator",
+      "integrity_audit",
+      "backup_export"
+    ],
+    "observedExpectedRoleCount": 0,
+    "temporaryAuditRoleHash": "5982cada2a36410b"
+  },
+  "status": "blocked",
+  "target": "production",
+  "writesAttempted": 0
+}

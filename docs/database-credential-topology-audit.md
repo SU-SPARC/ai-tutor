@@ -1,6 +1,6 @@
 # Production Database Credential Topology Audit
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 Status: **FAIL CLOSED — the Production technical target is independently
 fingerprinted, but institutional provider ownership and a valid Production
@@ -13,8 +13,113 @@ This audit compares database targets without retaining or printing connection
 strings, passwords, raw hosts, or raw provider project references. It did not
 apply migrations, edit a migration ledger, run an integrity repair, create a
 backup, restore data, overwrite a stored credential, or modify Production data.
-A short-lived audit-only login was created with explicit owner authorization,
-used only for read-only verification, and is removed during audit cleanup.
+A short-lived audit-only login was created with explicit owner authorization
+and used only for read-only verification. The 2026-09-04 recheck confirms that
+one legacy temporary audit login remains; it has not been removed because the
+current operation has no named second-reviewer authorization.
+
+## 2026-09-04 Custody Recheck And Enforced Operation
+
+The sanitized fail-closed snapshot is retained at
+`docs/evidence/database-custody/2026-09-04T18-09-00-813Z-production-blocked.json`.
+It contains only safe fingerprints, role identifiers, dates, aggregate results,
+and the absent ticket result; no URL, host, raw provider identifier, personal
+name, email address, token, or password is retained.
+
+The current read-only recheck confirms the same Production project fingerprint
+`65888f3d354b7dfd`, database `postgres`, an `ACTIVE_HEALTHY` PostgreSQL 17.6
+provider project, and 21 applied migrations. It also confirms the blockers are
+current:
+
+- the Supabase project remains in a personal Free organization with one owner,
+  and MFA is disabled for that owner;
+- the provider reports zero daily backups and no point-in-time recovery;
+- all 29 public tables have row-level security enabled, but zero tables have an
+  `app_runtime` policy because that role has not been provisioned;
+- `app_runtime` is absent and one `integrity_audit_*` login remains; and
+- Vercel Production has no `DATABASE_URL` and still contains five owner/runtime
+  credential variables (`POSTGRES_PASSWORD`, `POSTGRES_PRISMA_URL`,
+  `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, and `POSTGRES_USER`). It contains
+  none of the migration, integrity-audit, or backup credential variables.
+
+The active Production deployment on 2026-09-04 is READY from commit `bd35a44`;
+its build reported `current`, 21/21. These are read-only technical facts, not
+authorization to mutate Production.
+
+The repository now supplies two fail-closed operations:
+
+- `npm run db:custody:apply` provisions the four NOLOGIN role definitions or
+  removes one exact fingerprinted expired audit role. Before any SQL runs it
+  requires an institutionally verified provider owner, at least two MFA-enabled
+  recovery administrators, distinct named owner and second reviewer
+  attestations, an exact project-hash confirmation, a matching change ticket,
+  an explicit Production flag, and an exact checksum comparison of all 21
+  immutable migration files. Provisioning never creates a password.
+- `npm run db:custody:verify` independently connects through the runtime,
+  migration, integrity-audit, and backup credentials in forced read-only
+  transactions. It requires identical provider/project/database and migration
+  ledger fingerprints, four distinct role hashes, role-specific least
+  privilege, RLS plus the exact application policy on every Production table,
+  and Data API lockout. Both phases require operator credentials to be absent
+  from every Vercel application environment; post-rotation also requires
+  legacy owner credentials to be absent and `DATABASE_URL` to be scoped only
+  to Production.
+
+`db/roles/app_runtime.sql` now grants only the application mutations and five
+approved routines observed in the server code, including the nested routines
+needed by those entry points. The role may read the
+migration ledger for deployment status but cannot write it; it also cannot
+write approved-import, pattern, role, retrieval-source, student-progress, or
+topic records. `db/roles/production_operator_roles.sql` creates distinct
+`app_migrator`, `integrity_audit`, and `backup_export` roles, transfers only
+`public` application-object ownership to the migrator, and gives the audit and
+backup roles read-only full-row access through `BYPASSRLS`.
+
+No Production mutation, role cleanup, login enablement, password creation,
+credential rotation, or redeployment was performed during this recheck. The
+gate remains closed until a real ticket and the required institutional people
+and custody controls exist.
+
+### Authorized execution order
+
+1. Transfer the provider project to the institution-controlled Supabase
+   organization, enable an eligible backup/PITR plan, and record at least two
+   recovery administrators with MFA in the protected ticket.
+2. Record distinct named values for `CUSTODY_NAMED_OWNER` and
+   `CUSTODY_SECOND_REVIEWER`, their two explicit `true` authorization flags,
+   `CUSTODY_INSTITUTIONAL_ORGANIZATION`, two distinct names in
+   `CUSTODY_RECOVERY_ADMIN_1` and `CUSTODY_RECOVERY_ADMIN_2`, both individual
+   `*_MFA_VERIFIED=true` attestations,
+   `CUSTODY_PROVIDER_OWNERSHIP_VERIFIED=true`, the ticket, and the expected safe
+   Production fingerprint. These are non-secret attestations; only their safe
+   fingerprints and roles enter evidence, and raw provider identifiers remain
+   out of evidence.
+3. Run `db:custody:apply -- --operation provision` with the explicit
+   Production, project-hash, ticket, and evidence-directory arguments. Review
+   the retained role/RLS counts. All four roles remain `NOLOGIN` at this point.
+4. University IT enables each login and sets four independent credentials in
+   the provider's audited workflow. Stage all four in an approved operator
+   runner; do not put any operator credential in Vercel.
+5. Run `db:custody:verify -- --phase pre-rotation` before rotation. It must
+   report `passed`, exact target and ledger agreement, four distinct roles,
+   zero privilege violations, complete RLS/policy coverage, and no operator
+   credential in any Vercel application environment. This phase records but
+   does not fail on the legacy owner variables that step 7 removes.
+6. Run the separately ticketed `cleanup-expired-audit` operation for only role
+   hash `5982cada2a36410b`, and require zero remaining legacy temporary audit
+   identities. The raw role name is not copied into new evidence.
+7. Only after steps 1–6 pass, store the already verified `app_runtime`
+   `DATABASE_URL` in Vercel Production, remove the five legacy owner/runtime
+   credential variables, and redeploy. Never store the migration, audit, or
+   backup URLs in Vercel.
+8. Run `db:custody:verify -- --phase post-rotation` again through the deployed
+   runtime secret plus the separately injected operator secrets. This phase
+   also requires every legacy owner variable to be absent from Vercel. Then
+   run migration status, provider
+   backup verification, the integrity audit, database health, authorization
+   boundary tests, the five-check Production smoke test, and an error-log scan.
+   Revoke the former runtime owner credential only after all post-deploy checks
+   pass.
 
 ## Verdict
 
@@ -69,8 +174,9 @@ build-log lines.
 - Linked project: `kananguliyevs-projects/ai-tutor`, project
   `prj_Io1nGopV0g2NxYXN6AgltSAa8h5v`.
 - Active Production deployment:
-  `dpl_6uwBiXu4VjgaXFfZp5rj4XTCoY6w`, source `b1162a2`, status `READY`.
-- Filtered build evidence at `2026-09-01T00:49:55.658Z`:
+  `https://ai-tutor-fxl6lv9u5-kananguliyevs-projects.vercel.app`, source
+  `bd35a44`, status `READY`.
+- Filtered build evidence at `2026-09-04T13:11:31.303Z`:
   `Migration status: current` and `Applied: 21/21`.
 - Production environment-variable metadata contains `POSTGRES_URL`,
   `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`, and the discrete managed
@@ -123,7 +229,7 @@ These are separate security principals, not aliases for one shared password.
 
 | Class                          | Secret/interface                                                                                       | Accountable owner and store                                                                                                                      | Required purpose and least privilege                                                                                                                                                                        | Forbidden placement/use                                                                                                                           |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime                        | Vercel Production `POSTGRES_URL` resolved by the app as `DATABASE_URL`                                 | Project owner approves the target; University IT/database owner controls the provider role; Vercel Production stores the provider-managed secret | `app_runtime`; connect plus only the DML and sequence/view access required by server requests; no DDL, role, backup, restore, or provider administration                                                    | Never expose to browser code, Preview, operator scripts, migration jobs, backup jobs, or tickets                                                  |
+| Runtime                        | Vercel Production `DATABASE_URL`                                                                       | Project owner approves the target; University IT/database owner controls the provider role; Vercel Production stores the provider-managed secret | `app_runtime`; connect plus exact reviewed table writes, required reads/sequences, and five approved routines; no DDL, role, backup, restore, or provider administration                                  | Never expose to browser code, Preview, operator scripts, migration jobs, backup jobs, or tickets                                                  |
 | Migration                      | `MIGRATION_DATABASE_URL`                                                                               | University IT/change-management owner; protected institutional change-job secret store                                                           | `app_migrator`; connect and reviewed schema-change privileges on the one verified database; no provider ownership, backup administration, or application runtime access                                     | Never place in Vercel application environments, developer-wide shell profiles, or use as an integrity/backup/restore credential                   |
 | Integrity audit                | `INTEGRITY_DATABASE_URL`                                                                               | University IT/security or data-integrity operator; protected audit-job secret store                                                              | Dedicated read-only login with `CONNECT`, `USAGE`, and `SELECT`; short-lived `BYPASSRLS` may be approved for complete visibility; no persistent DML, DDL, role, backup, restore, or provider administration | Never reuse runtime, migration, import, repair, or restore secrets; never make it available to the deployed app                                   |
 | Backup                         | Provider-native backup service identity; for logical export, protected job alias `BACKUP_DATABASE_URL` | University IT backup operator and credential-recovery administrator; approved backup platform/secret store                                       | Read-only consistent export of every required schema/data object plus required sequence access; provider-native identity may manage backup policy but must not be an application login                      | Never deploy to Vercel app/Preview, pass on a command line, store in Git/tickets, or reuse for restore                                            |
@@ -326,11 +432,11 @@ Exact owner remediation, in addition to steps 1–12 above:
 
 13. **Replace the runtime credential.** Run `db/roles/app_runtime.sql` as the
     owner in the verified project. It creates a `nologin`, non-superuser,
-    non-`BYPASSRLS` `app_runtime` role with only DML, sequence, view, and
-    function access, adds the three availability-table policies the runtime
-    needs (row-level security is enabled there with no policies today, so a
-    non-owner role would otherwise see no rows), and keeps Data API roles
-    locked out. IT then sets the login password through the provider's audited
+    non-`BYPASSRLS` `app_runtime` role with only the exact reviewed table
+    writes, required reads and sequence usage, and five approved routines. It
+    enables row-level security and installs the exact runtime-only policy on
+    every public table while keeping Data API roles locked out. IT then sets
+    the login password through the provider's audited
     process, stores the URL only as the Vercel Production `DATABASE_URL`
     secret, redeploys, and requires a fresh `current` 21/21 build check,
     health, and smoke pass. Revoke application use of the `postgres` role. The
