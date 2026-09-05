@@ -22,6 +22,7 @@ import type {
   ProfessorWorkspaceDecision,
   ProfessorWorkspaceOverview,
 } from "@/lib/professor/workspace-overview";
+import { professorQuestionPath } from "@/lib/professor/question-paths";
 import type { QuestionLifecycleEventAction } from "@/lib/types";
 
 /**
@@ -337,7 +338,16 @@ export function ProfessorWorkspaceOverviewPanel({
                       <span className="font-medium">
                         {decisionLabel(decision)}
                       </span>{" "}
-                      {decision.targetTitle}
+                      {decision.kind === "lifecycle" ? (
+                        <Link
+                          href={professorQuestionPath(decision.questionId)}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {decision.targetTitle}
+                        </Link>
+                      ) : (
+                        decision.targetTitle
+                      )}
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {decision.actorDisplayName} ·{" "}

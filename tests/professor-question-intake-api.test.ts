@@ -177,7 +177,7 @@ describe("professor question intake analysis API", () => {
 });
 
 describe("professor question intake save lifecycle", () => {
-  it("saves professor-provided AI content as a non-public draft and warns before duplicates", async () => {
+  it("saves professor-provided AI content into the non-public review state and warns before duplicates", async () => {
     const database = await migratedDatabase();
     await seedProfessorAndTopic(database);
     setPostgresPoolForTests(pglitePool(database));
@@ -195,7 +195,9 @@ describe("professor question intake save lifecycle", () => {
     };
 
     expect(saved.status).toBe(201);
-    expect(savedPayload.question.workingVersion.state).toBe("draft");
+    // Saving submits the immutable version for review in the same
+    // transaction, so it appears in the professor Review Queue immediately.
+    expect(savedPayload.question.workingVersion.state).toBe("needs_review");
     const stored = await database.query<{
       creation_method: string;
       lifecycle_state: string;
@@ -222,7 +224,7 @@ describe("professor question intake save lifecycle", () => {
     );
     expect(stored.rows[0]).toEqual({
       creation_method: "generated",
-      lifecycle_state: "draft",
+      lifecycle_state: "needs_review",
       pattern_id: null,
       published_version_id: null,
       public_count: 0,

@@ -42,6 +42,26 @@ execute generation and submit a validated draft, but cannot approve, publish,
 reject, unpublish, roll back, archive, or restore. Database guards reject direct
 state or pointer updates.
 
+## AI question intake saves
+
+`PUT /api/professor/question-intake` turns a professor-reviewed AI draft into a
+new question aggregate and, in the same transaction, submits the immutable
+first version so it lands in `needs_review`. The `submit` event is attributed
+to the professor and carries whitelisted metadata (`source: question_intake`,
+input mode, model, answer type) plus a note describing the analysis, so the
+timeline states where the version came from without a schema change. Nothing
+is approved or published by saving: the Review Queue shows the question under
+its topic, the lifecycle table lists it, and `/professor/questions/{id}`
+reopens it with every field, the revision editor, and the normal approve and
+publish actions.
+
+Saves are idempotent per browser draft. The client sends one `Idempotency-Key`
+per generated draft; the server derives the stable question ID from the
+professor and that key, so a repeated click or a retry after a timeout returns
+the already-committed question (`200`, `replayed: true`) instead of creating a
+second one. Storage failures return `503` with no success payload and log only
+the error class, question ID, and user ID.
+
 ## Safe batch review
 
 Batch operations are intentionally limited to `request_revision`, `reject`,

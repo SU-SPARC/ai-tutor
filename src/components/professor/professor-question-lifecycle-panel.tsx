@@ -41,6 +41,10 @@ import type {
   QuestionVersionDto,
   QuestionVersionState,
 } from "@/lib/types";
+import {
+  questionIntakeProvenance,
+  questionIntakeSourceLabel,
+} from "@/lib/question-intake/provenance";
 import { lifecycleActionRequiresReason } from "@/lib/tutor/question-lifecycle";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 
@@ -85,15 +89,30 @@ const EVENT_LABELS: Record<QuestionLifecycleEventAction, string> = {
 };
 
 export function ProfessorQuestionLifecyclePanel({
+  focusQuestionId,
+  hideBulkControls = false,
   initialDashboard,
 }: {
+  /** Opens this question's row immediately and marks it in the table. */
+  focusQuestionId?: string;
+  /** Single-question views have no use for lifecycle filters or batches. */
+  hideBulkControls?: boolean;
   initialDashboard: QuestionLifecycleDashboard;
 }) {
   const [activeKey, setActiveKey] = useState<string>();
   const [batchAction, setBatchAction] =
     useState<QuestionLifecycleBatchAction>();
   const [dashboard, setDashboard] = useState(initialDashboard);
-  const [expandedId, setExpandedId] = useState<string>();
+  // A server refresh (for example after the intake panel saves a draft) hands
+  // this component a new dashboard; adopt it instead of keeping stale rows.
+  const [syncedDashboard, setSyncedDashboard] = useState(initialDashboard);
+  if (initialDashboard !== syncedDashboard) {
+    setSyncedDashboard(initialDashboard);
+    setDashboard(initialDashboard);
+  }
+  const [expandedId, setExpandedId] = useState<string | undefined>(
+    focusQuestionId,
+  );
   const [editingId, setEditingId] = useState<string>();
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [message, setMessage] = useState<string>();
@@ -412,20 +431,22 @@ export function ProfessorQuestionLifecyclePanel({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2" aria-label="Lifecycle filters">
-        {FILTERS.map((item) => (
-          <Button
-            key={item.value}
-            type="button"
-            size="sm"
-            variant={filter === item.value ? "default" : "outline"}
-            aria-pressed={filter === item.value}
-            onClick={() => setFilter(item.value)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </div>
+      {hideBulkControls ? null : (
+        <div className="flex flex-wrap gap-2" aria-label="Lifecycle filters">
+          {FILTERS.map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={filter === item.value ? "default" : "outline"}
+              aria-pressed={filter === item.value}
+              onClick={() => setFilter(item.value)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-2 md:grid-cols-[1fr_12rem_auto] md:items-end">
         <label className="space-y-1 text-xs text-muted-foreground">
@@ -468,68 +489,76 @@ export function ProfessorQuestionLifecyclePanel({
         </Alert>
       ) : null}
 
-      <section
-        aria-label="Inspected question batch actions"
-        className="space-y-2 border border-border bg-muted/20 p-3"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-medium">
-              {selectedQuestions.length} inspected versions selected
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Open a question and record inspection of its exact working
-              version before selecting it. Batch approval is intentionally not
-              available.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={
-                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
-              }
-              onClick={() => openBatchConfirmation("request_revision")}
-            >
-              Batch request revision
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={
-                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
-              }
-              onClick={() => openBatchConfirmation("reject")}
-            >
-              Batch reject
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={
-                dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction)
-              }
-              onClick={() => openBatchConfirmation("publish")}
-            >
-              Review batch publication
-            </Button>
-            {selectedQuestions.length > 0 ? (
+      {hideBulkControls ? null : (
+        <section
+          aria-label="Inspected question batch actions"
+          className="space-y-2 border border-border bg-muted/20 p-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">
+                {selectedQuestions.length} inspected versions selected
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Open a question and record inspection of its exact working
+                version before selecting it. Batch approval is intentionally not
+                available.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
-                variant="ghost"
-                disabled={Boolean(batchAction)}
-                onClick={() => setSelectedVersionIds([])}
+                variant="outline"
+                disabled={
+                  dashboard.readOnly ||
+                  Boolean(activeKey) ||
+                  Boolean(batchAction)
+                }
+                onClick={() => openBatchConfirmation("request_revision")}
               >
-                Clear selection
+                Batch request revision
               </Button>
-            ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={
+                  dashboard.readOnly ||
+                  Boolean(activeKey) ||
+                  Boolean(batchAction)
+                }
+                onClick={() => openBatchConfirmation("reject")}
+              >
+                Batch reject
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={
+                  dashboard.readOnly ||
+                  Boolean(activeKey) ||
+                  Boolean(batchAction)
+                }
+                onClick={() => openBatchConfirmation("publish")}
+              >
+                Review batch publication
+              </Button>
+              {selectedQuestions.length > 0 ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={Boolean(batchAction)}
+                  onClick={() => setSelectedVersionIds([])}
+                >
+                  Clear selection
+                </Button>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {batchAction ? (
         <ProfessorQuestionBatchConfirmation
@@ -589,16 +618,24 @@ export function ProfessorQuestionLifecyclePanel({
               const inspection = inspectionByVersionId.get(working.versionId);
               const canSelect =
                 Boolean(inspection) && isBatchSelectableQuestion(question);
+              const focused = question.questionId === focusQuestionId;
+              const intake = questionIntakeProvenance(question);
               return (
                 <Fragment key={question.questionId}>
-                  <TableRow>
+                  <TableRow
+                    id={`question-${question.questionId}`}
+                    data-focused={focused ? "true" : undefined}
+                    className={focused ? "bg-primary/5" : undefined}
+                  >
                     <TableCell>
                       <input
                         type="checkbox"
                         aria-label={`Select inspected version of ${working.title}`}
                         checked={selectedVersionIds.includes(working.versionId)}
                         disabled={
-                          !canSelect || dashboard.readOnly || Boolean(batchAction)
+                          !canSelect ||
+                          dashboard.readOnly ||
+                          Boolean(batchAction)
                         }
                         title={
                           canSelect
@@ -670,6 +707,11 @@ export function ProfessorQuestionLifecyclePanel({
                       <span className="text-muted-foreground">
                         {working.creationMethod}
                       </span>
+                      {intake ? (
+                        <Badge variant="warning" className="mt-1">
+                          {questionIntakeSourceLabel(intake)}
+                        </Badge>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap justify-end gap-2">
@@ -1385,7 +1427,7 @@ function VersionDiff({
   );
 }
 
-function LifecycleBadge({
+export function LifecycleBadge({
   state,
 }: {
   state: QuestionVersionState | "archived";

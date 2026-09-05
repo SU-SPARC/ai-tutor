@@ -86,6 +86,12 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireProfessorReview", "getQuestionLifecycleDashboard"],
   ),
   page(
+    "/professor/questions/[id]",
+    "src/app/professor/questions/[id]/page.tsx",
+    "professor-review",
+    ["requireProfessorReview", "getQuestionLifecycleDashboard"],
+  ),
+  page(
     "/professor/students",
     "src/app/professor/students/page.tsx",
     "professor-analytics",

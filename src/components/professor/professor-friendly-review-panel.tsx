@@ -22,17 +22,29 @@ type ReviewAction =
 
 export function ProfessorFriendlyReviewPanel({
   initialDashboard,
+  initialTopicId,
 }: {
   initialDashboard: ProfessorQuestionReviewDashboard;
+  /**
+   * A topic the server already loaded candidates for (from `?topic=`), so a
+   * link into the queue opens on its first question instead of an empty form.
+   */
+  initialTopicId?: string;
 }) {
+  const preloadedTopicId =
+    initialTopicId && initialDashboard.selectedTopicId === initialTopicId
+      ? initialTopicId
+      : "";
   const [activeAction, setActiveAction] = useState<ReviewAction | null>(null);
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadedTopicId, setLoadedTopicId] = useState<string | null>(null);
+  const [loadedTopicId, setLoadedTopicId] = useState<string | null>(
+    preloadedTopicId || null,
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [reviewedCount, setReviewedCount] = useState(0);
-  const [selectedTopicId, setSelectedTopicId] = useState("");
+  const [selectedTopicId, setSelectedTopicId] = useState(preloadedTopicId);
 
   const current = dashboard.candidates[0];
   const selectedTopic = useMemo(

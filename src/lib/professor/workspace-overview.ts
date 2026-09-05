@@ -47,7 +47,12 @@ export type ProfessorWorkspaceDecision = {
   occurredAt: string;
   targetTitle: string;
 } & (
-  | { action: QuestionLifecycleEventAction; kind: "lifecycle" }
+  | {
+      action: QuestionLifecycleEventAction;
+      kind: "lifecycle";
+      /** Lets the overview link a decision straight to its question. */
+      questionId: string;
+    }
   | { kind: "availability"; releaseState: StudentContentReleaseState }
 );
 
@@ -177,6 +182,7 @@ function collectDecisions(
         id: `lifecycle:${event.id}`,
         kind: "lifecycle",
         occurredAt: eventOccurredAt(event.actor),
+        questionId: question.questionId,
         targetTitle: question.workingVersion.title,
       });
     }

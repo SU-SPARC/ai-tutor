@@ -16,12 +16,53 @@ import {
   requireProfessorReview,
 } from "@/lib/auth/authorization";
 
-export default async function ProfessorReviewPage() {
+type ProfessorReviewPageProps = {
+  searchParams: Promise<{
+    question?: string | string[];
+    topic?: string | string[];
+  }>;
+};
+
+function singleParam(value: string | string[] | undefined) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+export default async function ProfessorReviewPage({
+  searchParams,
+}: ProfessorReviewPageProps) {
   const authorization = await requirePageAccess(
     requireProfessorReview,
     "/professor/review",
   );
-  const dashboard = await getProfessorQuestionReviewDashboard(authorization);
+  const params = await searchParams;
+  const requestedTopicId = singleParam(params.topic);
+  const requestedQuestionId = singleParam(params.question);
+  const loaded = await getProfessorQuestionReviewDashboard(
+    authorization,
+    requestedTopicId,
+  );
+  // Only a real syllabus topic may preselect the queue; anything else falls
+  // back to the untouched topic chooser.
+  const preselectedTopicId = loaded.topics.some(
+    (topic) => topic.topicId === requestedTopicId,
+  )
+    ? requestedTopicId
+    : undefined;
+  const dashboard = preselectedTopicId
+    ? {
+        ...loaded,
+        // A link from "Draft saved" names the question it just created; show
+        // that one first so the professor lands on it.
+        candidates: [
+          ...loaded.candidates.filter(
+            (candidate) => candidate.questionId === requestedQuestionId,
+          ),
+          ...loaded.candidates.filter(
+            (candidate) => candidate.questionId !== requestedQuestionId,
+          ),
+        ],
+      }
+    : { ...loaded, candidates: [], selectedTopicId: undefined };
 
   return (
     <ProfessorPageShell
@@ -43,7 +84,10 @@ export default async function ProfessorReviewPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfessorFriendlyReviewPanel initialDashboard={dashboard} />
+          <ProfessorFriendlyReviewPanel
+            initialDashboard={dashboard}
+            initialTopicId={preselectedTopicId}
+          />
         </CardContent>
       </Card>
     </ProfessorPageShell>

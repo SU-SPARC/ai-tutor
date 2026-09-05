@@ -39,8 +39,9 @@ export default async function ProfessorQuestionsPage() {
         <CardHeader>
           <CardTitle>Question intake</CardTitle>
           <CardDescription>
-            Turn one submitted question into a complete, editable tutoring draft
-            before it enters the normal review lifecycle.
+            Turn one submitted question into a complete, editable tutoring
+            draft. Saving files it in your Review Queue and in the lifecycle
+            table below; approving and publishing stay separate steps.
           </CardDescription>
         </CardHeader>
         <CardContent>

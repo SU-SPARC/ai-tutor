@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
@@ -8,6 +8,7 @@ import {
   createQuestionLifecycle,
   findQuestionIntakeDuplicates,
   getQuestionIntakeTopics,
+  getQuestionLifecycle,
 } from "@/lib/data/data-store";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import {
@@ -19,6 +20,11 @@ import {
   QuestionIntakeImageError,
   validateQuestionIntakeImage,
 } from "@/lib/question-intake/image";
+import {
+  questionIntakeSubmissionMetadata,
+  questionIntakeSubmissionNote,
+  type QuestionIntakeAnalysis,
+} from "@/lib/question-intake/provenance";
 import {
   hasBlockingQuestionIntakeFailure,
   isQuestionIntakeSourceKind,
@@ -41,6 +47,8 @@ const MAX_SAVE_BYTES = 65_536;
 const ANALYSIS_RATE_LIMIT = { max: 10, windowMs: 5 * 60_000 };
 const SAVE_RATE_LIMIT = { max: 30, windowMs: 5 * 60_000 };
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+const SAVE_KEY_PATTERN = /^[A-Za-z0-9_-]{8,200}$/u;
+const MAX_MODEL_NAME_LENGTH = 200;
 
 export async function POST(request: Request) {
   const access = await authorizeApi(requireProfessorReview);
@@ -216,7 +224,10 @@ export async function PUT(request: Request) {
   if (
     !input ||
     Object.keys(input).some(
-      (key) => !["draft", "duplicateAcknowledged", "sourceKind"].includes(key),
+      (key) =>
+        !["analysis", "draft", "duplicateAcknowledged", "sourceKind"].includes(
+          key,
+        ),
     ) ||
     !isQuestionIntakeSourceKind(input.sourceKind) ||
     (input.duplicateAcknowledged !== undefined &&
@@ -227,6 +238,25 @@ export async function PUT(request: Request) {
       400,
     );
   }
+  const analysis = parseAnalysis(input.analysis);
+  if (analysis === null) {
+    return jsonError(
+      "analysis must describe the intake input mode and optional model.",
+      400,
+    );
+  }
+  // The browser sends one key per generated draft. Repeated clicks, retries
+  // after a timeout, and double submissions therefore resolve to one stable
+  // question ID instead of one question per click.
+  const saveKey = stringValue(request.headers.get("idempotency-key"));
+  if (saveKey !== undefined && !SAVE_KEY_PATTERN.test(saveKey)) {
+    return jsonError(
+      "Idempotency-Key must be 8 to 200 URL-safe characters.",
+      400,
+    );
+  }
+  const userId = access.authorization.principal.userId;
+  let questionId: string | undefined;
 
   try {
     const topics = await getQuestionIntakeTopics(access.authorization);
@@ -241,6 +271,21 @@ export async function PUT(request: Request) {
       );
     }
     const draft = verifyQuestionIntakeDraft(validation.draft, topics);
+    questionId = questionIdForDraft(draft.title, userId, saveKey);
+
+    if (saveKey) {
+      const replayed = await getQuestionLifecycle(
+        access.authorization,
+        questionId,
+      );
+      if (replayed) {
+        return NextResponse.json(
+          { duplicates: [], question: replayed, replayed: true },
+          { headers: NO_STORE_HEADERS, status: 200 },
+        );
+      }
+    }
+
     if (hasBlockingQuestionIntakeFailure(draft)) {
       return NextResponse.json(
         {
@@ -267,7 +312,9 @@ export async function PUT(request: Request) {
       );
     }
 
-    const questionId = questionIdFromTitle(draft.title);
+    // The professor has already reviewed the generated draft on the intake
+    // screen, so saving submits the immutable version straight into the
+    // normal review state. Approval and publication stay separate actions.
     const question = await createQuestionLifecycle(access.authorization, {
       allowDuplicatePrompt: input.duplicateAcknowledged === true,
       content: {
@@ -291,23 +338,58 @@ export async function PUT(request: Request) {
         topicId: draft.topicId,
       },
       creationMethod: "generated",
-      submit: false,
+      submission: {
+        metadata: questionIntakeSubmissionMetadata(analysis, draft),
+        note: questionIntakeSubmissionNote(analysis),
+        requestId:
+          stringValue(request.headers.get("x-request-id"))?.slice(0, 200) ??
+          randomUUID(),
+      },
+      submit: true,
     });
     return NextResponse.json(
-      { duplicates, question },
+      { duplicates, question, replayed: false },
       { headers: NO_STORE_HEADERS, status: 201 },
     );
   } catch (error) {
     if (isQuestionLifecycleDomainError(error)) {
+      if (
+        saveKey &&
+        questionId &&
+        error instanceof Error &&
+        /stable ID already exists/iu.test(error.message)
+      ) {
+        // Two identical saves raced; the first one committed this exact ID.
+        const committed = await getQuestionLifecycle(
+          access.authorization,
+          questionId,
+        ).catch(() => undefined);
+        if (committed) {
+          return NextResponse.json(
+            { duplicates: [], question: committed, replayed: true },
+            { headers: NO_STORE_HEADERS, status: 200 },
+          );
+        }
+      }
       return lifecycleApiErrorResponse(error);
     }
+    // Infrastructure failures are logged without any draft content; the
+    // professor keeps the editable draft in the browser and can retry.
+    console.error("Question intake draft save failed.", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      questionId,
+      userId,
+    });
     if (error instanceof DataServiceUnavailableError) {
       return jsonError(
-        "Question drafts require configured database storage. The editable draft has not been lost from this page.",
+        "The draft could not be saved because question storage is unavailable. Your generated question is still available on this page. Please try again.",
         503,
       );
     }
-    return jsonError("Question draft storage is unavailable.", 503);
+    return jsonError(
+      "The draft could not be saved. Your generated question is still available on this page. Please try again.",
+      503,
+    );
   }
 }
 
@@ -341,14 +423,55 @@ function professorRateLimit(
     : undefined;
 }
 
-function questionIdFromTitle(title: string) {
+/**
+ * Stable IDs stay readable (title slug) and unique. With a browser save key the
+ * suffix is derived from the professor and that key, so a repeated click maps
+ * to the same ID; without one the suffix is random, as before.
+ */
+function questionIdForDraft(title: string, userId: string, saveKey?: string) {
   const slug = title
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-|-$/gu, "")
     .slice(0, 72);
-  return `ai-intake-${slug || "question"}-${randomUUID().slice(0, 8)}`;
+  const suffix = saveKey
+    ? createHash("sha256")
+        .update(`${userId}\n${saveKey}`)
+        .digest("hex")
+        .slice(0, 8)
+    : randomUUID().slice(0, 8);
+  return `ai-intake-${slug || "question"}-${suffix}`;
+}
+
+function parseAnalysis(
+  value: unknown,
+): QuestionIntakeAnalysis | undefined | null {
+  if (value === undefined) return undefined;
+  const analysis = recordValue(value);
+  if (
+    !analysis ||
+    Object.keys(analysis).some(
+      (key) => !["inputMode", "model"].includes(key),
+    ) ||
+    (analysis.inputMode !== "text" && analysis.inputMode !== "image") ||
+    (analysis.model !== undefined &&
+      (typeof analysis.model !== "string" ||
+        !analysis.model.trim() ||
+        analysis.model.length > MAX_MODEL_NAME_LENGTH))
+  ) {
+    return null;
+  }
+  return {
+    inputMode: analysis.inputMode,
+    model:
+      typeof analysis.model === "string" ? analysis.model.trim() : undefined,
+  };
+}
+
+function stringValue(value: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function textValue(value: FormDataEntryValue | null) {

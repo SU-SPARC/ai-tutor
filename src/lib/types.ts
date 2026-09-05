@@ -490,6 +490,12 @@ export type QuestionLifecycleEventDto = {
   executedBy?: QuestionVersionAttribution;
   fromState?: QuestionVersionState;
   id: number;
+  /**
+   * Public-safe, whitelisted event metadata. Question intake records how a
+   * saved draft was produced here (input mode and model) so provenance stays
+   * visible after the professor leaves the intake screen.
+   */
+  metadata?: Record<string, boolean | number | string>;
   note?: string;
   reasonCode?: string;
   requestId?: string;

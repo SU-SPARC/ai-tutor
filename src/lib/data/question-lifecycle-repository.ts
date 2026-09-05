@@ -74,6 +74,15 @@ export type CreateQuestionInput = {
   content: QuestionVersionContentInput;
   creationMethod: QuestionCreationMethod;
   submit?: boolean;
+  /**
+   * Recorded on the `submit` lifecycle event when `submit` is true, so the
+   * attributed timeline states where the reviewed draft came from.
+   */
+  submission?: {
+    metadata?: Record<string, boolean | number | string>;
+    note?: string;
+    requestId?: string;
+  };
 };
 
 export type CreateQuestionVersionInput = CreateQuestionInput & {
@@ -191,6 +200,7 @@ type LifecycleEventRow = {
   executed_by_user_id: string | null;
   from_state: QuestionVersionState | null;
   id: number | string;
+  metadata_json: unknown;
   note: string | null;
   occurred_at: Date | string;
   question_id: string;
@@ -516,7 +526,10 @@ export function createDatabaseQuestionLifecycleRepository(
             await applyTransition(transactionQuery, authorization, {
               action: "submit",
               expectedState: "draft",
+              metadata: input.submission?.metadata,
+              note: input.submission?.note,
               questionId: input.content.id,
+              requestId: input.submission?.requestId,
               versionId,
             });
           }
@@ -2300,6 +2313,7 @@ function mapLifecycleEvent(row: LifecycleEventRow): QuestionLifecycleEventDto {
         : undefined,
     fromState: row.from_state ?? undefined,
     id: Number(row.id),
+    metadata: safeLifecycleEventMetadata(row.metadata_json),
     note: row.note ?? undefined,
     reasonCode: row.reason_code ?? undefined,
     requestId: row.request_id ?? undefined,
@@ -2372,6 +2386,37 @@ function safeGenerationMetadataForProfessor(value: unknown) {
     }
   }
   return safe;
+}
+
+/**
+ * Lifecycle event metadata is written by application transactions only, but
+ * the professor DTO still exposes a fixed whitelist of short primitive values
+ * so no request identifiers or private inputs can leak through the timeline.
+ */
+function safeLifecycleEventMetadata(value: unknown) {
+  const metadata = recordValue(value);
+  if (!metadata) return undefined;
+  const safe: Record<string, boolean | number | string> = {};
+  for (const key of [
+    "answerType",
+    "inputMode",
+    "model",
+    "questionType",
+    "revisionMethod",
+    "source",
+  ] as const) {
+    const candidate = metadata[key];
+    if (
+      typeof candidate === "boolean" ||
+      (typeof candidate === "number" && Number.isFinite(candidate)) ||
+      (typeof candidate === "string" &&
+        candidate.length > 0 &&
+        candidate.length <= 200)
+    ) {
+      safe[key] = candidate;
+    }
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
 }
 
 function revisionTrustLevel(source: SourceMetadata): TrustLevel {

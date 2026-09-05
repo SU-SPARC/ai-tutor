@@ -1,9 +1,13 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
+  Eye,
   FileImage,
   Loader2,
   Plus,
@@ -18,6 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { nativeSelectClassName } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  professorQuestionPath,
+  professorReviewQueuePagePath,
+} from "@/lib/professor/question-paths";
+import type { QuestionIntakeAnalysis } from "@/lib/question-intake/provenance";
 import { questionIntakeModelDraftForSave } from "@/lib/question-intake/schema";
 import type {
   QuestionIntakeAnalysisResult,
@@ -27,16 +36,38 @@ import type {
   QuestionIntakeInputMode,
   QuestionIntakeSourceKind,
 } from "@/lib/question-intake/types";
-import type { Difficulty, QuestionLifecycleDashboard } from "@/lib/types";
+import type {
+  Difficulty,
+  QuestionLifecycleDashboard,
+  QuestionVersionState,
+} from "@/lib/types";
 
 type IntakeResponse = Partial<QuestionIntakeAnalysisResult> & {
   code?: string;
   error?: string;
   manualDraftAllowed?: boolean;
-  question?: { questionId: string; workingVersion: { state: string } };
+  question?: {
+    questionId: string;
+    workingVersion: {
+      state: QuestionVersionState;
+      title: string;
+      topicId: string;
+    };
+  };
   reasons?: string[];
   requiresDuplicateAcknowledgement?: boolean;
 };
+
+/** What the professor needs after a save: where the question went and how to reopen it. */
+export type QuestionIntakeSavedQuestion = {
+  questionId: string;
+  state: QuestionVersionState;
+  title: string;
+  topicId: string;
+};
+
+export const QUESTION_INTAKE_SAVE_FAILURE_MESSAGE =
+  "The draft could not be saved. Your generated question is still available on this page. Please try again.";
 
 const DIFFICULTIES = [
   "foundational",
@@ -66,7 +97,13 @@ export function ProfessorQuestionIntakePanel({
   readOnly: boolean;
   topics: QuestionLifecycleDashboard["topics"];
 }) {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // One save key per generated draft: the server derives the stable question
+  // ID from it, so a second click or a retry cannot create a second question.
+  const saveKeyRef = useRef<string>(undefined);
+  const saveInFlightRef = useRef(false);
+  const [analysis, setAnalysis] = useState<QuestionIntakeAnalysis>();
   const [draft, setDraft] = useState<QuestionIntakeDraft>();
   const [duplicates, setDuplicates] = useState<QuestionIntakeDuplicate[]>([]);
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
@@ -77,18 +114,36 @@ export function ProfessorQuestionIntakePanel({
   const [message, setMessage] = useState<string>();
   const [model, setModel] = useState<string>();
   const [questionText, setQuestionText] = useState("");
-  const [savedQuestionId, setSavedQuestionId] = useState<string>();
+  const [saved, setSaved] = useState<QuestionIntakeSavedQuestion>();
+  const [saveError, setSaveError] = useState<string>();
   const [sourceKind, setSourceKind] =
     useState<QuestionIntakeSourceKind>("professor_authored");
 
-  function changeInputMode(mode: QuestionIntakeInputMode) {
-    setInputMode(mode);
-    setDraft(undefined);
+  function startNewDraft(next: QuestionIntakeDraft | undefined) {
+    saveKeyRef.current = next ? newSaveKey() : undefined;
+    setDraft(next);
     setDuplicates([]);
     setDuplicateAcknowledged(false);
+    setSaved(undefined);
+    setSaveError(undefined);
+  }
+
+  function changeInputMode(mode: QuestionIntakeInputMode) {
+    setInputMode(mode);
+    startNewDraft(undefined);
+    setAnalysis(undefined);
     setManualDraftAllowed(false);
     setMessage(undefined);
-    setSavedQuestionId(undefined);
+  }
+
+  function resetForAnotherQuestion() {
+    startNewDraft(undefined);
+    setAnalysis(undefined);
+    setManualDraftAllowed(false);
+    setMessage(undefined);
+    setModel(undefined);
+    setQuestionText("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function analyzeQuestion() {
@@ -104,10 +159,7 @@ export function ProfessorQuestionIntakePanel({
 
     setIsAnalyzing(true);
     setMessage(undefined);
-    setDraft(undefined);
-    setDuplicates([]);
-    setDuplicateAcknowledged(false);
-    setSavedQuestionId(undefined);
+    startNewDraft(undefined);
     const formData = new FormData();
     formData.set("mode", inputMode);
     if (inputMode === "text") formData.set("questionText", questionText);
@@ -124,9 +176,10 @@ export function ProfessorQuestionIntakePanel({
         setMessage(payload.error ?? "Question analysis failed.");
         return;
       }
-      setDraft(payload.draft);
+      startNewDraft(payload.draft);
       setDuplicates(payload.duplicates ?? []);
       setModel(payload.model);
+      setAnalysis({ inputMode, model: payload.model });
       setManualDraftAllowed(false);
       setMessage(
         "AI question draft created. Nothing has been saved, approved, or published.",
@@ -142,9 +195,8 @@ export function ProfessorQuestionIntakePanel({
   }
 
   function startManualDraft() {
-    setDraft(manualQuestionDraft(questionText, topics));
-    setDuplicates([]);
-    setDuplicateAcknowledged(false);
+    startNewDraft(manualQuestionDraft(questionText, topics));
+    setAnalysis({ inputMode });
     setManualDraftAllowed(false);
     setModel(undefined);
     setMessage(
@@ -159,38 +211,56 @@ export function ProfessorQuestionIntakePanel({
   }
 
   async function saveDraft() {
-    if (!draft) return;
+    if (!draft || saved || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    saveKeyRef.current ??= newSaveKey();
     setIsSaving(true);
+    setSaveError(undefined);
     setMessage(undefined);
-    setSavedQuestionId(undefined);
     try {
       const response = await fetch("/api/professor/question-intake", {
         body: JSON.stringify({
+          analysis,
           draft: questionIntakeModelDraftForSave(draft),
           duplicateAcknowledged,
           sourceKind,
         }),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": saveKeyRef.current,
+        },
         method: "PUT",
       });
-      const payload = (await response.json()) as IntakeResponse;
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as IntakeResponse;
       if (payload.draft) setDraft(payload.draft);
       if (payload.duplicates) setDuplicates(payload.duplicates);
       if (!response.ok || !payload.question) {
-        setMessage(
-          [payload.error, ...(payload.reasons ?? [])]
-            .filter(Boolean)
-            .join(" ") || "Question draft could not be saved.",
+        console.error("Question draft save failed.", {
+          status: response.status,
+        });
+        setSaveError(
+          questionIntakeSaveFailureMessage(response.status, payload),
         );
         return;
       }
-      setSavedQuestionId(payload.question.questionId);
-      setMessage(
-        "Draft saved to the immutable question lifecycle. It is not approved, published, or student-visible.",
-      );
-    } catch {
-      setMessage("Question draft could not be saved. Your edits remain here.");
+      setSaved({
+        questionId: payload.question.questionId,
+        state: payload.question.workingVersion.state,
+        title: payload.question.workingVersion.title,
+        topicId: payload.question.workingVersion.topicId,
+      });
+      // The lifecycle table on this page is server-rendered; refresh it so
+      // the saved question appears there without a manual reload.
+      router.refresh();
+    } catch (error) {
+      console.error("Question draft save failed.", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+      setSaveError(QUESTION_INTAKE_SAVE_FAILURE_MESSAGE);
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   }
@@ -285,16 +355,29 @@ export function ProfessorQuestionIntakePanel({
       </section>
 
       {message ? (
-        <Alert
-          variant={savedQuestionId ? "success" : "info"}
-          aria-live="polite"
-        >
-          {savedQuestionId ? <CheckCircle2 /> : <Sparkles />}
+        <Alert variant="info" aria-live="polite">
+          <Sparkles />
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       ) : null}
 
-      {draft ? (
+      {saved ? (
+        <QuestionIntakeSavedNotice
+          saved={saved}
+          topicTitle={topics.find((topic) => topic.id === saved.topicId)?.title}
+          onAddAnother={resetForAnotherQuestion}
+        />
+      ) : null}
+
+      {saveError ? (
+        <Alert variant="destructive" role="alert">
+          <AlertTriangle />
+          <AlertTitle>Draft not saved</AlertTitle>
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {draft && !saved ? (
         <QuestionDraftEditor
           draft={draft}
           duplicateAcknowledged={duplicateAcknowledged}
@@ -302,7 +385,6 @@ export function ProfessorQuestionIntakePanel({
           isSaving={isSaving}
           model={model}
           readOnly={readOnly}
-          savedQuestionId={savedQuestionId}
           sourceKind={sourceKind}
           topics={topics}
           onDuplicateAcknowledged={setDuplicateAcknowledged}
@@ -313,6 +395,100 @@ export function ProfessorQuestionIntakePanel({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The post-save confirmation. It names the destination in the professor's own
+ * vocabulary (Review Queue, approve, publish) and links straight to the saved
+ * question so nobody has to hunt for it.
+ */
+export function QuestionIntakeSavedNotice({
+  onAddAnother,
+  saved,
+  topicTitle,
+}: {
+  onAddAnother?: () => void;
+  saved: QuestionIntakeSavedQuestion;
+  topicTitle?: string;
+}) {
+  return (
+    <Alert variant="success" role="status" aria-live="polite">
+      <CheckCircle2 />
+      <AlertTitle>Draft saved.</AlertTitle>
+      <AlertDescription>
+        <p>{questionIntakeSavedSummary(saved, topicTitle)}</p>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href={professorQuestionPath(saved.questionId)}>
+              <Eye className="h-4 w-4" />
+              View Draft
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link
+              href={professorReviewQueuePagePath(
+                saved.topicId,
+                saved.questionId,
+              )}
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Open in Review Queue
+            </Link>
+          </Button>
+          {onAddAnother ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onAddAnother}
+            >
+              <Plus className="h-4 w-4" />
+              Add another question
+            </Button>
+          ) : null}
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+export function questionIntakeSavedSummary(
+  saved: Pick<QuestionIntakeSavedQuestion, "state" | "title" | "topicId">,
+  topicTitle?: string,
+) {
+  const topic = topicTitle ?? saved.topicId;
+  const location =
+    saved.state === "needs_review"
+      ? `is waiting in your Review Queue under ${topic}.`
+      : `was filed under ${topic} in the question lifecycle.`;
+  return `“${saved.title}” ${location} Review and approve it before publishing to students. Students cannot see it yet.`;
+}
+
+export function questionIntakeSaveFailureMessage(
+  status: number,
+  payload: Pick<IntakeResponse, "error" | "reasons">,
+) {
+  const detail = [payload.error, ...(payload.reasons ?? [])]
+    .filter(Boolean)
+    .join(" ");
+  if (status >= 500 || !detail) return QUESTION_INTAKE_SAVE_FAILURE_MESSAGE;
+  // Client-correctable problems (duplicates, consistency checks) keep the
+  // server's actionable wording and the same reassurance about lost work.
+  return `${detail} Your generated question is still available on this page.`;
+}
+
+export function saveDraftButtonLabel(input: {
+  isSaving: boolean;
+  saved: boolean;
+}) {
+  if (input.isSaving) return "Saving…";
+  return input.saved ? "Draft saved" : "Save Draft";
+}
+
+function newSaveKey() {
+  return globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
 function QuestionDraftEditor({
@@ -326,7 +502,6 @@ function QuestionDraftEditor({
   onSave,
   onSourceKindChange,
   readOnly,
-  savedQuestionId,
   sourceKind,
   topics,
 }: {
@@ -340,7 +515,6 @@ function QuestionDraftEditor({
   onSave: () => void;
   onSourceKindChange: (value: QuestionIntakeSourceKind) => void;
   readOnly: boolean;
-  savedQuestionId?: string;
   sourceKind: QuestionIntakeSourceKind;
   topics: QuestionLifecycleDashboard["topics"];
 }) {
@@ -379,7 +553,8 @@ function QuestionDraftEditor({
           <h3 className="text-lg font-semibold">AI Question Draft</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Every tutoring field remains unverified until a professor reviews
-            it. Saving creates a lifecycle draft only.
+            it. Saving files the question in your Review Queue; approval and
+            publication stay separate steps.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -718,7 +893,8 @@ function QuestionDraftEditor({
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Button
           type="button"
-          disabled={readOnly || isSaving || Boolean(savedQuestionId)}
+          aria-busy={isSaving}
+          disabled={readOnly || isSaving}
           onClick={onSave}
         >
           {isSaving ? (
@@ -726,11 +902,12 @@ function QuestionDraftEditor({
           ) : (
             <Save className="h-4 w-4" />
           )}
-          Save Draft
+          {saveDraftButtonLabel({ isSaving, saved: false })}
         </Button>
         <span className="text-xs text-muted-foreground">
-          Save creates a non-public draft. Submit, approve, and publish remain
-          separate lifecycle actions.
+          Save files a non-public draft in your Review Queue. Approve and
+          publish remain separate lifecycle actions; students see nothing until
+          you publish.
         </span>
       </div>
     </section>
