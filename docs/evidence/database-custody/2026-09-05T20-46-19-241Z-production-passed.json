@@ -1,0 +1,51 @@
+{
+  "artifactVersion": 1,
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "audit": "production_database_custody_change",
+  "changeTicket": "DB-CUSTODY-124",
+  "custody": {
+    "administratorCount": 2,
+    "administrators": [
+      {
+        "administratorFingerprint": "8661d7ff75f70ac2",
+        "mfa": "verified",
+        "role": "recovery_administrator"
+      },
+      {
+        "administratorFingerprint": "25fcd20a7c3ebe18",
+        "mfa": "verified",
+        "role": "recovery_administrator"
+      }
+    ],
+    "mfaEnabledAdministratorCount": 2,
+    "organizationFingerprint": "89b51cd636406f8b",
+    "ownership": "institutionally_verified"
+  },
+  "expectedFingerprint": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-05T20:46:19.241Z",
+  "operation": "cleanup-expired-audit",
+  "preflight": {
+    "databaseName": "postgres",
+    "ledgerFingerprint": "18b5a636a4e3ac41",
+    "migrationCount": 21,
+    "migrationState": "current",
+    "targetRows": "production"
+  },
+  "result": {
+    "removedRole": "temporary_integrity_audit",
+    "removedRoleHash": "5982cada2a36410b",
+    "remainingTemporaryAuditRoleCount": 0
+  },
+  "status": "passed",
+  "target": "production"
+}

@@ -24,6 +24,7 @@
     "db:backup:keys": "node scripts/backup-keys.mjs",
     "db:recovery:accept": "node scripts/accept-recovery-objectives.mjs --evidence-dir docs/evidence/database-recovery",
     "db:custody:apply": "node scripts/apply-production-database-custody.mjs",
+    "db:custody:rotate": "node scripts/rotate-production-database-credentials.mjs",
     "db:custody:verify": "node scripts/verify-production-database-custody.mjs --json --evidence-dir docs/evidence/database-custody",
     "db:recovery:test": "node scripts/test-database-restore.mjs",
     "db:recovery:test:evidence": "node scripts/test-database-restore.mjs --json --evidence-dir docs/evidence/database-recovery",

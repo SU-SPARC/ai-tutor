@@ -1,0 +1,40 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody_reviewer_invitation",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerAuthorization": "recorded",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerAuthorization": "pending",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "fingerprints": {
+    "canceledReviewerAccountHash": "5953b14afafb7e4f",
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase",
+    "replacementReviewerAccountHash": "732efcbc269c939f"
+  },
+  "generatedAt": "2026-09-05T04:15:01.596Z",
+  "results": {
+    "accepted": false,
+    "delivery": "pending_recipient_confirmation",
+    "mfa": "not_verified",
+    "oldInvitationAbsent": true,
+    "productionDatabaseWritesAttempted": 0,
+    "providerMembershipMutations": 2,
+    "rawInvitationDataRetained": false,
+    "replacementInvitationPending": true,
+    "replacementInvitationRequestedByReviewer": true,
+    "replacementLinkInspected": false
+  },
+  "roles": [
+    "production_owner",
+    "independent_second_reviewer",
+    "recovery_administrator"
+  ],
+  "status": "pending_reviewer_acceptance_mfa_and_approval",
+  "target": "production"
+}

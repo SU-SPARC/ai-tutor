@@ -1,0 +1,48 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody",
+  "changeTicket": null,
+  "fingerprints": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-04T22:17:05.579Z",
+  "readOnly": true,
+  "relatedChangeTickets": [
+    "BACKUP-CUSTODY-2026-09-04"
+  ],
+  "results": {
+    "authorization": "not_recorded",
+    "encryptedLogicalRecoveryPoint": "verified",
+    "institutionalOwnership": "not_recorded",
+    "providerBackup": "inactive",
+    "rlsEnabledTableCount": 29,
+    "runtimePolicyCount": 0,
+    "tableCount": 29,
+    "temporaryAuditRoleCount": 1
+  },
+  "roles": {
+    "expected": [
+      "app_runtime",
+      "app_migrator",
+      "integrity_audit",
+      "backup_export"
+    ],
+    "observed": [
+      {
+        "bypassRls": true,
+        "canLogin": false,
+        "createDatabase": false,
+        "createRole": false,
+        "replication": false,
+        "role": "backup_export",
+        "roleHash": "1fbe8d40fe0cbaef",
+        "superuser": false
+      }
+    ]
+  },
+  "status": "blocked",
+  "target": "production",
+  "writesAttempted": 0
+}

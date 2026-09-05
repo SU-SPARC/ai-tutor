@@ -1,0 +1,96 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody_closure",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerAuthorization": "approved",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerAuthorization": "approved",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "changeTicket": "DB-CUSTODY-124",
+  "credentialTopology": {
+    "allCredentialsVerifiedIndependently": true,
+    "credentialCount": 4,
+    "distinctRoleCount": 4,
+    "operatorCredentialsInVercel": 0,
+    "operatorCredentialsOutsideVercel": 3,
+    "rawCredentialDataRetained": false,
+    "runtimeCredentialProductionOnly": true,
+    "sameDatabase": true,
+    "sameMigrationLedger": true,
+    "sameProject": true
+  },
+  "custody": {
+    "institutionalOrganizationFingerprint": "89b51cd636406f8b",
+    "mfaEnabledRecoveryAdministratorCount": 2,
+    "ownerRoleCount": 2,
+    "status": "passed"
+  },
+  "deployment": {
+    "authorizationBoundaryCheckCount": 2,
+    "databaseHealth": "passed",
+    "databaseRequired": true,
+    "deploymentFingerprint": "35db4e045fecb3a7",
+    "errorLogEntryCount": 0,
+    "migrationAppliedCount": 21,
+    "migrationState": "current",
+    "migrationTotalCount": 21,
+    "privacyBoundaryCheckCount": 2,
+    "smokeCheckCount": 5,
+    "status": "ready"
+  },
+  "formerOwnerCredential": {
+    "legacyDeploymentDatabaseHealth": "unavailable",
+    "legacyDeploymentFingerprint": "9b617ae865d3e499",
+    "legacyVercelCredentialCount": 0,
+    "providerOwnerPasswordRotated": true,
+    "status": "revoked",
+    "verifiedAt": "2026-09-05T21:13:41Z"
+  },
+  "generatedAt": "2026-09-05T21:13:41Z",
+  "roleResults": [
+    {
+      "leastPrivilege": "passed",
+      "role": "app_runtime",
+      "roleFingerprint": "dd2b2aae3ec674b6"
+    },
+    {
+      "leastPrivilege": "passed",
+      "role": "app_migrator",
+      "roleFingerprint": "549a56913239e49b"
+    },
+    {
+      "leastPrivilege": "passed",
+      "role": "integrity_audit",
+      "roleFingerprint": "dc01eac73094895d"
+    },
+    {
+      "leastPrivilege": "passed",
+      "role": "backup_export",
+      "roleFingerprint": "1fbe8d40fe0cbaef"
+    }
+  ],
+  "rowLevelSecurity": {
+    "applicationPolicyCount": 29,
+    "applicationPolicyResult": "passed",
+    "enabledTableCount": 29,
+    "tableCount": 29
+  },
+  "target": {
+    "databaseName": "postgres",
+    "hostFingerprint": "3932d873511760d0",
+    "migrationLedgerFingerprint": "18b5a636a4e3ac41",
+    "projectFingerprint": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "temporaryAuditIdentity": {
+    "remainingCount": 0,
+    "removedRoleFingerprint": "5982cada2a36410b",
+    "status": "removed"
+  },
+  "status": "passed",
+  "targetEnvironment": "production"
+}

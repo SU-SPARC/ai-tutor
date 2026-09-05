@@ -363,7 +363,17 @@ export async function removeTemporaryAuditRole({
          where d.datdba = r.oid) as owned_database_count,
         (select count(*)::int from pg_auth_members m
          where m.member = r.oid or m.roleid = r.oid)
-          as role_membership_count
+          as role_membership_count,
+        (select count(*)::int from pg_auth_members m
+          join pg_roles member_role on member_role.oid = m.member
+          where m.roleid = r.oid and member_role.rolname = 'postgres')
+          as provider_owner_membership_count,
+        (select count(*)::int from pg_auth_members m
+          left join pg_roles member_role on member_role.oid = m.member
+          where (m.member = r.oid or m.roleid = r.oid)
+            and not (
+              m.roleid = r.oid and member_role.rolname = 'postgres'
+            )) as unexpected_role_membership_count
       from pg_roles r
       where r.rolname ~ '^integrity_audit_[0-9a-f]{16}$'
       order by r.rolname;
@@ -392,7 +402,9 @@ export async function removeTemporaryAuditRole({
     Number(candidate.owned_schema_count) !== 0 ||
     Number(candidate.owned_type_count) !== 0 ||
     Number(candidate.owned_database_count) !== 0 ||
-    Number(candidate.role_membership_count) !== 0
+    Number(candidate.unexpected_role_membership_count) !== 0 ||
+    Number(candidate.role_membership_count) !==
+      Number(candidate.provider_owner_membership_count)
   ) {
     throw new DatabaseCustodyError(
       "The selected temporary audit role is not safe to remove.",
@@ -475,7 +487,8 @@ export function runSupabaseQuery({ providerProjectRef, spawnSyncImpl, sql }) {
       "provider_database_operation_failed",
     );
   }
-  return parseFirstJsonValue(result.stdout);
+  const parsed = parseFirstJsonValue(result.stdout);
+  return Array.isArray(parsed) ? { rows: parsed } : parsed;
 }
 
 function requiredArgumentValue(args, index, option) {

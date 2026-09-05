@@ -1,0 +1,76 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerAuthorization": "recorded",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerAuthorization": "pending",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "credentials": {
+    "backup": "not_provisioned",
+    "integrityAudit": "not_provisioned",
+    "migration": "production_credential_unavailable",
+    "runtime": "legacy_provider_owner"
+  },
+  "fingerprints": {
+    "currentOrganizationHash": "6b2e4f9d6b7ba66f",
+    "databaseName": "postgres",
+    "institutionalOrganizationCandidateHash": "89b51cd636406f8b",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-04T22:36:07.779Z",
+  "providerCustody": {
+    "acceptedInstitutionalOwnerCount": 0,
+    "activeMemberCount": 1,
+    "invitedInstitutionalOwnerCount": 2,
+    "mfaEnabledAdministratorCount": 0,
+    "ownership": "pending_acceptance_and_mfa"
+  },
+  "readOnlyDatabaseInspection": true,
+  "results": {
+    "databaseMutationAuthorization": "blocked",
+    "encryptedLogicalRecoveryPoint": "verified",
+    "migrationState": "current",
+    "providerBackup": "inactive",
+    "rlsEnabledTableCount": 29,
+    "runtimePolicyCount": 0,
+    "tableCount": 29,
+    "temporaryAuditRoleCount": 1
+  },
+  "roles": {
+    "expected": [
+      "app_runtime",
+      "app_migrator",
+      "integrity_audit",
+      "backup_export"
+    ],
+    "observed": [
+      {
+        "bypassRls": true,
+        "canLogin": false,
+        "createDatabase": false,
+        "createRole": false,
+        "replication": false,
+        "role": "backup_export",
+        "roleHash": "1fbe8d40fe0cbaef",
+        "superuser": false
+      }
+    ]
+  },
+  "status": "blocked",
+  "target": "production",
+  "vercel": {
+    "legacyOwnerCredentialCount": 5,
+    "operatorCredentialCount": 0,
+    "runtimeCredentialPresent": false
+  },
+  "writesAttempted": {
+    "productionDatabase": 0,
+    "providerMembership": 1
+  }
+}

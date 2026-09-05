@@ -1,37 +1,46 @@
 # Database Backup And Recovery Runbook
 
-> **Evidence status (2026-09-04): Production now has a dedicated read-only
-> `backup_export` identity, a daily encrypted logical export path under a
-> custody ledger, an automatic stale/missing/failed detector, and a
-> decrypt-and-restore drill that passed full validation on the same day
-> (see the exercise log). Provider verification still reports no daily
-> backup and no point-in-time recovery, retention and ownership remain
-> not provider-verified, the custody store is an interim workstation
-> location rather than an institutional one, and two institutional owners, a
-> named backup operator, and RPO/RTO acceptance are not recorded.**
+> **Evidence status (2026-09-05): Supabase provider custody now has two
+> independently controlled Owner-role recovery administrators with MFA.
+> Production has a separate least-privilege `backup_export` login whose
+> credential is held in the protected GitHub `Production` operator environment
+> and is absent from every Vercel application environment. It was independently
+> verified against the same Production target and immutable 21/21 ledger as
+> runtime, migration, and integrity audit under `DB-CUSTODY-124`. The daily
+> encrypted logical-export path, custody ledger, stale/missing/failed detector,
+> and decrypt-and-restore drill remain proven. Provider verification still
+> reports no daily backup and no point-in-time recovery; the archive custody
+> store, named backup operator, and RPO/RTO acceptance remain open.**
 > Do not state that provider-managed Production backups exist. The encrypted
-> logical export is the only recovery point until the provider plan and
-> institutional custody are established, and only a successful disposable
+> logical export is the only recovery point until the provider backup plan and
+> institutional archive custody are established, and only a successful disposable
 > restore proves any backup.
+
+Provider backup availability and retention remain **not provider-verified**.
+
+The sanitized database-custody [closure
+artifact](evidence/database-custody/2026-09-05T21-19-15Z-production-passed.json)
+records the two MFA recovery administrators and separate backup identity
+without retaining account data or credentials.
 
 The 2026-09-04 provider recheck is retained as
 `docs/evidence/database-backups/2026-09-04T17-24-31-367Z-production-findings.json`.
-It again reports zero provider recovery points, PITR disabled, and ownership
-unverified through the CLI. A read-only console inspection confirms the actual
-organization is personal and Free with one owner whose MFA is disabled. No
-provider setting, member, role, credential, backup, or Production data was
-changed because no named second reviewer or approved change ticket exists.
+It reports zero provider recovery points and PITR disabled. Its pre-change
+ownership finding is superseded by the 2026-09-05 custody evidence: two
+institutional Owner-role recovery administrators have MFA, and the named owner
+and independent reviewer authorized `DB-CUSTODY-124`. This custody change did
+not enable or claim provider-managed backups.
 
-The supported custody workflow is now `db:custody:apply` followed by provider
-login/secret creation and `db:custody:verify`. The apply command creates only
+The supported custody workflow is `db:custody:apply`, followed by
+`db:custody:rotate` and `db:custody:verify`. The apply command creates only
 NOLOGIN roles and requires institutional ownership, two MFA recovery
 administrators, distinct named authorizers, the exact Production project hash,
-the checksum-clean 21/21 ledger, and retained ticketed evidence. Migration,
-integrity, and backup secrets must be injected from an institutional operator
-store; both verification phases fail if any is present in any Vercel
-application environment. The pre-rotation phase permits the old owner
-variables only long enough to prove the replacement target and privileges;
-the post-rotation phase requires those legacy variables to be absent.
+the checksum-clean 21/21 ledger, and retained ticketed evidence. The rotation
+command creates four credentials in memory only, verifies all four identities,
+stores migration, integrity, and backup secrets in the independently reviewed
+GitHub Production operator environment, stores only `DATABASE_URL` in Vercel
+Production, and removes legacy owner variables. Both verification phases fail
+if any operator credential is present in any Vercel application environment.
 
 This runbook defines named ownership, the backup policy, the provider
 verification command, the logical export command, the disposable restore-test
@@ -48,14 +57,16 @@ blocker, not a formality.
 | -------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Engineering owner of recovery tooling   | Kanan Guliyev (repository maintainer; Vercel `ai-tutor` project owner)                 | To be named by the project owner            | Maintains `db:backup:verify`, `db:backup:export`, `db:recovery:test`, their tests, this runbook, and the retained evidence; executes rehearsal drills |
 | Academic / service owner (professor)    | **Vacant — must be named in the ownership ticket before pilot start**                  | —                                           | Authorizes any recovery of student or course data, accepts the recovery point, and signs the RPO/RTO objectives                                       |
-| Provider owner / recovery administrator | **Vacant — institutional Supabase organization owners (minimum two) must be recorded** | Second institutional owner                  | Holds Supabase organization ownership, backup/PITR settings, billing, and the provider access token used by `db:backup:verify`                        |
+| Provider owner / recovery administrator | Two institutional Supabase Owners with MFA; fingerprints retained under `DB-CUSTODY-124` | Independent second Owner with MFA            | Holds Supabase organization ownership, backup/PITR settings, billing, and the provider access token used by `db:backup:verify`                        |
 | Backup operator                         | **Vacant — University IT**                                                             | Second IT operator                          | Confirms provider backup status, runs the weekly logical export with `BACKUP_DATABASE_URL`, stores archives in the approved encrypted location        |
 | Restore executor                        | **Vacant — University IT**                                                             | Second reviewer confirms target fingerprint | Creates the disposable target, runs `db:recovery:test`, attaches evidence, and retires the target under two-person confirmation                       |
 | Change / incident approver              | Professor plus University IT lead                                                      | —                                           | Approves a Production restore, the cutover, and the rollback decision                                                                                 |
 
-Until the vacant roles are named, the engineering owner may rehearse the
-procedure only on disposable data that contains no real student records, which
-is exactly what the retained 2026-09-03 and 2026-09-04 exercises did.
+Provider recovery administration is no longer vacant. Until the remaining
+academic-owner, backup-operator, and restore-executor roles are named, the
+engineering owner may rehearse the procedure only on disposable data that
+contains no real student records, which is exactly what the retained
+2026-09-03 and 2026-09-04 exercises did.
 
 Names are recorded as safe fingerprints only, through
 `BACKUP_INSTITUTIONAL_OWNER_1`, `BACKUP_INSTITUTIONAL_OWNER_2`, and
@@ -78,7 +89,7 @@ is already enforced by the repository tooling where a command can enforce it.
 | Archive encryption       | Envelope encryption: ephemeral X25519 agreement with the approved recovery public key, HKDF-SHA256, AES-256-GCM with the header as authenticated data; the private key exists only with the recovery administrators (mode `0600`, never on the backup host, never in Git or hosting) | `db:backup:daily` refuses without the public key; `db:backup:status` finding `encryption_key_mismatch`; decrypt fails closed on tampering |
 | Custody location         | `BACKUP_CUSTODY_DIR` must be absolute, outside the repository, and outside any hosting/build path; directories `0700`, files `0600`; region attested per run with `BACKUP_CUSTODY_REGION` (provider region `us-east-1`) | `db:backup:daily` refuses other paths; `db:backup:status` finding `custody_region_not_recorded`; `.gitignore` excludes `*.dump`, `*.dump.enc`, and keys |
 | Detection and alerting   | Every run appends `started`, `completed`, or `failed`; the status check runs after each export and on a schedule, verifies the newest archive's digest and size on disk, and posts finding codes (never paths, digests, or credentials) to `BACKUP_ALERT_WEBHOOK_URL` | `db:backup:status` exit `2`/`3`, findings `latest_run_failed`, `run_incomplete`, `archive_missing`, `archive_hash_mismatch`, `ledger_malformed`, `provider_backups_inactive` |
-| Backup identity          | Dedicated `backup_export` role: `NOLOGIN` at rest, `SELECT` on every `public` table and sequence, `BYPASSRLS`, `default_transaction_read_only=on`, no write, DDL, role, or provider privilege; LOGIN is enabled only for a run with a two-hour password and disabled again | Owner SQL in the run orchestrator; read-only verification query after each run |
+| Backup identity          | Dedicated `backup_export` login: `SELECT` on every `public` table and sequence, `BYPASSRLS`, `default_transaction_read_only=on`, no write, DDL, role, or provider privilege; its independent credential is held only in the protected operator store | Custody rotation verifier and read-only verification query after each run |
 | Recovery point objective | No more than 24 hours of committed Production data loss (`RECOVERY_TEST_RPO_HOURS`)                                                                                                                                        | `db:recovery:test` evidence `recoveryPoint.withinObjective`                            |
 | Recovery time objective  | Service restored or an approved status issued within one business day, 24 hours (`RECOVERY_TEST_RTO_HOURS`)                                                                                                                | `db:recovery:test` evidence `recoveryTime.withinObjective`                             |
 | Ownership                | At least two institutional organization owners, all members with multi-factor authentication                                                                                                                               | `db:backup:verify` findings `insufficient_recovery_administrators`, `mfa_not_enforced` |
@@ -665,19 +676,19 @@ After the project owner authenticated the Supabase CLI, `db:backup:verify
 | Daily provider backups        | None listed (`backups: null`)                                                                                                                         | **Critical: no successful provider backup** |
 | Point-in-time recovery        | Disabled; WAL archiving flag on but no physical recovery point available                                                                              | **Critical**                                |
 | Most recent successful backup | None                                                                                                                                                  | **Critical**                                |
-| Retention window              | Unknown: the CLI does not expose the organization plan; the project lives in the organization the Vercel integration created for the personal account | High: unverified                            |
-| Ownership                     | Organization membership not readable through the CLI; no institutional owner recorded                                                                 | High: unverified                            |
+| Retention window              | Unknown: the CLI does not expose the organization plan                                                                                                  | High: unverified                            |
+| Ownership                     | Historical CLI result could not read organization membership; superseded by the 2026-09-05 console custody verification                                 | **Closed under `DB-CUSTODY-124`**           |
 
 Interpretation: **Production currently has no provider-managed backup at
-all.** The only recoverable copy of the Production database is a logical
-export taken with `db:backup:export`, and none has been taken yet. This is a
-launch blocker independent of the restore exercise.
+all.** The only currently verified recovery points are logical exports taken
+with `db:backup:export`. This is a launch blocker independent of the provider
+custody and restore exercise.
 
 Required owner actions, in order:
 
-1. Move the project to a Supabase plan with daily backups (Pro or higher) or
-   enable point-in-time recovery, under an institutionally owned organization
-   with at least two owners and MFA. Record the plan and retention in the
+1. Move the institutionally controlled project to a Supabase plan with daily
+   backups (Pro or higher) or enable point-in-time recovery. The minimum two
+   owners with MFA are already verified; record the plan and retention in the
    Provider Verification Record.
 2. Rerun `db:backup:verify --via-cli` (or the Management API path) and require
    exit `0`.
@@ -691,7 +702,8 @@ Required owner actions, in order:
 Executor: Kanan Guliyev (engineering; interim operator until University IT is
 named). Ticket label `BACKUP-CUSTODY-2026-09-04`. Provider verification rerun
 first (`docs/evidence/database-backups/2026-09-04T21-59-02-933Z-production-findings.json`):
-still no daily backup, PITR disabled, retention and ownership unverified.
+still no daily backup and PITR disabled; its CLI-only ownership result was
+later superseded by `DB-CUSTODY-124`.
 
 | Step                                                                  | Time (UTC)                | Result                                                                                                                                                                               |
 | --------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -788,16 +800,18 @@ University IT must complete this record before anyone says backups exist:
 - [ ] Measured RPO and RTO:
 - [ ] Professor acceptance and University IT acceptance:
 
-Known on 2026-09-04 (safe values only): provider Supabase, project fingerprint
+Known through 2026-09-05 (safe values only): provider Supabase, project fingerprint
 `65888f3d354b7dfd`, database `postgres`, region `us-east-1`, PostgreSQL 17.6,
 release channel `ga`, project `ACTIVE_HEALTHY`; provider daily backups none,
-PITR disabled; interim encrypted logical exports under workstation custody with
+PITR disabled; institutional provider-organization fingerprint
+`89b51cd636406f8b` and two independent Owner-role recovery administrators with
+MFA; interim encrypted logical exports under workstation custody with
 recovery key fingerprint `e81b07a766b979da`; successful disposable restores on
 2026-09-03 and 2026-09-04; measured RPO age 36.8 s and RTO 196 ms on
-2026-09-04. Not yet known: institutional tenant, backup-storage region,
-service tier, provider recovery points, retention behaviour, key-recovery
-owner, restore operators and escalation route, professor and IT acceptance.
+2026-09-04. Not yet known: backup-storage region, service tier, provider
+recovery points, retention behaviour, key-recovery owner, restore operators and
+escalation route, professor and IT acceptance.
 
-Until every applicable line has evidence, status remains **repository
-tooling exercised and interim encrypted custody running; provider backup and
-institutional custody unverified**.
+Until every applicable line has evidence, status remains **repository tooling
+exercised, provider ownership established, and interim encrypted custody
+running; provider backup and institutional archive custody unverified**.

@@ -23,13 +23,10 @@ begin
 end;
 $$;
 
--- Reassert the non-administrative attributes without changing LOGIN state.
--- The provider's owner role may CREATE a BYPASSRLS role but is refused ALTER
--- ROLE attribute changes on one (verified on 2026-09-04), so the two read-only
--- roles are altered only when an attribute actually drifted; a compliant role
--- is left untouched and a drifted one fails loudly instead of silently.
-alter role app_migrator nosuperuser nocreatedb nocreaterole noinherit
-  noreplication nobypassrls connection limit 2;
+-- Supabase's managed owner can create these roles but cannot issue ALTER ROLE
+-- statements that mention provider-protected attributes. Fail closed if any
+-- existing role drifted instead of attempting an unauthorized repair. LOGIN
+-- remains the separate credential step after grants have been verified.
 do $$
 declare
   drifted text;
@@ -37,16 +34,21 @@ begin
   for drifted in
     select rolname
     from pg_roles
-    where rolname in ('integrity_audit', 'backup_export')
+    where (
+      rolname = 'app_migrator'
+      and (
+        rolsuper or rolcreatedb or rolcreaterole or rolinherit
+        or rolreplication or rolbypassrls or rolconnlimit <> 2
+      )
+    ) or (
+      rolname in ('integrity_audit', 'backup_export')
       and (
         rolsuper or rolcreatedb or rolcreaterole or rolinherit
         or rolreplication or not rolbypassrls or rolconnlimit <> 2
       )
+    )
   loop
-    execute format(
-      'alter role %I nosuperuser nocreatedb nocreaterole noinherit noreplication bypassrls connection limit 2',
-      drifted
-    );
+    raise exception '% role attributes drifted', drifted;
   end loop;
 end;
 $$;
@@ -74,6 +76,12 @@ grant usage on schema public
 -- The migrator owns only application objects in public. It can evolve that
 -- schema but cannot create databases, roles, extensions, or provider objects.
 grant create on schema public to app_migrator;
+
+-- PostgreSQL requires the current owner to be able to SET ROLE to the new
+-- owner before ownership can be transferred. The provider owner retains this
+-- explicit, auditable emergency membership; no application or operator login
+-- receives membership in another custody role.
+grant app_migrator to postgres;
 
 do $$
 declare
@@ -132,10 +140,6 @@ begin
   end loop;
 end;
 $$;
-
--- The provider owner retains an explicit, auditable ability to SET ROLE for
--- emergency ownership administration; no application or operator login does.
-grant app_migrator to postgres;
 
 grant all privileges on all tables in schema public to app_migrator;
 grant all privileges on all sequences in schema public to app_migrator;

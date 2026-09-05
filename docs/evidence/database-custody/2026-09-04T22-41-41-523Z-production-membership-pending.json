@@ -1,0 +1,40 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody_membership",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerAuthorization": "recorded",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerAuthorization": "pending",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "fingerprints": {
+    "currentOrganizationHash": "6b2e4f9d6b7ba66f",
+    "databaseName": "postgres",
+    "institutionalOrganizationCandidateHash": "89b51cd636406f8b",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-04T22:41:41.523Z",
+  "results": {
+    "acceptedInstitutionalOwnerCount": 0,
+    "activeMemberCount": 1,
+    "exposedInvitationInvalidated": true,
+    "invitedInstitutionalOwnerCount": 2,
+    "mfaEnabledAdministratorCount": 0,
+    "newInvitationLinkInspected": false,
+    "ownerInvitationReissued": true,
+    "productionDatabaseWritesAttempted": 0,
+    "providerMembershipMutations": 2,
+    "rawInvitationDataRetained": false
+  },
+  "roles": [
+    "production_owner",
+    "independent_second_reviewer",
+    "recovery_administrator"
+  ],
+  "status": "pending_acceptance_mfa_and_second_review",
+  "target": "production"
+}

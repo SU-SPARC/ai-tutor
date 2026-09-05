@@ -1,0 +1,20 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_rollout_smoke",
+  "changeTicket": "DB-CUSTODY-124",
+  "deploymentFingerprint": "35db4e045fecb3a7",
+  "generatedAt": "2026-09-05T21:13:15.303Z",
+  "readOnly": true,
+  "results": {
+    "authorizationBoundaryCheckCount": 2,
+    "checks": 5,
+    "databaseHealth": "passed",
+    "databaseRequired": true,
+    "privacyBoundaryCheckCount": 2,
+    "publishedQuestionCount": 18,
+    "status": "passed"
+  },
+  "status": "passed",
+  "target": "production",
+  "writesAttempted": 0
+}

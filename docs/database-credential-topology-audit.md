@@ -1,24 +1,73 @@
 # Production Database Credential Topology Audit
 
-Date: 2026-09-04
+Date: 2026-09-05
 
-Status: **FAIL CLOSED — the Production technical target is independently
-fingerprinted, but institutional provider ownership and a valid Production
-migration credential are not established; the integrity audit has one critical
-finding; the runtime credential is the provider owner role; the provider holds
-no backup of Production; a Production logical export was restored, validated,
-and audited in an isolated disposable database and then retired.**
+Status: **PASS — Production custody and credential topology are established
+under change ticket `DB-CUSTODY-124`. The project is institutionally
+controlled by two independently operated Supabase Owners with MFA; runtime,
+migration, integrity-audit, and backup credentials were independently verified
+against one Production target and immutable ledger; the deployed runtime is
+`app_runtime`; operator credentials are outside Vercel; and the former owner
+runtime credential and temporary audit identity are revoked.**
 
 This audit compares database targets without retaining or printing connection
-strings, passwords, raw hosts, or raw provider project references. It did not
-apply migrations, edit a migration ledger, run an integrity repair, create a
-backup, restore data, overwrite a stored credential, or modify Production data.
-A short-lived audit-only login was created with explicit owner authorization
-and used only for read-only verification. The 2026-09-04 recheck confirms that
-one legacy temporary audit login remains; it has not been removed because the
-current operation has no named second-reviewer authorization.
+strings, passwords, raw hosts, raw usernames, or raw provider project
+references. Production mutations were performed only after the named owner and
+independent second reviewer authorized ticket `DB-CUSTODY-124`. Retained
+artifacts contain sanitized fingerprints, roles, dates, counts, results, and
+ticket references only. No old migration file or ledger checksum was changed.
 
-## 2026-09-04 Custody Recheck And Enforced Operation
+## 2026-09-05 Custody Closure
+
+The following ordered evidence closes the custody and least-privilege finding:
+
+The consolidated [closure
+artifact](evidence/database-custody/2026-09-05T21-19-15Z-production-passed.json)
+records the final post-redeploy state. Its supporting ordered evidence is:
+
+- [institutional custody and MFA
+  evidence](evidence/database-custody/2026-09-05T11-31-33Z-production-custody-established-authorization-pending.json)
+  records organization fingerprint `89b51cd636406f8b`, two distinct authorized
+  Owner-role recovery-administrator fingerprints, and MFA enabled for both;
+  the later independent approval is ticketed in `SU-SPARC/ai-tutor#3` as
+  `issuecomment-5554234592`;
+- [role and policy provisioning
+  evidence](evidence/database-custody/2026-09-05T20-42-24-869Z-production-passed.json)
+  records four NOLOGIN roles, 29/29 RLS-enabled Production tables, 29/29
+  `app_runtime` policies, no administrative role, and no login credential
+  created during provisioning;
+- [narrow cleanup
+  evidence](evidence/database-custody/2026-09-05T20-46-19-241Z-production-passed.json)
+  records removal of only reviewed temporary role fingerprint
+  `5982cada2a36410b`, with zero temporary audit identities remaining;
+- [credential rotation and topology
+  evidence](evidence/database-custody/2026-09-05T20-55-46-744Z-production-passed.json)
+  records four distinct role fingerprints, each connected to Supabase project
+  fingerprint `65888f3d354b7dfd`, database `postgres`, pooler host fingerprint
+  `3932d873511760d0`, and checksum-clean 21/21 ledger fingerprint
+  `18b5a636a4e3ac41`, with zero role-boundary violations;
+- only `DATABASE_URL`, scoped to Production, is retained in Vercel application
+  settings; the migration, integrity-audit, and backup credentials are retained
+  in the protected GitHub `Production` environment, whose required reviewer is
+  the independent reviewer and whose self-review protection is enabled; and
+- after successful redeploy and smoke verification, the provider-owner database
+  password was changed. A previously healthy immutable owner-backed deployment
+  now returns database health unavailable while the `app_runtime` deployment
+  remains required and healthy. The provider-triggered legacy Vercel variables
+  were removed again after that password change, and post-rotation placement
+  verification passed.
+
+The final redeployed [five-check Production smoke
+evidence](evidence/database-custody/2026-09-05T21-18-51-825Z-production-passed.json)
+passes database health, two privacy boundaries, and two authorization
+boundaries. Provider-managed backups, the known archived synthetic-data audit
+finding, archive custody, and RPO/RTO acceptance remain separate readiness
+findings; they do not reopen this credential-topology result.
+
+## Historical 2026-09-04 Custody Recheck And Enforced Operation
+
+The remainder of this section preserves the pre-change, fail-closed finding.
+It is superseded by the 2026-09-05 closure above.
 
 The sanitized fail-closed snapshot is retained at
 `docs/evidence/database-custody/2026-09-04T18-09-00-813Z-production-blocked.json`.
@@ -121,7 +170,7 @@ and custody controls exist.
    Revoke the former runtime owner credential only after all post-deploy checks
    pass.
 
-## Verdict
+## Historical Verdict (Superseded 2026-09-05)
 
 The separately stored `MIGRATION_DATABASE_URL` is **not a Production target**.
 It connects to a local Development PostgreSQL database named
@@ -166,7 +215,10 @@ system codes. Vercel inspection was limited to project identity, environment
 variable names/scopes, resource metadata, deployment identity, and filtered
 build-log lines.
 
-## Evidence
+## Historical Evidence (2026-09-04; Superseded)
+
+This section preserves the exact pre-change comparison that caused the gate to
+fail closed. The current result is the 2026-09-05 closure evidence above.
 
 ### Hosting and active deployment
 
@@ -241,6 +293,9 @@ write credentials governed by their own runbooks. They must not be substituted
 for any class above.
 
 ## Exact Owner Remediation
+
+Completed under `DB-CUSTODY-124` on 2026-09-05. The sequence remains here as
+the reviewed operational record and future rotation procedure.
 
 Perform these steps in order. Stop immediately if a target or owner cannot be
 proven.
@@ -326,8 +381,11 @@ Do not close this finding until all of the following are retained as evidence:
 - a clean separately credentialed Production integrity audit; and
 - provider backup evidence plus a successful disposable restore report.
 
-Until then, institutional ownership and the correct Production migration
-credential are not independently verified, and the pilot remains **NOT READY**.
+These closure conditions were written before ticket `DB-CUSTODY-124`. The
+2026-09-05 evidence above satisfies the institutional-ownership, target,
+least-privilege, migration-status, and credential-placement conditions. The
+separate integrity-data and provider-backup conditions remain open in the pilot
+readiness report.
 
 ## Integrity Audit Attempt — 2026-09-03
 

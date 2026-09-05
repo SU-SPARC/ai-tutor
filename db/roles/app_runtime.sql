@@ -26,9 +26,26 @@ begin
 end;
 $$;
 
--- Reassert the non-administrative attributes without changing LOGIN state.
-alter role app_runtime nosuperuser nocreatedb nocreaterole noinherit
-  noreplication nobypassrls connection limit 40;
+-- Supabase's managed owner can create a non-administrative role but cannot
+-- issue ALTER ROLE statements that mention provider-protected attributes such
+-- as SUPERUSER or BYPASSRLS. Fail closed if an existing role drifted instead
+-- of attempting an unauthorized repair. LOGIN remains the separate credential
+-- step after this role and its grants have been verified.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_roles
+    where rolname = 'app_runtime'
+      and (
+        rolsuper or rolcreatedb or rolcreaterole or rolinherit
+        or rolreplication or rolbypassrls or rolconnlimit <> 40
+      )
+  ) then
+    raise exception 'app_runtime role attributes drifted';
+  end if;
+end;
+$$;
 
 grant connect on database postgres to app_runtime;
 grant usage on schema public to app_runtime;

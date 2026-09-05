@@ -1,0 +1,46 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_custody_membership",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerAuthorization": "recorded",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewRequestReference": "SU-SPARC/ai-tutor#3:issuecomment-5551466286",
+    "secondReviewerAuthorization": "pending",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "fingerprints": {
+    "currentOrganizationHash": "6b2e4f9d6b7ba66f",
+    "databaseName": "postgres",
+    "institutionalOrganizationCandidateHash": "89b51cd636406f8b",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-05T11:31:33Z",
+  "providerCustody": {
+    "acceptedInstitutionalOwnerCount": 1,
+    "acceptedIndependentRecoveryAdministratorCount": 1,
+    "activeOwnerCount": 3,
+    "mfaDisabledAdministratorCount": 1,
+    "mfaEnabledAdministratorCount": 2,
+    "ownership": "institutional_owner_established"
+  },
+  "results": {
+    "databaseMutationAuthorization": "blocked_pending_explicit_second_review",
+    "independentRecoveryAdministratorThreshold": "verified",
+    "institutionalOwnerMfa": "verified",
+    "productionDatabaseWritesAttempted": 0,
+    "rawInvitationDataRetained": false,
+    "reviewerOwnerMembership": "verified",
+    "reviewerOwnerMfa": "verified"
+  },
+  "roles": [
+    "production_owner",
+    "independent_second_reviewer",
+    "recovery_administrator"
+  ],
+  "status": "custody_established_authorization_pending",
+  "target": "production"
+}

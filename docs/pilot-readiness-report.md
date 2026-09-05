@@ -1,24 +1,27 @@
 # Pilot Readiness Report
 
-Date: 2026-09-04
+Date: 2026-09-05
 
-Readiness evidence update: `Establish production backup recovery` (current
+Readiness evidence update: `Establish production database custody` (current
 report commit)
 
-Production deployment reviewed:
-`https://ai-tutor-fxl6lv9u5-kananguliyevs-projects.vercel.app` from `bd35a44`;
-canonical alias `https://ai-tutor-kananguliyevs-projects.vercel.app`
+Production deployment reviewed: READY at the canonical alias
+`https://ai-tutor-kananguliyevs-projects.vercel.app`.
 
-Database-custody recheck: the 2026-09-04 active deployment is READY from
-`bd35a44` and its build reports `current`, 21/21. Read-only provider and
-database checks confirm that the custody blocker is unchanged: a personal Free
-Supabase organization has one owner with MFA disabled, no provider backup or
-PITR, no `app_runtime` role, no runtime policies on the 29 RLS-enabled public
-tables, and one temporary audit login remaining. Vercel still uses the owner
-credential topology and has no `DATABASE_URL`. No Production mutation was
-performed because a named owner, distinct second reviewer, institutional
-custody, two MFA recovery administrators, and a real change ticket are not
-recorded.
+Database-custody closure: ticket `DB-CUSTODY-124` is complete. Two independently
+controlled institutional Supabase Owners have MFA, the named owner and second
+reviewer authorized the change, four distinct least-privilege identities target
+the same Production project/database and checksum-clean 21/21 ledger, and all
+29 Production tables have RLS plus the reviewed `app_runtime` application
+policy. Vercel Production now contains only the `app_runtime` `DATABASE_URL`;
+migration, audit, and backup credentials are outside all Vercel application
+environments. The exact temporary audit identity and former runtime owner
+credential were revoked. The redeployed application is READY, required database
+health passes, the five-check smoke passes, and its error-log scan is clean.
+The consolidated sanitized [custody closure
+artifact](evidence/database-custody/2026-09-05T21-19-15Z-production-passed.json)
+contains fingerprints, roles, dates, counts, results, and the change-ticket
+reference only.
 
 This is an engineering readiness record, not a legal, institutional, privacy,
 security, or accessibility approval.
@@ -76,8 +79,9 @@ archived immutable record and attributable history remained available.
 
 ## 3. Database status
 
-**Status: healthy runtime; credential ownership, runtime least privilege,
-provider backup verification, and Production recovery acceptance incomplete.**
+**Status: healthy least-privilege runtime; institutional database custody and
+credential topology pass. Provider backup verification, archive custody, and
+Production recovery acceptance remain incomplete.**
 
 The repository now includes a gated custody operation and four-credential
 read-only verifier. `db:custody:apply` cannot mutate Production without the
@@ -91,8 +95,8 @@ RLS/application-policy
 coverage, Data API lockout, and names-and-scopes-only proof that operator
 credentials are absent from every Vercel application environment. The
 post-rotation phase additionally requires legacy owner credentials to be absent
-and `DATABASE_URL` to be Production-only. These controls prepare the change but
-do not satisfy the missing external approvals or custody state.
+and `DATABASE_URL` to be Production-only. Ticket `DB-CUSTODY-124` satisfied
+those controls and the required external authorization.
 
 - The public, non-cached Production database health endpoint returned HTTP 200
   with `status: healthy`, `database.required: true`, and database status
@@ -105,30 +109,24 @@ do not satisfy the missing external approvals or custody state.
 - The active Production deployment build ran `db:migrate:check` successfully
   and reported `current`, with 21 of 21 migrations applied and no checksum
   drift.
-- The [credential-topology audit](database-credential-topology-audit.md)
-  identifies the separately stored `MIGRATION_DATABASE_URL` as a local
-  Development target, not Production. It connects to database
-  `pf_xj_research_dev`; its ledger records target `development`, reports 18 of
-  21 migrations, has 019–021 pending, and retains the original 018 checksum
-  from commit `49a1336`. The current repository checksum changed in `5961ecb`.
-  The inspected ledger was not edited and no migration was applied.
-- The active Vercel Production runtime instead resolves the protected
-  `POSTGRES_URL`. Safe managed metadata identifies Supabase project hash
-  `65888f3d354b7dfd`, database `postgres`, and host hash
-  `5b9942ef57aca05a`; the local Development migration target has database
-  `pf_xj_research_dev` and host hash `12ca17b49af22894`. The different target is
-  misconfigured if treated as the Production migrator, while its Development
-  ledger is stale/drifted relative to the repository.
-- Vercel Production contains no `MIGRATION_DATABASE_URL`, which preserves the
-  application/migration separation. A separate audit credential directly
-  verified the Production technical target as Supabase project hash
-  `65888f3d354b7dfd`, database `postgres`, pooler host hash
-  `3932d873511760d0`, and ledger fingerprint `18b5a636a4e3ac41`. However, the
-  Vercel integration-resource listing was empty, no institutional Supabase
-  ownership/recovery record or separately controlled Production migrator was
-  available, and runtime privileges remain unverified. The correct Production
-  migration credential and institutional provider ownership therefore remain
-  unverified. The mismatch is **not resolved**.
+- The [credential-topology audit](database-credential-topology-audit.md) now
+  closes the former Development/Production mismatch. Fresh, distinct
+  `app_runtime`, `app_migrator`, `integrity_audit`, and `backup_export`
+  credentials each connected independently to project fingerprint
+  `65888f3d354b7dfd`, database `postgres`, pooler host fingerprint
+  `3932d873511760d0`, and ledger fingerprint `18b5a636a4e3ac41`. The unrelated
+  local Development database and its ledger were not changed or promoted.
+- The Production runtime role has no superuser, role, database, replication,
+  schema-create, object ownership, security-definer, or RLS-bypass capability.
+  It has only the reviewed table/sequence/routine access. The migrator owns the
+  34 application relations and 31 routines but has no provider administration;
+  the audit and backup roles are default-read-only and have no write or DDL
+  privilege. All four role inspections reported zero violations.
+- Migration, integrity-audit, and backup credentials are retained only in the
+  protected GitHub Production operator environment. Vercel contains none of
+  them and retains only the Production-scoped runtime `DATABASE_URL`. The old
+  owner-backed variables were removed, the provider-owner password was changed,
+  and an old immutable deployment can no longer reach the database.
 - The repeatable Production integrity command now requires the expected
   provider/project/database fingerprint, proves the login has no effective
   write/DDL/admin privileges, verifies the checksum ledger, rolls back its
@@ -206,16 +204,12 @@ do not satisfy the missing external approvals or custody state.
   and [restore evidence](evidence/database-recovery/2026-09-03T19-48-20-975Z-production-passed.json).
   Production row counts on the restored copy: 235 questions, 462 immutable
   versions, 38 tutor sessions, 126 attempts, 7 users, 551 audit events.
-- The runtime least-privilege finding stands: the runtime role hash
-  `a942b37ccfaf5a81` is the hash of the literal role name `postgres` on the
-  provider's direct host. The probe also showed row-level security enabled on
-  all 29 public tables, so the committed `db/roles/app_runtime.sql` now adds
-  its policy to every such table dynamically. A leftover
-  `integrity_audit_…` login with `BYPASSRLS` and no expiry from the earlier
-  audit session was found; the first removal attempt failed on a
-  `DROP OWNED` privilege check and rolled back, and the corrected removal
-  script awaits the project owner. The short-lived `backup_export_…` role
-  from this exercise was dropped (`remaining: 0`).
+- The former runtime owner role finding is closed: Production uses role hash
+  `dd2b2aae3ec674b6` (`app_runtime`) and the legacy owner password is revoked.
+  The exact reviewed temporary audit role fingerprint `5982cada2a36410b` was
+  removed in a narrow operation after proving zero sessions, owned objects,
+  owned databases, and unexpected memberships; zero temporary audit identities
+  remain. All 29 public tables have RLS and the application policy.
 - The pre-pilot data cleanup was prepared on 2026-09-04 without touching
   Production data: a single read-only owner `SELECT` inventoried one archived
   synthetic-marked question, one `pilotTest` student account, 38 staff and
@@ -240,9 +234,9 @@ do not satisfy the missing external approvals or custody state.
   disposable target with valid migrations, tables, constraints, references,
   sequences, and the complete integrity audit (17/18, known finding); the
   target and every plaintext copy were retired. Provider verification was
-  rerun and still shows **no provider-managed backup**, the custody store is
-  an interim workstation location, and two institutional owners, a named
-  operator, and RPO/RTO acceptance are still unrecorded; see
+  rerun and still shows **no provider-managed backup**, the archive custody
+  store is an interim workstation location, and a named backup operator and
+  RPO/RTO acceptance are still unrecorded; see
   [database-recovery.md](database-recovery.md).
 - Recovery readiness for Production is therefore **partially proven**: the
   logical export path restores and validates, but the provider holds no
@@ -393,7 +387,7 @@ student identifiers.
 
 | Gate                                        | Result                                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Full Vitest suite                           | PASS — 82 files, 675 tests                                                                         |
+| Full Vitest suite                           | PASS — 86 files, 696 tests                                                                         |
 | Lint                                        | PASS                                                                                               |
 | TypeScript                                  | PASS                                                                                               |
 | Production build                            | PASS — Next.js 16.3.3, 23 pages generated                                                          |
@@ -403,12 +397,12 @@ student identifiers.
 | Lifecycle/publication focused suite         | PASS — 7 files, 52 tests                                                                           |
 | Student/professor workflow focused suite    | PASS — 7 files, 44 tests                                                                           |
 | Release-candidate read-only smoke           | PASS — 5 checks                                                                                    |
-| Current Production read-only smoke          | PASS — 5 checks; 9 published questions                                                             |
+| Current Production read-only smoke          | PASS — 5 checks; 18 published questions                                                            |
 | Production database health                  | PASS — HTTP 200, required and healthy                                                              |
 | Production environment/runtime mode         | PASS — strict config parses; database-backed, demo not active                                      |
 | Production deployment migration check       | PASS — current, 21/21, no drift                                                                    |
-| Production credential topology audit        | **FAIL CLOSED** — stored migrator is Development; Production ownership/correct migrator unverified |
-| Separate stored migration credential        | Development target — 18/21, pending 019–021, original 018 checksum                                 |
+| Production credential topology audit        | PASS — four distinct roles, same target and 21/21 ledger, zero violations                           |
+| Separate stored operator credentials        | PASS — migration/audit/backup only in protected GitHub Production environment                      |
 | Production error logs, post-deploy scan     | No error-level entries returned                                                                    |
 | Production dependency audit                 | PASS — 0 vulnerabilities after patch upgrade                                                       |
 | Production Clerk test identities            | PASS — isolated student and professor roles marked `pilotTest`                                     |
@@ -420,14 +414,14 @@ student identifiers.
 | Public retrieval/private-content boundary   | PASS — professor endpoint 401; public list metadata-only                                           |
 | Production integrity audit                  | **FINDING** — 17/18 pass; one archived, non-visible synthetic-marked question; sanitized evidence  |
 | Pre-pilot data cleanup                      | **REHEARSED** — explicit 259-record plan, fresh verified backup, exact SQL clean 18/18 on restored copy; Production execution gated on four named approvals |
-| Production runtime least privilege          | **FINDING** — Vercel runtime credential is the provider owner role `postgres` on the direct host   |
+| Production runtime least privilege          | PASS — only Production `DATABASE_URL`, connected role `app_runtime`, owner credential revoked      |
 | Recovery tooling focused suite              | PASS — 4 files, 22 tests                                                                           |
 | Disposable restore drill (local, synthetic) | PASS — export, restore, validation, clean 18/18 audit, evidence retained, target retired           |
 | Provider backup verification                | **CRITICAL FINDING** — no daily backup, PITR disabled, retention/ownership unverified              |
 | Production backup/restore exercise          | PASS — logical export, isolated restore, clean validation, 17/18 audit (known finding), retired    |
 | Daily encrypted export and custody detection | PASS — dedicated identity, encrypted export, ledger, status findings only for provider/ownership |
 | Encrypted archive decrypt and restore       | PASS — recovery-key decrypt, isolated restore, valid ledger/tables/references/sequences, 17/18 audit |
-| Institutional archive custody               | **NOT PROVEN** — exports run under interim workstation custody; institutional store, two owners, operator, and acceptance unrecorded |
+| Institutional archive custody               | **PARTIAL** — two MFA provider owners pass; institutional archive store, operator, and acceptance unrecorded |
 | Accessibility acceptance                    | **NOT PROVEN**                                                                                     |
 
 The smoke command is:
@@ -449,29 +443,17 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
   storage/processing design before that feature is used with private material.
 - External error alerting, dashboards, billing alerts, rollback automation, and
   a tested pilot shutdown procedure are not proven.
-- Institutional Production credential ownership, a clean integrity result,
-  provider backup evidence, and a Production restore exercise remain absent;
-  only a local synthetic tooling drill is retained, and the deployed runtime
-  currently uses the provider owner database role.
+- A clean integrity result, provider-managed backup evidence, institutional
+  archive custody, and signed Production recovery objectives remain absent.
+  Database provider custody and the deployed least-privilege runtime are now
+  established.
 - Student account lifecycle and support processes depend on Clerk operations;
   password and new-device verification pass, but recovery and revocation are
   not yet accepted.
 
 ## 13. Remaining blockers
 
-1. Complete the owner steps in the
-   [credential-topology audit](database-credential-topology-audit.md): establish
-   institutional Supabase ownership, independently match runtime and migrator
-   to the same Production project/database/ledger, and prove least privilege.
-   Do not use or overwrite the inspected Development credential for
-   Production.
-   Use `npm run db:custody:apply` only after the institutional owner record,
-   two MFA recovery administrators, named owner, independent second reviewer,
-   and change ticket exist. After provider-issued login credentials are stored
-   in their separate approved stores, run
-   `npm run db:custody:verify -- --phase pre-rotation` and require a `passed`
-   artifact before changing Vercel or revoking the old owner credential.
-2. Execute the rehearsed pre-pilot data cleanup in
+1. Execute the rehearsed pre-pilot data cleanup in
    [pilot-data-cleanup.md](pilot-data-cleanup.md). The read-only inspection,
    the 259-record explicit-identifier plan, a fresh verified backup, and a
    rehearsal of the exact SQL on a disposable restore (clean 18/18 on the
@@ -482,7 +464,7 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    `npm run db:pilot-cleanup:execute`, then rerun
    `npm run db:integrity:audit:production` with a SELECT-only credential and
    require a clean 18/18 artifact.
-3. Close Production backup custody: move the Supabase project to a plan with
+2. Close Production backup custody: move the Supabase project to a plan with
    daily backups or point-in-time recovery under an institutionally owned
    organization and rerun `npm run db:backup:verify -- --via-cli` until it
    exits `0`; move the custody store, recovery key, and the scheduled
@@ -493,28 +475,29 @@ testing may set `PILOT_REQUIRE_DATABASE=false`; Production must not.
    `npm run db:recovery:accept` with a named professor or IT acceptor against
    the retained passed restore artifact. The tooling, the dedicated identity,
    the daily encrypted export, detection, and the disposable restore are
-   already proven; see [database-recovery.md](database-recovery.md). Replace
-   the runtime credential with a least-privilege `app_runtime` role as part of
-   the same change.
-4. Record named privacy, security, accessibility, authentication, AI-provider,
+   already proven; see [database-recovery.md](database-recovery.md). The
+   provider project already has two institutional recovery administrators with
+   MFA and a separate least-privilege `backup_export` identity.
+3. Record named privacy, security, accessibility, authentication, AI-provider,
    retention/deletion, incident-response, support, and pilot approvals.
-5. Establish external monitoring/alerts and provider billing limits/alerts.
-6. Complete accessibility acceptance and broader browser E2E in an isolated staging
+4. Establish external monitoring/alerts and provider billing limits/alerts.
+5. Complete accessibility acceptance and broader browser E2E in an isolated staging
    environment before Production promotion.
 
 ## 14. Deployment status
 
-The 2026-09-04 active Production deployment is READY at the hosting layer,
-serves the canonical alias, and was built from `bd35a44`. Its build passed the
-21/21 migration check with no drift,
-the required Production database is healthy, the post-deployment five-check
-smoke passes, and the reviewed post-deploy error-log scans returned no entries.
+The 2026-09-05 Production custody deployment is READY at the hosting layer and
+serves the canonical alias. Its build passed the 21/21 migration check with no
+drift, the required Production database is healthy through `app_runtime`, the
+post-deployment five-check smoke passes, and the reviewed post-deploy
+error-log scan returned no entries.
 
-The build check used the Production `POSTGRES_URL` fallback because neither
-`MIGRATION_DATABASE_URL` nor `DATABASE_URL` is scoped to Vercel Production. It
-proves the active runtime ledger was current at build time; it does not prove
-provider ownership, runtime least privilege, or that a separately controlled
-Production migration credential targets the same database.
+The build and runtime use only the Production-scoped `DATABASE_URL`.
+`MIGRATION_DATABASE_URL`, `INTEGRITY_DATABASE_URL`, and
+`BACKUP_DATABASE_URL` are absent from Vercel and retained only in the protected
+operator environment. The four direct credential probes independently proved
+one Production target and ledger before the former owner credential was
+revoked.
 
 Hosting `READY` and a passing smoke test do not by themselves mean pilot-ready.
 
@@ -524,10 +507,8 @@ Hosting `READY` and a passing smoke test do not by themselves mean pilot-ready.
 
 Do not invite real students yet. The controlled student and professor flows,
 publication gates, retrieval hierarchy, and usage controls pass in Production,
-but Production database ownership and operator-credential topology are not
-accepted. The stored migration credential is demonstrably a drifted
-Development target, and no independently verified Production replacement is
-available. The direct integrity audit completed but is not clean because one
+and Production database custody, credential separation, and runtime least
+privilege now pass. The direct integrity audit completed but is not clean because one
 archived synthetic-marker finding remains; its explicit-identifier cleanup is
 planned, backed up, and rehearsed cleanly, and waits only for the four named
 approvals before Production execution. A Production logical export was
@@ -535,9 +516,9 @@ restored into an isolated database, validated, and audited, which proves the
 recovery path, and a daily encrypted export under a custody ledger with
 automatic staleness detection now runs from a dedicated read-only identity,
 but provider verification shows that Production still has no daily backup and
-no point-in-time recovery, custody is an interim workstation location without
-institutional owners or acceptance, and the deployed runtime uses the provider
-owner role. Accessibility
+no point-in-time recovery, archive custody remains an interim workstation
+location without an accepted operator workflow, and recovery objectives remain
+unsigned. Accessibility
 acceptance, monitoring, and external approvals also remain open.
 Re-run this gate after every blocker in section 13 is closed; passing
 application and deployment checks alone are insufficient.

@@ -1,0 +1,496 @@
+{
+  "artifactVersion": 1,
+  "audit": "production_database_credential_rotation",
+  "authorization": {
+    "changeTicket": "DB-CUSTODY-124",
+    "ownerFingerprint": "8661d7ff75f70ac2",
+    "ownerRole": "production_owner",
+    "secondReviewerFingerprint": "25fcd20a7c3ebe18",
+    "secondReviewerRole": "independent_second_reviewer"
+  },
+  "changeTicket": "DB-CUSTODY-124",
+  "credentials": {
+    "runtime": {
+      "credential": "DATABASE_URL",
+      "databaseFingerprint": {
+        "databaseName": "postgres",
+        "endpointKind": "pooler",
+        "hostHash": "3932d873511760d0",
+        "projectIdentityHash": "65888f3d354b7dfd",
+        "provider": "supabase",
+        "roleHash": "97348eeee8cc2c8f",
+        "connectedDatabaseName": "postgres",
+        "connectedRoleHash": "dd2b2aae3ec674b6"
+      },
+      "migrationLedger": {
+        "appliedCount": 21,
+        "issueCount": 0,
+        "issueTypes": [],
+        "ledgerFingerprint": "18b5a636a4e3ac41",
+        "pendingCount": 0,
+        "state": "current",
+        "totalCount": 21,
+        "targets": [
+          "production"
+        ]
+      },
+      "role": {
+        "bypassRls": false,
+        "canLogin": true,
+        "createDatabase": false,
+        "createRole": false,
+        "databaseCreate": false,
+        "defaultReadOnly": false,
+        "executableRoutineCount": 5,
+        "missingRuntimeFunctionCount": 0,
+        "missingRuntimeWriteCount": 0,
+        "ownedRelationCount": 0,
+        "ownedRoutineCount": 0,
+        "protectedWriteCount": 0,
+        "relationCount": 34,
+        "relationWriteCount": 22,
+        "replication": false,
+        "roleMembershipCount": 0,
+        "roleHash": "dd2b2aae3ec674b6",
+        "routineCount": 31,
+        "schemaCreate": false,
+        "securityDefinerExecuteCount": 0,
+        "sequenceSelectMissingCount": 11,
+        "sequenceUsageMissingCount": 0,
+        "sequenceWriteCount": 0,
+        "superuser": false,
+        "tableSelectMissingCount": 0,
+        "unexpectedRuntimeWriteCount": 0,
+        "expectedRole": "app_runtime",
+        "expectedRoleHash": "dd2b2aae3ec674b6",
+        "violations": []
+      }
+    },
+    "migration": {
+      "credential": "MIGRATION_DATABASE_URL",
+      "databaseFingerprint": {
+        "databaseName": "postgres",
+        "endpointKind": "pooler",
+        "hostHash": "3932d873511760d0",
+        "projectIdentityHash": "65888f3d354b7dfd",
+        "provider": "supabase",
+        "roleHash": "4052c8a351e07d74",
+        "connectedDatabaseName": "postgres",
+        "connectedRoleHash": "549a56913239e49b"
+      },
+      "migrationLedger": {
+        "appliedCount": 21,
+        "issueCount": 0,
+        "issueTypes": [],
+        "ledgerFingerprint": "18b5a636a4e3ac41",
+        "pendingCount": 0,
+        "state": "current",
+        "totalCount": 21,
+        "targets": [
+          "production"
+        ]
+      },
+      "role": {
+        "bypassRls": false,
+        "canLogin": true,
+        "createDatabase": false,
+        "createRole": false,
+        "databaseCreate": false,
+        "defaultReadOnly": false,
+        "executableRoutineCount": 31,
+        "missingRuntimeFunctionCount": 0,
+        "missingRuntimeWriteCount": 0,
+        "ownedRelationCount": 34,
+        "ownedRoutineCount": 31,
+        "protectedWriteCount": 7,
+        "relationCount": 34,
+        "relationWriteCount": 29,
+        "replication": false,
+        "roleMembershipCount": 0,
+        "roleHash": "549a56913239e49b",
+        "routineCount": 31,
+        "schemaCreate": true,
+        "securityDefinerExecuteCount": 0,
+        "sequenceSelectMissingCount": 0,
+        "sequenceUsageMissingCount": 0,
+        "sequenceWriteCount": 11,
+        "superuser": false,
+        "tableSelectMissingCount": 0,
+        "unexpectedRuntimeWriteCount": 167,
+        "expectedRole": "app_migrator",
+        "expectedRoleHash": "549a56913239e49b",
+        "violations": []
+      }
+    },
+    "integrityAudit": {
+      "credential": "INTEGRITY_DATABASE_URL",
+      "databaseFingerprint": {
+        "databaseName": "postgres",
+        "endpointKind": "pooler",
+        "hostHash": "3932d873511760d0",
+        "projectIdentityHash": "65888f3d354b7dfd",
+        "provider": "supabase",
+        "roleHash": "b1ffb25ac74583a5",
+        "connectedDatabaseName": "postgres",
+        "connectedRoleHash": "dc01eac73094895d"
+      },
+      "migrationLedger": {
+        "appliedCount": 21,
+        "issueCount": 0,
+        "issueTypes": [],
+        "ledgerFingerprint": "18b5a636a4e3ac41",
+        "pendingCount": 0,
+        "state": "current",
+        "totalCount": 21,
+        "targets": [
+          "production"
+        ]
+      },
+      "role": {
+        "bypassRls": true,
+        "canLogin": true,
+        "createDatabase": false,
+        "createRole": false,
+        "databaseCreate": false,
+        "defaultReadOnly": true,
+        "executableRoutineCount": 0,
+        "missingRuntimeFunctionCount": 5,
+        "missingRuntimeWriteCount": 37,
+        "ownedRelationCount": 0,
+        "ownedRoutineCount": 0,
+        "protectedWriteCount": 0,
+        "relationCount": 34,
+        "relationWriteCount": 0,
+        "replication": false,
+        "roleMembershipCount": 0,
+        "roleHash": "dc01eac73094895d",
+        "routineCount": 31,
+        "schemaCreate": false,
+        "securityDefinerExecuteCount": 0,
+        "sequenceSelectMissingCount": 11,
+        "sequenceUsageMissingCount": 11,
+        "sequenceWriteCount": 0,
+        "superuser": false,
+        "tableSelectMissingCount": 0,
+        "unexpectedRuntimeWriteCount": 0,
+        "expectedRole": "integrity_audit",
+        "expectedRoleHash": "dc01eac73094895d",
+        "violations": []
+      }
+    },
+    "backup": {
+      "credential": "BACKUP_DATABASE_URL",
+      "databaseFingerprint": {
+        "databaseName": "postgres",
+        "endpointKind": "pooler",
+        "hostHash": "3932d873511760d0",
+        "projectIdentityHash": "65888f3d354b7dfd",
+        "provider": "supabase",
+        "roleHash": "b72cefc894f441e6",
+        "connectedDatabaseName": "postgres",
+        "connectedRoleHash": "1fbe8d40fe0cbaef"
+      },
+      "migrationLedger": {
+        "appliedCount": 21,
+        "issueCount": 0,
+        "issueTypes": [],
+        "ledgerFingerprint": "18b5a636a4e3ac41",
+        "pendingCount": 0,
+        "state": "current",
+        "totalCount": 21,
+        "targets": [
+          "production"
+        ]
+      },
+      "role": {
+        "bypassRls": true,
+        "canLogin": true,
+        "createDatabase": false,
+        "createRole": false,
+        "databaseCreate": false,
+        "defaultReadOnly": true,
+        "executableRoutineCount": 0,
+        "missingRuntimeFunctionCount": 5,
+        "missingRuntimeWriteCount": 37,
+        "ownedRelationCount": 0,
+        "ownedRoutineCount": 0,
+        "protectedWriteCount": 0,
+        "relationCount": 34,
+        "relationWriteCount": 0,
+        "replication": false,
+        "roleMembershipCount": 0,
+        "roleHash": "1fbe8d40fe0cbaef",
+        "routineCount": 31,
+        "schemaCreate": false,
+        "securityDefinerExecuteCount": 0,
+        "sequenceSelectMissingCount": 0,
+        "sequenceUsageMissingCount": 11,
+        "sequenceWriteCount": 0,
+        "superuser": false,
+        "tableSelectMissingCount": 0,
+        "unexpectedRuntimeWriteCount": 0,
+        "expectedRole": "backup_export",
+        "expectedRoleHash": "1fbe8d40fe0cbaef",
+        "violations": []
+      }
+    }
+  },
+  "custody": {
+    "administratorCount": 2,
+    "administrators": [
+      {
+        "administratorFingerprint": "8661d7ff75f70ac2",
+        "mfa": "verified",
+        "role": "recovery_administrator"
+      },
+      {
+        "administratorFingerprint": "25fcd20a7c3ebe18",
+        "mfa": "verified",
+        "role": "recovery_administrator"
+      }
+    ],
+    "mfaEnabledAdministratorCount": 2,
+    "organizationFingerprint": "89b51cd636406f8b",
+    "ownership": "institutionally_verified"
+  },
+  "expectedFingerprint": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "generatedAt": "2026-09-05T20:55:46.744Z",
+  "operation": "credential_rotation",
+  "preflight": {
+    "ledgerFingerprint": "18b5a636a4e3ac41",
+    "migrationCount": 21,
+    "migrationState": "current",
+    "noLoginRoleCount": 4,
+    "rlsTableCount": 29,
+    "runtimePolicyCount": 29,
+    "tableCount": 29,
+    "temporaryAuditRoleCount": 0,
+    "expectedFingerprint": {
+      "databaseName": "postgres",
+      "projectIdentityHash": "65888f3d354b7dfd",
+      "provider": "supabase"
+    }
+  },
+  "provider": {
+    "endpointKind": "pooler",
+    "hostHash": "3932d873511760d0",
+    "region": "us-east-1"
+  },
+  "rls": {
+    "dataApiGrantCount": 0,
+    "status": "passed",
+    "tableCount": 29,
+    "tables": [
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "ai_llm_reservations"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "ai_response_cache"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "ai_usage"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "anonymous_identity_claims"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "approved_content_imports"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "attempts"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "audit_events"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "feedback_reports"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "hints"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "misconceptions"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_approval_history"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_lifecycle_events"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_patterns"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_student_availability"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_version_inspections"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_version_lifecycle"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "question_versions"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "questions"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "retrieval_chunks"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "roles"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "schema_migrations"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "solution_steps"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "student_content_availability_events"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "student_progress"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "topic_student_availability"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "topics"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "tutor_sessions"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "user_roles"
+      },
+      {
+        "dataApiPolicyCount": 0,
+        "rlsEnabled": true,
+        "runtimePolicyValid": true,
+        "table": "users"
+      }
+    ]
+  },
+  "status": "passed",
+  "storage": {
+    "githubEnvironment": "Production",
+    "operatorCredentialCount": 3,
+    "rawCredentialDataRetained": false,
+    "requiredReviewerVerified": true,
+    "selfReviewPrevented": true,
+    "vercel": {
+      "forbiddenCredentialCount": 0,
+      "forbiddenCredentialsPresent": [],
+      "legacyOwnerCredentialCount": 0,
+      "legacyOwnerCredentialsPresent": [],
+      "operatorCredentialCount": 0,
+      "operatorCredentialsPresent": [],
+      "phase": "post-rotation",
+      "runtimeCredentialPresent": true,
+      "runtimeCredentialScopes": [
+        "production"
+      ],
+      "runtimeProductionOnly": true,
+      "status": "passed"
+    }
+  },
+  "target": "production",
+  "topology": {
+    "distinctRoleCount": 4,
+    "everyLedgerCurrent": true,
+    "ledgerAgreement": true,
+    "roleViolationCount": 0,
+    "status": "passed",
+    "targetAgreement": true
+  }
+}

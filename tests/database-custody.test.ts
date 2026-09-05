@@ -168,7 +168,21 @@ describe("production database custody gates", () => {
     expect(JSON.stringify(result)).not.toContain("provider-diagnostic");
   });
 
-  it("removes only one expired, inactive, unowned, independently fingerprinted audit role", async () => {
+  it("normalizes the provider CLI row-array response", () => {
+    const spawnSyncImpl = vi.fn(() => ({
+      status: 0,
+      stderr: "",
+      stdout: JSON.stringify([{ migration_count: 21 }]),
+    }));
+    const result = runSupabaseQuery({
+      providerProjectRef: "a".repeat(20),
+      spawnSyncImpl,
+      sql: "select count(*)::int as migration_count from schema_migrations",
+    });
+    expect(result).toEqual({ rows: [{ migration_count: 21 }] });
+  });
+
+  it("removes only one expired, inactive, unowned, independently fingerprinted audit role with its provider-owner edge", async () => {
     const roleName = `integrity_audit_${"b".repeat(16)}`;
     const spawnSyncImpl = vi
       .fn()
@@ -190,7 +204,9 @@ describe("production database custody gates", () => {
               rolreplication: false,
               rolsuper: false,
               rolvaliduntil: "2020-01-01T00:00:00.000Z",
-              role_membership_count: 0,
+              provider_owner_membership_count: 1,
+              role_membership_count: 1,
+              unexpected_role_membership_count: 0,
             },
           ],
         }),
@@ -236,7 +252,9 @@ describe("production database custody gates", () => {
             rolreplication: false,
             rolsuper: false,
             rolvaliduntil: "2020-01-01T00:00:00.000Z",
+            provider_owner_membership_count: 0,
             role_membership_count: 0,
+            unexpected_role_membership_count: 0,
           },
         ],
       }),
