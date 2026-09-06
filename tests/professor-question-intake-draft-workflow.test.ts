@@ -334,13 +334,26 @@ describe("professor AI question intake draft workflow", () => {
     const database = await databaseMode();
     const question = await saveDraft();
 
-    const approved = await transition(question, "approve", "needs_review");
+    const approved = await transition(
+      question,
+      "approve",
+      "needs_review",
+      "foundational",
+    );
     expect(approved.status).toBe(200);
     const approvedPayload = (await approved.json()) as {
       question: QuestionLifecycleDto;
     };
     expect(approvedPayload.question.workingVersion.state).toBe("approved");
+    expect(approvedPayload.question.workingVersion.versionId).toBe(
+      question.workingVersion.versionId,
+    );
     expect(approvedPayload.question.publishedVersion).toBeUndefined();
+    const unchangedVersionCount = await database.query<{ count: number }>(
+      "select count(*)::int as count from question_versions where question_id = $1",
+      [question.questionId],
+    );
+    expect(unchangedVersionCount.rows[0].count).toBe(1);
 
     mockPrincipal(TEST_STUDENT);
     const stillHidden = await getStudentQuestion(
@@ -375,6 +388,206 @@ describe("professor AI question intake draft workflow", () => {
     };
     expect(visible.status).toBe(200);
     expect(visiblePayload.question.prompt).toBe(PROMPT);
+  });
+
+  it("creates, submits, and approves an attributed immutable revision when difficulty changes", async () => {
+    const database = await databaseMode();
+    const question = await saveDraft();
+    const originalVersionId = question.workingVersion.versionId;
+    const original = await database.query<{
+      content_sha256: string;
+      snapshot_json: Record<string, unknown>;
+    }>(
+      `select content_sha256, snapshot_json
+       from question_versions where id = $1`,
+      [originalVersionId],
+    );
+
+    const approved = await transition(
+      question,
+      "approve",
+      "needs_review",
+      "challenge",
+    );
+    const payload = (await approved.json()) as {
+      question: QuestionLifecycleDto;
+    };
+
+    expect(approved.status).toBe(200);
+    expect(payload.question.workingVersion).toMatchObject({
+      createdBy: {
+        displayName: TEST_PROFESSOR.displayName,
+        userId: TEST_PROFESSOR.userId,
+      },
+      creationMethod: "manual",
+      difficulty: "challenge",
+      parentVersionId: originalVersionId,
+      state: "approved",
+    });
+    const revisedVersionId = payload.question.workingVersion.versionId;
+    expect(revisedVersionId).not.toBe(originalVersionId);
+    expect(payload.question.publishedVersion).toBeUndefined();
+    expect(
+      payload.question.events.find(
+        (event) =>
+          event.action === "approve" &&
+          event.versionId === payload.question.workingVersion.versionId,
+      )?.metadata,
+    ).toMatchObject({
+      previousDifficulty: "foundational",
+      reviewDifficultyBaseVersionId: originalVersionId,
+      selectedDifficulty: "challenge",
+    });
+    expect(
+      payload.question.versions.find(
+        (version) => version.versionId === originalVersionId,
+      ),
+    ).toMatchObject({ difficulty: "foundational", state: "needs_review" });
+
+    const replayed = await transition(
+      question,
+      "approve",
+      "needs_review",
+      "challenge",
+    );
+    const replayedPayload = (await replayed.json()) as {
+      question: QuestionLifecycleDto;
+    };
+    expect(replayed.status).toBe(200);
+    expect(replayedPayload.question.workingVersion.versionId).toBe(
+      revisedVersionId,
+    );
+
+    const stored = await database.query<{
+      content_sha256: string;
+      created_by_user_id: string;
+      creation_method: string;
+      id: number;
+      snapshot_json: Record<string, unknown>;
+    }>(
+      `select id, snapshot_json, content_sha256, created_by_user_id,
+              creation_method
+       from question_versions
+       where question_id = $1
+       order by version_number`,
+      [question.questionId],
+    );
+    expect(stored.rows).toHaveLength(2);
+    expect(stored.rows[0]).toMatchObject(original.rows[0]);
+    const { difficulty: originalDifficulty, ...originalSnapshot } =
+      original.rows[0].snapshot_json;
+    const { difficulty: revisedDifficulty, ...revisedSnapshot } =
+      stored.rows[1].snapshot_json;
+    expect(originalDifficulty).toBe("foundational");
+    expect(revisedDifficulty).toBe("challenge");
+    expect(revisedSnapshot).toEqual(originalSnapshot);
+    expect(stored.rows[1]).toMatchObject({
+      created_by_user_id: TEST_PROFESSOR.userId,
+      creation_method: "manual",
+      id: revisedVersionId,
+    });
+
+    const events = await database.query<{
+      action: string;
+      actor_user_id: string;
+      question_version_id: number;
+      to_state: string;
+    }>(
+      `select action, actor_user_id, question_version_id, to_state
+       from question_lifecycle_events
+       where question_version_id = $1
+       order by id`,
+      [revisedVersionId],
+    );
+    expect(events.rows).toEqual([
+      expect.objectContaining({
+        action: "create_version",
+        actor_user_id: TEST_PROFESSOR.userId,
+        question_version_id: revisedVersionId,
+        to_state: "draft",
+      }),
+      expect.objectContaining({
+        action: "submit",
+        actor_user_id: TEST_PROFESSOR.userId,
+        question_version_id: revisedVersionId,
+        to_state: "needs_review",
+      }),
+      expect.objectContaining({
+        action: "approve",
+        actor_user_id: TEST_PROFESSOR.userId,
+        question_version_id: revisedVersionId,
+        to_state: "approved",
+      }),
+    ]);
+
+    const publicCount = await database.query<{ count: number }>(
+      "select count(*)::int as count from app_public_questions where id = $1",
+      [question.questionId],
+    );
+    expect(publicCount.rows[0].count).toBe(0);
+    mockPrincipal(TEST_STUDENT);
+    const studentResponse = await getStudentQuestion(
+      new Request(`http://test/api/questions/${question.questionId}`),
+      { params: Promise.resolve({ id: question.questionId }) },
+    );
+    expect(studentResponse.status).toBe(404);
+  });
+
+  it("rejects invalid difficulty and denies non-professor difficulty approval", async () => {
+    const database = await databaseMode();
+    const question = await saveDraft();
+
+    const invalid = await transitionQuestion(
+      new Request(
+        `http://test/api/professor/questions/${question.questionId}/transitions`,
+        {
+          body: JSON.stringify({
+            action: "approve",
+            difficulty: "expert",
+            expectedState: "needs_review",
+            versionId: question.workingVersion.versionId,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        },
+      ),
+      { params: Promise.resolve({ id: question.questionId }) },
+    );
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({
+      error: expect.stringContaining("foundational"),
+    });
+
+    mockPrincipal(TEST_STUDENT);
+    const denied = await transitionQuestion(
+      new Request(
+        `http://test/api/professor/questions/${question.questionId}/transitions`,
+        {
+          body: JSON.stringify({
+            action: "approve",
+            difficulty: "challenge",
+            expectedState: "needs_review",
+            versionId: question.workingVersion.versionId,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        },
+      ),
+      { params: Promise.resolve({ id: question.questionId }) },
+    );
+    expect(denied.status).toBe(403);
+
+    const unchanged = await database.query<{
+      count: number;
+      state: string;
+    }>(
+      `select count(*)::int as count, min(qvl.state) as state
+       from question_versions qv
+       join question_version_lifecycle qvl on qvl.question_version_id = qv.id
+       where qv.question_id = $1`,
+      [question.questionId],
+    );
+    expect(unchanged.rows[0]).toEqual({ count: 1, state: "needs_review" });
   });
 
   it("does not report success when persistence fails and lets the same save be retried", async () => {
@@ -451,6 +664,7 @@ async function transition(
   question: QuestionLifecycleDto,
   action: "approve" | "publish",
   expectedState: "approved" | "needs_review",
+  difficulty?: "foundational" | "intermediate" | "challenge",
 ) {
   return transitionQuestion(
     new Request(
@@ -458,6 +672,7 @@ async function transition(
       {
         body: JSON.stringify({
           action,
+          difficulty,
           expectedState,
           versionId: question.workingVersion.versionId,
         }),

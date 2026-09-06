@@ -96,6 +96,12 @@ describe("question publication quality gates", () => {
         input.professorApprovalExists = false;
       },
     },
+    {
+      code: "reserved_for_later",
+      mutate: (input) => {
+        input.reservedForLater = true;
+      },
+    },
   ];
 
   it("has a blocking test case for every configured publication gate", () => {

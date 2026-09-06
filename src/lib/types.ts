@@ -202,7 +202,8 @@ export type QuestionPublicationGateCode =
   | "duplicate_question_id"
   | "invalid_review_state"
   | "deterministic_validation_failed"
-  | "professor_approval_missing";
+  | "professor_approval_missing"
+  | "reserved_for_later";
 
 export type QuestionPublicationBlocker = {
   code: QuestionPublicationGateCode;
@@ -226,6 +227,21 @@ export type QuestionLifecycleBatchFailure = QuestionLifecycleBatchItem & {
   publicationBlockers?: QuestionPublicationBlocker[];
   title?: string;
   topicId?: string;
+};
+
+export type QuestionLifecycleBatchPreviewItem =
+  | (QuestionLifecycleBatchItem & {
+      status: "ready";
+    })
+  | (QuestionLifecycleBatchFailure & {
+      status: "blocked";
+    });
+
+export type QuestionLifecycleBatchPreviewResult = {
+  action: "publish";
+  blockedCount: number;
+  items: QuestionLifecycleBatchPreviewItem[];
+  readyCount: number;
 };
 
 export type QuestionVersionInspectionDto = {
@@ -390,6 +406,13 @@ export type StudentPracticeQuestion = {
   topicId: string;
 };
 
+export type SimilarPublishedQuestionDto = {
+  difficulty: Difficulty;
+  questionId: string;
+  title: string;
+  topicId: string;
+};
+
 export type RetrievalChunkType =
   | "concept"
   | "example"
@@ -512,8 +535,34 @@ export type QuestionLifecycleDto = {
   questionId: string;
   recordState: QuestionRecordState;
   regenerationAllowed: boolean;
+  reserve?: QuestionReserveDisposition;
+  reserveEvents?: QuestionReserveEventDto[];
   versions: QuestionVersionDto[];
   workingVersion: QuestionVersionDto;
+};
+
+export type QuestionReserveReasonCode =
+  | "repetitive"
+  | "save_for_later"
+  | "future_topic"
+  | "extra_practice"
+  | "other";
+
+export type QuestionReserveDisposition = {
+  note?: string;
+  reasonCode: QuestionReserveReasonCode;
+  reservedAt: string;
+  reservedBy: QuestionVersionAttribution;
+};
+
+export type QuestionReserveEventDto = {
+  action: "reserve" | "release";
+  actor: QuestionVersionAttribution;
+  id: number;
+  note?: string;
+  reasonCode?: QuestionReserveReasonCode;
+  requestId?: string;
+  versionId: number;
 };
 
 export type QuestionLifecycleDashboard = {

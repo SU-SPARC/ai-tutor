@@ -40,26 +40,29 @@ The legacy `/admin/**` route tree does not exist.
 
 ## APIs
 
-| API                                              | Access                                    | Data policy                                                                                                |
-| ------------------------------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `GET /api/questions`, `GET /api/questions/[id]`  | Public                                    | Approved public questions only.                                                                            |
-| `GET /api/student/progress`                      | Student or professor                      | Returns only the current account's practice progress; no ranking or peer data.                             |
-| Tutor-session routes                             | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                                    |
-| `POST /api/tutor/session/[sessionId]/feedback`   | Owning student/professor/anonymous        | Derives the exact question version from the owned session; returns a minimal receipt.                      |
-| `GET`, `PATCH /api/professor/availability`       | Professor                                 | Global-only topic/question release rules, schedules, and attributed audit history.                         |
-| `GET`, `PATCH /api/professor/feedback/**`        | Professor                                 | Redacted, version-linked queue data; status updates cannot mutate question content.                        |
-| `GET`, `PATCH`, `POST /api/professor/review`     | Professor                                 | Professor-safe draft DTOs; real reviewer attribution.                                                      |
-| `GET`, `POST /api/professor/questions`           | Professor                                 | Lifecycle listing or a complete validated initial draft.                                                   |
-| `GET /api/professor/questions/[id]`              | Professor                                 | Immutable versions, lifecycle timeline, attribution, validation, and allowed actions.                      |
-| `POST /api/professor/questions/[id]/versions`    | Professor                                 | Complete immutable draft from a selected base version.                                                     |
-| `POST /api/professor/questions/[id]/transitions` | Professor                                 | Server-authorized, attributed, optimistic, idempotent lifecycle transition.                                |
-| `POST /api/professor/questions/[id]/regenerate`  | Professor                                 | Same-question regeneration with professor requestor and system executor attribution.                       |
-| Legacy professor question `PATCH` routes         | Professor                                 | Compatibility-only projection updates; they cannot publish or change student visibility.                   |
-| `POST /api/professor/upload`                     | Professor                                 | Validated generated-candidate import.                                                                      |
-| `POST /api/professor/content-preview`            | Professor                                 | Private file parsing to an abstract needs-review preview.                                                  |
-| `GET /api/professor/analytics`                   | Professor                                 | Aggregate metrics only; no student identities or raw answers.                                              |
-| `GET /api/professor/analytics/export`            | Professor                                 | Versioned pseudonymous research export; no direct identifiers, student text, or private retrieval content. |
-| `POST /api/retrieval/search`                     | Professor                                 | Client-accessible `student` audience only; internal draft audience is rejected.                            |
+| API                                              | Access                                    | Data policy                                                                                                          |
+| ------------------------------------------------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/questions`, `GET /api/questions/[id]`  | Public                                    | Approved public questions only.                                                                                      |
+| `GET /api/student/progress`                      | Student or professor                      | Returns only the current account's practice progress; no ranking or peer data.                                       |
+| Tutor-session routes                             | Student/professor/anonymous as applicable | Every session query includes its server-resolved owner.                                                              |
+| `GET /api/tutor/session/[sessionId]/similar`     | Owning student/professor/anonymous        | Requires a completed owned session and returns only a minimal summary of one currently available published question. |
+| `POST /api/tutor/session/[sessionId]/feedback`   | Owning student/professor/anonymous        | Derives the exact question version from the owned session; returns a minimal receipt.                                |
+| `GET`, `PATCH /api/professor/availability`       | Professor                                 | Global-only topic/question release rules, schedules, and attributed audit history.                                   |
+| `GET`, `PATCH /api/professor/feedback/**`        | Professor                                 | Redacted, version-linked queue data; status updates cannot mutate question content.                                  |
+| `GET`, `PATCH`, `POST /api/professor/review`     | Professor                                 | Professor-safe draft DTOs; real reviewer attribution.                                                                |
+| `GET`, `POST /api/professor/questions`           | Professor                                 | Lifecycle listing or a complete validated initial draft.                                                             |
+| `GET /api/professor/questions/[id]`              | Professor                                 | Immutable versions, lifecycle timeline, attribution, validation, and allowed actions.                                |
+| `POST /api/professor/questions/[id]/versions`    | Professor                                 | Complete immutable draft from a selected base version.                                                               |
+| `POST /api/professor/questions/[id]/transitions` | Professor                                 | Server-authorized, attributed, optimistic, idempotent lifecycle transition.                                          |
+| `POST /api/professor/questions/[id]/regenerate`  | Professor                                 | Same-question regeneration with professor requestor and system executor attribution.                                 |
+| `POST /api/professor/questions/[id]/reserve`     | Professor                                 | Toggles audited Save for later intent on the exact approved/unpublished working version; never publishes.            |
+| `POST /api/professor/questions/batch`            | Professor                                 | Preview performs publication preflight without mutation; commit remains idempotent and atomic.                       |
+| Legacy professor question `PATCH` routes         | Professor                                 | Compatibility-only projection updates; they cannot publish or change student visibility.                             |
+| `POST /api/professor/upload`                     | Professor                                 | Validated generated-candidate import.                                                                                |
+| `POST /api/professor/content-preview`            | Professor                                 | Private file parsing to an abstract needs-review preview.                                                            |
+| `GET /api/professor/analytics`                   | Professor                                 | Aggregate metrics only; no student identities or raw answers.                                                        |
+| `GET /api/professor/analytics/export`            | Professor                                 | Versioned pseudonymous research export; no direct identifiers, student text, or private retrieval content.           |
+| `POST /api/retrieval/search`                     | Professor                                 | Client-accessible `student` audience only; internal draft audience is rejected.                                      |
 
 ## Invariants
 

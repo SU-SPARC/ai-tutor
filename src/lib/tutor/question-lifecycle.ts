@@ -5,6 +5,7 @@ import type {
   QuestionRevisionMethod,
   QuestionVersionState,
 } from "@/lib/types";
+import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
 
 export class QuestionLifecycleConflictError extends Error {
   constructor(message: string) {
@@ -87,6 +88,7 @@ export function allowedQuestionLifecycleActions(input: {
 export function assertQuestionLifecycleTransition(input: {
   action: QuestionLifecycleAction;
   hasPublishedVersion: boolean;
+  note?: string;
   reasonCode?: string;
   recordState: QuestionRecordState;
   revisionMethod?: QuestionRevisionMethod;
@@ -103,6 +105,14 @@ export function assertQuestionLifecycleTransition(input: {
     throw new QuestionLifecycleValidationError(
       `${input.action} requires a reason code.`,
     );
+  }
+
+  if (
+    REQUIRED_REASON_ACTIONS.has(input.action) &&
+    professorReviewReasonRequiresNote(input.reasonCode) &&
+    !input.note?.trim()
+  ) {
+    throw new QuestionLifecycleValidationError("Other requires an audit note.");
   }
 
   if (input.action === "request_revision" && !input.revisionMethod) {

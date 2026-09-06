@@ -20,6 +20,7 @@ export type ProfessorWorkspacePipeline = {
   drafts: number;
   needsReview: number;
   published: number;
+  reserved: number;
 };
 
 export type ProfessorWorkspaceAvailability = {
@@ -83,12 +84,16 @@ function summarizePipeline(
     drafts: 0,
     needsReview: 0,
     published: 0,
+    reserved: 0,
   };
 
   for (const question of lifecycle.questions) {
     if (question.recordState === "archived") {
       pipeline.archived += 1;
       continue;
+    }
+    if (question.reserve) {
+      pipeline.reserved += 1;
     }
     if (question.publishedVersion) {
       pipeline.published += 1;
@@ -101,7 +106,7 @@ function summarizePipeline(
         pipeline.needsReview += 1;
         break;
       case "approved":
-        if (!question.publishedVersion) {
+        if (!question.publishedVersion && !question.reserve) {
           pipeline.approvedNotPublished += 1;
         }
         break;

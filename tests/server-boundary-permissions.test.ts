@@ -15,6 +15,7 @@ import {
   PATCH as patchAdminQuestion,
 } from "@/app/api/professor/questions/[id]/route";
 import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
+import { POST as reserveAdminQuestion } from "@/app/api/professor/questions/[id]/reserve/route";
 import { POST as transitionAdminQuestion } from "@/app/api/professor/questions/[id]/transitions/route";
 import { POST as createAdminQuestionVersion } from "@/app/api/professor/questions/[id]/versions/route";
 import { POST as batchAdminQuestions } from "@/app/api/professor/questions/batch/route";
@@ -35,6 +36,7 @@ import { POST as respondToTutor } from "@/app/api/tutor/respond/route";
 import { POST as recordAttempt } from "@/app/api/tutor/session/[sessionId]/attempt/route";
 import { POST as revealHint } from "@/app/api/tutor/session/[sessionId]/hint/route";
 import { GET as getTutorSessionRoute } from "@/app/api/tutor/session/[sessionId]/route";
+import { GET as getSimilarQuestion } from "@/app/api/tutor/session/[sessionId]/similar/route";
 import { POST as revealStep } from "@/app/api/tutor/session/[sessionId]/step/route";
 import { POST as createTutorSessionRoute } from "@/app/api/tutor/session/route";
 import { SERVER_BOUNDARY_PERMISSION_MATRIX } from "@/lib/auth/server-boundary-policy";
@@ -297,6 +299,21 @@ describe("direct professor content API authorization", () => {
         ),
     ],
     [
+      "POST /api/professor/questions/[id]/reserve",
+      () =>
+        reserveAdminQuestion(
+          jsonRequest(
+            "http://test/api/professor/questions/question:test/reserve",
+            {
+              action: "reserve",
+              expectedWorkingVersionId: 1,
+              reasonCode: "save_for_later",
+            },
+          ),
+          routeContext("question:test", "id"),
+        ),
+    ],
+    [
       "POST /api/professor/questions/[id]/versions",
       () =>
         createAdminQuestionVersion(
@@ -413,6 +430,14 @@ describe("direct student API authorization", () => {
       () =>
         getTutorSessionRoute(
           new Request("http://test/api/tutor/session/session:test"),
+          sessionContext("session:test"),
+        ),
+    ],
+    [
+      "GET /api/tutor/session/[sessionId]/similar",
+      () =>
+        getSimilarQuestion(
+          new Request("http://test/api/tutor/session/session:test/similar"),
           sessionContext("session:test"),
         ),
     ],

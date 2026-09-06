@@ -4,7 +4,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
+import {
+  ProfessorBatchPublicationReadiness,
+  ProfessorQuestionBatchConfirmation,
+} from "@/components/professor/professor-question-batch-confirmation";
 import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
 
 describe("professor question batch review UI", () => {
@@ -48,6 +51,10 @@ describe("professor question batch review UI", () => {
     expect(markup).toContain(
       "Student visibility changes only after the complete transaction commits",
     );
+    expect(markup).toContain("Preview readiness");
+    expect(markup).toContain(
+      'disabled="">Confirm publish for 2 questions',
+    );
     expect(markup.toLowerCase()).not.toContain("approve all");
     expect(markup.toLowerCase()).not.toContain("batch approve");
   });
@@ -62,12 +69,84 @@ describe("professor question batch review UI", () => {
     );
 
     expect(source).toContain("Mark this version inspected");
-    expect(source).toContain("Select inspected version of");
+    expect(source).toContain("Select working version of");
     expect(source).toContain("Batch request revision");
     expect(source).toContain("Batch reject");
-    expect(source).toContain("Review batch publication");
+    expect(source).toContain("Publish selected");
+    expect(source).toContain("Choose the Approved view for bulk publication");
+    expect(source).not.toContain("Review batch publication");
     expect(source).not.toContain("Batch approve");
     expect(source).not.toContain("Approve all");
+  });
+
+  it("confirms a batch with a friendly reason label and optional audit note", () => {
+    const questions = [
+      lifecycleFixture(1, "Basic probability", "basic-probability"),
+      lifecycleFixture(2, "Basic probability", "basic-probability"),
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionBatchConfirmation, {
+        action: "request_revision",
+        disabled: false,
+        inspections: [],
+        note: "These questions repeat examples already in the topic.",
+        onCancel: vi.fn(),
+        onCompleted: vi.fn(),
+        questions,
+        reasonCode: "duplicate_repetition",
+        revisionMethod: "manual",
+        topics: [{ id: "basic-probability", title: "Basic probability" }],
+      }),
+    );
+
+    expect(markup).toContain("Duplicate / repetition");
+    expect(markup).toContain(
+      "Audit note: These questions repeat examples already in the topic.",
+    );
+    expect(markup).not.toContain("duplicate_repetition");
+  });
+
+  it("shows ready and blocked questions with a way to remove blockers", () => {
+    const questions = [
+      lifecycleFixture(1, "Basic probability", "basic-probability"),
+      lifecycleFixture(2, "Conditional probability", "conditional-probability"),
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorBatchPublicationReadiness, {
+        disabled: false,
+        onRemoveQuestion: vi.fn(),
+        preview: {
+          action: "publish",
+          blockedCount: 1,
+          items: [
+            {
+              expectedState: "approved",
+              questionId: questions[0].questionId,
+              status: "ready",
+              versionId: questions[0].workingVersion.versionId,
+            },
+            {
+              code: "not_inspected",
+              expectedState: "approved",
+              message:
+                "The signed-in professor has not inspected this exact version.",
+              questionId: questions[1].questionId,
+              status: "blocked",
+              versionId: questions[1].workingVersion.versionId,
+            },
+          ],
+          readyCount: 1,
+        },
+        questions,
+      }),
+    );
+
+    expect(markup).toContain("Publication readiness");
+    expect(markup).toContain("1 Ready");
+    expect(markup).toContain("1 Blocked");
+    expect(markup).toContain("passed every current gate");
+    expect(markup).toContain("has not inspected this exact version");
+    expect(markup).toContain("Remove from selection");
   });
 });
 

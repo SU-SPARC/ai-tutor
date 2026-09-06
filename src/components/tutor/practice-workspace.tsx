@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChartNoAxesColumn,
@@ -27,6 +28,7 @@ import {
 
 import { MathText } from "@/components/math/math-renderer";
 import { QuestionFeedbackForm } from "@/components/tutor/question-feedback-form";
+import { PracticeSimilarProblemAction } from "@/components/tutor/practice-similar-problem-action";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +38,7 @@ import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import type {
   CourseTopic,
+  SimilarPublishedQuestionDto,
   StudentPracticeQuestion,
   TutorMode,
   TutorResponse,
@@ -108,6 +111,7 @@ export function PracticeWorkspace({
   questions,
   topics,
 }: PracticeWorkspaceProps) {
+  const router = useRouter();
   const initialQuestion = questions.find(
     (question) => question.id === initialQuestionId,
   );
@@ -365,6 +369,17 @@ export function PracticeWorkspace({
     setAnswer("");
     setLatestResponse(null);
     resetChat();
+  }
+
+  function openSimilarQuestion(question: SimilarPublishedQuestionDto) {
+    const availableQuestion = questions.find(
+      (candidate) => candidate.id === question.questionId,
+    );
+    if (!availableQuestion) {
+      router.push(`/practice/${encodeURIComponent(question.questionId)}`);
+      return;
+    }
+    selectQuestion(availableQuestion.id, availableQuestion.topicId);
   }
 
   async function sendAnswer() {
@@ -843,6 +858,15 @@ export function PracticeWorkspace({
                 <div className="border-t px-5 py-2 text-sm text-destructive">
                   {sessionError}
                 </div>
+              ) : null}
+
+              {session?.solved ? (
+                <PracticeSimilarProblemAction
+                  key={session.id}
+                  disabled={isTutorBusy}
+                  sessionId={session.id}
+                  onMatch={openSimilarQuestion}
+                />
               ) : null}
 
               <div className="border-t px-5 py-4">

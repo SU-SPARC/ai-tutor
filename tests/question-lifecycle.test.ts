@@ -77,6 +77,43 @@ describe("question lifecycle policy", () => {
     ).toThrow(/revision method/i);
   });
 
+  it.each(["reject", "request_revision"] as const)(
+    "requires an audit note when %s uses Other",
+    (action) => {
+      const input = {
+        action,
+        hasPublishedVersion: false,
+        reasonCode: "other",
+        recordState: "active" as const,
+        revisionMethod:
+          action === "request_revision" ? ("manual" as const) : undefined,
+        versionState: "needs_review" as const,
+      };
+      expect(() => assertQuestionLifecycleTransition(input)).toThrow(
+        /Other requires an audit note/i,
+      );
+      expect(() =>
+        assertQuestionLifecycleTransition({
+          ...input,
+          note: "The listed categories do not describe this issue.",
+        }),
+      ).not.toThrow();
+    },
+  );
+
+  it("keeps audit notes optional for a standard professor reason", () => {
+    expect(() =>
+      assertQuestionLifecycleTransition({
+        action: "request_revision",
+        hasPublishedVersion: false,
+        reasonCode: "poor_wording",
+        recordState: "active",
+        revisionMethod: "manual",
+        versionState: "needs_review",
+      }),
+    ).not.toThrow();
+  });
+
   it("makes archive conditional on having no publication and restore exclusive to archives", () => {
     expect(
       allowedQuestionLifecycleActions({

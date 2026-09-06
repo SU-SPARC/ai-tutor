@@ -78,6 +78,28 @@ content, validation status, and active topic. Any failure returns an itemized
 report and changes nothing. Only a fully valid batch executes its attributed
 lifecycle transitions and publication pointer changes in one transaction.
 
+Publication preview uses the same item preflight without a transaction or any
+write. Items are checked sequentially so one 25-item preview cannot exhaust the
+four-connection runtime pool. It reports each version as ready or blocked; the
+professor may remove blocked selections and preview the remaining set before
+submitting the normal atomic commit.
+
+## Save for later
+
+Save for later is an audited disposition, not a lifecycle state. It is limited
+to an active `approved` or `unpublished` working version with no published
+pointer. The working version stays immutable and approved, while the reserve
+flag prevents publication, revision, regeneration, provenance correction, and
+other lifecycle changes until a professor removes the disposition. Reserved
+questions are absent from student views and intentional reserves are excluded
+from waiting-to-publish warnings.
+
+`question_reserve_events` is an append-only professor-attributed ledger for
+reserve and release actions. The current disposition lives on `questions` for
+filtering. The runtime role has SELECT plus the exact INSERT permission needed
+for the ledger, UPDATE on `questions`, and a role-scoped RLS policy; Data API
+roles retain no access.
+
 ## Publication quality gates
 
 Every single publish, rollback, and batch publish evaluates the same ordered,
@@ -100,6 +122,13 @@ direct procedure or SQL caller cannot bypass the application evaluator.
 creation method, schema version, legacy MD5 fingerprint, and a SHA-256 content
 hash that excludes workflow fields. Material edits and regeneration create a
 new version; lifecycle transitions do not.
+
+When a professor changes difficulty while approving in the Review Queue, the
+server clones the complete authoritative working snapshot into a new `manual`
+version, changes only difficulty, submits it through normal lifecycle
+validation, and approves that exact version. The earlier version remains
+immutable. The submit/approve events retain the previous and selected
+difficulty as whitelisted professor timeline metadata.
 
 Professors may revise any active, public-safe working version, including a
 currently published version. The revision endpoint accepts only wording,
@@ -140,6 +169,12 @@ legacy evidence.
 generation-failure attempts. Lifecycle events and audit events are append-only;
 student DTOs contain neither identities nor review notes.
 
+Professor rejection and revision requests use stable review reason codes plus
+an optional note; `other` requires the note. Lifecycle-only actions also offer
+content correction, restore previous release, and course retired choices.
+Historical and unknown reason codes remain readable through friendly fallback
+labels.
+
 ## Professor API
 
 - `GET /api/professor/questions?view=lifecycle` lists lifecycle records.
@@ -154,10 +189,13 @@ student DTOs contain neither identities nor review notes.
   idempotent transition.
 - `POST /api/professor/questions/:id/regenerate` creates a version under the
   same question.
+- `POST /api/professor/questions/:id/reserve` records or removes Save for later
+  on the exact active working version.
 - `POST /api/professor/questions/inspections` records deliberate inspection of
   the current immutable review version for the signed-in professor.
 - `POST /api/professor/questions/batch` atomically requests revision, rejects,
-  or publishes 2–25 already-inspected versions. It never accepts `approve`.
+  or publishes 2–25 already-inspected versions. `mode: preview` runs the
+  publication preflight without mutation. It never accepts `approve`.
 - `GET|POST /api/professor/content-transfer` provides professor-only sanitized
   JSON exports and dry-run-first transactional imports. See
   [Protected question content transfer](./content-transfer.md).
@@ -165,6 +203,9 @@ student DTOs contain neither identities nor review notes.
   lifecycle counts without question content. Supplying one `topicId` returns
   only that topic's `needs_review` working versions through a narrow,
   public-safe review DTO.
+- `GET /api/tutor/session/:sessionId/similar` is an owned-student-resource read
+  available after completion. It ranks only existing, currently available
+  published questions in the same topic and returns no private review metadata.
 
 Invalid/stale transitions return `409`; content validation returns `422`;
 unavailable records return `404`; authentication and authorization retain
@@ -193,6 +234,9 @@ creation attribution when professors revise generated content while retaining
 legacy generated-snapshot classification when no creation method is supplied.
 Migration `013_safe_batch_review_operations.sql` adds append-only,
 professor-specific version inspections used by batch preflight.
+Migration `022_question_reserve_disposition.sql` adds the current reserve
+columns, consistency/visibility guards, and append-only reserve ledger. It does
+not create a new lifecycle state or mutate an existing question version.
 
 Before promotion, verify that every published lifecycle row has one matching
 question pointer, no question has more than one published version, session and

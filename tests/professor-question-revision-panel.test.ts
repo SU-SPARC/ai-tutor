@@ -13,6 +13,10 @@ import {
   ProfessorQuestionLifecyclePanel,
   ProfessorQuestionVersionHistory,
 } from "@/components/professor/professor-question-lifecycle-panel";
+import {
+  PROFESSOR_LIFECYCLE_REASONS,
+  PROFESSOR_REVIEW_REASONS,
+} from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
 
@@ -194,6 +198,32 @@ describe("professor question revision panel", () => {
     );
   });
 
+  it("offers stable review reasons and retains a separate optional audit note", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionLifecyclePanel, {
+        initialDashboard: {
+          inspections: [],
+          mode: "database",
+          questions: [lifecycleFixture()],
+          readOnly: false,
+          topics: [{ id: "basic-probability", title: "Basic probability" }],
+        },
+      }),
+    );
+
+    expect(markup).toContain("Decision reason");
+    expect(markup).toContain("Audit note (optional)");
+    expect(markup).not.toContain("Reason code for revision");
+    for (const { code, label } of PROFESSOR_REVIEW_REASONS) {
+      expect(markup).toContain(`value="${code}"`);
+      expect(markup).toContain(label);
+    }
+    for (const { code, label } of PROFESSOR_LIFECYCLE_REASONS) {
+      expect(markup).toContain(`value="${code}"`);
+      expect(markup).toContain(label);
+    }
+  });
+
   it("shows professors immutable content, lineage, actors, timestamps, and lifecycle comments", () => {
     const original = {
       ...versionFixture(),
@@ -221,6 +251,39 @@ describe("professor question revision panel", () => {
     const question: QuestionLifecycleDto = {
       ...lifecycleFixture(),
       events: [
+        {
+          action: "approve",
+          actor: revision.createdBy,
+          actorRole: "professor",
+          fromState: "needs_review",
+          id: 5,
+          metadata: {
+            previousDifficulty: "foundational",
+            reviewDifficultyBaseVersionId: original.versionId,
+            selectedDifficulty: "intermediate",
+          },
+          toState: "approved",
+          versionId: revision.versionId,
+        },
+        {
+          action: "reject",
+          actor: revision.createdBy,
+          actorRole: "professor",
+          fromState: "needs_review",
+          id: 4,
+          reasonCode: "professor_rejected",
+          toState: "rejected",
+          versionId: revision.versionId,
+        },
+        {
+          action: "migrate",
+          actor: original.createdBy,
+          actorRole: "system",
+          id: 3,
+          reasonCode: "imported_review_state",
+          toState: "published",
+          versionId: original.versionId,
+        },
         {
           action: "create_version",
           actor: revision.createdBy,
@@ -262,7 +325,12 @@ describe("professor question revision panel", () => {
     expect(markup).toContain("Lifecycle Professor");
     expect(markup).toContain("2026-08-09T14:30:00.000Z");
     expect(markup).toContain("Clarify the ambiguous wording.");
-    expect(markup).toContain("working version superseded");
+    expect(markup).toContain("Working version superseded");
+    expect(markup).toContain("Professor rejected");
+    expect(markup).toContain("Imported review state");
+    expect(markup).toContain("Difficulty: foundational → intermediate");
+    expect(markup).not.toContain("professor_rejected");
+    expect(markup).not.toContain("imported_review_state");
     expect(markup).not.toContain("private-pattern-secret");
   });
 });

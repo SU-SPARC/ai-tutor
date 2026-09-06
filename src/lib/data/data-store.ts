@@ -17,15 +17,18 @@ import {
 } from "@/lib/data/content-availability-repository";
 import {
   createDatabaseQuestionLifecycleRepository,
+  type ApproveQuestionReviewInput,
   type CreateQuestionInput,
   type CreateQuestionRevisionInput,
   type CorrectQuestionVersionProvenanceInput,
   type CreateQuestionVersionInput,
   type QuestionLifecycleBatchTransitionInput,
+  type QuestionLifecycleBatchPreviewInput,
   type QuestionLifecycleFilters,
   type QuestionLifecycleTransitionInput,
   type RecordQuestionVersionInspectionInput,
   type RegenerateQuestionVersionInput,
+  type SetQuestionReserveInput,
 } from "@/lib/data/question-lifecycle-repository";
 import {
   demoContentRepository,
@@ -769,6 +772,16 @@ export async function transitionQuestionLifecycle(
   );
 }
 
+export async function approveQuestionReview(
+  authorization: ProfessorReviewAuthorization,
+  input: ApproveQuestionReviewInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.approveReviewCandidate(authorization, input),
+  );
+}
+
 export async function recordQuestionVersionInspection(
   authorization: ProfessorReviewAuthorization,
   input: RecordQuestionVersionInspectionInput,
@@ -776,6 +789,16 @@ export async function recordQuestionVersionInspection(
   assertAuthorization(authorization, "professor");
   return writeStrictDatabaseLifecycle((repository) =>
     repository.recordInspection(authorization, input),
+  );
+}
+
+export async function setQuestionReserveDisposition(
+  authorization: ProfessorReviewAuthorization,
+  input: SetQuestionReserveInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.setReserveDisposition(authorization, input),
   );
 }
 
@@ -795,6 +818,16 @@ export async function batchTransitionQuestionLifecycle(
   assertAuthorization(authorization, "professor");
   return writeStrictDatabaseLifecycle((repository) =>
     repository.batchTransition(authorization, input),
+  );
+}
+
+export async function previewBatchQuestionLifecycle(
+  authorization: ProfessorReviewAuthorization,
+  input: QuestionLifecycleBatchPreviewInput,
+) {
+  assertAuthorization(authorization, "professor");
+  return writeStrictDatabaseLifecycle((repository) =>
+    repository.previewBatchTransition(authorization, input),
   );
 }
 
@@ -1119,6 +1152,7 @@ function demoQuestionLifecycle(
     recordState: "active",
     provenanceCorrectionAllowed: false,
     regenerationAllowed: false,
+    reserveEvents: [],
     versions: [version],
     workingVersion: version,
   };

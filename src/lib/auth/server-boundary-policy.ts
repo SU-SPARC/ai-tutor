@@ -199,6 +199,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "POST",
+    "/api/professor/questions/[id]/reserve",
+    "src/app/api/professor/questions/[id]/reserve/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "setQuestionReserveDisposition"],
+  ),
+  route(
+    "POST",
     "/api/professor/questions/[id]/versions",
     "src/app/api/professor/questions/[id]/versions/route.ts",
     "professor-review",
@@ -399,6 +406,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/tutor/session/[sessionId]/route.ts",
     "owned-student-resource",
     ["authorizeStudentResourceApi", "toStudentTutorSessionDto"],
+  ),
+  route(
+    "GET",
+    "/api/tutor/session/[sessionId]/similar",
+    "src/app/api/tutor/session/[sessionId]/similar/route.ts",
+    "owned-student-resource",
+    ["authorizeStudentResourceApi", "findSimilarPublishedQuestion"],
   ),
   route(
     "POST",

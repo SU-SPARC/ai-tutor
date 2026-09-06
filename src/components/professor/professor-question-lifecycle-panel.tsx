@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
+import { ProfessorQuestionReserveControls } from "@/components/professor/professor-question-reserve-controls";
+import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
 import {
   canEditQuestionVersion,
   ProfessorQuestionRevisionEditor,
@@ -21,7 +23,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { nativeSelectClassName } from "@/components/ui/native-select";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -46,9 +47,14 @@ import {
   questionIntakeSourceLabel,
 } from "@/lib/question-intake/provenance";
 import { lifecycleActionRequiresReason } from "@/lib/tutor/question-lifecycle";
+import { questionReserveReasonLabel } from "@/lib/tutor/professor-question-reserve";
+import {
+  professorReviewReasonLabel,
+  professorReviewReasonRequiresNote,
+} from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 
-type LifecycleFilter = QuestionVersionState | "all" | "archived";
+type LifecycleFilter = QuestionVersionState | "all" | "archived" | "reserve";
 
 type PublicationPreviewState = {
   action: "publish" | "rollback";
@@ -63,6 +69,7 @@ const FILTERS: Array<{ label: string; value: LifecycleFilter }> = [
   { label: "Needs review", value: "needs_review" },
   { label: "Revision requested", value: "revision_requested" },
   { label: "Approved", value: "approved" },
+  { label: "Reserve", value: "reserve" },
   { label: "Published", value: "published" },
   { label: "Unpublished", value: "unpublished" },
   { label: "Rejected", value: "rejected" },
@@ -116,6 +123,7 @@ export function ProfessorQuestionLifecyclePanel({
   const [editingId, setEditingId] = useState<string>();
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [message, setMessage] = useState<string>();
+  const [note, setNote] = useState("");
   const [reasonCode, setReasonCode] = useState("");
   const [publicationPreview, setPublicationPreview] =
     useState<PublicationPreviewState>();
@@ -129,6 +137,7 @@ export function ProfessorQuestionLifecyclePanel({
       dashboard.questions.filter((question) => {
         if (filter === "all") return true;
         if (filter === "archived") return question.recordState === "archived";
+        if (filter === "reserve") return Boolean(question.reserve);
         return (
           question.recordState === "active" &&
           question.workingVersion.state === filter
@@ -161,7 +170,15 @@ export function ProfessorQuestionLifecyclePanel({
     expectedState = question.workingVersion.state,
   ) {
     if (lifecycleActionRequiresReason(action) && !reasonCode.trim()) {
-      setMessage(`${ACTION_LABELS[action]} requires a reason code.`);
+      setMessage(`${ACTION_LABELS[action]} requires a reason.`);
+      return false;
+    }
+    if (
+      lifecycleActionRequiresReason(action) &&
+      professorReviewReasonRequiresNote(reasonCode) &&
+      !note.trim()
+    ) {
+      setMessage("Other requires an audit note.");
       return false;
     }
 
@@ -180,7 +197,10 @@ export function ProfessorQuestionLifecyclePanel({
           body: JSON.stringify({
             action,
             expectedState,
-            reasonCode: reasonCode.trim() || undefined,
+            note: note.trim() || undefined,
+            reasonCode: lifecycleActionRequiresReason(action)
+              ? reasonCode.trim() || undefined
+              : undefined,
             revisionMethod:
               action === "request_revision" ? revisionMethod : undefined,
             versionId,
@@ -203,6 +223,7 @@ export function ProfessorQuestionLifecyclePanel({
             : candidate,
         ),
       }));
+      setNote("");
       setReasonCode("");
       setSelectedVersionIds((current) =>
         current.filter((candidate) => candidate !== versionId),
@@ -233,7 +254,9 @@ export function ProfessorQuestionLifecyclePanel({
           body: JSON.stringify({
             keepPattern: true,
             mode: "deterministic",
-            supersedeReason: reasonCode.trim() || undefined,
+            supersedeReason:
+              note.trim() ||
+              (reasonCode ? professorReviewReasonLabel(reasonCode) : undefined),
           }),
         },
       );
@@ -267,6 +290,8 @@ export function ProfessorQuestionLifecyclePanel({
           (versionId) => versionId !== question.workingVersion.versionId,
         ),
       );
+      setNote("");
+      setReasonCode("");
       setMessage("A regenerated version was submitted for review.");
     } catch {
       setMessage("Regeneration failed.");
@@ -371,15 +396,13 @@ export function ProfessorQuestionLifecyclePanel({
 
   function openBatchConfirmation(action: QuestionLifecycleBatchAction) {
     if (selectedQuestions.length < 2) {
-      setMessage("Select at least two inspected versions for a batch action.");
+      setMessage("Select at least two versions for a batch action.");
       return;
     }
     if (
-      !selectedQuestions.every(
-        (question) =>
-          question.workingVersion.allowedActions.includes(action) &&
-          (action !== "publish" ||
-            question.workingVersion.validationStatus === "valid"),
+      action !== "publish" &&
+      !selectedQuestions.every((question) =>
+        question.workingVersion.allowedActions.includes(action),
       )
     ) {
       setMessage(
@@ -388,7 +411,15 @@ export function ProfessorQuestionLifecyclePanel({
       return;
     }
     if (action !== "publish" && !reasonCode.trim()) {
-      setMessage(`${ACTION_LABELS[action]} requires a reason code.`);
+      setMessage(`${ACTION_LABELS[action]} requires a reason.`);
+      return;
+    }
+    if (
+      action !== "publish" &&
+      professorReviewReasonRequiresNote(reasonCode) &&
+      !note.trim()
+    ) {
+      setMessage("Other requires an audit note.");
       return;
     }
     setMessage(undefined);
@@ -423,6 +454,7 @@ export function ProfessorQuestionLifecyclePanel({
     }));
     setBatchAction(undefined);
     setSelectedVersionIds([]);
+    setNote("");
     setReasonCode("");
     setMessage(
       `${ACTION_LABELS[result.action]} completed for ${result.questions.length} questions${result.reviewedBy ? ` by ${result.reviewedBy.displayName} at ${result.reviewedBy.occurredAt}` : ""}.`,
@@ -448,16 +480,15 @@ export function ProfessorQuestionLifecyclePanel({
         </div>
       )}
 
-      <div className="grid gap-2 md:grid-cols-[1fr_12rem_auto] md:items-end">
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Reason code for revision, rejection, unpublish, rollback, or archive
-          <Input
-            value={reasonCode}
-            maxLength={80}
-            placeholder="content_correction"
-            onChange={(event) => setReasonCode(event.target.value)}
-          />
-        </label>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_12rem_auto] lg:items-end">
+        <ProfessorReviewReasonFields
+          disabled={dashboard.readOnly || Boolean(activeKey)}
+          includeLifecycleReasons
+          note={note}
+          onNoteChange={setNote}
+          onReasonCodeChange={setReasonCode}
+          reasonCode={reasonCode}
+        />
         <label className="space-y-1 text-xs text-muted-foreground">
           Revision method
           <select
@@ -497,15 +528,28 @@ export function ProfessorQuestionLifecyclePanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-medium">
-                {selectedQuestions.length} inspected versions selected
+                {selectedQuestions.length} versions selected
               </p>
               <p className="text-xs text-muted-foreground">
-                Open a question and record inspection of its exact working
-                version before selecting it. Batch approval is intentionally not
-                available.
+                {filter === "approved"
+                  ? "Select approved questions, then use Publish selected to preview every live publication gate before confirming."
+                  : "Choose the Approved view for bulk publication. Exact-version inspection is checked in the readiness preview and again at publication."}{" "}
+                Batch approval is intentionally not available.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={
+                  dashboard.readOnly ||
+                  Boolean(activeKey) ||
+                  Boolean(batchAction)
+                }
+                onClick={() => openBatchConfirmation("publish")}
+              >
+                Publish selected
+              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -532,18 +576,6 @@ export function ProfessorQuestionLifecyclePanel({
               >
                 Batch reject
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={
-                  dashboard.readOnly ||
-                  Boolean(activeKey) ||
-                  Boolean(batchAction)
-                }
-                onClick={() => openBatchConfirmation("publish")}
-              >
-                Review batch publication
-              </Button>
               {selectedQuestions.length > 0 ? (
                 <Button
                   type="button"
@@ -567,12 +599,16 @@ export function ProfessorQuestionLifecyclePanel({
           inspections={dashboard.inspections.filter((inspection) =>
             selectedVersionIds.includes(inspection.versionId),
           )}
+          note={note}
           questions={selectedQuestions}
           reasonCode={reasonCode}
           revisionMethod={revisionMethod}
           topics={dashboard.topics}
           onCancel={() => setBatchAction(undefined)}
           onCompleted={completeBatch}
+          onRemoveQuestion={(versionId) =>
+            toggleBatchSelection(versionId, false)
+          }
         />
       ) : null}
 
@@ -616,8 +652,7 @@ export function ProfessorQuestionLifecyclePanel({
             questions.map((question) => {
               const working = question.workingVersion;
               const inspection = inspectionByVersionId.get(working.versionId);
-              const canSelect =
-                Boolean(inspection) && isBatchSelectableQuestion(question);
+              const canSelect = isBatchSelectableQuestion(question);
               const focused = question.questionId === focusQuestionId;
               const intake = questionIntakeProvenance(question);
               return (
@@ -630,7 +665,7 @@ export function ProfessorQuestionLifecyclePanel({
                     <TableCell>
                       <input
                         type="checkbox"
-                        aria-label={`Select inspected version of ${working.title}`}
+                        aria-label={`Select working version of ${working.title}`}
                         checked={selectedVersionIds.includes(working.versionId)}
                         disabled={
                           !canSelect ||
@@ -639,8 +674,8 @@ export function ProfessorQuestionLifecyclePanel({
                         }
                         title={
                           canSelect
-                            ? "Select this inspected immutable version"
-                            : "Inspect an eligible working version before selection"
+                            ? "Select this immutable working version for batch readiness checks"
+                            : "This working version is not eligible for batch review"
                         }
                         onChange={(event) =>
                           toggleBatchSelection(
@@ -674,6 +709,11 @@ export function ProfessorQuestionLifecyclePanel({
                         <span>
                           <span className="block font-medium">
                             {working.title}
+                            {question.reserve ? (
+                              <Badge variant="secondary" className="ml-2">
+                                Saved for later
+                              </Badge>
+                            ) : null}
                           </span>
                           <span className="line-clamp-2 text-sm text-muted-foreground">
                             {working.prompt}
@@ -757,7 +797,8 @@ export function ProfessorQuestionLifecyclePanel({
                             </Button>
                           );
                         })}
-                        {question.regenerationAllowed &&
+                        {!question.reserve &&
+                        question.regenerationAllowed &&
                         !question.provenanceCorrectionAllowed ? (
                           <Button
                             type="button"
@@ -779,7 +820,8 @@ export function ProfessorQuestionLifecyclePanel({
                             Regenerate
                           </Button>
                         ) : null}
-                        {question.provenanceCorrectionAllowed ? (
+                        {!question.reserve &&
+                        question.provenanceCorrectionAllowed ? (
                           <Button
                             type="button"
                             size="sm"
@@ -806,6 +848,30 @@ export function ProfessorQuestionLifecyclePanel({
                   {expandedId === question.questionId ? (
                     <TableRow>
                       <TableCell colSpan={7}>
+                        <ProfessorQuestionReserveControls
+                          disabled={
+                            dashboard.readOnly ||
+                            Boolean(activeKey) ||
+                            Boolean(batchAction)
+                          }
+                          question={question}
+                          onMessage={setMessage}
+                          onUpdated={(updated) => {
+                            setDashboard((current) => ({
+                              ...current,
+                              questions: current.questions.map((candidate) =>
+                                candidate.questionId === updated.questionId
+                                  ? updated
+                                  : candidate,
+                              ),
+                            }));
+                            setSelectedVersionIds((current) =>
+                              current.filter(
+                                (versionId) => versionId !== working.versionId,
+                              ),
+                            );
+                          }}
+                        />
                         <WorkingVersionInspection
                           active={
                             activeKey ===
@@ -826,7 +892,8 @@ export function ProfessorQuestionLifecyclePanel({
                           }
                           onInspect={() => void markInspected(question)}
                         />
-                        {canEditQuestionVersion(question) ? (
+                        {!question.reserve &&
+                        canEditQuestionVersion(question) ? (
                           editingId === question.questionId ? (
                             <ProfessorQuestionRevisionEditor
                               key={question.workingVersion.versionId}
@@ -1011,6 +1078,7 @@ function WorkingVersionInspection({
 function isBatchSelectableQuestion(question: QuestionLifecycleDto) {
   return (
     question.recordState === "active" &&
+    !question.reserve &&
     ["needs_review", "approved", "unpublished"].includes(
       question.workingVersion.state,
     )
@@ -1267,6 +1335,36 @@ export function ProfessorQuestionVersionHistory({
             />
           ))}
         </ol>
+        {(question.reserveEvents?.length ?? 0) > 0 ? (
+          <>
+            <h3 className="mb-2 mt-5 text-sm font-medium">
+              Save for later history
+            </h3>
+            <ol className="space-y-2">
+              {question.reserveEvents?.map((event) => (
+                <li
+                  key={event.id}
+                  className="border-l-2 border-border pl-3 text-sm"
+                >
+                  <p className="font-medium">
+                    {event.action === "reserve"
+                      ? "Saved for later"
+                      : "Reserve removed"}
+                    {event.reasonCode
+                      ? ` · ${questionReserveReasonLabel(event.reasonCode)}`
+                      : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    v{versionsById.get(event.versionId)?.versionNumber ?? "?"}
+                    {" · "}
+                    {event.actor.displayName} · {event.actor.occurredAt}
+                  </p>
+                  {event.note ? <p className="mt-1">{event.note}</p> : null}
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : null}
       </section>
     </div>
   );
@@ -1372,7 +1470,13 @@ function LifecycleTimelineEvent({
         </p>
       ) : null}
       {event.reasonCode ? (
-        <p>Reason code: {event.reasonCode.replaceAll("_", " ")}</p>
+        <p>Reason: {professorReviewReasonLabel(event.reasonCode)}</p>
+      ) : null}
+      {event.action === "approve" && event.metadata?.selectedDifficulty ? (
+        <p>
+          Difficulty: {event.metadata.previousDifficulty ?? "previous"} →{" "}
+          {event.metadata.selectedDifficulty}
+        </p>
       ) : null}
       {event.note ? <p>Comment: {event.note}</p> : null}
     </li>

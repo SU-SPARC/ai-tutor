@@ -64,6 +64,15 @@ Reservation and usage keys are HMAC-derived; prompts, answers, generated text,
 retrieval context, provider payloads, account identifiers, and IP addresses are
 not stored in these cost-control records.
 
+`022_question_reserve_disposition.sql` adds Save for later as current-state
+columns on `questions` plus the append-only `question_reserve_events` ledger.
+Constraints keep reserved content active and without a published pointer;
+triggers prevent direct unaudited disposition changes and working-version or
+lifecycle changes while reserved. The existing `db/roles/app_runtime.sql` must
+be reapplied through the approved role-change process after this migration so
+the runtime receives ledger INSERT and its role-scoped RLS policy. This
+repository change does not apply that script to Production.
+
 ## Production Schema Hardening
 
 `007_production_schema_hardening.sql` is a forward-only migration that adds the

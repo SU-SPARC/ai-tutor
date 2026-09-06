@@ -68,6 +68,7 @@ const RUNTIME_WRITE_PRIVILEGES = new Set(
       "misconceptions",
       "question_approval_history",
       "question_lifecycle_events",
+      "question_reserve_events",
       "question_student_availability",
       "question_version_inspections",
       "question_version_lifecycle",

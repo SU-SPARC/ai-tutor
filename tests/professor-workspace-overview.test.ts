@@ -134,6 +134,7 @@ describe("summarizeProfessorWorkspace", () => {
       drafts: 1,
       needsReview: 1,
       published: 1,
+      reserved: 0,
     });
   });
 
@@ -151,6 +152,30 @@ describe("summarizeProfessorWorkspace", () => {
 
     expect(overview.pipeline.approvedNotPublished).toBe(0);
     expect(overview.pipeline.published).toBe(1);
+  });
+
+  it("separates intentionally reserved questions from waiting-to-publish warnings", () => {
+    const overview = summarizeProfessorWorkspace({
+      availability: availabilityDashboard([]),
+      lifecycle: lifecycleDashboard([
+        lifecycleQuestion({
+          reserve: {
+            reasonCode: "repetitive",
+            reservedAt: "2026-08-20T00:00:00.000Z",
+            reservedBy: {
+              displayName: "Professor Test",
+              occurredAt: "2026-08-20T00:00:00.000Z",
+              userId: "user:professor",
+            },
+          },
+          workingVersion: version({ state: "approved" }),
+        }),
+      ]),
+      review: reviewDashboard([]),
+    });
+
+    expect(overview.pipeline.approvedNotPublished).toBe(0);
+    expect(overview.pipeline.reserved).toBe(1);
   });
 
   it("folds expired releases into held back and reports the earliest scheduled date", () => {

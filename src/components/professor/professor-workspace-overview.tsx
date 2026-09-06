@@ -169,6 +169,12 @@ export function ProfessorWorkspaceOverviewPanel({
             />
             <PipelineArrow />
             <PipelineStage
+              caption="Intentionally held back"
+              count={pipeline.reserved}
+              label="saved for later"
+            />
+            <PipelineArrow />
+            <PipelineStage
               caption="Immutable versions"
               count={pipeline.published}
               label="published"

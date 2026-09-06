@@ -9,6 +9,7 @@ import {
   ProfessorFriendlyReviewPanel,
   professorReviewEmptyStateText,
 } from "@/components/professor/professor-friendly-review-panel";
+import { PROFESSOR_REVIEW_REASONS } from "@/lib/tutor/professor-review-reasons";
 import type { ProfessorQuestionReviewDashboard } from "@/lib/types";
 
 describe("professor-friendly review panel", () => {
@@ -71,12 +72,74 @@ describe("professor-friendly review panel", () => {
       "const current = dashboard.candidates[0]",
     );
     expect(reviewPanelSource).toContain("versionId: current.versionId");
+    expect(reviewPanelSource).toContain("difficulty: approvedDifficulty");
     expect(reviewPanelSource).toContain("requestTopicDashboard(loadedTopicId)");
     expect(reviewPanelSource).toContain('action: "approve"');
     expect(reviewPanelSource).not.toContain('action: "publish"');
     expect(browserReviewSources).not.toMatch(
       /ADMIN_SECRET|x-professor-token|sessionStorage|localStorage|admin secret|review secret/i,
     );
+  });
+
+  it("gives the professor an explicit final difficulty choice on the review card", () => {
+    const dashboard = reviewDashboard();
+    dashboard.selectedTopicId = dashboard.topics[0].topicId;
+    dashboard.candidates = [
+      {
+        allowedActions: ["approve", "request_revision", "reject"],
+        answer: {
+          acceptedAnswers: ["1/2"],
+          explanation: "Divide the favorable outcomes by all outcomes.",
+        },
+        createdAt: "2026-09-05T12:00:00.000Z",
+        createdBy: {
+          displayName: "Question Import",
+          occurredAt: "2026-09-05T12:00:00.000Z",
+        },
+        creationMethod: "imported",
+        difficulty: "intermediate",
+        hints: ["Count the outcomes."],
+        id: "review-difficulty-question",
+        misconceptions: [
+          { feedback: "Use the complete outcome space.", id: "denominator" },
+        ],
+        prompt: "What fraction of the outcomes are favorable?",
+        questionId: "review-difficulty-question",
+        review: { reviewPriority: "normal", status: "needs_review" },
+        solutionSteps: ["Count, then divide."],
+        source: {
+          originalityNote: "Imported public-safe question.",
+          sourceType: "professor_provided",
+          trustLevel: "public_original",
+        },
+        state: "needs_review",
+        title: "Review difficulty question",
+        topicId: dashboard.topics[0].topicId,
+        validationStatus: "valid",
+        versionId: 41,
+        versionNumber: 2,
+      },
+    ];
+
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorFriendlyReviewPanel, {
+        initialDashboard: dashboard,
+        initialTopicId: dashboard.topics[0].topicId,
+      }),
+    );
+
+    expect(markup).toContain("Difficulty — professor final selection");
+    expect(markup).toContain('value="foundational"');
+    expect(markup).toContain('value="intermediate" selected=""');
+    expect(markup).toContain('value="challenge"');
+    expect(markup).toContain("AI or an import may suggest a difficulty");
+    expect(markup).toContain("new immutable manual revision");
+    expect(markup).toContain("Approval still does not publish");
+    expect(markup).toContain("Audit note (optional)");
+    for (const { code, label } of PROFESSOR_REVIEW_REASONS) {
+      expect(markup).toContain(`value="${code}"`);
+      expect(markup).toContain(label);
+    }
   });
 
   it("distinguishes empty, completed, and revision-pending topics", () => {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { lifecycleApiErrorResponse } from "@/lib/api/question-lifecycle";
-import { QuestionPublicationBlockedError } from "@/lib/tutor/question-lifecycle";
+import {
+  QuestionLifecycleConflictError,
+  QuestionPublicationBlockedError,
+} from "@/lib/tutor/question-lifecycle";
 
 describe("question lifecycle API errors", () => {
   it("returns clear structured publication blocker reasons", async () => {
@@ -31,6 +34,19 @@ describe("question lifecycle API errors", () => {
           message: "Professor approval is required before publication.",
         },
       ],
+    });
+  });
+
+  it("returns lifecycle conflicts without converting them to service errors", async () => {
+    const response = lifecycleApiErrorResponse(
+      new QuestionLifecycleConflictError(
+        "Remove Save for later before changing the working version.",
+      ),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Remove Save for later before changing the working version.",
     });
   });
 });

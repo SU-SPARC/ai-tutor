@@ -16,7 +16,10 @@ import {
   currentAuthenticatedUser,
   requireProfessorReview,
 } from "@/lib/auth/authorization";
-import { batchTransitionQuestionLifecycle } from "@/lib/data/data-store";
+import {
+  batchTransitionQuestionLifecycle,
+  previewBatchQuestionLifecycle,
+} from "@/lib/data/data-store";
 import { recordQuestionLifecycleApiAttempt } from "@/lib/data/question-lifecycle-audit";
 import type {
   QuestionLifecycleBatchAction,
@@ -31,10 +34,12 @@ const BATCH_ACTIONS = [
   "publish",
 ] as const satisfies readonly QuestionLifecycleBatchAction[];
 const REVISION_METHODS = ["manual", "regeneration"] as const;
+const BATCH_MODES = ["commit", "preview"] as const;
 const BATCH_FIELDS = new Set([
   "action",
   "idempotencyKey",
   "items",
+  "mode",
   "note",
   "reasonCode",
   "revisionMethod",
@@ -82,6 +87,8 @@ export async function POST(request: Request) {
   }
 
   const action = enumValue(body.action, BATCH_ACTIONS);
+  const mode =
+    body.mode === undefined ? "commit" : enumValue(body.mode, BATCH_MODES);
   const revisionMethod = enumValue(body.revisionMethod, REVISION_METHODS);
   const idempotencyKey =
     stringValue(request.headers.get("idempotency-key")) ??
@@ -91,9 +98,9 @@ export async function POST(request: Request) {
   const note = boundedNote(body.note);
   if (
     !action ||
-    !idempotencyKey ||
-    idempotencyKey.length > 160 ||
-    !items
+    !mode ||
+    !items ||
+    (mode === "commit" && (!idempotencyKey || idempotencyKey.length > 160))
   ) {
     return NextResponse.json(
       {
@@ -103,12 +110,25 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (
-    (action === "request_revision" || action === "reject") &&
-    !reasonCode
-  ) {
+  if (mode === "preview" && action !== "publish") {
+    return NextResponse.json(
+      { error: "Batch preview supports publication only." },
+      { status: 400 },
+    );
+  }
+  if ((action === "request_revision" || action === "reject") && !reasonCode) {
     return NextResponse.json(
       { error: `${action} requires a reason code.` },
+      { status: 422 },
+    );
+  }
+  if (
+    (action === "request_revision" || action === "reject") &&
+    reasonCode === "other" &&
+    !note
+  ) {
+    return NextResponse.json(
+      { error: "Other requires an audit note." },
       { status: 422 },
     );
   }
@@ -123,11 +143,18 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (mode === "preview") {
+      const preview = await previewBatchQuestionLifecycle(
+        access.authorization,
+        { action: "publish", items },
+      );
+      return NextResponse.json({ preview });
+    }
     const result = await batchTransitionQuestionLifecycle(
       access.authorization,
       {
         action,
-        idempotencyKey,
+        idempotencyKey: idempotencyKey!,
         items,
         note,
         reasonCode,

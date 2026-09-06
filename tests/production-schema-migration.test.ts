@@ -135,6 +135,7 @@ describe("production schema hardening migration", () => {
         "misconceptions",
         "question_approval_history",
         "question_lifecycle_events",
+        "question_reserve_events",
         "question_patterns",
         "question_student_availability",
         "question_version_lifecycle",
@@ -183,6 +184,9 @@ describe("production schema hardening migration", () => {
         "misconceptions_metadata_object",
         "question_approval_history_version_fkey",
         "question_lifecycle_events_version_fkey",
+        "question_reserve_events_version_fkey",
+        "questions_reserve_consistency_check",
+        "questions_reserved_content_hidden_check",
         "question_patterns_no_private_source_signals",
         "question_student_availability_schedule_check",
         "question_version_lifecycle_version_fkey",
@@ -215,6 +219,27 @@ describe("production schema hardening migration", () => {
       "column_name",
     );
     expect(onboardingColumns).toEqual(["student_onboarding_acknowledged_at"]);
+
+    const reserveColumns = await columnValues(
+      database,
+      `select column_name
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = 'questions'
+         and column_name = any(array[
+           'is_reserved', 'reserve_reason_code', 'reserve_note',
+           'reserved_by_user_id', 'reserved_at'
+         ])
+       order by column_name`,
+      "column_name",
+    );
+    expect(reserveColumns).toEqual([
+      "is_reserved",
+      "reserve_note",
+      "reserve_reason_code",
+      "reserved_at",
+      "reserved_by_user_id",
+    ]);
 
     const tutorPersistenceColumns = await columnValues(
       database,
@@ -346,6 +371,8 @@ describe("production schema hardening migration", () => {
         "misconceptions_question_idx",
         "question_approval_history_question_idx",
         "question_lifecycle_events_question_idx",
+        "question_reserve_events_question_idx",
+        "questions_reserve_catalog_idx",
         "question_patterns_topic_idx",
         "question_student_availability_release_idx",
         "question_version_lifecycle_queue_idx",

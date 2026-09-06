@@ -98,6 +98,19 @@ describe("professor questions API", () => {
     ).toBe(true);
   });
 
+  it("rejects an invalid lifecycle reserve filter", async () => {
+    const response = await getAdminQuestions(
+      new Request(
+        "http://test/api/professor/questions?view=lifecycle&reserved=sometimes",
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid reserved filter: sometimes",
+    });
+  });
+
   it("shows all 60 following-syllabus drafts in the professor review section", async () => {
     const response = await getAdminQuestions(
       new Request(

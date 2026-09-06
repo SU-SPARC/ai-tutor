@@ -17,6 +17,7 @@ import {
   questionIntakeProvenance,
   questionIntakeSourceLabel,
 } from "@/lib/question-intake/provenance";
+import { questionReserveReasonLabel } from "@/lib/tutor/professor-question-reserve";
 import type { QuestionLifecycleDto } from "@/lib/types";
 
 /**
@@ -26,6 +27,9 @@ import type { QuestionLifecycleDto } from "@/lib/types";
 export function professorQuestionNextStep(question: QuestionLifecycleDto) {
   if (question.recordState === "archived") {
     return "This question is archived. Restore the record before making any other change.";
+  }
+  if (question.reserve) {
+    return "Saved for later and hidden from students. Remove the reserve when you want to publish it.";
   }
   switch (question.workingVersion.state) {
     case "draft":
@@ -75,6 +79,9 @@ export function ProfessorQuestionDetailSummary({
           {intake ? (
             <Badge variant="warning">{questionIntakeSourceLabel(intake)}</Badge>
           ) : null}
+          {question.reserve ? (
+            <Badge variant="secondary">Saved for later</Badge>
+          ) : null}
         </CardTitle>
         <CardDescription>{professorQuestionNextStep(question)}</CardDescription>
       </CardHeader>
@@ -95,6 +102,16 @@ export function ProfessorQuestionDetailSummary({
               ? `v${question.publishedVersion.versionNumber} is live for students`
               : "None. Students cannot see this question."}
           </dd>
+          {question.reserve ? (
+            <>
+              <dt className="font-medium">Save for later</dt>
+              <dd>
+                {questionReserveReasonLabel(question.reserve.reasonCode)} ·{" "}
+                {question.reserve.reservedBy.displayName}
+                {question.reserve.note ? ` · ${question.reserve.note}` : ""}
+              </dd>
+            </>
+          ) : null}
           {intake ? (
             <>
               <dt className="font-medium">Saved from</dt>

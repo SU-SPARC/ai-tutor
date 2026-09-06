@@ -18,8 +18,12 @@ import {
   requireProfessorReview,
 } from "@/lib/auth/authorization";
 import type { AuthenticatedPrincipal } from "@/lib/auth/principal";
-import { transitionQuestionLifecycle } from "@/lib/data/data-store";
+import {
+  approveQuestionReview,
+  transitionQuestionLifecycle,
+} from "@/lib/data/data-store";
 import { recordQuestionLifecycleApiAttempt } from "@/lib/data/question-lifecycle-audit";
+import { isValidDifficulty } from "@/lib/api/question-serialization";
 
 const MAX_BODY_BYTES = 16_384;
 const REVISION_METHODS = ["manual", "regeneration"] as const;
@@ -109,6 +113,30 @@ export async function POST(
       ? undefined
       : enumValue(body.expectedState, QUESTION_VERSION_STATES);
   const revisionMethod = enumValue(body.revisionMethod, REVISION_METHODS);
+  const note = boundedNote(body.note);
+  const reasonCode = boundedNote(body.reasonCode, 80);
+  const difficulty =
+    typeof body.difficulty === "string" && isValidDifficulty(body.difficulty)
+      ? body.difficulty
+      : undefined;
+  if (body.difficulty !== undefined && !difficulty) {
+    return auditedFailure(
+      NextResponse.json(
+        {
+          error: "difficulty must be foundational, intermediate, or challenge.",
+        },
+        { status: 400 },
+      ),
+      {
+        action: typeof body.action === "string" ? body.action : undefined,
+        errorName: "InvalidDifficulty",
+        principal: access.authorization.principal,
+        questionId,
+        requestId,
+        versionId,
+      },
+    );
+  }
   if (!action || !versionId || (body.expectedState && !expectedState)) {
     return auditedFailure(
       NextResponse.json(
@@ -147,22 +175,67 @@ export async function POST(
       },
     );
   }
+  if (
+    (action === "request_revision" || action === "reject") &&
+    reasonCode === "other" &&
+    !note
+  ) {
+    return auditedFailure(
+      NextResponse.json(
+        { error: "Other requires an audit note." },
+        { status: 422 },
+      ),
+      {
+        action,
+        errorName: "MissingOtherReasonNote",
+        principal: access.authorization.principal,
+        questionId,
+        requestId,
+        versionId,
+      },
+    );
+  }
+  if (difficulty && action !== "approve") {
+    return auditedFailure(
+      NextResponse.json(
+        { error: "difficulty may only accompany an approve action." },
+        { status: 400 },
+      ),
+      {
+        action,
+        errorName: "DifficultyWithoutApproval",
+        principal: access.authorization.principal,
+        questionId,
+        requestId,
+        versionId,
+      },
+    );
+  }
 
   try {
-    const question = await transitionQuestionLifecycle(access.authorization, {
-      action,
+    const transitionInput = {
       expectedState,
       idempotencyKey: (
         stringValue(request.headers.get("idempotency-key")) ??
         stringValue(body.idempotencyKey)
       )?.slice(0, 200),
-      note: boundedNote(body.note),
+      note,
       questionId,
-      reasonCode: boundedNote(body.reasonCode, 80),
+      reasonCode,
       requestId,
       revisionMethod,
       versionId,
-    });
+    };
+    const question =
+      action === "approve"
+        ? await approveQuestionReview(access.authorization, {
+            ...transitionInput,
+            difficulty,
+          })
+        : await transitionQuestionLifecycle(access.authorization, {
+            ...transitionInput,
+            action,
+          });
     return NextResponse.json({ question });
   } catch (error) {
     await recordQuestionLifecycleApiAttempt({

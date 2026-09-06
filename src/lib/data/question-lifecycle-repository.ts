@@ -13,6 +13,7 @@ import {
 } from "@/lib/data/database-executor";
 import type {
   AdminQuestion,
+  Difficulty,
   Misconception,
   ProfessorQuestionReviewCandidateDto,
   ProfessorReviewTopicSummaryDto,
@@ -21,12 +22,15 @@ import type {
   QuestionLifecycleBatchAction,
   QuestionLifecycleBatchFailure,
   QuestionLifecycleBatchItem,
+  QuestionLifecycleBatchPreviewResult,
   QuestionLifecycleBatchResult,
   QuestionLifecycleAction,
   QuestionLifecycleDto,
   QuestionLifecycleEventAction,
   QuestionLifecycleEventDto,
   QuestionRecordState,
+  QuestionReserveEventDto,
+  QuestionReserveReasonCode,
   QuestionRevisionContentInput,
   QuestionRevisionMethod,
   QuestionValidationStatus,
@@ -122,6 +126,13 @@ export type QuestionLifecycleTransitionInput = {
   versionId: number;
 };
 
+export type ApproveQuestionReviewInput = Omit<
+  QuestionLifecycleTransitionInput,
+  "action"
+> & {
+  difficulty?: Difficulty;
+};
+
 export type QuestionLifecycleBatchTransitionInput = {
   action: QuestionLifecycleBatchAction;
   idempotencyKey: string;
@@ -132,6 +143,11 @@ export type QuestionLifecycleBatchTransitionInput = {
   revisionMethod?: QuestionRevisionMethod;
 };
 
+export type QuestionLifecycleBatchPreviewInput = {
+  action: "publish";
+  items: QuestionLifecycleBatchItem[];
+};
+
 export type RecordQuestionVersionInspectionInput = {
   expectedState: QuestionVersionState;
   questionId: string;
@@ -139,10 +155,21 @@ export type RecordQuestionVersionInspectionInput = {
 };
 
 export type QuestionLifecycleFilters = {
+  reserved?: boolean;
   recordState?: QuestionRecordState;
   sourceType?: SourceType;
   state?: QuestionVersionState;
   topicId?: string;
+};
+
+export type SetQuestionReserveInput = {
+  action: "reserve" | "release";
+  expectedWorkingVersionId: number;
+  idempotencyKey?: string;
+  note?: string;
+  questionId: string;
+  reasonCode?: QuestionReserveReasonCode;
+  requestId?: string;
 };
 
 export type RegenerateQuestionVersionInput = {
@@ -189,6 +216,25 @@ type QuestionVersionRow = {
   visibility: SourceMetadata["visibility"];
   working_version_id: number | string;
   published_version_id: number | string | null;
+  is_reserved: boolean;
+  reserve_note: string | null;
+  reserve_reason_code: QuestionReserveReasonCode | null;
+  reserved_at: Date | string | null;
+  reserved_by_display_name: string | null;
+  reserved_by_user_id: string | null;
+};
+
+type QuestionReserveEventRow = {
+  action: "reserve" | "release";
+  actor_display_name: string;
+  actor_user_id: string;
+  id: number | string;
+  note: string | null;
+  occurred_at: Date | string;
+  question_id: string;
+  question_version_id: number | string;
+  reason_code: QuestionReserveReasonCode | null;
+  request_id: string | null;
 };
 
 type LifecycleEventRow = {
@@ -554,7 +600,7 @@ export function createDatabaseQuestionLifecycleRepository(
           const rows = await transactionQuery(
             `
               select q.record_state, q.working_version_id, q.published_version_id,
-                     qvl.state as working_state
+                     q.is_reserved, qvl.state as working_state
               from questions q
               join question_version_lifecycle qvl
                 on qvl.question_version_id = q.working_version_id
@@ -572,6 +618,7 @@ export function createDatabaseQuestionLifecycleRepository(
               "Archived questions must be restored before creating a version.",
             );
           }
+          assertWorkingVersionChangeAllowed(current.is_reserved);
           if (
             Number(current.working_version_id) !==
             input.expectedWorkingVersionId
@@ -648,7 +695,7 @@ export function createDatabaseQuestionLifecycleRepository(
         async (transactionQuery) => {
           const rows = await transactionQuery(
             `
-              select q.record_state, q.working_version_id
+              select q.record_state, q.working_version_id, q.is_reserved
               from questions q
               where q.id = $1
               for update of q
@@ -662,6 +709,7 @@ export function createDatabaseQuestionLifecycleRepository(
               "Archived questions must be restored before revision.",
             );
           }
+          assertWorkingVersionChangeAllowed(current.is_reserved);
           if (
             Number(current.working_version_id) !==
               input.expectedWorkingVersionId ||
@@ -763,7 +811,8 @@ export function createDatabaseQuestionLifecycleRepository(
         query,
         async (transactionQuery) => {
           const rows = await transactionQuery(
-            `select q.record_state, q.working_version_id, q.pattern_id
+            `select q.record_state, q.working_version_id, q.pattern_id,
+                    q.is_reserved
              from questions q
              where q.id = $1
              for update of q`,
@@ -794,6 +843,7 @@ export function createDatabaseQuestionLifecycleRepository(
               "Archived questions must be restored before correcting provenance.",
             );
           }
+          assertWorkingVersionChangeAllowed(current.is_reserved);
           if (
             Number(current.working_version_id) !==
               input.expectedWorkingVersionId ||
@@ -906,17 +956,198 @@ export function createDatabaseQuestionLifecycleRepository(
       assertAuthorization(authorization, "professor");
       const rows = await selectQuestionVersionRows(query);
       const events = await selectLifecycleEvents(query);
-      return buildQuestionLifecycles(rows, events).filter((question) => {
-        const version = question.workingVersion;
-        return (
-          (!filters.recordState ||
-            question.recordState === filters.recordState) &&
-          (!filters.state || version.state === filters.state) &&
-          (!filters.topicId || version.topicId === filters.topicId) &&
-          (!filters.sourceType ||
-            version.source.sourceType === filters.sourceType)
+      const reserveEvents = await selectReserveEvents(query);
+      return buildQuestionLifecycles(rows, events, reserveEvents).filter(
+        (question) => {
+          const version = question.workingVersion;
+          return (
+            (filters.reserved === undefined ||
+              Boolean(question.reserve) === filters.reserved) &&
+            (!filters.recordState ||
+              question.recordState === filters.recordState) &&
+            (!filters.state || version.state === filters.state) &&
+            (!filters.topicId || version.topicId === filters.topicId) &&
+            (!filters.sourceType ||
+              version.source.sourceType === filters.sourceType)
+          );
+        },
+      );
+    },
+
+    async setReserveDisposition(
+      authorization: ProfessorReviewAuthorization,
+      input: SetQuestionReserveInput,
+    ) {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+      const note = input.note?.trim() || undefined;
+
+      if (input.action === "reserve" && !input.reasonCode) {
+        throw new QuestionLifecycleValidationError(
+          "Saving for later requires a reason.",
         );
-      });
+      }
+      if (input.reasonCode === "other" && !note) {
+        throw new QuestionLifecycleValidationError(
+          "Other requires an audit note.",
+        );
+      }
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          const rows = await transactionQuery(
+            `select
+               q.working_version_id,
+               q.published_version_id,
+               q.record_state,
+               q.is_reserved,
+               qvl.state,
+               u.external_subject
+             from questions q
+             join question_version_lifecycle qvl
+               on qvl.question_version_id = q.working_version_id
+             join users u on u.id = $2
+             where q.id = $1
+             for update of q, qvl`,
+            [input.questionId, reviewer.userId],
+          );
+          const current = rows[0];
+          if (!current) {
+            throw new QuestionLifecycleNotFoundError("Question was not found.");
+          }
+
+          if (input.idempotencyKey) {
+            const prior = await transactionQuery(
+              `select action, question_version_id
+               from question_reserve_events
+               where question_id = $1 and idempotency_key = $2
+               limit 1`,
+              [input.questionId, input.idempotencyKey],
+            );
+            if (prior[0]) {
+              if (
+                prior[0].action !== input.action ||
+                Number(prior[0].question_version_id) !==
+                  input.expectedWorkingVersionId
+              ) {
+                throw new QuestionLifecycleConflictError(
+                  "That idempotency key was already used for a different reserve request.",
+                );
+              }
+              return requireQuestionLifecycle(
+                transactionQuery,
+                input.questionId,
+              );
+            }
+          }
+
+          if (
+            current.record_state !== "active" ||
+            Number(current.working_version_id) !==
+              input.expectedWorkingVersionId
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "Reserve status can only be changed on the exact active working version.",
+            );
+          }
+
+          if (input.action === "reserve") {
+            if (current.is_reserved) {
+              throw new QuestionLifecycleConflictError(
+                "This question is already saved for later.",
+              );
+            }
+            if (
+              current.published_version_id !== null ||
+              !["approved", "unpublished"].includes(String(current.state))
+            ) {
+              throw new QuestionLifecycleValidationError(
+                "Only approved or unpublished questions with nothing currently published can be saved for later.",
+              );
+            }
+          } else if (!current.is_reserved) {
+            throw new QuestionLifecycleConflictError(
+              "This question is not currently saved for later.",
+            );
+          }
+
+          await transactionQuery(
+            "select set_config('app.reserve_write', 'allowed', true)",
+          );
+          await setLifecycleActorContext(transactionQuery, {
+            creationMethod: "manual",
+            suppressVersions: true,
+            userId: reviewer.userId,
+          });
+          await transactionQuery(
+            input.action === "reserve"
+              ? `update questions
+                 set is_reserved = true,
+                     reserve_reason_code = $2,
+                     reserve_note = $3,
+                     reserved_by_user_id = $4,
+                     reserved_at = now(),
+                     updated_at = now()
+                 where id = $1`
+              : `update questions
+                 set is_reserved = false,
+                     reserve_reason_code = null,
+                     reserve_note = null,
+                     reserved_by_user_id = null,
+                     reserved_at = null,
+                     updated_at = now()
+                 where id = $1`,
+            input.action === "reserve"
+              ? [
+                  input.questionId,
+                  input.reasonCode!,
+                  note ?? null,
+                  reviewer.userId,
+                ]
+              : [input.questionId],
+          );
+          await transactionQuery(
+            `insert into question_reserve_events (
+               question_id, question_version_id, action, reason_code, note,
+               actor_user_id, actor_subject, actor_display_name,
+               idempotency_key, request_id
+             ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              input.questionId,
+              input.expectedWorkingVersionId,
+              input.action,
+              input.action === "reserve" ? input.reasonCode! : null,
+              note ?? null,
+              reviewer.userId,
+              String(current.external_subject),
+              reviewer.displayName,
+              input.idempotencyKey ?? null,
+              input.requestId ?? null,
+            ],
+          );
+          await transactionQuery(
+            `insert into audit_events (
+               actor_user_id, actor_subject, action, entity_type, entity_id,
+               request_id, metadata_json
+             ) values ($1, $2, $3, 'question', $4, $5, $6::jsonb)`,
+            [
+              reviewer.userId,
+              String(current.external_subject),
+              `question.reserve.${input.action}`,
+              input.questionId,
+              input.requestId ?? null,
+              JSON.stringify({
+                questionVersionId: input.expectedWorkingVersionId,
+                reasonCode:
+                  input.action === "reserve" ? input.reasonCode : undefined,
+              }),
+            ],
+          );
+          return requireQuestionLifecycle(transactionQuery, input.questionId);
+        },
+        { retryOnConflict: true },
+      );
     },
 
     async listInspections(
@@ -1123,6 +1354,38 @@ export function createDatabaseQuestionLifecycleRepository(
       );
     },
 
+    async previewBatchTransition(
+      authorization: ProfessorReviewAuthorization,
+      input: QuestionLifecycleBatchPreviewInput,
+    ): Promise<QuestionLifecycleBatchPreviewResult> {
+      assertAuthorization(authorization, "professor");
+      validateBatchPreviewInput(input);
+      const reviewer = reviewerAttribution(authorization);
+      const items: QuestionLifecycleBatchPreviewResult["items"] = [];
+      for (const item of input.items) {
+        const failure = await preflightBatchItem(
+          query,
+          reviewer.userId,
+          input.action,
+          item,
+        );
+        items.push(
+          failure
+            ? { ...failure, status: "blocked" }
+            : { ...item, status: "ready" },
+        );
+      }
+      const blockedCount = items.filter(
+        (item) => item.status === "blocked",
+      ).length;
+      return {
+        action: input.action,
+        blockedCount,
+        items,
+        readyCount: items.length - blockedCount,
+      };
+    },
+
     async listReviewTopicSummaries(
       authorization: ProfessorReviewAuthorization,
     ) {
@@ -1217,6 +1480,7 @@ export function createDatabaseQuestionLifecycleRepository(
         }
       }
       const lifecycle = await requireQuestionLifecycle(query, input.questionId);
+      assertWorkingVersionChangeAllowed(Boolean(lifecycle.reserve));
       const base = lifecycle.versions.find(
         (version) => version.versionId === input.baseVersionId,
       );
@@ -1307,6 +1571,144 @@ export function createDatabaseQuestionLifecycleRepository(
         { retryOnConflict: true },
       );
     },
+
+    async approveReviewCandidate(
+      authorization: ProfessorReviewAuthorization,
+      input: ApproveQuestionReviewInput,
+    ) {
+      assertAuthorization(authorization, "professor");
+      const reviewer = reviewerAttribution(authorization);
+
+      return runDatabaseTransaction(
+        query,
+        async (transactionQuery) => {
+          await transactionQuery(
+            `select id from questions where id = $1 for update`,
+            [input.questionId],
+          );
+          const current = await requireQuestionLifecycle(
+            transactionQuery,
+            input.questionId,
+          );
+          const base = current.versions.find(
+            (version) => version.versionId === input.versionId,
+          );
+          if (!base) {
+            throw new QuestionLifecycleNotFoundError(
+              "Question version was not found.",
+            );
+          }
+
+          if (!input.difficulty || input.difficulty === base.difficulty) {
+            await applyTransition(transactionQuery, authorization, {
+              ...input,
+              action: "approve",
+            });
+            return requireQuestionLifecycle(transactionQuery, input.questionId);
+          }
+
+          if (input.idempotencyKey) {
+            const existing = await transactionQuery(
+              `select action, metadata_json
+               from question_lifecycle_events
+               where question_id = $1 and idempotency_key = $2
+               limit 1`,
+              [input.questionId, input.idempotencyKey],
+            );
+            const metadata = recordValue(existing[0]?.metadata_json);
+            if (
+              existing[0]?.action === "approve" &&
+              Number(metadata?.reviewDifficultyBaseVersionId) ===
+                base.versionId &&
+              metadata?.selectedDifficulty === input.difficulty
+            ) {
+              return current;
+            }
+            if (existing[0]) {
+              throw new QuestionLifecycleConflictError(
+                "The idempotency key was already used for a different lifecycle transition.",
+              );
+            }
+          }
+          if (input.expectedState && input.expectedState !== base.state) {
+            throw new QuestionLifecycleConflictError(
+              `Stale question lifecycle state: expected ${input.expectedState}, found ${base.state}.`,
+            );
+          }
+          if (current.workingVersion.versionId !== base.versionId) {
+            throw new QuestionLifecycleConflictError(
+              "approve requires the current working version.",
+            );
+          }
+          assertQuestionLifecycleTransition({
+            action: "approve",
+            hasPublishedVersion: Boolean(current.publishedVersion),
+            recordState: current.recordState,
+            versionState: base.state,
+          });
+          if (base.schemaVersion !== 2) {
+            throw new QuestionLifecycleValidationError(
+              "The question version must be cloned into the current content schema before approval or publication.",
+            );
+          }
+          if (
+            !["foundational", "intermediate", "challenge"].includes(
+              input.difficulty,
+            )
+          ) {
+            throw new QuestionLifecycleValidationError(
+              "difficulty must be foundational, intermediate, or challenge.",
+            );
+          }
+          validateQuestionVersionContent(base, input.questionId);
+
+          await setLifecycleActorContext(transactionQuery, {
+            creationMethod: "manual",
+            suppressVersions: false,
+            userId: reviewer.userId,
+          });
+          const revisedVersionId = await insertDifficultyRevision(
+            transactionQuery,
+            {
+              baseVersionId: base.versionId,
+              createdByUserId: reviewer.userId,
+              difficulty: input.difficulty,
+              questionId: input.questionId,
+            },
+          );
+
+          await applyTransition(transactionQuery, authorization, {
+            action: "submit",
+            expectedState: "draft",
+            metadata: {
+              previousDifficulty: base.difficulty,
+              revisionMethod: "manual",
+              selectedDifficulty: input.difficulty,
+            },
+            note: "Difficulty changed by professor during review.",
+            questionId: input.questionId,
+            requestId: input.requestId,
+            versionId: revisedVersionId,
+          });
+          await applyTransition(transactionQuery, authorization, {
+            action: "approve",
+            expectedState: "needs_review",
+            idempotencyKey: input.idempotencyKey,
+            metadata: {
+              previousDifficulty: base.difficulty,
+              reviewDifficultyBaseVersionId: base.versionId,
+              selectedDifficulty: input.difficulty,
+            },
+            note: input.note,
+            questionId: input.questionId,
+            requestId: input.requestId,
+            versionId: revisedVersionId,
+          });
+          return requireQuestionLifecycle(transactionQuery, input.questionId);
+        },
+        { retryOnConflict: true },
+      );
+    },
   };
 }
 
@@ -1340,14 +1742,39 @@ function validateBatchTransitionInput(
       `${input.action} requires a reason code.`,
     );
   }
+  if (
+    (input.action === "request_revision" || input.action === "reject") &&
+    input.reasonCode === "other" &&
+    !input.note?.trim()
+  ) {
+    throw new QuestionLifecycleValidationError("Other requires an audit note.");
+  }
   if (input.action === "request_revision" && !input.revisionMethod) {
     throw new QuestionLifecycleValidationError(
       "Batch request revision requires a manual or regeneration revision method.",
     );
   }
+  validateBatchItems(input.items);
+}
+
+function validateBatchPreviewInput(input: QuestionLifecycleBatchPreviewInput) {
+  if (input.action !== "publish") {
+    throw new QuestionLifecycleValidationError(
+      "Batch preview supports publication only.",
+    );
+  }
+  if (input.items.length < 2 || input.items.length > MAX_BATCH_ITEMS) {
+    throw new QuestionLifecycleValidationError(
+      `Batch publication preview requires 2 to ${MAX_BATCH_ITEMS} items.`,
+    );
+  }
+  validateBatchItems(input.items);
+}
+
+function validateBatchItems(items: QuestionLifecycleBatchItem[]) {
   const questionIds = new Set<string>();
   const versionIds = new Set<number>();
-  for (const item of input.items) {
+  for (const item of items) {
     if (
       !item.questionId.trim() ||
       !Number.isSafeInteger(item.versionId) ||
@@ -1627,6 +2054,7 @@ async function publicationQualityGateBlockers(
     hintsRequired: true,
     professorApprovalExists: Boolean(evidence.professor_approval_exists),
     questionId: lifecycle.questionId,
+    reservedForLater: Boolean(lifecycle.reserve),
     rawMetadata: {
       generationMetadata: evidence.generation_metadata_json,
       snapshot: evidence.snapshot_json,
@@ -1645,6 +2073,11 @@ async function applyTransition(
   input: QuestionLifecycleTransitionInput,
 ) {
   const current = await requireQuestionLifecycle(query, input.questionId);
+  if (current.reserve) {
+    throw new QuestionLifecycleConflictError(
+      "Remove Save for later before changing this question's lifecycle.",
+    );
+  }
   const version = current.versions.find(
     (candidate) => candidate.versionId === input.versionId,
   );
@@ -1699,6 +2132,7 @@ async function applyTransition(
   assertQuestionLifecycleTransition({
     action: input.action,
     hasPublishedVersion: Boolean(current.publishedVersion),
+    note: input.note,
     reasonCode: input.reasonCode,
     recordState: current.recordState,
     revisionMethod: input.revisionMethod,
@@ -1810,6 +2244,80 @@ async function insertQuestionVersion(
       JSON.stringify(input.generationMetadata ?? {}),
     ],
   );
+  return Number(rows[0].id);
+}
+
+/**
+ * Clones the authoritative immutable snapshot in the database so fields that
+ * are intentionally absent from the Review Queue DTO cannot be lost. Only the
+ * selected difficulty changes; lifecycle state and attribution are recorded
+ * separately by the normal version and transition procedures.
+ */
+async function insertDifficultyRevision(
+  query: DatabaseQueryExecutor,
+  input: {
+    baseVersionId: number;
+    createdByUserId: string;
+    difficulty: Difficulty;
+    questionId: string;
+  },
+) {
+  await query("select set_config('app.current_supersede_reason', $1, true)", [
+    "Difficulty changed by professor during review.",
+  ]);
+  const rows = await query(
+    `with base as (
+       select snapshot_json, generation_metadata_json
+       from question_versions
+       where id = $2 and question_id = $1
+     ), revised as (
+       select
+         jsonb_set(
+           snapshot_json,
+           '{difficulty}',
+           to_jsonb($3::text),
+           false
+         ) as snapshot_json,
+         generation_metadata_json
+       from base
+     )
+     insert into question_versions (
+       question_id,
+       version_number,
+       snapshot_json,
+       content_hash,
+       created_by_user_id,
+       parent_version_id,
+       creation_method,
+       schema_version,
+       generation_metadata_json
+     )
+     select
+       $1,
+       coalesce(max(existing.version_number), 0) + 1,
+       revised.snapshot_json,
+       md5(revised.snapshot_json::text),
+       $4,
+       $2,
+       'manual',
+       2,
+       revised.generation_metadata_json
+     from revised
+     left join question_versions existing on existing.question_id = $1
+     group by revised.snapshot_json, revised.generation_metadata_json
+     returning id`,
+    [
+      input.questionId,
+      input.baseVersionId,
+      input.difficulty,
+      input.createdByUserId,
+    ],
+  );
+  if (!rows[0]) {
+    throw new QuestionLifecycleConflictError(
+      "The selected base version does not belong to this question.",
+    );
+  }
   return Number(rows[0].id);
 }
 
@@ -2032,11 +2540,12 @@ async function selectQuestionLifecycle(
   query: DatabaseQueryExecutor,
   questionId: string,
 ) {
-  const [rows, events] = await Promise.all([
+  const [rows, events, reserveEvents] = await Promise.all([
     selectQuestionVersionRows(query, questionId),
     selectLifecycleEvents(query, questionId),
+    selectReserveEvents(query, questionId),
   ]);
-  return buildQuestionLifecycles(rows, events)[0];
+  return buildQuestionLifecycles(rows, events, reserveEvents)[0];
 }
 
 async function selectQuestionVersionRows(
@@ -2052,13 +2561,21 @@ async function selectQuestionVersionRows(
     `
       select
         qvc.*,
+        q.is_reserved,
+        q.reserve_reason_code,
+        q.reserve_note,
+        q.reserved_by_user_id,
+        q.reserved_at,
+        reserved_by.display_name as reserved_by_display_name,
         qv.snapshot_json as version_snapshot_json,
         qv.created_at as version_created_at,
         qv.created_by_user_id,
         u.display_name as created_by_display_name
       from app_question_version_content qvc
+      join questions q on q.id = qvc.id
       join question_versions qv on qv.id = qvc.question_version_id
       join users u on u.id = qv.created_by_user_id
+      left join users reserved_by on reserved_by.id = q.reserved_by_user_id
       ${where}
       order by qvc.id, qvc.version_number desc, qvc.question_version_id desc
     `,
@@ -2089,15 +2606,51 @@ async function selectLifecycleEvents(
   )) as LifecycleEventRow[];
 }
 
+async function selectReserveEvents(
+  query: DatabaseQueryExecutor,
+  questionId?: string,
+) {
+  const params: DatabaseQueryValue[] = [];
+  const where = questionId
+    ? (params.push(questionId), "where question_id = $1")
+    : "";
+  return (await readDatabaseRows(
+    query,
+    `select * from question_reserve_events
+     ${where}
+     order by question_id, occurred_at desc, id desc`,
+    params,
+  )) as QuestionReserveEventRow[];
+}
+
 function buildQuestionLifecycles(
   rows: QuestionVersionRow[],
   eventRows: LifecycleEventRow[],
+  reserveEventRows: QuestionReserveEventRow[],
 ) {
   const eventsByQuestion = new Map<string, QuestionLifecycleEventDto[]>();
   for (const row of eventRows) {
     const events = eventsByQuestion.get(row.question_id) ?? [];
     events.push(mapLifecycleEvent(row));
     eventsByQuestion.set(row.question_id, events);
+  }
+  const reserveEventsByQuestion = new Map<string, QuestionReserveEventDto[]>();
+  for (const row of reserveEventRows) {
+    const events = reserveEventsByQuestion.get(row.question_id) ?? [];
+    events.push({
+      action: row.action,
+      actor: {
+        displayName: row.actor_display_name,
+        occurredAt: toIsoString(row.occurred_at)!,
+        userId: row.actor_user_id,
+      },
+      id: Number(row.id),
+      note: row.note ?? undefined,
+      reasonCode: row.reason_code ?? undefined,
+      requestId: row.request_id ?? undefined,
+      versionId: Number(row.question_version_id),
+    });
+    reserveEventsByQuestion.set(row.question_id, events);
   }
 
   const rowsByQuestion = new Map<string, QuestionVersionRow[]>();
@@ -2119,12 +2672,25 @@ function buildQuestionLifecycles(
     const publishedVersion = versions.find(
       (version) => version.versionId === Number(first.published_version_id),
     );
+    const reserve = first.is_reserved
+      ? {
+          note: first.reserve_note ?? undefined,
+          reasonCode: first.reserve_reason_code!,
+          reservedAt: toIsoString(first.reserved_at!)!,
+          reservedBy: {
+            displayName: first.reserved_by_display_name!,
+            occurredAt: toIsoString(first.reserved_at!)!,
+            userId: first.reserved_by_user_id!,
+          },
+        }
+      : undefined;
+    const allowedActions = allowedQuestionLifecycleActions({
+      hasPublishedVersion: Boolean(publishedVersion),
+      recordState: first.record_state,
+      versionState: workingVersion.state,
+    }).filter(() => !reserve);
     return {
-      allowedActions: allowedQuestionLifecycleActions({
-        hasPublishedVersion: Boolean(publishedVersion),
-        recordState: first.record_state,
-        versionState: workingVersion.state,
-      }),
+      allowedActions,
       events: eventsByQuestion.get(questionId) ?? [],
       publishedVersion,
       provenanceCorrectionAllowed:
@@ -2137,6 +2703,8 @@ function buildQuestionLifecycles(
         first.record_state === "active" &&
         (workingVersion.source.sourceType === "generated_original" ||
           workingVersion.source.sourceType === "pattern_derived_original"),
+      reserve,
+      reserveEvents: reserveEventsByQuestion.get(questionId) ?? [],
       versions,
       workingVersion,
     } satisfies QuestionLifecycleDto;
@@ -2285,12 +2853,14 @@ function allowedActionsForVersionRow(
       hasPublishedVersion: row.published_version_id !== null,
       recordState: row.record_state,
       versionState: row.lifecycle_state,
-    });
+    }).filter(() => !row.is_reserved);
   }
-  if (versionId === Number(row.published_version_id)) {
+  if (versionId === Number(row.published_version_id) && !row.is_reserved) {
     return ["unpublish"];
   }
-  return row.lifecycle_state === "unpublished" ? ["rollback"] : [];
+  return row.lifecycle_state === "unpublished" && !row.is_reserved
+    ? ["rollback"]
+    : [];
 }
 
 function mapLifecycleEvent(row: LifecycleEventRow): QuestionLifecycleEventDto {
@@ -2401,8 +2971,11 @@ function safeLifecycleEventMetadata(value: unknown) {
     "answerType",
     "inputMode",
     "model",
+    "previousDifficulty",
     "questionType",
+    "reviewDifficultyBaseVersionId",
     "revisionMethod",
+    "selectedDifficulty",
     "source",
   ] as const) {
     const candidate = metadata[key];
@@ -2424,6 +2997,14 @@ function revisionTrustLevel(source: SourceMetadata): TrustLevel {
     source.sourceType === "pattern_derived_original"
     ? "generated_unverified"
     : source.trustLevel;
+}
+
+function assertWorkingVersionChangeAllowed(isReserved: unknown) {
+  if (isReserved) {
+    throw new QuestionLifecycleConflictError(
+      "Remove Save for later before changing the working version.",
+    );
+  }
 }
 
 function validateQuestionVersionContent(

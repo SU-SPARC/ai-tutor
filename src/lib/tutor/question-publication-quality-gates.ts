@@ -19,6 +19,7 @@ export const QUESTION_PUBLICATION_GATE_CODES = [
   "invalid_review_state",
   "deterministic_validation_failed",
   "professor_approval_missing",
+  "reserved_for_later",
 ] as const satisfies readonly QuestionPublicationGateCode[];
 
 export type QuestionPublicationGateInput = {
@@ -29,6 +30,7 @@ export type QuestionPublicationGateInput = {
   professorApprovalExists: boolean;
   questionId: string;
   rawMetadata?: unknown;
+  reservedForLater?: boolean;
   snapshotQuestionId?: string;
   version: QuestionVersionDto;
 };
@@ -55,6 +57,13 @@ export function evaluateQuestionPublicationQualityGates(
 ): QuestionPublicationBlocker[] {
   const blockers: QuestionPublicationBlocker[] = [];
   const version = input.version;
+
+  if (input.reservedForLater) {
+    blockers.push({
+      code: "reserved_for_later",
+      message: "Remove Save for later before publishing this question.",
+    });
+  }
 
   if (!input.activeSyllabusTopic || !version.topicId.trim()) {
     blockers.push({

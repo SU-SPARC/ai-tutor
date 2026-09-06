@@ -50,6 +50,17 @@ export async function GET(request: Request) {
         { status: 400 },
       );
     }
+    const reservedValue = searchParams.get("reserved") ?? undefined;
+    if (
+      reservedValue !== undefined &&
+      reservedValue !== "true" &&
+      reservedValue !== "false"
+    ) {
+      return NextResponse.json(
+        { error: `Invalid reserved filter: ${reservedValue}` },
+        { status: 400 },
+      );
+    }
     try {
       const questions = await listQuestionLifecycles(access.authorization, {
         recordState:
@@ -58,6 +69,8 @@ export async function GET(request: Request) {
             : searchParams.get("recordState") === "active"
               ? "active"
               : undefined,
+        reserved:
+          reservedValue === undefined ? undefined : reservedValue === "true",
         state,
         topicId: searchParams.get("topicId")?.trim() || undefined,
       });

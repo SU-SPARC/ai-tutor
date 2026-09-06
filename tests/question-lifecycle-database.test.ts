@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { requireProfessorReview } from "@/lib/auth/authorization";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
+import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import { createDatabaseQuestionLifecycleRepository } from "@/lib/data/question-lifecycle-repository";
 import { QuestionPublicationBlockedError } from "@/lib/tutor/question-lifecycle";
 import { mockPrincipal, resetAuthMocks } from "./auth-test-helpers";
@@ -700,15 +701,12 @@ describe("question lifecycle database", () => {
     }));
 
     await repository.recordInspection(authorization, items[0]);
-    const missingInspection = await repository.batchTransition(
-      authorization,
-      {
-        action: "publish",
-        idempotencyKey: "batch-publish-missing-inspection",
-        items,
-        requestId: "batch-request-missing-inspection",
-      },
-    );
+    const missingInspection = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-missing-inspection",
+      items,
+      requestId: "batch-request-missing-inspection",
+    });
     expect(missingInspection).toMatchObject({
       applied: false,
       failures: [
@@ -850,6 +848,139 @@ describe("question lifecycle database", () => {
     ).toBe(2);
   });
 
+  it("previews batch publication readiness without mutation and reports domain blockers", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(database);
+    const authorization = await professorAuthorization();
+    const baseQuery = pgliteQuery(database);
+    let activePreviewQueries = 0;
+    let maxConcurrentPreviewQueries = 0;
+    const trackedQuery: DatabaseQueryExecutor = async (sql, params) => {
+      activePreviewQueries += 1;
+      maxConcurrentPreviewQueries = Math.max(
+        maxConcurrentPreviewQueries,
+        activePreviewQueries,
+      );
+      await Promise.resolve();
+      try {
+        return await baseQuery(sql, params);
+      } finally {
+        activePreviewQueries -= 1;
+      }
+    };
+    const repository = createDatabaseQuestionLifecycleRepository(trackedQuery);
+    const items = versions.slice(0, 2).map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+
+    await repository.recordInspection(authorization, items[0]);
+    const before = await batchPreviewMutationState(database, items);
+    const inspectionPreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items },
+    );
+
+    expect(inspectionPreview).toEqual({
+      action: "publish",
+      blockedCount: 1,
+      items: [
+        { ...items[0], status: "ready" },
+        expect.objectContaining({
+          ...items[1],
+          code: "not_inspected",
+          message: expect.stringMatching(/exact version/i),
+          status: "blocked",
+        }),
+      ],
+      readyCount: 1,
+    });
+    expect(await batchPreviewMutationState(database, items)).toEqual(before);
+    // One item's independent gate reads may run together, but item fan-out must
+    // not multiply that concurrency by the batch size.
+    expect(maxConcurrentPreviewQueries).toBeLessThanOrEqual(3);
+
+    await repository.recordInspection(authorization, items[1]);
+    await database.exec(
+      "update topics set is_active = false where id = 'batch-topic-two'",
+    );
+    const provenancePreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items },
+    );
+    expect(provenancePreview.items[1]).toMatchObject({
+      code: "validation_failed",
+      publicationBlockers: [
+        expect.objectContaining({ code: "invalid_syllabus_topic" }),
+      ],
+      status: "blocked",
+    });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 0,
+      publishedPointerCount: 0,
+    });
+
+    await database.exec(
+      "update topics set is_active = true where id = 'batch-topic-two'",
+    );
+    await repository.transition(authorization, {
+      action: "request_revision",
+      expectedState: "approved",
+      questionId: items[1].questionId,
+      reasonCode: "poor_wording",
+      revisionMethod: "manual",
+      versionId: items[1].versionId,
+    });
+    const notApprovedItems = [
+      items[0],
+      { ...items[1], expectedState: "revision_requested" as const },
+    ];
+    const notApprovedPreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items: notApprovedItems },
+    );
+    expect(notApprovedPreview.items[1]).toMatchObject({
+      code: "validation_failed",
+      publicationBlockers: [
+        expect.objectContaining({ code: "invalid_review_state" }),
+      ],
+      status: "blocked",
+    });
+
+    const current = await repository.getQuestion(
+      authorization,
+      items[0].questionId,
+    );
+    const working = current!.workingVersion;
+    await repository.createRevision(authorization, {
+      baseVersionId: working.versionId,
+      comment: "Create a newer working version for stale-preview coverage.",
+      expectedWorkingVersionId: working.versionId,
+      questionId: current!.questionId,
+      revision: {
+        answer: working.answer,
+        difficulty: working.difficulty,
+        hints: working.hints,
+        misconceptions: working.misconceptions,
+        prompt: working.prompt,
+        solutionSteps: working.solutionSteps,
+        title: working.title,
+        topicId: working.topicId,
+      },
+    });
+    const stalePreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items: notApprovedItems },
+    );
+    expect(stalePreview.items[0]).toMatchObject({
+      code: "stale_version",
+      message: expect.stringMatching(/no longer the working version/i),
+      status: "blocked",
+    });
+  });
+
   it("applies inspected batch revision requests and rejections without batch approval", async () => {
     const database = await migratedDatabase();
     await seedLifecycleActorsAndQuestion(database);
@@ -880,7 +1011,8 @@ describe("question lifecycle database", () => {
       action: "request_revision",
       idempotencyKey: "batch-request-revision",
       items: revisionItems,
-      reasonCode: "clarify_wording",
+      note: "The selected questions repeat wording used elsewhere.",
+      reasonCode: "duplicate_repetition",
       requestId: "batch-revision-request",
       revisionMethod: "manual",
     });
@@ -888,7 +1020,8 @@ describe("question lifecycle database", () => {
       action: "reject",
       idempotencyKey: "batch-reject",
       items: rejectionItems,
-      reasonCode: "incorrect_structure",
+      note: "The final answers are incorrect.",
+      reasonCode: "incorrect_answer",
       requestId: "batch-reject-request",
     });
 
@@ -913,6 +1046,7 @@ describe("question lifecycle database", () => {
       action: string;
       actor_user_id: string;
       event_count: number;
+      note: string;
       reason_code: string;
       timestamp_count: number;
     }>(`
@@ -920,6 +1054,7 @@ describe("question lifecycle database", () => {
         action,
         min(actor_user_id) as actor_user_id,
         count(*)::int as event_count,
+        min(note) as note,
         min(reason_code) as reason_code,
         count(distinct occurred_at)::int as timestamp_count
       from question_lifecycle_events
@@ -932,14 +1067,16 @@ describe("question lifecycle database", () => {
         action: "reject",
         actor_user_id: "user:lifecycle-professor",
         event_count: 2,
-        reason_code: "incorrect_structure",
+        note: "The final answers are incorrect.",
+        reason_code: "incorrect_answer",
         timestamp_count: 1,
       },
       {
         action: "request_revision",
         actor_user_id: "user:lifecycle-professor",
         event_count: 2,
-        reason_code: "clarify_wording",
+        note: "The selected questions repeat wording used elsewhere.",
+        reason_code: "duplicate_repetition",
         timestamp_count: 1,
       },
     ]);
@@ -948,6 +1085,358 @@ describe("question lifecycle database", () => {
         "update question_version_inspections set inspected_at = now()",
       ),
     ).rejects.toThrow(/append-only/i);
+  });
+
+  it("persists stable reasons and optional notes for individual revision and rejection paths", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+
+    await repository.transition(authorization, {
+      action: "request_revision",
+      expectedState: "approved",
+      note: "Move this question to the conditional-probability topic.",
+      questionId: versions[0].questionId,
+      reasonCode: "wrong_topic",
+      revisionMethod: "manual",
+      versionId: versions[0].versionId,
+    });
+    await repository.transition(authorization, {
+      action: "reject",
+      expectedState: "approved",
+      note: "The worked solution reaches an unsupported result.",
+      questionId: versions[1].questionId,
+      reasonCode: "weak_solution",
+      versionId: versions[1].versionId,
+    });
+
+    const events = await database.query<{
+      action: string;
+      note: string;
+      reason_code: string;
+      state: string;
+    }>(`
+      select qle.action, qle.reason_code, qle.note, qvl.state
+      from question_lifecycle_events qle
+      join question_version_lifecycle qvl
+        on qvl.question_version_id = qle.question_version_id
+      where qle.question_id in ('batch-question-1', 'batch-question-2')
+        and qle.action in ('request_revision', 'reject')
+      order by qle.question_id
+    `);
+    expect(events.rows).toEqual([
+      {
+        action: "request_revision",
+        note: "Move this question to the conditional-probability topic.",
+        reason_code: "wrong_topic",
+        state: "revision_requested",
+      },
+      {
+        action: "reject",
+        note: "The worked solution reaches an unsupported result.",
+        reason_code: "weak_solution",
+        state: "rejected",
+      },
+    ]);
+  });
+  it("keeps reserved questions approved, student-hidden, attributed, filterable, and auditable", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const created = await repository.createQuestion(authorization, {
+      content: {
+        answer: {
+          acceptedAnswers: ["1/3"],
+          explanation: "One favorable outcome divided by three outcomes.",
+          numericValue: 1 / 3,
+          tolerance: 0.001,
+        },
+        difficulty: "foundational",
+        hints: ["Count the equally likely outcomes."],
+        id: "reserve-question",
+        misconceptions: [],
+        prompt: "What is the probability of one specified outcome among three?",
+        solutionSteps: ["Divide 1 by 3."],
+        source: {
+          originalityNote: "Original reserve workflow test.",
+          sourceType: "professor_provided",
+          trustLevel: "public_original",
+          visibility: "public",
+        },
+        title: "Reserve workflow question",
+        topicId: "lifecycle-topic",
+      },
+      creationMethod: "manual",
+      submit: true,
+    });
+    const approved = await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: created.questionId,
+      versionId: created.workingVersion.versionId,
+    });
+    const duplicateBefore = await repository.findQuestionIntakeDuplicates(
+      authorization,
+      {
+        prompt: approved.workingVersion.prompt,
+        topicId: approved.workingVersion.topicId,
+      },
+    );
+
+    const reserved = await repository.setReserveDisposition(authorization, {
+      action: "reserve",
+      expectedWorkingVersionId: approved.workingVersion.versionId,
+      idempotencyKey: "reserve-once",
+      note: "Strong question, but overlaps this week's set.",
+      questionId: approved.questionId,
+      reasonCode: "repetitive",
+      requestId: "request-reserve",
+    });
+
+    expect(reserved).toMatchObject({
+      publishedVersion: undefined,
+      recordState: "active",
+      reserve: {
+        note: "Strong question, but overlaps this week's set.",
+        reasonCode: "repetitive",
+        reservedBy: {
+          displayName: "Lifecycle Professor",
+          userId: "user:lifecycle-professor",
+        },
+      },
+      workingVersion: {
+        state: "approved",
+        versionId: approved.workingVersion.versionId,
+      },
+    });
+    expect(reserved.allowedActions).not.toContain("publish");
+    const working = reserved.workingVersion;
+    const content = {
+      answer: working.answer,
+      difficulty: working.difficulty,
+      hints: working.hints,
+      id: working.id,
+      misconceptions: working.misconceptions,
+      prompt: working.prompt,
+      solutionSteps: working.solutionSteps,
+      source: working.source,
+      title: working.title,
+      topicId: working.topicId,
+    };
+    const revision = {
+      answer: working.answer,
+      difficulty: working.difficulty,
+      hints: working.hints,
+      misconceptions: working.misconceptions,
+      prompt: working.prompt,
+      solutionSteps: working.solutionSteps,
+      title: working.title,
+      topicId: working.topicId,
+    };
+    for (const operation of [
+      () =>
+        repository.createVersion(authorization, {
+          baseVersionId: working.versionId,
+          content,
+          creationMethod: "manual",
+          expectedWorkingVersionId: working.versionId,
+          questionId: reserved.questionId,
+        }),
+      () =>
+        repository.createRevision(authorization, {
+          baseVersionId: working.versionId,
+          expectedWorkingVersionId: working.versionId,
+          questionId: reserved.questionId,
+          revision,
+        }),
+      () =>
+        repository.correctProvenance(authorization, {
+          baseVersionId: working.versionId,
+          expectedWorkingVersionId: working.versionId,
+          questionId: reserved.questionId,
+        }),
+      () =>
+        repository.regenerate(authorization, {
+          baseVersionId: working.versionId,
+          expectedWorkingVersionId: working.versionId,
+          questionId: reserved.questionId,
+        }),
+    ]) {
+      await expect(operation()).rejects.toMatchObject({
+        message: expect.stringMatching(/Remove Save for later/i),
+        name: "QuestionLifecycleConflictError",
+      });
+    }
+    expect(
+      await repository.listQuestions(authorization, { reserved: true }),
+    ).toEqual([expect.objectContaining({ questionId: approved.questionId })]);
+    expect(
+      (await repository.listQuestions(authorization, { reserved: false })).some(
+        (question) => question.questionId === approved.questionId,
+      ),
+    ).toBe(false);
+
+    const hidden = await database.query<{ count: number }>(
+      "select count(*)::int as count from app_public_questions where id = $1",
+      [approved.questionId],
+    );
+    expect(hidden.rows[0].count).toBe(0);
+    expect(
+      (
+        await createDatabaseContentRepository(
+          "postgres://unused.example/db",
+          pgliteQuery(database),
+        ).getApprovedQuestions()
+      ).some((question) => question.id === approved.questionId),
+    ).toBe(false);
+    await expect(
+      repository.transition(authorization, {
+        action: "publish",
+        expectedState: "approved",
+        questionId: approved.questionId,
+        versionId: approved.workingVersion.versionId,
+      }),
+    ).rejects.toThrow(/Remove Save for later/i);
+    expect(
+      await repository.findQuestionIntakeDuplicates(authorization, {
+        prompt: approved.workingVersion.prompt,
+        topicId: approved.workingVersion.topicId,
+      }),
+    ).toEqual(duplicateBefore);
+
+    const replayed = await repository.setReserveDisposition(authorization, {
+      action: "reserve",
+      expectedWorkingVersionId: approved.workingVersion.versionId,
+      idempotencyKey: "reserve-once",
+      note: "Strong question, but overlaps this week's set.",
+      questionId: approved.questionId,
+      reasonCode: "repetitive",
+    });
+    expect(replayed.reserveEvents).toHaveLength(1);
+
+    const released = await repository.setReserveDisposition(authorization, {
+      action: "release",
+      expectedWorkingVersionId: approved.workingVersion.versionId,
+      idempotencyKey: "release-once",
+      note: "Ready for the next assignment.",
+      questionId: approved.questionId,
+    });
+    expect(released.reserve).toBeUndefined();
+    expect(released.workingVersion.state).toBe("approved");
+    expect(released.reserveEvents).toEqual([
+      expect.objectContaining({
+        action: "release",
+        actor: expect.objectContaining({ userId: "user:lifecycle-professor" }),
+        note: "Ready for the next assignment.",
+      }),
+      expect.objectContaining({
+        action: "reserve",
+        reasonCode: "repetitive",
+      }),
+    ]);
+
+    const evidence = await database.query<{
+      audit_count: number;
+      version_count: number;
+    }>(
+      `select
+         (select count(*)::int from audit_events
+          where entity_id = $1 and action like 'question.reserve.%') as audit_count,
+         (select count(*)::int from question_versions
+          where question_id = $1) as version_count`,
+      [approved.questionId],
+    );
+    expect(evidence.rows[0]).toEqual({ audit_count: 2, version_count: 1 });
+
+    const archived = await repository.transition(authorization, {
+      action: "archive",
+      expectedState: "approved",
+      questionId: approved.questionId,
+      reasonCode: "save_for_later",
+      versionId: approved.workingVersion.versionId,
+    });
+    expect(archived.recordState).toBe("archived");
+  });
+
+  it("accepts every reserve reason and requires a note for Other", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const created = await repository.createQuestion(authorization, {
+      content: {
+        answer: { acceptedAnswers: ["2"], explanation: "One plus one." },
+        difficulty: "foundational",
+        hints: ["Add the two units."],
+        id: "reserve-reasons-question",
+        misconceptions: [],
+        prompt: "What is one plus one?",
+        solutionSteps: ["Compute 1 + 1 = 2."],
+        source: {
+          originalityNote: "Original reason test.",
+          sourceType: "professor_provided",
+          trustLevel: "public_original",
+          visibility: "public",
+        },
+        title: "Reserve reasons",
+        topicId: "lifecycle-topic",
+      },
+      creationMethod: "manual",
+      submit: true,
+    });
+    await repository.transition(authorization, {
+      action: "approve",
+      expectedState: "needs_review",
+      questionId: created.questionId,
+      versionId: created.workingVersion.versionId,
+    });
+
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "reserve",
+        expectedWorkingVersionId: created.workingVersion.versionId,
+        questionId: created.questionId,
+        reasonCode: "other",
+      }),
+    ).rejects.toThrow(/requires an audit note/i);
+
+    for (const reasonCode of [
+      "repetitive",
+      "save_for_later",
+      "future_topic",
+      "extra_practice",
+      "other",
+    ] as const) {
+      await repository.setReserveDisposition(authorization, {
+        action: "reserve",
+        expectedWorkingVersionId: created.workingVersion.versionId,
+        idempotencyKey: `reserve-${reasonCode}`,
+        note: reasonCode === "other" ? "A specific future use." : undefined,
+        questionId: created.questionId,
+        reasonCode,
+      });
+      await repository.setReserveDisposition(authorization, {
+        action: "release",
+        expectedWorkingVersionId: created.workingVersion.versionId,
+        idempotencyKey: `release-${reasonCode}`,
+        questionId: created.questionId,
+      });
+    }
+
+    const final = await repository.getQuestion(
+      authorization,
+      created.questionId,
+    );
+    expect(final?.reserveEvents).toHaveLength(10);
   });
 });
 
@@ -1263,7 +1752,8 @@ async function batchPublicationState(
   const result = await database.query<{
     public_count: number;
     published_pointer_count: number;
-  }>(`
+  }>(
+    `
     select
       (
         select count(*)::int
@@ -1274,11 +1764,49 @@ async function batchPublicationState(
         as published_pointer_count
     from questions q
     where q.id = any($1::text[])
-  `, [questionIds]);
+  `,
+    [questionIds],
+  );
   return {
     publicCount: result.rows[0].public_count,
     publishedPointerCount: result.rows[0].published_pointer_count,
   };
+}
+
+async function batchPreviewMutationState(
+  database: PGlite,
+  items: Array<{ questionId: string }>,
+) {
+  const questionIds = items.map((item) => item.questionId);
+  const result = await database.query<{
+    event_count: number;
+    public_count: number;
+    published_pointer_count: number;
+    version_count: number;
+  }>(
+    `select
+       (
+         select count(*)::int
+         from question_lifecycle_events event
+         where event.question_id = any($1::text[])
+       ) as event_count,
+       (
+         select count(*)::int
+         from app_public_questions public_question
+         where public_question.id = any($1::text[])
+       ) as public_count,
+       count(*) filter (where q.published_version_id is not null)::int
+         as published_pointer_count,
+       (
+         select count(*)::int
+         from question_versions version
+         where version.question_id = any($1::text[])
+       ) as version_count
+     from questions q
+     where q.id = any($1::text[])`,
+    [questionIds],
+  );
+  return result.rows[0];
 }
 
 function pgliteQuery(database: PGlite | Transaction): DatabaseQueryExecutor {

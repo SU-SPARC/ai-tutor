@@ -6,10 +6,12 @@ import { Check, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
 import { nativeSelectClassName } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import { professorReviewQueuePath } from "@/lib/tutor/professor-review-mode";
+import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
 import type {
+  Difficulty,
   ProfessorQuestionReviewDashboard,
   QuestionRevisionMethod,
 } from "@/lib/types";
@@ -19,6 +21,12 @@ type ReviewAction =
   | "reject"
   | "request_edit"
   | "request_regeneration";
+
+const DIFFICULTIES = [
+  "foundational",
+  "intermediate",
+  "challenge",
+] as const satisfies readonly Difficulty[];
 
 export function ProfessorFriendlyReviewPanel({
   initialDashboard,
@@ -43,8 +51,12 @@ export function ProfessorFriendlyReviewPanel({
   );
   const [message, setMessage] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [reviewedCount, setReviewedCount] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState(preloadedTopicId);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(
+    initialDashboard.candidates[0]?.difficulty ?? "foundational",
+  );
 
   const current = dashboard.candidates[0];
   const selectedTopic = useMemo(
@@ -75,6 +87,10 @@ export function ProfessorFriendlyReviewPanel({
       setLoadedTopicId(selectedTopicId);
       setReviewedCount(0);
       setNote("");
+      setReasonCode("");
+      setSelectedDifficulty(
+        nextDashboard.candidates[0]?.difficulty ?? "foundational",
+      );
       const topic = nextDashboard.topics.find(
         (item) => item.topicId === selectedTopicId,
       );
@@ -96,12 +112,23 @@ export function ProfessorFriendlyReviewPanel({
 
   async function reviewCurrent(action: ReviewAction) {
     if (!current || !loadedTopicId) return;
-    if (action !== "approve" && !note.trim()) {
-      setMessage("Add a short reason before requesting revision or rejection.");
+    if (action !== "approve" && !reasonCode) {
+      setMessage("Choose a reason before requesting revision or rejection.");
+      return;
+    }
+    if (
+      action !== "approve" &&
+      professorReviewReasonRequiresNote(reasonCode) &&
+      !note.trim()
+    ) {
+      setMessage("Other requires an audit note.");
       return;
     }
 
     const transition = transitionForAction(action);
+    const approvedDifficulty = selectedDifficulty;
+    const difficultyChanged =
+      action === "approve" && approvedDifficulty !== current.difficulty;
     setActiveAction(action);
     setMessage(null);
 
@@ -118,23 +145,37 @@ export function ProfessorFriendlyReviewPanel({
             action: transition.action,
             expectedState: current.state,
             note: note.trim() || undefined,
-            reasonCode: transition.reasonCode,
+            reasonCode: action === "approve" ? undefined : reasonCode,
             revisionMethod: transition.revisionMethod,
             versionId: current.versionId,
+            ...(action === "approve" ? { difficulty: approvedDifficulty } : {}),
           }),
         },
       );
-      const payload = (await result.json()) as { error?: string };
+      const payload = (await result.json()) as {
+        error?: string;
+        question?: {
+          workingVersion: { versionNumber: number };
+        };
+      };
       if (!result.ok) {
         throw new Error(payload.error ?? "Review action failed.");
       }
 
       setReviewedCount((count) => count + 1);
       setNote("");
+      setReasonCode("");
       try {
         const nextDashboard = await requestTopicDashboard(loadedTopicId);
         setDashboard(nextDashboard);
-        setMessage(`${current.title} was ${transition.successLabel}.`);
+        setSelectedDifficulty(
+          nextDashboard.candidates[0]?.difficulty ?? "foundational",
+        );
+        setMessage(
+          difficultyChanged
+            ? `${current.title} was revised to ${approvedDifficulty} as working version ${payload.question?.workingVersion.versionNumber ?? "new"} and approved (not published).`
+            : `${current.title} was ${transition.successLabel}.`,
+        );
       } catch {
         setDashboard((currentDashboard) =>
           advanceDashboardAfterDecision(
@@ -167,6 +208,8 @@ export function ProfessorFriendlyReviewPanel({
     }));
     setMessage(null);
     setNote("");
+    setReasonCode("");
+    setSelectedDifficulty("foundational");
     setReviewedCount(0);
   }
 
@@ -304,8 +347,33 @@ export function ProfessorFriendlyReviewPanel({
                 {reviewedCount + 1} of{" "}
                 {reviewedCount + dashboard.candidates.length}
               </Badge>
-              <Badge variant="secondary">{current.difficulty}</Badge>
             </div>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-3">
+            <label className="flex max-w-sm flex-col gap-1 text-sm font-medium">
+              Difficulty — professor final selection
+              <select
+                aria-label="Difficulty — professor final selection"
+                className={nativeSelectClassName}
+                disabled={dashboard.readOnly || Boolean(activeAction)}
+                value={selectedDifficulty}
+                onChange={(event) =>
+                  setSelectedDifficulty(event.target.value as Difficulty)
+                }
+              >
+                {DIFFICULTIES.map((difficulty) => (
+                  <option key={difficulty} value={difficulty}>
+                    {difficulty}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="mt-2 text-xs text-muted-foreground">
+              AI or an import may suggest a difficulty; you have final
+              authority. Changing it creates a new immutable manual revision
+              before approval. Approval still does not publish the question.
+            </p>
           </div>
 
           <ReviewBlock title="Question" values={[current.prompt]} />
@@ -330,16 +398,13 @@ export function ProfessorFriendlyReviewPanel({
             ]}
           />
 
-          <label className="block space-y-2">
-            <span className="text-sm font-medium">Decision note</span>
-            <Textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              className="min-h-20"
-              maxLength={500}
-              placeholder="Required for revision or rejection"
-            />
-          </label>
+          <ProfessorReviewReasonFields
+            disabled={dashboard.readOnly || Boolean(activeAction)}
+            note={note}
+            onNoteChange={setNote}
+            onReasonCodeChange={setReasonCode}
+            reasonCode={reasonCode}
+          />
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {current.allowedActions.includes("approve") ? (
@@ -426,7 +491,6 @@ function advanceDashboardAfterDecision(
 
 function transitionForAction(action: ReviewAction): {
   action: "approve" | "reject" | "request_revision";
-  reasonCode?: string;
   revisionMethod?: QuestionRevisionMethod;
   successLabel: string;
 } {
@@ -436,16 +500,11 @@ function transitionForAction(action: ReviewAction): {
   if (action === "reject") {
     return {
       action: "reject",
-      reasonCode: "professor_rejected",
       successLabel: "rejected",
     };
   }
   return {
     action: "request_revision",
-    reasonCode:
-      action === "request_regeneration"
-        ? "regeneration_requested"
-        : "manual_revision_requested",
     revisionMethod:
       action === "request_regeneration" ? "regeneration" : "manual",
     successLabel:

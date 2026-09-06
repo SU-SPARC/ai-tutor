@@ -5,9 +5,14 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  professorReviewReasonLabel,
+  professorReviewReasonRequiresNote,
+} from "@/lib/tutor/professor-review-reasons";
 import type {
   QuestionLifecycleBatchAction,
   QuestionLifecycleBatchFailure,
+  QuestionLifecycleBatchPreviewResult,
   QuestionLifecycleBatchResult,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
@@ -25,8 +30,10 @@ export function ProfessorQuestionBatchConfirmation({
   action,
   disabled,
   inspections,
+  note,
   onCancel,
   onCompleted,
+  onRemoveQuestion,
   questions,
   reasonCode,
   revisionMethod,
@@ -35,8 +42,10 @@ export function ProfessorQuestionBatchConfirmation({
   action: QuestionLifecycleBatchAction;
   disabled: boolean;
   inspections: QuestionVersionInspectionDto[];
+  note?: string;
   onCancel: () => void;
   onCompleted: (result: QuestionLifecycleBatchResult) => void;
+  onRemoveQuestion?: (versionId: number) => void;
   questions: QuestionLifecycleDto[];
   reasonCode?: string;
   revisionMethod: QuestionRevisionMethod;
@@ -44,8 +53,10 @@ export function ProfessorQuestionBatchConfirmation({
 }) {
   const [failures, setFailures] = useState<QuestionLifecycleBatchFailure[]>([]);
   const [idempotencyKey, setIdempotencyKey] = useState<string>();
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [preview, setPreview] = useState<QuestionLifecycleBatchPreviewResult>();
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
   const topicOrders = new Map(topics.map((topic, index) => [topic.id, index]));
   const inspectionTimes = new Map(
@@ -62,8 +73,78 @@ export function ProfessorQuestionBatchConfirmation({
     },
     new Map(),
   );
+  const previewMatchesSelection =
+    preview?.items.length === questions.length &&
+    questions.every((question) =>
+      preview.items.some(
+        (item) =>
+          item.questionId === question.questionId &&
+          item.versionId === question.workingVersion.versionId &&
+          item.expectedState === question.workingVersion.state,
+      ),
+    );
+  const currentPreview = previewMatchesSelection ? preview : undefined;
+
+  function selectedItems() {
+    return questions.map((question) => ({
+      expectedState: question.workingVersion.state,
+      questionId: question.questionId,
+      versionId: question.workingVersion.versionId,
+    }));
+  }
+
+  async function previewPublication() {
+    if (questions.length < 2) {
+      setMessage("Select at least two questions for batch publication.");
+      return;
+    }
+    setIsPreviewing(true);
+    setFailures([]);
+    setMessage(undefined);
+    try {
+      const response = await fetch("/api/professor/questions/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "publish",
+          items: selectedItems(),
+          mode: "preview",
+        }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        preview?: QuestionLifecycleBatchPreviewResult;
+      };
+      if (!response.ok || !payload.preview) {
+        setMessage(payload.error ?? "Publication readiness preview failed.");
+        return;
+      }
+      setPreview(payload.preview);
+    } catch {
+      setMessage("Publication readiness preview could not be completed.");
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
 
   async function confirmBatch() {
+    if (
+      action !== "publish" &&
+      professorReviewReasonRequiresNote(reasonCode) &&
+      !note?.trim()
+    ) {
+      setMessage("Other requires an audit note.");
+      return;
+    }
+    if (
+      action === "publish" &&
+      (!currentPreview || currentPreview.blockedCount > 0)
+    ) {
+      setMessage(
+        "Preview this exact selection and remove or resolve every blocked question before publishing.",
+      );
+      return;
+    }
     const requestIdempotencyKey = idempotencyKey ?? crypto.randomUUID();
     if (!idempotencyKey) setIdempotencyKey(requestIdempotencyKey);
     setIsSubmitting(true);
@@ -78,12 +159,10 @@ export function ProfessorQuestionBatchConfirmation({
         },
         body: JSON.stringify({
           action,
-          items: questions.map((question) => ({
-            expectedState: question.workingVersion.state,
-            questionId: question.questionId,
-            versionId: question.workingVersion.versionId,
-          })),
-          reasonCode: reasonCode?.trim() || undefined,
+          items: selectedItems(),
+          note: note?.trim() || undefined,
+          reasonCode:
+            action === "publish" ? undefined : reasonCode?.trim() || undefined,
           revisionMethod:
             action === "request_revision" ? revisionMethod : undefined,
         }),
@@ -93,6 +172,7 @@ export function ProfessorQuestionBatchConfirmation({
         result?: QuestionLifecycleBatchResult;
       };
       if (!response.ok || !payload.result?.applied) {
+        if (action === "publish") setPreview(undefined);
         setFailures(payload.result?.failures ?? []);
         setMessage(
           payload.error ??
@@ -118,8 +198,9 @@ export function ProfessorQuestionBatchConfirmation({
           Confirm batch {ACTION_LABELS[action]}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          This operation contains no approval step. It will apply to every
-          selected version in one transaction, or to none of them.
+          {action === "publish"
+            ? "Preview every selected version against the live publication gates, then remove or resolve blockers. Publication applies to the entire ready set in one transaction, or to none of them."
+            : "This operation contains no approval step. It will apply to every selected version in one transaction, or to none of them."}
         </p>
       </div>
 
@@ -175,17 +256,44 @@ export function ProfessorQuestionBatchConfirmation({
       </div>
 
       {action === "publish" ? (
-        <p className="border border-border bg-background p-3 text-sm">
-          Publication is attempted only if every selected version still has a
-          valid schema, active topic, approved publication state, and current
-          professor inspection. Student visibility changes only after the
-          complete transaction commits.
-        </p>
+        <div className="space-y-3">
+          <p className="border border-border bg-background p-3 text-sm">
+            Readiness preview does not change data. Final publication repeats
+            every exact-version inspection, working-version, provenance, and
+            quality check. Student visibility changes only after the complete
+            transaction commits.
+          </p>
+          {currentPreview ? (
+            <ProfessorBatchPublicationReadiness
+              disabled={disabled || isSubmitting || isPreviewing}
+              onRemoveQuestion={(versionId) => {
+                setPreview(undefined);
+                onRemoveQuestion?.(versionId);
+              }}
+              preview={currentPreview}
+              questions={questions}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Readiness has not been checked for this exact selection.
+            </p>
+          )}
+        </div>
       ) : (
-        <p className="text-sm">
-          Reason: <span className="font-medium">{reasonCode}</span>
-          {action === "request_revision" ? ` · Method: ${revisionMethod}` : ""}
-        </p>
+        <div className="space-y-1 text-sm">
+          <p>
+            Reason:{" "}
+            <span className="font-medium">
+              {reasonCode
+                ? professorReviewReasonLabel(reasonCode)
+                : "Not selected"}
+            </span>
+            {action === "request_revision"
+              ? ` · Method: ${revisionMethod}`
+              : ""}
+          </p>
+          {note ? <p>Audit note: {note}</p> : null}
+        </div>
       )}
 
       {message ? (
@@ -217,9 +325,26 @@ export function ProfessorQuestionBatchConfirmation({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
+        {action === "publish" ? (
+          <Button
+            type="button"
+            disabled={disabled || isSubmitting || isPreviewing}
+            variant={currentPreview ? "outline" : "default"}
+            onClick={() => void previewPublication()}
+          >
+            {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {currentPreview ? "Preview readiness again" : "Preview readiness"}
+          </Button>
+        ) : null}
         <Button
           type="button"
-          disabled={disabled || isSubmitting}
+          disabled={
+            disabled ||
+            isSubmitting ||
+            isPreviewing ||
+            (action === "publish" &&
+              (!currentPreview || currentPreview.blockedCount > 0))
+          }
           variant={action === "reject" ? "destructive" : "default"}
           onClick={() => void confirmBatch()}
         >
@@ -235,6 +360,96 @@ export function ProfessorQuestionBatchConfirmation({
           Cancel
         </Button>
       </div>
+    </section>
+  );
+}
+
+export function ProfessorBatchPublicationReadiness({
+  disabled,
+  onRemoveQuestion,
+  preview,
+  questions,
+}: {
+  disabled: boolean;
+  onRemoveQuestion: (versionId: number) => void;
+  preview: QuestionLifecycleBatchPreviewResult;
+  questions: QuestionLifecycleDto[];
+}) {
+  const questionsByVersionId = new Map(
+    questions.map((question) => [question.workingVersion.versionId, question]),
+  );
+
+  return (
+    <section
+      aria-label="Batch publication readiness preview"
+      className="space-y-3 border border-border bg-background p-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-medium">Publication readiness</h3>
+        <Badge variant="success">{preview.readyCount} Ready</Badge>
+        {preview.blockedCount > 0 ? (
+          <Badge variant="destructive">{preview.blockedCount} Blocked</Badge>
+        ) : null}
+      </div>
+      <ul className="space-y-2 text-sm">
+        {preview.items.map((item) => {
+          const question = questionsByVersionId.get(item.versionId);
+          return (
+            <li
+              key={`${item.questionId}:${item.versionId}`}
+              className="flex flex-wrap items-start justify-between gap-3 border border-border p-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">
+                    {question?.workingVersion.title ??
+                      (item.status === "blocked" && item.title) ??
+                      item.questionId}
+                  </span>
+                  <Badge
+                    variant={
+                      item.status === "ready" ? "success" : "destructive"
+                    }
+                  >
+                    {item.status === "ready" ? "Ready" : "Blocked"}
+                  </Badge>
+                </div>
+                {item.status === "blocked" ? (
+                  <div className="mt-1 text-muted-foreground">
+                    <p>
+                      {item.publicationBlockers?.length
+                        ? "Publication requirements not met:"
+                        : item.message}
+                    </p>
+                    {item.publicationBlockers?.length ? (
+                      <ul className="mt-1 list-disc pl-5">
+                        {item.publicationBlockers.map((blocker) => (
+                          <li key={blocker.code}>{blocker.message}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">
+                    Exact version {item.versionId} passed every current gate.
+                  </p>
+                )}
+              </div>
+              {item.status === "blocked" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onRemoveQuestion(item.versionId)}
+                >
+                  Remove from selection
+                </Button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

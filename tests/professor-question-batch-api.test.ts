@@ -22,11 +22,15 @@ describe("professor question batch API", () => {
   it("denies anonymous and student batch actions", async () => {
     mockPrincipal(undefined);
     const anonymous = await postBatch(validBatchRequest());
+    const anonymousPreview = await postBatch(validPreviewRequest(), false);
     mockPrincipal(TEST_STUDENT);
     const student = await postBatch(validBatchRequest());
+    const studentPreview = await postBatch(validPreviewRequest(), false);
 
     expect(anonymous.status).toBe(401);
+    expect(anonymousPreview.status).toBe(401);
     expect(student.status).toBe(403);
+    expect(studentPreview.status).toBe(403);
   });
 
   it("does not expose a batch approval shortcut", async () => {
@@ -63,19 +67,71 @@ describe("professor question batch API", () => {
 
     expect(response.status).toBe(503);
   });
+
+  it("accepts a read-only publication preview without an idempotency key", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const response = await postBatch(validPreviewRequest(), false);
+
+    expect(response.status).toBe(503);
+  });
+
+  it("limits dry-run preview to publication", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const response = await postBatch(
+      {
+        ...validPreviewRequest(),
+        action: "reject",
+        reasonCode: "poor_wording",
+      },
+      false,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/publication only/i),
+    });
+  });
+
+  it("requires a note when a reject or revision batch selects Other", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const withoutNote = await postBatch({
+      ...validBatchRequest(),
+      action: "reject",
+      reasonCode: "other",
+    });
+    const withNote = await postBatch({
+      ...validBatchRequest(),
+      action: "request_revision",
+      note: "A course-specific issue not covered by the standard categories.",
+      reasonCode: "other",
+      revisionMethod: "manual",
+    });
+
+    expect(withoutNote.status).toBe(422);
+    await expect(withoutNote.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/Other requires an audit note/i),
+    });
+    expect(withNote.status).toBe(503);
+  });
 });
 
-function postBatch(body: unknown) {
+function postBatch(body: unknown, withIdempotencyKey = true) {
   return batchReview(
     new Request("http://test/api/professor/questions/batch", {
       body: JSON.stringify(body),
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": "batch-api-test",
-      },
+      headers: withIdempotencyKey
+        ? {
+            "Content-Type": "application/json",
+            "Idempotency-Key": "batch-api-test",
+          }
+        : { "Content-Type": "application/json" },
       method: "POST",
     }),
   );
+}
+
+function validPreviewRequest() {
+  return { ...validBatchRequest(), mode: "preview" };
 }
 
 function validBatchRequest() {
