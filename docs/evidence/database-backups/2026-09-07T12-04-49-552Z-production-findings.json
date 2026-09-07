@@ -1,0 +1,70 @@
+{
+  "accessMethod": "management_api",
+  "artifactVersion": 1,
+  "audit": "production_database_backups",
+  "automatedBackups": {
+    "dailyBackupCount": 0,
+    "earliestPhysicalBackupAt": null,
+    "freshnessLimitHours": 36,
+    "latestDailyBackupStatus": null,
+    "latestPhysicalBackupAt": null,
+    "latestRecoveryPointAt": null,
+    "latestSuccessfulDailyBackupAt": null,
+    "pitrEnabled": false,
+    "recoveryPointAgeHours": null,
+    "retentionDays": 0,
+    "retentionSource": "provider_plan_default",
+    "successfulDailyBackupCount": 0,
+    "walgEnabled": true
+  },
+  "credential": "SUPABASE_ACCESS_TOKEN",
+  "expectedFingerprint": {
+    "databaseName": "postgres",
+    "projectIdentityHash": "65888f3d354b7dfd",
+    "provider": "supabase"
+  },
+  "findings": [
+    {
+      "code": "no_successful_provider_backup",
+      "detail": "The provider reports neither a completed daily backup nor a physical recovery point.",
+      "severity": "critical"
+    },
+    {
+      "code": "retention_below_policy",
+      "detail": "The provider plan retains fewer than seven days of automated backups.",
+      "severity": "critical"
+    },
+    {
+      "code": "mfa_not_enforced",
+      "detail": "At least one organization member can administer backups without multi-factor authentication.",
+      "severity": "high"
+    }
+  ],
+  "generatedAt": "2026-09-07T12:04:49.552Z",
+  "organization": {
+    "identityHash": "a640b55a1a21a7cd",
+    "plan": "free",
+    "administratorCount": 0,
+    "memberCount": 3,
+    "mfaEnabledCount": 2,
+    "ownerCount": 3,
+    "verified": true
+  },
+  "project": {
+    "identityHash": "65888f3d354b7dfd",
+    "postgresEngine": "17",
+    "postgresVersion": "17.6.1.155",
+    "region": "us-east-1",
+    "releaseChannel": "ga",
+    "status": "ACTIVE_HEALTHY"
+  },
+  "provider": "supabase",
+  "readOnly": true,
+  "status": "findings",
+  "summary": {
+    "criticalFindings": 2,
+    "findingCount": 3
+  },
+  "target": "production",
+  "writesAttempted": 0
+}
