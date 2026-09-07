@@ -1321,6 +1321,127 @@ describe("question lifecycle database", () => {
     });
     expect(replayed.reserveEvents).toHaveLength(1);
 
+    await database.exec(`
+      insert into tutor_sessions (
+        id, user_id, question_id, solved, status, current_state, completed_at
+      ) values (
+        'reserve-origin-session', 'user:lifecycle-student',
+        'lifecycle-question', true, 'completed', 'solved', now()
+      );
+    `);
+    await expect(
+      database.exec(`
+        insert into tutor_sessions (
+          id, user_id, question_id, question_version_id,
+          practice_context, origin_session_id
+        ) values (
+          'reserve-disabled-session', 'user:lifecycle-student',
+          'reserve-question', ${approved.workingVersion.versionId},
+          'reserve_practice', 'reserve-origin-session'
+        );
+      `),
+    ).rejects.toThrow(/eligible question/i);
+
+    const practiceAllowed = await repository.setReserveDisposition(
+      authorization,
+      {
+        action: "allow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "allow-practice-once",
+        questionId: approved.questionId,
+      },
+    );
+    expect(practiceAllowed.reserve?.practiceAllowed).toBe(true);
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "allow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "allow-practice-once",
+        questionId: approved.questionId,
+      }),
+    ).resolves.toMatchObject({
+      reserve: { practiceAllowed: true },
+    });
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "allow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "allow-practice-again",
+        questionId: approved.questionId,
+      }),
+    ).rejects.toMatchObject({ name: "QuestionLifecycleConflictError" });
+    expect(
+      (
+        await database.query<{ count: number }>(
+          "select count(*)::int as count from app_reserve_practice_questions where id = $1",
+          [approved.questionId],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+
+    await database.exec(`
+      insert into tutor_sessions (
+        id, user_id, question_id, question_version_id,
+        practice_context, origin_session_id
+      ) values (
+        'reserve-practice-session', 'user:lifecycle-student',
+        'reserve-question', ${approved.workingVersion.versionId},
+        'reserve_practice', 'reserve-origin-session'
+      );
+    `);
+    const practicedState = await database.query<{
+      is_reserved: boolean;
+      lifecycle_state: string;
+      published_version_id: number | null;
+    }>(`
+      select q.is_reserved, q.published_version_id, qvl.state as lifecycle_state
+      from questions q
+      join question_version_lifecycle qvl
+        on qvl.question_version_id = q.working_version_id
+      where q.id = 'reserve-question'
+    `);
+    expect(practicedState.rows[0]).toEqual({
+      is_reserved: true,
+      lifecycle_state: "approved",
+      published_version_id: null,
+    });
+
+    const practiceDisabled = await repository.setReserveDisposition(
+      authorization,
+      {
+        action: "disallow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "disallow-practice-once",
+        questionId: approved.questionId,
+      },
+    );
+    expect(practiceDisabled.reserve?.practiceAllowed).toBe(false);
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "disallow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "disallow-practice-once",
+        questionId: approved.questionId,
+      }),
+    ).resolves.toMatchObject({
+      reserve: { practiceAllowed: false },
+    });
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "disallow_practice",
+        expectedWorkingVersionId: approved.workingVersion.versionId,
+        idempotencyKey: "disallow-practice-again",
+        questionId: approved.questionId,
+      }),
+    ).rejects.toMatchObject({ name: "QuestionLifecycleConflictError" });
+    expect(
+      (
+        await database.query<{ status: string }>(
+          "select status from tutor_sessions where id = 'reserve-practice-session'",
+        )
+      ).rows[0].status,
+    ).toBe("content_unpublished");
+
     const released = await repository.setReserveDisposition(authorization, {
       action: "release",
       expectedWorkingVersionId: approved.workingVersion.versionId,
@@ -1335,6 +1456,12 @@ describe("question lifecycle database", () => {
         action: "release",
         actor: expect.objectContaining({ userId: "user:lifecycle-professor" }),
         note: "Ready for the next assignment.",
+      }),
+      expect.objectContaining({
+        action: "disallow_practice",
+      }),
+      expect.objectContaining({
+        action: "allow_practice",
       }),
       expect.objectContaining({
         action: "reserve",
@@ -1353,7 +1480,7 @@ describe("question lifecycle database", () => {
           where question_id = $1) as version_count`,
       [approved.questionId],
     );
-    expect(evidence.rows[0]).toEqual({ audit_count: 2, version_count: 1 });
+    expect(evidence.rows[0]).toEqual({ audit_count: 4, version_count: 1 });
 
     const archived = await repository.transition(authorization, {
       action: "archive",
@@ -1437,6 +1564,86 @@ describe("question lifecycle database", () => {
       created.questionId,
     );
     expect(final?.reserveEvents).toHaveLength(10);
+  });
+
+  it("applies publication quality gates before allowing Reserve practice", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+
+    await database.exec(`
+      select set_config('app.current_user_id', 'system:schema-migration', false);
+      select set_config('app.current_creation_method', 'imported', false);
+      select set_config('app.suppress_question_version', 'true', false);
+      insert into questions (
+        id, topic_id, title, prompt, difficulty,
+        accepted_answers_json, answer_explanation,
+        source_type, trust_level, review_status, visibility,
+        originality_note, reviewed_by, reviewed_by_user_id, reviewed_at
+      ) values (
+        'private-reserve-question', 'lifecycle-topic', 'Private Reserve',
+        'What is one divided by five?', 'foundational', '["0.2"]'::jsonb,
+        'Divide one by five.', 'private_reference_pattern',
+        'private_reference', 'approved', 'private',
+        'Abstract professor-owned private reference.', 'Lifecycle Professor',
+        'user:lifecycle-professor', now()
+      );
+      insert into hints (question_id, hint_order, body)
+      values (
+        'private-reserve-question', 1,
+        'Divide the numerator by the denominator.'
+      );
+      insert into solution_steps (question_id, step_order, body)
+      values ('private-reserve-question', 1, 'Compute 1 / 5 = 0.2.');
+      select set_config('app.suppress_question_version', 'false', false);
+      select app_record_question_version('private-reserve-question');
+      select set_config('app.lifecycle_write', 'allowed', false);
+      update question_version_lifecycle
+      set state = 'approved'
+      where question_id = 'private-reserve-question';
+    `);
+    const privateQuestion = await repository.getQuestion(
+      authorization,
+      "private-reserve-question",
+    );
+    expect(privateQuestion?.workingVersion.state).toBe("approved");
+    await repository.setReserveDisposition(authorization, {
+      action: "reserve",
+      expectedWorkingVersionId: privateQuestion!.workingVersion.versionId,
+      questionId: "private-reserve-question",
+      reasonCode: "extra_practice",
+    });
+
+    await expect(
+      repository.setReserveDisposition(authorization, {
+        action: "allow_practice",
+        expectedWorkingVersionId: privateQuestion!.workingVersion.versionId,
+        questionId: "private-reserve-question",
+      }),
+    ).rejects.toMatchObject({
+      name: "QuestionPublicationBlockedError",
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ code: "invalid_source_classification" }),
+      ]),
+    } satisfies Partial<QuestionPublicationBlockedError>);
+
+    await database.exec(
+      "select set_config('app.reserve_write', 'allowed', false)",
+    );
+    await database.exec(`
+      update questions
+      set reserve_practice_allowed = true
+      where id = 'private-reserve-question';
+    `);
+    const visibility = await database.query<{ count: number }>(`
+      select count(*)::int as count
+      from app_reserve_practice_questions
+      where id = 'private-reserve-question'
+    `);
+    expect(visibility.rows[0].count).toBe(0);
   });
 });
 

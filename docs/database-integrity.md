@@ -31,6 +31,8 @@ audit.
 | Immutable question-version references       | A question pointer, lifecycle row, tutor session, attempt, progress row, or feedback report references no matching immutable version of the same question                          | None; use a reviewed forward fix                                  |
 | Feedback linkage                            | Feedback disagrees with its tutor session's question, immutable version, or reporter ownership fingerprint                                                                         | None; investigate the owning workflow                             |
 | AI reservation/accounting linkage           | A reservation lacks its session or dated student-usage row, has invalid accounted timing, or a session has multiple student fingerprints/pending reservations                      | None; preserve usage evidence                                     |
+| Reserve-practice eligibility                 | Practice permission is attached to non-Reserve, archived, published, unapproved, stale content, or content whose authoritative working-version snapshot is private-reference sourced | None; preserve evidence and investigate workflow bypass           |
+| Reserve-practice session lineage             | An active optional-practice session has an ineligible/stale version or lacks a completed same-owner origin on a different question                                                   | None; preserve evidence and investigate workflow bypass           |
 | Duplicate idempotency keys                  | Session, attempt, feedback, or reservation keys repeat inside the same owner/session scope despite the unique-index contract                                                       | None; investigate constraint loss and retry history               |
 | Cross-student ownership anomalies           | A progress/attempt, feedback/session, or AI reservation/session relationship crosses the owning student's authenticated, anonymous, or pseudonymous boundary                       | None; treat as a privacy/security incident                        |
 | Impossible usage counts                     | Negative counters, inconsistent token totals, reveals beyond available hints/steps, or invalid reservation state                                                                   | Only consistent token totals can be reconciled                    |
@@ -206,7 +208,7 @@ approved backup/recovery process and a forward migration where required.
 
 `tests/database-integrity.test.ts` and
 `tests/database-integrity-evidence.test.ts` use isolated embedded PostgreSQL
-databases and synthetic credentials to prove all eighteen finding classes,
+databases and synthetic credentials to prove all twenty finding classes,
 foreign-key enforcement, redacted references, read-only rollback, safe target
 fingerprints, SELECT-only privilege rejection, migration-ledger summarization,
 the no-credential exit, timestamped sanitized evidence, target binding, repair

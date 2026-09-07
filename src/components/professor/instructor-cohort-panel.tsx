@@ -55,9 +55,13 @@ export function InstructorCohortPanel({
           </p>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
               <Metric label="Active students" value={cohort.activeStudents} />
               <Metric label="Sessions" value={cohort.sessions} />
+              <Metric
+                label="Extra practice"
+                value={cohort.extraPracticeSessions}
+              />
               <Metric label="Attempts" value={cohort.attempts} />
               <Metric
                 label="Correct"

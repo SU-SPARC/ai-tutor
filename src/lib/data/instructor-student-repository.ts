@@ -70,7 +70,7 @@ export const STUDENT_KEY_SQL = `
 `;
 
 const STUDENT_SESSIONS_CTE = `
-  student_sessions as (
+  all_student_sessions as (
     select
       s.id as session_id,
       ${STUDENT_KEY_SQL} as student_key,
@@ -81,7 +81,21 @@ const STUDENT_SESSIONS_CTE = `
       s.last_misconception_ids_json,
       s.created_at,
       s.last_seen_at
+      ,s.practice_context
     from tutor_sessions s
+  ),
+  student_sessions as (
+    select * from all_student_sessions
+    where practice_context = 'published'
+  )
+`;
+
+const EXTRA_PRACTICE_TOTALS_CTE = `
+  extra_practice_totals as (
+    select student_key, count(*)::int as extra_practice_sessions
+    from all_student_sessions
+    where practice_context = 'reserve_practice'
+    group by student_key
   )
 `;
 
@@ -136,6 +150,7 @@ const SUMMARY_COLUMNS = `
   coalesce(t.attempts, 0) as attempts,
   coalesce(t.correct_attempts, 0) as correct_attempts,
   coalesce(t.incorrect_attempts, 0) as incorrect_attempts,
+  coalesce(extra.extra_practice_sessions, 0) as extra_practice_sessions,
   coalesce(t.llm_attempts, 0) as llm_attempts,
   coalesce(t.misconception_attempts, 0) as misconception_attempts,
   coalesce(t.topics_practiced, 0) as topics_practiced
@@ -158,6 +173,7 @@ const SORT_CLAUSES: Record<InstructorStudentSort, string> = {
 type StudentSummaryRow = {
   attempts: number | string | null;
   correct_attempts: number | string | null;
+  extra_practice_sessions: number | string | null;
   first_active_at: Date | string | null;
   hints_used: number | string | null;
   incorrect_attempts: number | string | null;
@@ -175,6 +191,7 @@ type StudentSummaryRow = {
 type TopicRow = {
   attempts: number | string | null;
   correct_attempts: number | string | null;
+  extra_practice_sessions: number | string | null;
   hints_used: number | string | null;
   incorrect_attempts: number | string | null;
   last_active_at: Date | string | null;
@@ -213,6 +230,7 @@ type CohortRow = {
   attempts: number | string | null;
   blocked_attempts: number | string | null;
   correct_attempts: number | string | null;
+  extra_practice_sessions: number | string | null;
   hints_used: number | string | null;
   llm_attempts: number | string | null;
   retrieval_attempts: number | string | null;
@@ -236,6 +254,7 @@ function toSummary(row: StudentSummaryRow): InstructorStudentSummary {
   return {
     attempts: count(row.attempts),
     correctAttempts: count(row.correct_attempts),
+    extraPracticeSessions: count(row.extra_practice_sessions),
     firstActiveAt: timestamp(row.first_active_at),
     hintsUsed: count(row.hints_used),
     incorrectAttempts: count(row.incorrect_attempts),
@@ -273,12 +292,14 @@ async function readStudentList(
       with
       ${STUDENT_SESSIONS_CTE},
       ${SESSION_TOTALS_CTE},
-      ${ATTEMPT_TOTALS_CTE}
+      ${ATTEMPT_TOTALS_CTE},
+      ${EXTRA_PRACTICE_TOTALS_CTE}
       select
         ${SUMMARY_COLUMNS},
         count(*) over ()::int as total_students
       from session_totals st
       left join attempt_totals t on t.student_key = st.student_key
+      left join extra_practice_totals extra on extra.student_key = st.student_key
       where $3::text is null or st.student_key like $3 || '%'
       order by ${order}
       limit $1
@@ -306,10 +327,12 @@ async function readStudentSummary(
       with
       ${STUDENT_SESSIONS_CTE},
       ${SESSION_TOTALS_CTE},
-      ${ATTEMPT_TOTALS_CTE}
+      ${ATTEMPT_TOTALS_CTE},
+      ${EXTRA_PRACTICE_TOTALS_CTE}
       select ${SUMMARY_COLUMNS}
       from session_totals st
       left join attempt_totals t on t.student_key = st.student_key
+      left join extra_practice_totals extra on extra.student_key = st.student_key
       where st.student_key = $1
     `,
     [studentKey],
@@ -589,6 +612,8 @@ async function readCohortAnalytics(
         select
           (select count(*)::int from session_totals) as active_students,
           (select coalesce(sum(sessions), 0)::int from session_totals) as sessions,
+          (select count(*)::int from all_student_sessions
+           where practice_context = 'reserve_practice') as extra_practice_sessions,
           (select coalesce(sum(hints_used), 0)::int from session_totals)
             as hints_used,
           (select coalesce(sum(solutions_revealed), 0)::int from session_totals)
@@ -619,6 +644,7 @@ async function readCohortAnalytics(
         cross join lateral jsonb_array_elements_text(
           s.last_misconception_ids_json
         ) as misconception_id
+        where s.practice_context = 'published'
         group by misconception_id
         order by sessions desc, misconception_id
         limit ${MISCONCEPTION_LIMIT}
@@ -632,6 +658,7 @@ async function readCohortAnalytics(
     attempts: count(totals?.attempts),
     blockedAttempts: count(totals?.blocked_attempts),
     correctAttempts: count(totals?.correct_attempts),
+    extraPracticeSessions: count(totals?.extra_practice_sessions),
     hintsUsed: count(totals?.hints_used),
     llmAttempts: count(totals?.llm_attempts),
     misconceptions: labelMisconceptions(

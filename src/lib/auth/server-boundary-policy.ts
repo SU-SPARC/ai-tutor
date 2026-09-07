@@ -389,7 +389,7 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "owned-student-resource",
     [
       "authorizeStudentResourceApi",
-      "getApprovedQuestionById",
+      "getServableTutorSessionQuestion",
       "toTutorResponseDto",
     ],
   ),
@@ -408,11 +408,11 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["authorizeStudentResourceApi", "toStudentTutorSessionDto"],
   ),
   route(
-    "GET",
+    "POST",
     "/api/tutor/session/[sessionId]/similar",
     "src/app/api/tutor/session/[sessionId]/similar/route.ts",
     "owned-student-resource",
-    ["authorizeStudentResourceApi", "findSimilarPublishedQuestion"],
+    ["authorizeStudentResourceApi", "startSimilarReservePractice"],
   ),
   route(
     "POST",

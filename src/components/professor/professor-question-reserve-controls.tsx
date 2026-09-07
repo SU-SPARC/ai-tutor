@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bookmark, BookmarkX, Loader2 } from "lucide-react";
+import { Bookmark, BookmarkX, Loader2, Shuffle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,9 @@ export function ProfessorQuestionReserveControls({
 
   if (!question.reserve && !canReserve) return null;
 
-  async function update(action: "reserve" | "release") {
+  async function update(
+    action: "reserve" | "release" | "allow_practice" | "disallow_practice",
+  ) {
     if (
       action === "reserve" &&
       questionReserveReasonRequiresNote(reasonCode) &&
@@ -77,9 +79,16 @@ export function ProfessorQuestionReserveControls({
       onUpdated(payload.question);
       setNote("");
       onMessage(
-        action === "reserve"
-          ? "Saved for later. This question remains approved and hidden from students."
-          : "Removed from Save for later. It can now be published when ready.",
+        {
+          allow_practice:
+            "Allowed for optional similar-problem practice. It remains unpublished and absent from student listings.",
+          disallow_practice:
+            "Removed from optional similar-problem practice. It remains saved for later.",
+          release:
+            "Removed from Save for later. It can now be published when ready.",
+          reserve:
+            "Saved for later. This question remains approved and hidden from students.",
+        }[action],
       );
     } catch {
       onMessage("Save for later could not be updated.");
@@ -91,36 +100,69 @@ export function ProfessorQuestionReserveControls({
   if (question.reserve) {
     return (
       <section className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">Saved for later</Badge>
+              <Badge
+                variant={
+                  question.reserve.practiceAllowed ? "success" : "outline"
+                }
+              >
+                {question.reserve.practiceAllowed
+                  ? "Eligible for similar practice"
+                  : "Reserve only"}
+              </Badge>
               <span className="text-sm font-medium">
                 {questionReserveReasonLabel(question.reserve.reasonCode)}
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Reserved by {question.reserve.reservedBy.displayName} on{" "}
-              {question.reserve.reservedAt}. Students cannot see it.
+              {question.reserve.reservedAt}. It is never shown in student
+              listings
+              {question.reserve.practiceAllowed
+                ? "; students may reach it only through the controlled optional-practice flow."
+                : "."}
             </p>
             {question.reserve.note ? (
               <p className="mt-1 text-sm">{question.reserve.note}</p>
             ) : null}
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || active}
-            onClick={() => void update("release")}
-          >
-            {active ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled || active}
+              onClick={() =>
+                void update(
+                  question.reserve!.practiceAllowed
+                    ? "disallow_practice"
+                    : "allow_practice",
+                )
+              }
+            >
+              {active ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Shuffle className="h-4 w-4" />
+              )}
+              {question.reserve.practiceAllowed
+                ? "Disable similar practice"
+                : "Allow as similar-problem practice"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled || active}
+              onClick={() => void update("release")}
+            >
               <BookmarkX className="h-4 w-4" />
-            )}
-            Remove reserve
-          </Button>
+              Remove reserve
+            </Button>
+          </div>
         </div>
       </section>
     );

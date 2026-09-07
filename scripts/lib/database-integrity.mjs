@@ -283,6 +283,61 @@ const AUDIT_CHECKS = Object.freeze([
   },
   {
     description:
+      "Reserve-practice permission must remain attached to active, unpublished, approved working content with a public-safe source classification.",
+    id: "invalid_reserve_practice_eligibility",
+    repairAction: null,
+    severity: "critical",
+    title: "Invalid Reserve-practice eligibility",
+    violationsSql: `
+      select q.id::text as record_id
+      from questions q
+      left join question_versions working_version
+        on working_version.id = q.working_version_id
+       and working_version.question_id = q.id
+      left join question_version_lifecycle working
+        on working.question_id = q.id
+       and working.question_version_id = q.working_version_id
+      where q.reserve_practice_allowed
+        and (
+          not q.is_reserved
+          or q.record_state <> 'active'
+          or q.published_version_id is not null
+          or q.working_version_id is null
+          or working.state not in ('approved', 'unpublished')
+          or working_version.snapshot_json ->> 'sourceType'
+            = 'private_reference_pattern'
+        )
+    `,
+  },
+  {
+    description:
+      "Active Reserve-practice sessions must retain an eligible pinned working version and a completed, same-owner origin on a different question.",
+    id: "invalid_reserve_practice_session_lineage",
+    repairAction: null,
+    severity: "critical",
+    title: "Invalid Reserve-practice session lineage",
+    violationsSql: `
+      select s.id::text as record_id
+      from tutor_sessions s
+      left join tutor_sessions origin on origin.id = s.origin_session_id
+      left join questions q on q.id = s.question_id
+      where s.practice_context = 'reserve_practice'
+        and s.status in ('active', 'completed')
+        and (
+          origin.id is null
+          or not (origin.solved or origin.status = 'completed')
+          or origin.question_id = s.question_id
+          or origin.user_id is distinct from s.user_id
+          or origin.anonymous_user_id is distinct from s.anonymous_user_id
+          or q.id is null
+          or not q.is_reserved
+          or not q.reserve_practice_allowed
+          or q.working_version_id is distinct from s.question_version_id
+        )
+    `,
+  },
+  {
+    description:
       "Every declared public foreign key must remain validated and have enabled PostgreSQL enforcement triggers.",
     id: "foreign_key_enforcement",
     repairAction: null,

@@ -120,6 +120,48 @@ Production requires `MIGRATION_CHANGE_TICKET` even when every pending migration
 is non-destructive. Machine-readable status includes filenames and checksums;
 the runner never prints a connection string.
 
+### Migration 023 Reserve-practice rollout
+
+Use this exact order later in the approved Production change window. Do not
+combine, omit, or reorder the migration and role steps:
+
+1. Take and verify the required pre-change backup using the current procedure
+   in [database-recovery.md](database-recovery.md). Record the backup evidence,
+   database fingerprint, and usable recovery checkpoint in the change ticket.
+2. Apply only `023_reserve_similar_practice.sql` with the approved
+   `app_migrator` workflow:
+   `npm run db:migrate -- --target production --confirm-production`.
+3. Immediately run the approved
+   `npm run db:custody:apply -- --operation provision ...` workflow. This
+   reapplies the current `db/roles/app_runtime.sql` grants and the reviewed
+   operator-role policy.
+4. Through the approved read-only operator check, verify that `app_runtime`
+   has `EXECUTE` on `app_publication_json_item_text(jsonb)`,
+   `app_publication_numeric_answer_matches(text,double precision,double precision)`,
+   and `app_question_publication_gate_failures(text,bigint,text)`.
+5. Run `npm run db:custody:verify` with the required Production custody inputs
+   and retain its passing evidence.
+6. Run `npm run db:migrate:check -- --json`; the migration ledger and checksums
+   must be current and consistent.
+7. Run `npm run db:integrity:audit:production`; every integrity check must pass
+   or have an independently approved disposition before proceeding.
+8. Verify the deployed `/api/health/database` response is healthy and still
+   requires the Production database.
+9. Perform the approved Reserve-practice smoke: allow an eligible Reserve
+   question, start it only from an owned completed session, verify its pinned
+   version and extra-practice banner, then remove the synthetic permission/data
+   through the approved cleanup path.
+10. Perform an existing published-practice smoke: list/open a published
+    question, create or resume its normal tutor session, and verify a standard
+    rule-graded response still succeeds.
+
+After migration 023 but before the role script is reapplied, Reserve-practice
+reads and inserts are expected to fail closed because `app_runtime` lacks
+`EXECUTE` on the publication-gate routines newly required by the
+security-invoker view. This bounded rollout interval is not an application
+defect. Existing published practice remains available, but the change window
+is not complete until steps 3–10 pass.
+
 ## Authoring A Migration
 
 1. Synchronize the branch and inspect the highest checked-in version.

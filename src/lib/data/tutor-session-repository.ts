@@ -12,7 +12,7 @@ import {
   runDatabaseTransaction,
   type DatabaseQueryExecutor,
 } from "@/lib/data/database-executor";
-import { queryPostgres } from "@/lib/data/postgres";
+import { DatabaseOperationError, queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import { getServerEnv } from "@/lib/env/server";
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode";
@@ -57,6 +57,8 @@ type TutorSessionRow = {
   last_answer_fingerprint?: string | null;
   last_misconception_ids_json?: unknown;
   llm_used?: boolean;
+  origin_session_id?: string | null;
+  practice_context?: "published" | "reserve_practice";
   question_id: string;
   question_snapshot_json?: unknown;
   question_title?: string | null;
@@ -71,6 +73,13 @@ type TutorSessionRow = {
   user_id: string | null;
   wrong_attempt_count?: number;
 };
+
+export class ReservePracticeEligibilityChangedError extends Error {
+  constructor() {
+    super("Reserve practice eligibility changed before the session started.");
+    this.name = "ReservePracticeEligibilityChangedError";
+  }
+}
 
 type TutorAttemptRow = {
   answer_preview: string | null;
@@ -93,8 +102,11 @@ type TutorAttemptRow = {
 
 export type CreateTutorSessionInput = {
   idempotencyKey?: string;
+  originSessionId?: string;
   owner: StudentOwner;
+  practiceContext?: "published" | "reserve_practice";
   questionId: string;
+  questionVersionId?: number;
 };
 
 export type RecordTutorSessionAttemptInput = {
@@ -176,6 +188,25 @@ export async function createTutorSession(
   };
   return writeWithConfiguredRepository((repository) =>
     repository.createSession(input),
+  );
+}
+
+export async function createReservePracticeTutorSession(
+  authorization: StudentAuthorization,
+  input: {
+    idempotencyKey: string;
+    originSessionId: string;
+    questionId: string;
+    questionVersionId: number;
+  },
+) {
+  const authorizedInput: CreateTutorSessionInput = {
+    ...input,
+    owner: ownerFromAuthorization(authorization),
+    practiceContext: "reserve_practice",
+  };
+  return writeWithConfiguredRepository((repository) =>
+    repository.createSession(authorizedInput),
   );
 }
 
@@ -364,8 +395,11 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         idempotencyKey: input.idempotencyKey,
         lastSeenAt: createdAt.toISOString(),
         llmUsed: false,
+        originSessionId: input.originSessionId,
+        practiceContext: input.practiceContext ?? "published",
         questionId: input.questionId,
-        questionVersionId: demoQuestionVersionId(input.questionId),
+        questionVersionId:
+          input.questionVersionId ?? demoQuestionVersionId(input.questionId),
         revealedHints: 0,
         revealedSteps: 0,
         retrievalUsed: false,
@@ -573,42 +607,49 @@ export function createDatabaseTutorSessionRepository(
 ): TutorSessionRepository {
   return {
     async createSession(input) {
-      return runDatabaseTransaction(query, async (transactionQuery) => {
-        const idempotencyKey = input.idempotencyKey ?? randomUUID();
-        const ownerId = ownerIdentifier(input.owner);
-        const rows = await transactionQuery(
-          `
-            insert into tutor_sessions (
-              id,
-              anonymous_user_id,
-              user_id,
-              question_id,
-              expires_at,
-              revealed_hints,
-              revealed_steps,
-              creation_idempotency_key
-            )
-            values ($1, $2, $3, $4, $5, 0, 0, $6)
-            on conflict do nothing
-            returning *
-          `,
-          [
-            randomUUID(),
-            input.owner.kind === "anonymous" ? ownerId : null,
-            input.owner.kind === "user" ? ownerId : null,
-            input.questionId,
-            new Date(
-              Date.now() +
-                retentionDaysForOwner(input.owner) * 24 * 60 * 60 * 1_000,
-            ),
-            idempotencyKey,
-          ],
-        );
-        const row = (rows[0] ??
-          (
-            await readDatabaseRows(
-              transactionQuery,
-              `
+      try {
+        return await runDatabaseTransaction(query, async (transactionQuery) => {
+          const idempotencyKey = input.idempotencyKey ?? randomUUID();
+          const ownerId = ownerIdentifier(input.owner);
+          const rows = await transactionQuery(
+            `
+              insert into tutor_sessions (
+                id,
+                anonymous_user_id,
+                user_id,
+                question_id,
+                question_version_id,
+                practice_context,
+                origin_session_id,
+                expires_at,
+                revealed_hints,
+                revealed_steps,
+                creation_idempotency_key
+              )
+              values ($1, $2, $3, $4, $5, $6, $7, $8, 0, 0, $9)
+              on conflict do nothing
+              returning *
+            `,
+            [
+              randomUUID(),
+              input.owner.kind === "anonymous" ? ownerId : null,
+              input.owner.kind === "user" ? ownerId : null,
+              input.questionId,
+              input.questionVersionId ?? null,
+              input.practiceContext ?? "published",
+              input.originSessionId ?? null,
+              new Date(
+                Date.now() +
+                  retentionDaysForOwner(input.owner) * 24 * 60 * 60 * 1_000,
+              ),
+              idempotencyKey,
+            ],
+          );
+          const row = (rows[0] ??
+            (
+              await readDatabaseRows(
+                transactionQuery,
+                `
                 select *
                 from tutor_sessions
                 where question_id = $1
@@ -620,15 +661,29 @@ export function createDatabaseTutorSessionRepository(
                   )
                 limit 1
               `,
-              [input.questionId, idempotencyKey, input.owner.kind, ownerId],
-            )
-          )[0]) as TutorSessionRow | undefined;
+                [input.questionId, idempotencyKey, input.owner.kind, ownerId],
+              )
+            )[0]) as TutorSessionRow | undefined;
 
-        if (!row) {
-          throw new Error("Tutor session idempotency conflict.");
+          if (!row) {
+            throw new Error("Tutor session idempotency conflict.");
+          }
+          return mapTutorSession(row, []);
+        });
+      } catch (cause) {
+        if (
+          input.practiceContext === "reserve_practice" &&
+          ((cause instanceof DatabaseOperationError &&
+            cause.sqlState === "P0001") ||
+            (cause instanceof Error &&
+              cause.message.includes(
+                "Reserve practice requires an eligible question and an owned completed origin session",
+              )))
+        ) {
+          throw new ReservePracticeEligibilityChangedError();
         }
-        return mapTutorSession(row, []);
-      });
+        throw cause;
+      }
     },
 
     async getSession(sessionId, owner) {
@@ -895,10 +950,7 @@ export function createDatabaseTutorSessionRepository(
           );
 
           if (input.aiAccounting) {
-            await applyTutorAiAccounting(
-              input.aiAccounting,
-              transactionQuery,
-            );
+            await applyTutorAiAccounting(input.aiAccounting, transactionQuery);
           }
 
           const current = await readDatabaseSession(
@@ -1168,6 +1220,9 @@ async function writeWithConfiguredRepository<T>(
     try {
       return await write(tutorSessionRepositoryOverride);
     } catch (cause) {
+      if (cause instanceof ReservePracticeEligibilityChangedError) {
+        throw cause;
+      }
       throw new DataServiceUnavailableError("tutor-session", { cause });
     }
   }
@@ -1185,6 +1240,9 @@ async function writeWithConfiguredRepository<T>(
       createDatabaseTutorSessionRepository(env.DATABASE_URL, queryPostgres),
     );
   } catch (cause) {
+    if (cause instanceof ReservePracticeEligibilityChangedError) {
+      throw cause;
+    }
     // A failed database write must never be replayed against process memory.
     // The server cannot prove whether a connection failure happened before or
     // after commit, so callers receive a stable unavailable response instead.
@@ -1288,6 +1346,8 @@ function mapTutorSession(
     idempotencyKey: sessionRow.creation_idempotency_key,
     lastSeenAt: toIsoString(sessionRow.last_seen_at),
     llmUsed: Boolean(sessionRow.llm_used),
+    originSessionId: sessionRow.origin_session_id ?? undefined,
+    practiceContext: sessionRow.practice_context ?? "published",
     questionId: String(sessionRow.question_id),
     questionTitle: sessionRow.question_title ?? undefined,
     questionVersionId: Number(sessionRow.question_version_id),

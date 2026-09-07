@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { ProfessorQuestionReserveControls } from "@/components/professor/professor-question-reserve-controls";
+import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
 import type { QuestionLifecycleDto } from "@/lib/types";
 
 describe("ProfessorQuestionReserveControls", () => {
@@ -37,6 +38,7 @@ describe("ProfessorQuestionReserveControls", () => {
         question: question({
           reserve: {
             note: "Useful after the midterm.",
+            practiceAllowed: true,
             reasonCode: "future_topic",
             reservedAt: "2026-09-06T12:00:00.000Z",
             reservedBy: {
@@ -53,9 +55,57 @@ describe("ProfessorQuestionReserveControls", () => {
     expect(html).toContain("Future topic");
     expect(html).toContain("Useful after the midterm.");
     expect(html).toContain("Remove reserve");
-    expect(html).toContain("Students cannot see it");
+    expect(html).toContain("Eligible for similar practice");
+    expect(html).toContain("Disable similar practice");
+    expect(html).toContain("never shown in student listings");
+  });
+
+  it("labels every Reserve ledger action in the professor timeline", () => {
+    const version = question().workingVersion;
+    const reserveQuestion = question({
+      reserveEvents: [
+        reserveEvent(1, "reserve"),
+        reserveEvent(2, "allow_practice"),
+        reserveEvent(3, "disallow_practice"),
+        reserveEvent(4, "release"),
+      ],
+    });
+    const html = renderToStaticMarkup(
+      createElement(ProfessorQuestionLifecyclePanel, {
+        focusQuestionId: reserveQuestion.questionId,
+        hideBulkControls: true,
+        initialDashboard: {
+          inspections: [],
+          mode: "database",
+          questions: [reserveQuestion],
+          readOnly: true,
+          topics: [{ id: version.topicId, title: "Topic" }],
+        },
+      }),
+    );
+
+    expect(html).toContain("Saved for later");
+    expect(html).toContain("Similar practice allowed");
+    expect(html).toContain("Similar practice disabled");
+    expect(html).toContain("Reserve removed");
   });
 });
+
+function reserveEvent(
+  id: number,
+  action: "allow_practice" | "disallow_practice" | "release" | "reserve",
+) {
+  return {
+    action,
+    actor: {
+      displayName: "Professor Test",
+      occurredAt: `2026-09-06T12:0${id}:00.000Z`,
+      userId: "user:professor",
+    },
+    id,
+    versionId: 1,
+  } as const;
+}
 
 function question(
   overrides: Partial<QuestionLifecycleDto> = {},

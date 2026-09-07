@@ -17,7 +17,12 @@ import {
   questionReserveReasonRequiresNote,
 } from "@/lib/tutor/professor-question-reserve";
 
-const RESERVE_ACTIONS = ["reserve", "release"] as const;
+const RESERVE_ACTIONS = [
+  "reserve",
+  "release",
+  "allow_practice",
+  "disallow_practice",
+] as const;
 const MAX_BODY_BYTES = 16_384;
 
 export async function POST(
@@ -93,9 +98,9 @@ export async function POST(
       { status: 422 },
     );
   }
-  if (action === "release" && body.reasonCode !== undefined) {
+  if (action !== "reserve" && body.reasonCode !== undefined) {
     return NextResponse.json(
-      { error: "Removing Save for later does not accept a reason code." },
+      { error: "Only Save for later accepts a reason code." },
       { status: 422 },
     );
   }

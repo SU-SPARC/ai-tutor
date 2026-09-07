@@ -163,7 +163,7 @@ export type QuestionLifecycleFilters = {
 };
 
 export type SetQuestionReserveInput = {
-  action: "reserve" | "release";
+  action: "reserve" | "release" | "allow_practice" | "disallow_practice";
   expectedWorkingVersionId: number;
   idempotencyKey?: string;
   note?: string;
@@ -217,6 +217,7 @@ type QuestionVersionRow = {
   working_version_id: number | string;
   published_version_id: number | string | null;
   is_reserved: boolean;
+  reserve_practice_allowed: boolean;
   reserve_note: string | null;
   reserve_reason_code: QuestionReserveReasonCode | null;
   reserved_at: Date | string | null;
@@ -225,7 +226,7 @@ type QuestionVersionRow = {
 };
 
 type QuestionReserveEventRow = {
-  action: "reserve" | "release";
+  action: "reserve" | "release" | "allow_practice" | "disallow_practice";
   actor_display_name: string;
   actor_user_id: string;
   id: number | string;
@@ -1002,6 +1003,7 @@ export function createDatabaseQuestionLifecycleRepository(
                q.published_version_id,
                q.record_state,
                q.is_reserved,
+               q.reserve_practice_allowed,
                qvl.state,
                u.external_subject
              from questions q
@@ -1070,6 +1072,45 @@ export function createDatabaseQuestionLifecycleRepository(
             throw new QuestionLifecycleConflictError(
               "This question is not currently saved for later.",
             );
+          } else if (
+            input.action === "allow_practice" &&
+            current.reserve_practice_allowed
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "This question is already allowed for similar practice.",
+            );
+          } else if (
+            input.action === "disallow_practice" &&
+            !current.reserve_practice_allowed
+          ) {
+            throw new QuestionLifecycleConflictError(
+              "This question is not currently allowed for similar practice.",
+            );
+          }
+
+          if (input.action === "allow_practice") {
+            const lifecycle = await requireQuestionLifecycle(
+              transactionQuery,
+              input.questionId,
+            );
+            const version = lifecycle.versions.find(
+              (candidate) =>
+                candidate.versionId === input.expectedWorkingVersionId,
+            );
+            if (!version) {
+              throw new QuestionLifecycleNotFoundError(
+                "Question version was not found.",
+              );
+            }
+            const blockers = await publicationQualityGateBlockers(
+              transactionQuery,
+              lifecycle,
+              version,
+              { reservedForLater: false },
+            );
+            if (blockers.length > 0) {
+              throw new QuestionPublicationBlockedError(blockers);
+            }
           }
 
           await transactionQuery(
@@ -1084,20 +1125,27 @@ export function createDatabaseQuestionLifecycleRepository(
             input.action === "reserve"
               ? `update questions
                  set is_reserved = true,
+                     reserve_practice_allowed = false,
                      reserve_reason_code = $2,
                      reserve_note = $3,
                      reserved_by_user_id = $4,
                      reserved_at = now(),
                      updated_at = now()
                  where id = $1`
-              : `update questions
+              : input.action === "release"
+                ? `update questions
                  set is_reserved = false,
+                     reserve_practice_allowed = false,
                      reserve_reason_code = null,
                      reserve_note = null,
                      reserved_by_user_id = null,
                      reserved_at = null,
                      updated_at = now()
-                 where id = $1`,
+                 where id = $1`
+                : `update questions
+                   set reserve_practice_allowed = $2,
+                       updated_at = now()
+                   where id = $1`,
             input.action === "reserve"
               ? [
                   input.questionId,
@@ -1105,8 +1153,23 @@ export function createDatabaseQuestionLifecycleRepository(
                   note ?? null,
                   reviewer.userId,
                 ]
-              : [input.questionId],
+              : input.action === "release"
+                ? [input.questionId]
+                : [input.questionId, input.action === "allow_practice"],
           );
+          if (
+            input.action === "release" ||
+            input.action === "disallow_practice"
+          ) {
+            await transactionQuery(
+              `update tutor_sessions
+               set status = 'content_unpublished', updated_at = now()
+               where question_id = $1
+                 and practice_context = 'reserve_practice'
+                 and status in ('active', 'completed')`,
+              [input.questionId],
+            );
+          }
           await transactionQuery(
             `insert into question_reserve_events (
                question_id, question_version_id, action, reason_code, note,
@@ -1955,6 +2018,7 @@ async function publicationQualityGateBlockers(
   query: DatabaseQueryExecutor,
   lifecycle: QuestionLifecycleDto,
   version: QuestionVersionDto,
+  options: { reservedForLater?: boolean } = {},
 ) {
   const rows = await readDatabaseRows(
     query,
@@ -2054,7 +2118,7 @@ async function publicationQualityGateBlockers(
     hintsRequired: true,
     professorApprovalExists: Boolean(evidence.professor_approval_exists),
     questionId: lifecycle.questionId,
-    reservedForLater: Boolean(lifecycle.reserve),
+    reservedForLater: options.reservedForLater ?? Boolean(lifecycle.reserve),
     rawMetadata: {
       generationMetadata: evidence.generation_metadata_json,
       snapshot: evidence.snapshot_json,
@@ -2562,6 +2626,7 @@ async function selectQuestionVersionRows(
       select
         qvc.*,
         q.is_reserved,
+        q.reserve_practice_allowed,
         q.reserve_reason_code,
         q.reserve_note,
         q.reserved_by_user_id,
@@ -2675,6 +2740,7 @@ function buildQuestionLifecycles(
     const reserve = first.is_reserved
       ? {
           note: first.reserve_note ?? undefined,
+          practiceAllowed: first.reserve_practice_allowed,
           reasonCode: first.reserve_reason_code!,
           reservedAt: toIsoString(first.reserved_at!)!,
           reservedBy: {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeSummary } from "@/lib/api/question-serialization";
 import {
   dataServiceUnavailableResponse,
   safeApiErrorResponse,
@@ -7,7 +8,7 @@ import {
 } from "@/lib/api/service-unavailable";
 import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
-import { findSimilarPublishedQuestion } from "@/lib/tutor/similar-published-question";
+import { startSimilarReservePractice } from "@/lib/tutor/similar-reserve-practice";
 
 type SimilarQuestionRouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -15,7 +16,7 @@ type SimilarQuestionRouteContext = {
 
 const SIMILAR_QUESTION_ROUTE = "/api/tutor/session/[sessionId]/similar";
 
-export async function GET(
+export async function POST(
   request: Request,
   context: SimilarQuestionRouteContext,
 ) {
@@ -29,7 +30,7 @@ export async function GET(
   if (!access.ok) return access.response;
 
   try {
-    const result = await findSimilarPublishedQuestion(
+    const result = await startSimilarReservePractice(
       access.authorization,
       sessionId,
     );
@@ -50,7 +51,15 @@ export async function GET(
       });
     }
     return NextResponse.json(
-      { question: result.outcome === "match" ? result.question : null },
+      {
+        practice:
+          result.outcome === "match"
+            ? {
+                question: normalizeSummary(result.candidate.question),
+                sessionId: result.sessionId,
+              }
+            : null,
+      },
       {
         headers: {
           "Cache-Control": "private, no-store",

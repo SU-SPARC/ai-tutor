@@ -15,12 +15,15 @@ import {
   setContentRepositoryForTests,
 } from "@/lib/data/data-store";
 import type { ContentRepository } from "@/lib/data/repository";
+import { setReservePracticeRepositoryForTests } from "@/lib/data/reserve-practice-repository";
 import {
+  createReservePracticeTutorSession,
   createTutorSession,
   createDatabaseTutorSessionRepository,
   getTutorSession as getTutorSessionRecord,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
+import * as tutorEngine from "@/lib/tutor/tutor-engine";
 import type { TutorQuestion } from "@/lib/types";
 import {
   authorizationForStudentOwner,
@@ -44,7 +47,9 @@ describe("tutor session API", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     setContentRepositoryForTests(undefined);
+    setReservePracticeRepositoryForTests(undefined);
     vi.unstubAllEnvs();
     resetAuthMocks();
   });
@@ -233,6 +238,139 @@ describe("tutor session API", () => {
     expect(JSON.stringify(recovered)).not.toContain(
       currentQuestion?.hints[0] ?? "CURRENT-HINT",
     );
+  });
+
+  it("reads and grades an eligible Reserve-practice session, then conceals it after withdrawal", async () => {
+    const published = await getApprovedQuestionById("dice-sum-eight");
+    expect(published).toBeDefined();
+    const reserveQuestion: TutorQuestion = {
+      ...published!,
+      id: "reserve:session-api",
+      prompt: "What is one divided by two?",
+      source: {
+        ...published!.source,
+        visibility: "private",
+      },
+      title: "Reserve session API question",
+    };
+    const candidate = {
+      question: reserveQuestion,
+      reservedAt: "2026-09-06T12:00:00.000Z",
+      versionId: 42,
+    };
+    setReservePracticeRepositoryForTests({
+      async getEligibleQuestion(questionId, versionId) {
+        return questionId === reserveQuestion.id && versionId === 42
+          ? candidate
+          : undefined;
+      },
+      async listEligibleQuestions() {
+        return [candidate];
+      },
+    });
+    const session = await createReservePracticeTutorSession(
+      authorizationForStudentOwner(TEST_ANONYMOUS_OWNER),
+      {
+        idempotencyKey: "reserve-session-api",
+        originSessionId: "origin:session-api",
+        questionId: reserveQuestion.id,
+        questionVersionId: 42,
+      },
+    );
+
+    const fetched = await getSession(
+      new Request(`http://localhost/api/tutor/session/${session.id}`),
+      sessionContext(session.id),
+    );
+    expect(fetched.status).toBe(200);
+    await expect(fetched.json()).resolves.toMatchObject({
+      session: {
+        practiceContext: "reserve_practice",
+        question: {
+          id: reserveQuestion.id,
+          prompt: reserveQuestion.prompt,
+          title: reserveQuestion.title,
+        },
+      },
+    });
+
+    const hinted = await postTutorResponse(
+      jsonRequest("http://localhost/api/tutor/respond", {
+        answer: "",
+        eventId: "event:reserve-session-api-hint",
+        mode: "hint",
+        questionId: reserveQuestion.id,
+        sessionId: session.id,
+      }),
+    );
+    const stepped = await postTutorResponse(
+      jsonRequest("http://localhost/api/tutor/respond", {
+        answer: "",
+        eventId: "event:reserve-session-api-step",
+        mode: "solution",
+        questionId: reserveQuestion.id,
+        sessionId: session.id,
+      }),
+    );
+    expect(hinted.status).toBe(200);
+    expect(stepped.status).toBe(200);
+    const disclosed = await getSession(
+      new Request(`http://localhost/api/tutor/session/${session.id}`),
+      sessionContext(session.id),
+    );
+    await expect(disclosed.json()).resolves.toMatchObject({
+      session: {
+        disclosedHints: reserveQuestion.hints.slice(0, 1),
+        disclosedSolutionSteps: reserveQuestion.solutionSteps.slice(0, 1),
+      },
+    });
+
+    const engineSpy = vi.spyOn(tutorEngine, "createTutorResponseFromState");
+    const graded = await postTutorResponse(
+      jsonRequest("http://localhost/api/tutor/respond", {
+        allowLlmFallback: true,
+        answer: reserveQuestion.answer.acceptedAnswers[0],
+        eventId: "event:reserve-session-api",
+        mode: "check",
+        questionId: reserveQuestion.id,
+        sessionId: session.id,
+      }),
+    );
+    expect(graded.status).toBe(200);
+    await expect(graded.json()).resolves.toMatchObject({
+      source: "rule",
+      verdict: "correct",
+    });
+    expect(engineSpy).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      reserveQuestion,
+      expect.objectContaining({ questionVersionId: 42 }),
+    );
+
+    setReservePracticeRepositoryForTests({
+      async getEligibleQuestion() {
+        return undefined;
+      },
+      async listEligibleQuestions() {
+        return [];
+      },
+    });
+    const withdrawnGet = await getSession(
+      new Request(`http://localhost/api/tutor/session/${session.id}`),
+      sessionContext(session.id),
+    );
+    const withdrawnRespond = await postTutorResponse(
+      jsonRequest("http://localhost/api/tutor/respond", {
+        answer: reserveQuestion.answer.acceptedAnswers[0],
+        eventId: "event:reserve-session-api-withdrawn",
+        mode: "check",
+        questionId: reserveQuestion.id,
+        sessionId: session.id,
+      }),
+    );
+    expect(withdrawnGet.status).toBe(404);
+    expect(withdrawnRespond.status).toBe(404);
   });
 
   it("validates required session route inputs", async () => {

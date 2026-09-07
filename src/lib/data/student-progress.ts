@@ -55,8 +55,11 @@ export async function getStudentProgress(
   const questionsById = new Map(
     orderedQuestions.map((question) => [question.id, question]),
   );
+  const assignedSessions = sessions.filter(
+    (session) => session.practiceContext !== "reserve_practice",
+  );
   const progressByQuestion = aggregateQuestionProgress(
-    sessions,
+    assignedSessions,
     questionsById,
     topicsById,
   );
@@ -131,7 +134,12 @@ export async function getStudentProgress(
       .slice(0, RECENT_SESSION_LIMIT)
       .flatMap((session) => {
         const question = questionsById.get(session.questionId);
-        const topicId = question?.topicId ?? session.topicId;
+        const reserveQuestion =
+          session.practiceContext === "reserve_practice"
+            ? session.questionVersion
+            : undefined;
+        const topicId =
+          question?.topicId ?? reserveQuestion?.topicId ?? session.topicId;
         const topic = topicId ? topicsById.get(topicId) : undefined;
 
         if (!topicId || !topic) {
@@ -139,7 +147,20 @@ export async function getStudentProgress(
         }
 
         const progress = progressByQuestion.get(session.questionId);
-        const available = Boolean(question);
+        const available = Boolean(
+          question ||
+          (reserveQuestion && session.status !== "content_unpublished"),
+        );
+        const reserveCorrect = session.attempts.some(
+          (attempt) => attempt.verdict === "correct",
+        );
+        const reserveIncorrect = session.attempts.some(
+          (attempt) => attempt.verdict === "incorrect",
+        );
+        const completed =
+          session.practiceContext === "reserve_practice"
+            ? Boolean(session.solved || session.status === "completed")
+            : Boolean(progress && progress.correctAttempts > 0);
 
         return [
           {
@@ -149,14 +170,18 @@ export async function getStudentProgress(
             lastSeenAt: session.lastSeenAt,
             needsAnotherAttempt: progress
               ? progress.correctAttempts === 0 && progress.incorrectAttempts > 0
-              : false,
+              : reserveIncorrect && !reserveCorrect,
             questionId: session.questionId,
             questionTitle: available
-              ? (session.questionTitle ?? question?.title ?? "Question")
+              ? (session.questionTitle ??
+                question?.title ??
+                reserveQuestion?.title ??
+                "Question")
               : "Unavailable question",
+            practiceContext: session.practiceContext ?? "published",
             sessionId: session.id,
             status: available
-              ? progress && progress.correctAttempts > 0
+              ? completed
                 ? ("completed" as const)
                 : ("in_progress" as const)
               : ("unavailable" as const),
@@ -169,7 +194,10 @@ export async function getStudentProgress(
     summary: {
       availableQuestions: orderedQuestions.length,
       completedQuestions,
-      hintsUsed: sessions.reduce(
+      extraPracticeSessions: sessions.filter(
+        (session) => session.practiceContext === "reserve_practice",
+      ).length,
+      hintsUsed: assignedSessions.reduce(
         (total, session) => total + session.revealedHints,
         0,
       ),

@@ -54,7 +54,12 @@ import {
 } from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 
-type LifecycleFilter = QuestionVersionState | "all" | "archived" | "reserve";
+type LifecycleFilter =
+  | QuestionVersionState
+  | "all"
+  | "archived"
+  | "practice_allowed"
+  | "reserve";
 
 type PublicationPreviewState = {
   action: "publish" | "rollback";
@@ -70,6 +75,7 @@ const FILTERS: Array<{ label: string; value: LifecycleFilter }> = [
   { label: "Revision requested", value: "revision_requested" },
   { label: "Approved", value: "approved" },
   { label: "Reserve", value: "reserve" },
+  { label: "Practice allowed", value: "practice_allowed" },
   { label: "Published", value: "published" },
   { label: "Unpublished", value: "unpublished" },
   { label: "Rejected", value: "rejected" },
@@ -94,6 +100,13 @@ const EVENT_LABELS: Record<QuestionLifecycleEventAction, string> = {
   migrate: "History migrated",
   regenerate: "Version regenerated",
 };
+
+const RESERVE_EVENT_LABELS = {
+  allow_practice: "Similar practice allowed",
+  disallow_practice: "Similar practice disabled",
+  release: "Reserve removed",
+  reserve: "Saved for later",
+} as const;
 
 export function ProfessorQuestionLifecyclePanel({
   focusQuestionId,
@@ -138,6 +151,9 @@ export function ProfessorQuestionLifecyclePanel({
         if (filter === "all") return true;
         if (filter === "archived") return question.recordState === "archived";
         if (filter === "reserve") return Boolean(question.reserve);
+        if (filter === "practice_allowed") {
+          return Boolean(question.reserve?.practiceAllowed);
+        }
         return (
           question.recordState === "active" &&
           question.workingVersion.state === filter
@@ -508,6 +524,18 @@ export function ProfessorQuestionLifecyclePanel({
         </label>
         <div className="flex gap-2">
           <Badge variant="secondary">{dashboard.mode}</Badge>
+          <Badge variant="outline">
+            {dashboard.questions.filter((question) => question.reserve).length}{" "}
+            reserved
+          </Badge>
+          <Badge variant="outline">
+            {
+              dashboard.questions.filter(
+                (question) => question.reserve?.practiceAllowed,
+              ).length
+            }{" "}
+            practice allowed
+          </Badge>
           {dashboard.readOnly ? (
             <Badge variant="outline">read-only</Badge>
           ) : null}
@@ -711,7 +739,9 @@ export function ProfessorQuestionLifecyclePanel({
                             {working.title}
                             {question.reserve ? (
                               <Badge variant="secondary" className="ml-2">
-                                Saved for later
+                                {question.reserve.practiceAllowed
+                                  ? "Saved + practice"
+                                  : "Saved for later"}
                               </Badge>
                             ) : null}
                           </span>
@@ -1347,9 +1377,7 @@ export function ProfessorQuestionVersionHistory({
                   className="border-l-2 border-border pl-3 text-sm"
                 >
                   <p className="font-medium">
-                    {event.action === "reserve"
-                      ? "Saved for later"
-                      : "Reserve removed"}
+                    {RESERVE_EVENT_LABELS[event.action]}
                     {event.reasonCode
                       ? ` · ${questionReserveReasonLabel(event.reasonCode)}`
                       : ""}

@@ -1,7 +1,11 @@
 import "server-only";
 
 import { getApprovedQuestionById } from "@/lib/data/data-store";
+import { getEligibleReservePracticeQuestion } from "@/lib/data/reserve-practice-repository";
+import { normalizeSummary } from "@/lib/api/question-serialization";
 import type {
+  PracticeQuestion,
+  StudentPracticeQuestion,
   TutorMode,
   TutorResponseLabel,
   TutorSessionRecord,
@@ -36,6 +40,9 @@ export type TutorSessionDto = {
   expiresAt?: string;
   id: string;
   lastSeenAt?: string;
+  originSessionId?: string;
+  practiceContext?: "published" | "reserve_practice";
+  question?: StudentPracticeQuestion;
   questionId: string;
   questionVersionId?: number;
   revealedHints: number;
@@ -77,6 +84,8 @@ export function toTutorSessionDto(
     expiresAt: session.expiresAt,
     id: session.id,
     lastSeenAt: session.lastSeenAt,
+    originSessionId: session.originSessionId,
+    practiceContext: session.practiceContext ?? "published",
     questionId: session.questionId,
     questionVersionId: session.questionVersionId,
     revealedHints: session.revealedHints ?? 0,
@@ -95,12 +104,9 @@ export async function toStudentTutorSessionDto(session: TutorSessionRecord) {
   if (session.status === "content_unpublished") {
     return undefined;
   }
-  const currentlyApprovedQuestion = await getApprovedQuestionById(
-    session.questionId,
-  );
-  if (!currentlyApprovedQuestion) {
-    return undefined;
-  }
+  const currentlyApprovedQuestion =
+    await getServableTutorSessionQuestion(session);
+  if (!currentlyApprovedQuestion) return undefined;
 
   const dto = toTutorSessionDto(session);
   const question = session.questionVersion ?? currentlyApprovedQuestion;
@@ -112,5 +118,25 @@ export async function toStudentTutorSessionDto(session: TutorSessionRecord) {
         : undefined,
     disclosedHints: question.hints.slice(0, dto.revealedHints),
     disclosedSolutionSteps: question.solutionSteps.slice(0, dto.revealedSteps),
+    question:
+      dto.practiceContext === "reserve_practice"
+        ? normalizeSummary(question)
+        : undefined,
   };
+}
+
+export async function getServableTutorSessionQuestion(
+  session: TutorSessionRecord,
+): Promise<PracticeQuestion | undefined> {
+  if (session.status === "content_unpublished") return undefined;
+  if (session.practiceContext === "reserve_practice") {
+    if (!session.questionVersionId) return undefined;
+    return (
+      await getEligibleReservePracticeQuestion(
+        session.questionId,
+        session.questionVersionId,
+      )
+    )?.question;
+  }
+  return getApprovedQuestionById(session.questionId);
 }

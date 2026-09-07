@@ -406,11 +406,9 @@ export type StudentPracticeQuestion = {
   topicId: string;
 };
 
-export type SimilarPublishedQuestionDto = {
-  difficulty: Difficulty;
-  questionId: string;
-  title: string;
-  topicId: string;
+export type SimilarPracticeSessionDto = {
+  question: StudentPracticeQuestion;
+  sessionId: string;
 };
 
 export type RetrievalChunkType =
@@ -550,13 +548,14 @@ export type QuestionReserveReasonCode =
 
 export type QuestionReserveDisposition = {
   note?: string;
+  practiceAllowed?: boolean;
   reasonCode: QuestionReserveReasonCode;
   reservedAt: string;
   reservedBy: QuestionVersionAttribution;
 };
 
 export type QuestionReserveEventDto = {
-  action: "reserve" | "release";
+  action: "reserve" | "release" | "allow_practice" | "disallow_practice";
   actor: QuestionVersionAttribution;
   id: number;
   note?: string;
@@ -837,6 +836,8 @@ export type TutorSessionRecord = {
   idempotencyKey?: string;
   lastSeenAt: string;
   llmUsed?: boolean;
+  originSessionId?: string;
+  practiceContext?: "published" | "reserve_practice";
   questionId: string;
   questionTitle?: string;
   questionVersionId?: number;
@@ -869,6 +870,7 @@ export type TutorSessionEngineState = TutorProgress & {
 export type InstructorStudentSummary = {
   attempts: number;
   correctAttempts: number;
+  extraPracticeSessions: number;
   firstActiveAt?: string;
   hintsUsed: number;
   incorrectAttempts: number;
@@ -977,6 +979,7 @@ export type InstructorCohortAnalytics = {
   attempts: number;
   blockedAttempts: number;
   correctAttempts: number;
+  extraPracticeSessions: number;
   hintsUsed: number;
   llmAttempts: number;
   misconceptions: InstructorMisconceptionCount[];
@@ -1011,6 +1014,7 @@ export type StudentProgressDashboard = {
     needsAnotherAttempt: boolean;
     questionId: string;
     questionTitle: string;
+    practiceContext?: "published" | "reserve_practice";
     sessionId: string;
     status: "completed" | "in_progress" | "unavailable";
     stepsRevealed: number;
@@ -1020,6 +1024,7 @@ export type StudentProgressDashboard = {
   summary: {
     availableQuestions: number;
     completedQuestions: number;
+    extraPracticeSessions?: number;
     hintsUsed: number;
     inProgressQuestions: number;
     needsAnotherAttempt: number;

@@ -95,7 +95,7 @@ questions are absent from student views and intentional reserves are excluded
 from waiting-to-publish warnings.
 
 `question_reserve_events` is an append-only professor-attributed ledger for
-reserve and release actions. The current disposition lives on `questions` for
+reserve, release, allow-practice, and disallow-practice actions. The current disposition lives on `questions` for
 filtering. The runtime role has SELECT plus the exact INSERT permission needed
 for the ledger, UPDATE on `questions`, and a role-scoped RLS policy; Data API
 roles retain no access.
@@ -190,6 +190,8 @@ labels.
 - `POST /api/professor/questions/:id/regenerate` creates a version under the
   same question.
 - `POST /api/professor/questions/:id/reserve` records or removes Save for later
+  and controls whether an already-reserved approved version may be selected
+  for optional similar-problem practice
   on the exact active working version.
 - `POST /api/professor/questions/inspections` records deliberate inspection of
   the current immutable review version for the signed-in professor.
@@ -203,9 +205,11 @@ labels.
   lifecycle counts without question content. Supplying one `topicId` returns
   only that topic's `needs_review` working versions through a narrow,
   public-safe review DTO.
-- `GET /api/tutor/session/:sessionId/similar` is an owned-student-resource read
-  available after completion. It ranks only existing, currently available
-  published questions in the same topic and returns no private review metadata.
+- `POST /api/tutor/session/:sessionId/similar` is an owned-student-resource
+  mutation that selects an eligible Reserve version and creates the protected
+  optional-practice session after completion without accepting a question ID
+  from the client. It ranks only explicitly enabled, currently available
+  Reserve questions in the same topic and returns no private review metadata.
 
 Invalid/stale transitions return `409`; content validation returns `422`;
 unavailable records return `404`; authentication and authorization retain

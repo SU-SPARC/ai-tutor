@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe("production data integrity", () => {
-  it("runs all eighteen checks in a repeatable-read, read-only audit and formats a human report", async () => {
+  it("runs all twenty checks in a repeatable-read, read-only audit and formats a human report", async () => {
     const database = await integrityDatabase("test");
     await seedValidBlockedReservation(database);
     const report = await runReadOnlyIntegrityAudit(clientFor(database), {
@@ -42,8 +42,8 @@ describe("production data integrity", () => {
       summary: {
         failedChecks: 0,
         findings: 0,
-        passedChecks: 18,
-        totalChecks: 18,
+        passedChecks: 20,
+        totalChecks: 20,
       },
       target: "test",
     });
@@ -174,6 +174,122 @@ describe("production data integrity", () => {
     expect(
       check(report, "invalid_question_lifecycle_pointers").sampleIds,
     ).toEqual([expect.stringMatching(/^ref_[0-9a-f]{16}$/)]);
+  });
+
+  it("detects invalid Reserve eligibility and active session lineage", async () => {
+    const database = await integrityDatabase("test");
+    await database.exec(`
+      insert into topics (id, sort_order) values ('reserve-topic', 1);
+      insert into questions (
+        id, topic_id, title, source_type, trust_level, review_status,
+        visibility, record_state, working_version_id, is_reserved,
+        reserve_practice_allowed
+      ) values
+        ('reserve-eligibility-drift', 'reserve-topic', 'Eligibility drift',
+         'private_reference_pattern', 'private_reference', 'approved',
+         'private', 'active', 10, true, true),
+        ('reserve-session-question', 'reserve-topic', 'Session question',
+         'professor_provided', 'public_original', 'approved', 'private',
+         'active', 11, true, false),
+        ('reserve-origin-question', 'reserve-topic', 'Origin question',
+         'professor_provided', 'public_original', 'approved', 'public',
+         'active', 12, false, false);
+      insert into question_versions (id, question_id, snapshot_json) values
+        (10, 'reserve-eligibility-drift',
+         '{"sourceType":"private_reference_pattern"}'::jsonb),
+        (11, 'reserve-session-question',
+         '{"sourceType":"professor_provided"}'::jsonb),
+        (12, 'reserve-origin-question',
+         '{"sourceType":"professor_provided"}'::jsonb);
+      insert into question_version_lifecycle (
+        question_version_id, question_id, state
+      ) values
+        (10, 'reserve-eligibility-drift', 'approved'),
+        (11, 'reserve-session-question', 'approved'),
+        (12, 'reserve-origin-question', 'published');
+      insert into tutor_sessions (
+        id, anonymous_user_id, question_id, question_version_id,
+        practice_context, status, solved
+      ) values (
+        'reserve-origin', 'anon:reserve-integrity',
+        'reserve-origin-question', 12, 'published', 'completed', true
+      );
+      insert into tutor_sessions (
+        id, anonymous_user_id, question_id, question_version_id,
+        practice_context, origin_session_id, status
+      ) values (
+        'reserve-lineage-drift', 'anon:reserve-integrity',
+        'reserve-session-question', 11, 'reserve_practice',
+        'reserve-origin', 'active'
+      );
+    `);
+
+    const report = await auditDatabaseIntegrity(clientFor(database), {
+      target: "test",
+    });
+    expect(check(report, "invalid_reserve_practice_eligibility").count).toBe(1);
+    expect(
+      check(report, "invalid_reserve_practice_session_lineage").count,
+    ).toBe(1);
+  });
+
+  it("uses the working-version snapshot as Reserve source authority", async () => {
+    const database = await integrityDatabase("test");
+    await database.exec(`
+      insert into topics (id, sort_order) values ('reserve-source-topic', 1);
+      insert into questions (
+        id, topic_id, title, source_type, trust_level, review_status,
+        visibility, record_state, working_version_id, is_reserved,
+        reserve_practice_allowed
+      ) values (
+        'snapshot-private-reserve', 'reserve-source-topic',
+        'Snapshot private Reserve', 'professor_provided', 'public_original',
+        'approved', 'private', 'active', 20, true, true
+      );
+      insert into question_versions (id, question_id, snapshot_json) values (
+        20, 'snapshot-private-reserve',
+        '{"sourceType":"private_reference_pattern"}'::jsonb
+      );
+      insert into question_version_lifecycle (
+        question_version_id, question_id, state
+      ) values (20, 'snapshot-private-reserve', 'approved');
+    `);
+
+    const privateSnapshotReport = await auditDatabaseIntegrity(
+      clientFor(database),
+      { target: "test" },
+    );
+    expect(
+      check(privateSnapshotReport, "invalid_reserve_practice_eligibility")
+        .count,
+    ).toBe(1);
+
+    await database.exec(`
+      insert into questions (
+        id, topic_id, title, source_type, trust_level, review_status,
+        visibility, record_state, working_version_id, is_reserved,
+        reserve_practice_allowed
+      ) values (
+        'snapshot-public-reserve', 'reserve-source-topic',
+        'Snapshot public Reserve', 'private_reference_pattern',
+        'private_reference', 'approved', 'private', 'active', 21, true, true
+      );
+      insert into question_versions (id, question_id, snapshot_json) values (
+        21, 'snapshot-public-reserve',
+        '{"sourceType":"professor_provided"}'::jsonb
+      );
+      insert into question_version_lifecycle (
+        question_version_id, question_id, state
+      ) values (21, 'snapshot-public-reserve', 'approved');
+    `);
+
+    const publicSnapshotReport = await auditDatabaseIntegrity(
+      clientFor(database),
+      { target: "test" },
+    );
+    expect(
+      check(publicSnapshotReport, "invalid_reserve_practice_eligibility").count,
+    ).toBe(1);
   });
 
   it("reports an unvalidated foreign key without exposing its name", async () => {
@@ -550,6 +666,8 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       record_state text default 'active',
       working_version_id bigint,
       published_version_id bigint,
+      is_reserved boolean default false,
+      reserve_practice_allowed boolean default false,
       review_notes text,
       updated_at timestamptz default now()
     );
@@ -577,7 +695,8 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
     create table question_versions (
       id bigint,
       question_id text,
-      created_by_user_id text
+      created_by_user_id text,
+      snapshot_json jsonb not null default '{}'::jsonb
     );
     create table question_version_lifecycle (
       question_version_id bigint,
@@ -626,6 +745,10 @@ async function integrityDatabase(target: "production" | "staging" | "test") {
       llm_input_tokens integer default 0,
       llm_output_tokens integer default 0,
       llm_total_tokens integer default 0,
+      practice_context text default 'published',
+      origin_session_id text,
+      status text default 'active',
+      solved boolean default false,
       updated_at timestamptz default now()
     );
     create table attempts (

@@ -36,7 +36,7 @@ import { POST as respondToTutor } from "@/app/api/tutor/respond/route";
 import { POST as recordAttempt } from "@/app/api/tutor/session/[sessionId]/attempt/route";
 import { POST as revealHint } from "@/app/api/tutor/session/[sessionId]/hint/route";
 import { GET as getTutorSessionRoute } from "@/app/api/tutor/session/[sessionId]/route";
-import { GET as getSimilarQuestion } from "@/app/api/tutor/session/[sessionId]/similar/route";
+import { POST as getSimilarQuestion } from "@/app/api/tutor/session/[sessionId]/similar/route";
 import { POST as revealStep } from "@/app/api/tutor/session/[sessionId]/step/route";
 import { POST as createTutorSessionRoute } from "@/app/api/tutor/session/route";
 import { SERVER_BOUNDARY_PERMISSION_MATRIX } from "@/lib/auth/server-boundary-policy";
@@ -434,10 +434,12 @@ describe("direct student API authorization", () => {
         ),
     ],
     [
-      "GET /api/tutor/session/[sessionId]/similar",
+      "POST /api/tutor/session/[sessionId]/similar",
       () =>
         getSimilarQuestion(
-          new Request("http://test/api/tutor/session/session:test/similar"),
+          new Request("http://test/api/tutor/session/session:test/similar", {
+            method: "POST",
+          }),
           sessionContext("session:test"),
         ),
     ],

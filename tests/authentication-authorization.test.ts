@@ -258,7 +258,7 @@ describe("anonymous ownership", () => {
         id text primary key,
         anonymous_user_id text,
         user_id text,
-        expires_at timestamptz,
+        expires_at timestamptz not null default now() + interval '30 days',
         updated_at timestamptz not null default now()
       );
       create table anonymous_identity_claims (

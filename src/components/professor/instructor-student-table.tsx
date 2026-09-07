@@ -55,6 +55,7 @@ export function InstructorStudentTable({
           <TableRow>
             <TableHead className="px-4">Student</TableHead>
             <TableHead className="px-4">Sessions</TableHead>
+            <TableHead className="px-4">Extra practice</TableHead>
             <TableHead className="px-4">Attempts</TableHead>
             <TableHead className="px-4">Correct</TableHead>
             <TableHead className="px-4">Topics</TableHead>
@@ -82,6 +83,9 @@ export function InstructorStudentTable({
                 </div>
               </TableCell>
               <TableCell className="px-4 py-3">{student.sessions}</TableCell>
+              <TableCell className="px-4 py-3">
+                {student.extraPracticeSessions}
+              </TableCell>
               <TableCell className="px-4 py-3">{student.attempts}</TableCell>
               <TableCell className="px-4 py-3">
                 <span className="font-medium">{student.correctAttempts}</span>

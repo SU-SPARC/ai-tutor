@@ -83,6 +83,7 @@ const SESSION_FACTS_CTE = `
       s.revealed_steps
     from tutor_sessions s
     join questions q on q.id = s.question_id
+    where s.practice_context = 'published'
   ),
   attempt_facts as (
     select
@@ -225,6 +226,7 @@ export function createDatabasePilotAnalyticsExportRepository(
              cross join lateral jsonb_array_elements_text(
                s.last_misconception_ids_json
              ) as code
+             where s.practice_context = 'published'
            ) retained
            group by misconception_code
            order by session_occurrences desc, misconception_code`,
@@ -266,8 +268,11 @@ export function createDatabasePilotAnalyticsExportRepository(
           `select min(recorded_at) as earliest_at, max(recorded_at) as latest_at
            from (
              select created_at as recorded_at from tutor_sessions
+             where practice_context = 'published'
              union all
-             select created_at from attempts
+             select a.created_at from attempts a
+             join tutor_sessions s on s.id = a.session_id
+             where s.practice_context = 'published'
              union all
              select created_at from feedback_reports
              union all

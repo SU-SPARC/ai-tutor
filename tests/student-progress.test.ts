@@ -7,6 +7,7 @@ import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import {
   createDatabaseTutorSessionRepository,
+  createReservePracticeTutorSession,
   createTutorSession,
   recordTutorSessionAttempt,
   recordTutorSessionAttemptOutcome,
@@ -166,6 +167,52 @@ describe("student progress dashboard", () => {
     expect(await response.json()).toEqual({
       error: "Authentication is required.",
     });
+  });
+
+  it("keeps optional Reserve practice out of assigned completion totals", async () => {
+    const origin = await createTutorSession(
+      studentSessionAuthorization,
+      "five-question-quiz",
+    );
+    const extra = await createReservePracticeTutorSession(
+      studentSessionAuthorization,
+      {
+        idempotencyKey: "reserve-practice-test",
+        originSessionId: origin.id,
+        questionId: "dice-sum-eight",
+        questionVersionId: 42,
+      },
+    );
+    await recordTutorSessionAttemptOutcome(studentSessionAuthorization, {
+      estimatedTokens: 0,
+      sessionId: extra.id,
+      source: "rule",
+      verdict: "correct",
+    });
+
+    const progress = await getStudentProgress(await requireStudent());
+
+    expect(progress.summary.completedQuestions).toBe(0);
+    expect(progress.summary.extraPracticeSessions).toBe(1);
+    expect(progress.questions).toEqual([
+      expect.objectContaining({
+        questionId: "five-question-quiz",
+        status: "in_progress",
+      }),
+    ]);
+    expect(progress.questions).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ questionId: "dice-sum-eight" }),
+      ]),
+    );
+    expect(progress.recentSessions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          practiceContext: "reserve_practice",
+          sessionId: extra.id,
+        }),
+      ]),
+    );
   });
 
   it("returns only the authenticated student's data without peer or ranking fields", async () => {

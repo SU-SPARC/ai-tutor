@@ -270,12 +270,22 @@ async function seed(database: PGlite) {
          'Original test question.', 'Professor', $4, now())`,
       [questionId, topicId, `Question ${questionId}`, TEST_PROFESSOR.userId],
     );
+    await database.query(
+      `insert into hints (question_id, hint_order, body)
+       values ($1, 1, 'Start with the numerator and denominator.')`,
+      [questionId],
+    );
+    await database.query(
+      `insert into solution_steps (question_id, step_order, body)
+       values ($1, 1, 'Divide the favorable outcomes by the total.')`,
+      [questionId],
+    );
   }
 
   const versionResult = await database.query<{
     id: number;
     question_id: string;
-  }>("select id, question_id from question_versions");
+  }>(`select q.working_version_id as id, q.id as question_id from questions q`);
   const versions = new Map(
     versionResult.rows.map((row) => [row.question_id, row.id]),
   );
@@ -307,6 +317,25 @@ async function seed(database: PGlite) {
     steps: 1,
     userId: TEST_STUDENT.userId,
   });
+  await database.exec(`
+    alter table tutor_sessions
+      disable trigger tutor_sessions_guard_practice_context;
+  `);
+  await database.query(
+    `insert into tutor_sessions (
+       id, anonymous_user_id, question_id, question_version_id,
+       practice_context, origin_session_id, revealed_hints, revealed_steps,
+       current_state
+     ) values (
+       'session-extra-practice', $1, 'question-a', $2,
+       'reserve_practice', 'session-private-a', 8, 8, 'working'
+     )`,
+    [RAW_ANONYMOUS_OWNER, versions.get("question-a")],
+  );
+  await database.exec(`
+    alter table tutor_sessions
+      enable trigger tutor_sessions_guard_practice_context;
+  `);
 
   const attempts = [
     [
@@ -362,6 +391,16 @@ async function seed(database: PGlite) {
       ],
     );
   }
+  await database.query(
+    `insert into attempts (
+       session_id, question_id, topic_id, question_version_id, mode, source,
+       verdict, answer_preview, submitted_answer, normalized_answer
+     ) values (
+       'session-extra-practice', 'question-a', 'topic-a', $1, 'check',
+       'llm', 'correct', 'EXTRA', 'EXTRA', 'extra'
+     )`,
+    [versions.get("question-a")],
+  );
 
   for (const [scope, scopeKey] of [
     ["global", "all"],
@@ -423,8 +462,11 @@ async function seedSession(
     `insert into tutor_sessions (
        id, user_id, anonymous_user_id, question_id, question_version_id,
        revealed_hints, revealed_steps, last_misconception_ids_json,
-       current_state
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'working')`,
+       current_state, status
+     ) values (
+       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'working',
+       'content_unpublished'
+     )`,
     [
       input.sessionId,
       input.userId ?? null,

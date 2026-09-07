@@ -223,8 +223,8 @@ describe("production pilot data cleanup", () => {
     expect(audit.summary).toEqual({
       failedChecks: 0,
       findings: 0,
-      passedChecks: 18,
-      totalChecks: 18,
+      passedChecks: 20,
+      totalChecks: 20,
     });
 
     // The same reviewed SQL cannot run twice: the snapshot preconditions fail

@@ -42,6 +42,11 @@ linked to the session; only the digest input would change, not the analytics.
 
 ## Counting rules
 
+Assigned-work counts, correctness, hint/solution totals, attention signals, and
+misconception trends include only `practice_context = 'published'` sessions.
+Reserve similar-practice sessions are excluded from those metrics and reported
+separately as `extraPracticeSessions` in student and cohort summaries.
+
 - **Attempts** are rows with `mode = 'check'`. Hint and solution requests are
   separate interactions and never inflate the attempt count.
 - **Hints and solutions** are summed from `tutor_sessions.revealed_hints` and

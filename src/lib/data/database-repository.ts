@@ -193,6 +193,9 @@ export function createDatabaseContentRepository(
               count(*) filter (where source = 'llm')::int as llm_attempts
             from attempts
             where question_id is not null
+              and session_id in (
+                select id from tutor_sessions where practice_context = 'published'
+              )
             group by question_id
           ) attempts on attempts.question_id = q.id
           left join (
@@ -202,6 +205,7 @@ export function createDatabaseContentRepository(
               sum(revealed_steps)::int as steps_revealed
             from tutor_sessions
             where question_id is not null
+              and practice_context = 'published'
             group by question_id
           ) sessions on sessions.question_id = q.id
           order by t.sort_order, t.title, t.id, q.title, q.id
@@ -211,10 +215,10 @@ export function createDatabaseContentRepository(
             query,
             `
           select
-            (select count(*)::int from tutor_sessions) as total_tutor_sessions,
-            (select count(*)::int from attempts) as total_attempts,
-            (select coalesce(sum(revealed_hints), 0)::int from tutor_sessions) as total_hints_used,
-            (select coalesce(sum(revealed_steps), 0)::int from tutor_sessions) as total_steps_revealed
+            (select count(*)::int from tutor_sessions where practice_context = 'published') as total_tutor_sessions,
+            (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published') as total_attempts,
+            (select coalesce(sum(revealed_hints), 0)::int from tutor_sessions where practice_context = 'published') as total_hints_used,
+            (select coalesce(sum(revealed_steps), 0)::int from tutor_sessions where practice_context = 'published') as total_steps_revealed
         `,
           ),
           readDatabaseRows(
@@ -226,6 +230,9 @@ export function createDatabaseContentRepository(
               count(*) filter (where verdict = 'incorrect')::int as missed_attempts
             from attempts
             where question_id is not null
+              and session_id in (
+                select id from tutor_sessions where practice_context = 'published'
+              )
             group by question_id
           )
           select

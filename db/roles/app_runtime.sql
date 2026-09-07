@@ -115,6 +115,17 @@ to app_runtime;
 
 grant delete on hints, misconceptions, solution_steps to app_runtime;
 grant usage on all sequences in schema public to app_runtime;
+grant execute on function app_publication_json_item_text(jsonb) to app_runtime;
+grant execute on function app_publication_numeric_answer_matches(
+  text,
+  double precision,
+  double precision
+) to app_runtime;
+grant execute on function app_question_publication_gate_failures(
+  text,
+  bigint,
+  text
+) to app_runtime;
 grant execute on function app_question_snapshot(text) to app_runtime;
 grant execute on function app_record_question_version(text) to app_runtime;
 grant execute on function app_record_question_version_inspection(

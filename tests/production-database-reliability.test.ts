@@ -746,6 +746,8 @@ async function createTutorSchema(database: PGlite) {
       llm_input_tokens integer not null default 0,
       llm_output_tokens integer not null default 0,
       llm_total_tokens integer not null default 0,
+      practice_context text not null default 'published',
+      origin_session_id text,
       last_answer_fingerprint text,
       last_misconception_ids_json jsonb not null default '[]'::jsonb,
       completed_at timestamptz,
@@ -756,6 +758,18 @@ async function createTutorSchema(database: PGlite) {
       last_seen_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
+
+    create function reliability_fill_tutor_question_version()
+    returns trigger language plpgsql as $$
+    begin
+      new.question_version_id := coalesce(new.question_version_id, 1);
+      return new;
+    end;
+    $$;
+
+    create trigger reliability_tutor_question_version
+    before insert on tutor_sessions
+    for each row execute function reliability_fill_tutor_question_version();
 
     create table attempts (
       id bigserial primary key,

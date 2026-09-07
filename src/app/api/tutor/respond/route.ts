@@ -6,6 +6,7 @@ import {
   tutorSessionUnavailableResponse,
 } from "@/lib/api/service-unavailable";
 import { toTutorResponseDto } from "@/lib/api/tutor-response-dto";
+import { getServableTutorSessionQuestion } from "@/lib/api/tutor-session-dto";
 import {
   authorizeStudentResourceApi,
   ownerFromAuthorization,
@@ -15,7 +16,6 @@ import {
   releaseTutorAiReservation,
   type TutorAiAccounting,
 } from "@/lib/ai/usage-controls";
-import { getApprovedQuestionById } from "@/lib/data/data-store";
 import {
   getTutorSession,
   persistTutorSessionTransition,
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   try {
     let session = await getTutorSession(access.authorization, body.sessionId);
     const currentlyApprovedQuestion = session
-      ? await getApprovedQuestionById(session.questionId)
+      ? await getServableTutorSessionQuestion(session)
       : undefined;
 
     if (!session || !currentlyApprovedQuestion) {

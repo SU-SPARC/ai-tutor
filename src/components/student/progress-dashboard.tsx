@@ -69,7 +69,9 @@ export function ProgressDashboard({
     }
   }
 
-  const hasPracticeActivity = progress.questions.length > 0;
+  const hasPracticeActivity =
+    progress.questions.length > 0 ||
+    (progress.summary.extraPracticeSessions ?? 0) > 0;
 
   return (
     <main className="min-h-svh bg-background">
@@ -139,7 +141,9 @@ export function ProgressDashboard({
             </div>
             <span className="text-xs text-muted-foreground">
               {progress.summary.topicsStarted} topics started ·{" "}
-              {progress.summary.availableQuestions} questions available
+              {progress.summary.availableQuestions} questions available ·{" "}
+              {progress.summary.extraPracticeSessions ?? 0} extra-practice
+              sessions
             </span>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -255,6 +259,11 @@ export function ProgressDashboard({
                         <span className="font-medium">
                           {session.questionTitle}
                         </span>
+                        {session.practiceContext === "reserve_practice" ? (
+                          <Badge variant="success" className="ml-2">
+                            Extra practice
+                          </Badge>
+                        ) : null}
                         <span className="mt-1 block text-xs text-muted-foreground">
                           {session.topicTitle}
                         </span>
@@ -281,6 +290,7 @@ export function ProgressDashboard({
                               href={resumeHref(
                                 session.questionId,
                                 session.sessionId,
+                                session.practiceContext,
                               )}
                             >
                               Resume
@@ -417,8 +427,16 @@ function ProgressStatusBadge({
   );
 }
 
-function resumeHref(questionId: string, sessionId?: string) {
-  const params = new URLSearchParams({ questionId });
+function resumeHref(
+  questionId: string,
+  sessionId?: string,
+  practiceContext?: "published" | "reserve_practice",
+) {
+  const params = new URLSearchParams();
+
+  if (practiceContext !== "reserve_practice") {
+    params.set("questionId", questionId);
+  }
 
   if (sessionId) {
     params.set("sessionId", sessionId);

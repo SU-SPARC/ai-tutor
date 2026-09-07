@@ -186,6 +186,7 @@ describe("production schema hardening migration", () => {
         "question_lifecycle_events_version_fkey",
         "question_reserve_events_version_fkey",
         "questions_reserve_consistency_check",
+        "questions_reserve_practice_allowed_check",
         "questions_reserved_content_hidden_check",
         "question_patterns_no_private_source_signals",
         "question_student_availability_schedule_check",
@@ -199,6 +200,8 @@ describe("production schema hardening migration", () => {
         "topic_student_availability_schedule_check",
         "tutor_sessions_identity_check",
         "tutor_sessions_creation_idempotency_key_check",
+        "tutor_sessions_practice_context_check",
+        "tutor_sessions_practice_origin_check",
         "tutor_sessions_progress_counts_check",
         "users_human_email_required",
         "users_session_version_positive",
@@ -228,7 +231,7 @@ describe("production schema hardening migration", () => {
          and table_name = 'questions'
          and column_name = any(array[
            'is_reserved', 'reserve_reason_code', 'reserve_note',
-           'reserved_by_user_id', 'reserved_at'
+           'reserved_by_user_id', 'reserved_at', 'reserve_practice_allowed'
          ])
        order by column_name`,
       "column_name",
@@ -236,10 +239,39 @@ describe("production schema hardening migration", () => {
     expect(reserveColumns).toEqual([
       "is_reserved",
       "reserve_note",
+      "reserve_practice_allowed",
       "reserve_reason_code",
       "reserved_at",
       "reserved_by_user_id",
     ]);
+
+    const reservePracticeSchema = await database.query<{
+      guard_definition: string;
+      security_invoker: boolean;
+      view_exists: boolean;
+    }>(`
+      select
+        to_regclass('public.app_reserve_practice_questions') is not null
+          as view_exists,
+        coalesce(c.reloptions @> array['security_invoker=true'], false)
+          as security_invoker,
+        pg_get_triggerdef(t.oid) as guard_definition
+      from pg_class c
+      join pg_trigger t
+        on t.tgrelid = 'public.tutor_sessions'::regclass
+       and t.tgname = 'tutor_sessions_guard_practice_context'
+      where c.oid = 'public.app_reserve_practice_questions'::regclass
+    `);
+    expect(reservePracticeSchema.rows[0]).toMatchObject({
+      security_invoker: true,
+      view_exists: true,
+    });
+    expect(reservePracticeSchema.rows[0].guard_definition).toContain(
+      "question_id, question_version_id, practice_context, origin_session_id",
+    );
+    expect(reservePracticeSchema.rows[0].guard_definition).not.toMatch(
+      /user_id|anonymous_user_id/,
+    );
 
     const tutorPersistenceColumns = await columnValues(
       database,
@@ -256,6 +288,8 @@ describe("production schema hardening migration", () => {
               'expires_at',
               'llm_used',
               'question_version_id',
+              'origin_session_id',
+              'practice_context',
               'revision',
               'solved',
               'wrong_attempt_count'
@@ -275,7 +309,7 @@ describe("production schema hardening migration", () => {
       `,
       "column_name",
     );
-    expect(tutorPersistenceColumns).toHaveLength(17);
+    expect(tutorPersistenceColumns).toHaveLength(19);
     expect(tutorPersistenceColumns).not.toEqual(
       expect.arrayContaining([
         "embedding",
@@ -388,6 +422,7 @@ describe("production schema hardening migration", () => {
         "tutor_sessions_user_activity_idx",
         "tutor_sessions_anonymous_activity_idx",
         "tutor_sessions_question_version_idx",
+        "tutor_sessions_reserve_practice_origin_idx",
         "tutor_sessions_user_creation_idempotency_idx",
         "tutor_sessions_anonymous_creation_idempotency_idx",
         "user_roles_active_role_idx",

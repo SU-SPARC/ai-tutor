@@ -29,7 +29,9 @@ export function professorQuestionNextStep(question: QuestionLifecycleDto) {
     return "This question is archived. Restore the record before making any other change.";
   }
   if (question.reserve) {
-    return "Saved for later and hidden from students. Remove the reserve when you want to publish it.";
+    return question.reserve.practiceAllowed
+      ? "Saved for later and absent from student listings. It is available only through the controlled optional similar-practice flow."
+      : "Saved for later and hidden from students. Remove the reserve when you want to publish it.";
   }
   switch (question.workingVersion.state) {
     case "draft":
@@ -82,6 +84,9 @@ export function ProfessorQuestionDetailSummary({
           {question.reserve ? (
             <Badge variant="secondary">Saved for later</Badge>
           ) : null}
+          {question.reserve?.practiceAllowed ? (
+            <Badge variant="success">Eligible for similar practice</Badge>
+          ) : null}
         </CardTitle>
         <CardDescription>{professorQuestionNextStep(question)}</CardDescription>
       </CardHeader>
@@ -100,7 +105,9 @@ export function ProfessorQuestionDetailSummary({
           <dd>
             {question.publishedVersion
               ? `v${question.publishedVersion.versionNumber} is live for students`
-              : "None. Students cannot see this question."}
+              : question.reserve?.practiceAllowed
+                ? "None. Available only as controlled optional practice."
+                : "None. Students cannot see this question."}
           </dd>
           {question.reserve ? (
             <>
@@ -109,6 +116,9 @@ export function ProfessorQuestionDetailSummary({
                 {questionReserveReasonLabel(question.reserve.reasonCode)} ·{" "}
                 {question.reserve.reservedBy.displayName}
                 {question.reserve.note ? ` · ${question.reserve.note}` : ""}
+                {question.reserve.practiceAllowed
+                  ? " · Optional similar practice enabled"
+                  : " · Reserve only"}
               </dd>
             </>
           ) : null}

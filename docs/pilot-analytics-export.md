@@ -96,6 +96,9 @@ rows would multiply usage.
 
 ## Counting and interpretation
 
+- Version 1 includes only `practice_context = 'published'` tutor sessions and
+  their attempts. Reserve similar-practice sessions remain outside every
+  participant, cohort, topic, question, usage, and performance aggregate.
 - A participating student is a distinct retained tutor-session owner.
 - A question is attempted when a retained `mode = 'check'` interaction exists.
 - Correctness is `correctAnswerAttempts / answerAttempts`; blocked or otherwise

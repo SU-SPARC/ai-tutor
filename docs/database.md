@@ -73,6 +73,23 @@ be reapplied through the approved role-change process after this migration so
 the runtime receives ledger INSERT and its role-scoped RLS policy. This
 repository change does not apply that script to Production.
 
+`023_reserve_similar_practice.sql` adds the professor-controlled
+`reserve_practice_allowed` flag, the protected
+`app_reserve_practice_questions` server view, and an explicit tutor-session
+context. Reserve practice sessions must be pinned to the eligible working
+version and linked to a completed session owned by the same student. Reserve
+questions remain absent from `app_public_questions`; disabling practice or
+releasing the reserve tombstones active optional-practice sessions. Production
+migrations run as `app_migrator`; its reviewed default privileges grant
+`app_runtime` SELECT on the new view. The existing `db/roles/app_runtime.sql`
+must still be reapplied through the approved role-change process after this
+migration so the security-invoker view can execute the publication-gate
+function. Applying migrations under another role is unsupported and must not
+be used as a substitute for the documented custody process. Follow the exact
+[migration 023 Production rollout order](database-operations.md#migration-023-reserve-practice-rollout),
+including the expected fail-closed interval before the role script is
+reapplied.
+
 ## Production Schema Hardening
 
 `007_production_schema_hardening.sql` is a forward-only migration that adds the

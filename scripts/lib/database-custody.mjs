@@ -294,7 +294,7 @@ export function roleViolations(spec, attestation) {
       violations.push("unexpected_runtime_write");
     if (attestation.missingRuntimeFunctionCount)
       violations.push("missing_runtime_function");
-    if (attestation.executableRoutineCount !== 5)
+    if (attestation.executableRoutineCount !== 8)
       violations.push("unexpected_runtime_function");
   } else if (spec.key === "migration") {
     if (attestation.bypassRls) violations.push("bypass_rls");

@@ -14,6 +14,7 @@ import {
   requireStudent,
 } from "@/lib/auth/authorization";
 import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
+import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 
 const databases: PGlite[] = [];
@@ -38,16 +39,17 @@ afterAll(async () => {
 
 describe("instructor student analytics", () => {
   let repository: ReturnType<typeof createDatabaseInstructorStudentRepository>;
+  let database: PGlite;
 
   // Every case here reads; migrating and seeding once keeps the file from
   // rebuilding eighteen migrations per test.
   beforeAll(async () => {
-    const database = await migratedDatabase();
+    database = await migratedDatabase();
     repository = createDatabaseInstructorStudentRepository(
       pgliteQuery(database),
     );
     await seed(database);
-    // Eighteen migrations under load can outrun the default hook timeout.
+    // The complete migration chain under load can outrun the default hook timeout.
   }, 60_000);
 
   it("lists one row per student with derived counts and no raw identity", async () => {
@@ -82,6 +84,7 @@ describe("instructor student analytics", () => {
     expect(struggling.sessions).toBe(2);
     expect(struggling.topicsPracticed).toBe(1);
     expect(struggling.misconceptionAttempts).toBe(2);
+    expect(struggling.extraPracticeSessions).toBe(1);
   });
 
   it("orders by lowest accuracy so the struggling student surfaces first", async () => {
@@ -189,6 +192,7 @@ describe("instructor student analytics", () => {
     const cohort = await repository.getCohortAnalytics(authorization);
 
     expect(cohort.activeStudents).toBe(2);
+    expect(cohort.extraPracticeSessions).toBe(1);
     expect(cohort.attempts).toBe(8);
     expect(cohort.correctAttempts).toBe(4);
     // Eight of the ten recorded rows were answered by the rule engine; the
@@ -199,6 +203,20 @@ describe("instructor student analytics", () => {
     expect(cohort.studentsNeedingAttention).toBe(1);
     expect(cohort.misconceptions[0]).toMatchObject({
       misconceptionId: "conditional-probability-denominator-mistake",
+    });
+  });
+
+  it("keeps Reserve-practice rows out of the legacy professor practice totals", async () => {
+    const analytics = await createDatabaseContentRepository(
+      "postgres://unused.example/db",
+      pgliteQuery(database),
+    ).getProfessorPracticeAnalytics(await professorAuthorization());
+
+    expect(analytics).toMatchObject({
+      summary: {
+        totalAttempts: 10,
+        totalTutorSessions: 4,
+      },
     });
   });
 
@@ -296,10 +314,21 @@ async function seed(database: PGlite) {
          'Professor', $4, now())`,
       [questionId, topicId, `${topicId} question`, TEST_PROFESSOR.userId],
     );
+    await database.query(
+      `insert into hints (question_id, hint_order, body)
+       values ($1, 1, 'Start with the numerator and denominator.')`,
+      [questionId],
+    );
+    await database.query(
+      `insert into solution_steps (question_id, step_order, body)
+       values ($1, 1, 'Divide the favorable outcomes by the total.')`,
+      [questionId],
+    );
   }
 
   const versions = await database.query<{ id: number; question_id: string }>(
-    "select id, question_id from question_versions",
+    `select q.working_version_id as id, q.id as question_id
+     from questions q`,
   );
   const versionByQuestion = new Map(
     versions.rows.map((row) => [row.question_id, row.id]),
@@ -337,6 +366,26 @@ async function seed(database: PGlite) {
     solved: true,
     userId: STEADY.slice("user:".length),
   });
+
+  await database.exec(`
+    alter table tutor_sessions
+      disable trigger tutor_sessions_guard_practice_context;
+  `);
+  await database.query(
+    `insert into tutor_sessions (
+       id, anonymous_user_id, question_id, question_version_id,
+       practice_context, origin_session_id, revealed_hints, revealed_steps,
+       status, current_state
+     ) values (
+       'session-struggling-extra', $1, 'cp-question', $2,
+       'reserve_practice', 'session-struggling-1', 9, 9, 'active', 'working'
+     )`,
+    [STRUGGLING, versionByQuestion.get("cp-question")],
+  );
+  await database.exec(`
+    alter table tutor_sessions
+      enable trigger tutor_sessions_guard_practice_context;
+  `);
   await seedSession(database, {
     misconceptionIds: [],
     questionId: "bm-question",
@@ -442,6 +491,15 @@ async function seed(database: PGlite) {
       "correct",
       "[]",
     ],
+    [
+      "session-struggling-extra",
+      "cp-question",
+      "conditional-probability",
+      "check",
+      "llm",
+      "correct",
+      '["EXTRA-PRACTICE-MISCONCEPTION"]',
+    ],
   ];
 
   for (const [
@@ -505,7 +563,7 @@ async function seedSession(
       input.revealedSteps,
       input.solved,
       JSON.stringify(input.misconceptionIds),
-      input.solved ? "completed" : "active",
+      input.solved ? "completed" : "content_unpublished",
       input.solved ? "solved" : "working",
     ],
   );

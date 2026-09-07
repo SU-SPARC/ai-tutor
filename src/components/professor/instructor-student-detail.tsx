@@ -131,8 +131,9 @@ export function InstructorStudentDetailPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
         <Metric label="Sessions" value={summary.sessions} />
+        <Metric label="Extra practice" value={summary.extraPracticeSessions} />
         <Metric label="Attempts" value={summary.attempts} />
         <Metric label="Correct" value={summary.correctAttempts} />
         <Metric

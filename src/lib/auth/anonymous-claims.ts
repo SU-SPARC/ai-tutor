@@ -8,6 +8,7 @@ import {
   type DatabaseQueryExecutor,
 } from "@/lib/data/database-executor";
 import { queryPostgres } from "@/lib/data/postgres";
+import { AUTHENTICATED_TUTOR_SESSION_RETENTION_DAYS } from "@/lib/tutor/session-persistence";
 
 export type AnonymousClaimSource = "signed_cookie" | "legacy_local_storage";
 
@@ -57,13 +58,17 @@ export async function claimAnonymousIdentity(
         update tutor_sessions
         set user_id = $2,
             anonymous_user_id = null,
-            expires_at = null,
+            expires_at = now() + ($3 * interval '1 day'),
             updated_at = now()
         where anonymous_user_id = $1
           and user_id is null
         returning id
       `,
-      [input.anonymousId, input.userId],
+      [
+        input.anonymousId,
+        input.userId,
+        AUTHENTICATED_TUTOR_SESSION_RETENTION_DAYS,
+      ],
     );
     const migratedSessionCount = migratedRows.length;
 

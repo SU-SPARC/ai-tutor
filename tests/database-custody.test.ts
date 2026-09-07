@@ -391,7 +391,7 @@ describe("production database custody gates", () => {
       createRole: false,
       databaseCreate: false,
       defaultReadOnly: false,
-      executableRoutineCount: 5,
+      executableRoutineCount: 8,
       missingRuntimeFunctionCount: 0,
       missingRuntimeWriteCount: 0,
       ownedRelationCount: 0,

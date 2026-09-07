@@ -78,21 +78,88 @@ describe("least-privilege runtime role provisioning", () => {
         id, topic_id, title, prompt, difficulty, accepted_answers_json,
         answer_explanation, source_type, trust_level, review_status,
         visibility, originality_note, reviewed_by, reviewed_by_user_id
-      ) values (
+      ) values
+      (
         'runtime-role-reserve-question', 'runtime-role-topic',
         'Runtime role reserve question', 'What is one half?', 'foundational',
         '["0.5"]'::jsonb, 'One divided by two.', 'professor_provided',
         'public_original', 'needs_review', 'public',
         'Original runtime-role permission fixture.', 'Runtime Role Professor',
         'user:runtime-role-professor'
+      ),
+      (
+        'runtime-role-origin-question', 'runtime-role-topic',
+        'Runtime role origin question', 'What is one third?', 'foundational',
+        '["1/3"]'::jsonb, 'One divided by three.', 'professor_provided',
+        'public_original', 'needs_review', 'public',
+        'Original runtime-role origin fixture.', 'Runtime Role Professor',
+        'user:runtime-role-professor'
       );
       insert into hints (question_id, hint_order, body)
-      values ('runtime-role-reserve-question', 1, 'Divide one by two.');
+      values
+        ('runtime-role-reserve-question', 1, 'Start with the numerator and denominator.'),
+        ('runtime-role-origin-question', 1, 'Start with the numerator and denominator.');
       insert into solution_steps (question_id, step_order, body)
-      values ('runtime-role-reserve-question', 1, 'Compute 1 / 2 = 0.5.');
+      values
+        ('runtime-role-reserve-question', 1, 'Compute 1 / 2 = 0.5.'),
+        ('runtime-role-origin-question', 1, 'Compute 1 / 3.');
       select set_config('app.suppress_question_version', 'false', false);
       select app_record_question_version('runtime-role-reserve-question');
+      select set_config('app.current_user_id', 'system:schema-migration', false);
+      select set_config('app.current_creation_method', 'imported', false);
+      select app_record_question_version('runtime-role-origin-question');
     `);
+    const reserveVersion = await database.query<{ id: number }>(`
+      select working_version_id as id
+      from questions
+      where id = 'runtime-role-reserve-question'
+    `);
+    await database.query(
+      `select * from app_transition_question_version(
+        $1, $2, 'submit', $3, $4, 'draft'
+      )`,
+      [
+        "runtime-role-reserve-question",
+        Number(reserveVersion.rows[0].id),
+        "user:runtime-role-professor",
+        "Runtime Role Professor",
+      ],
+    );
+    await database.query(
+      `select * from app_transition_question_version(
+        $1, $2, 'approve', $3, $4, 'needs_review'
+      )`,
+      [
+        "runtime-role-reserve-question",
+        Number(reserveVersion.rows[0].id),
+        "user:runtime-role-professor",
+        "Runtime Role Professor",
+      ],
+    );
+    const originVersion = await database.query<{ id: number }>(`
+      select working_version_id as id
+      from questions
+      where id = 'runtime-role-origin-question'
+    `);
+    for (const [action, expectedState] of [
+      ["submit", "draft"],
+      ["approve", "needs_review"],
+      ["publish", "approved"],
+    ] as const) {
+      await database.query(
+        `select * from app_transition_question_version(
+          $1, $2, $3, $4, $5, $6
+        )`,
+        [
+          "runtime-role-origin-question",
+          Number(originVersion.rows[0].id),
+          action,
+          "user:runtime-role-professor",
+          "Runtime Role Professor",
+          expectedState,
+        ],
+      );
+    }
 
     const verification = await database.query<Record<string, unknown>>(`
       select
@@ -101,10 +168,12 @@ describe("least-privilege runtime role provisioning", () => {
         has_table_privilege('app_runtime', 'tutor_sessions', 'INSERT') as session_insert,
         has_table_privilege('app_runtime', 'question_versions', 'SELECT') as version_select,
         has_table_privilege('app_runtime', 'question_reserve_events', 'INSERT') as reserve_event_insert,
+        has_table_privilege('app_runtime', 'app_reserve_practice_questions', 'SELECT') as reserve_view_select,
         has_table_privilege('app_runtime', 'schema_migrations', 'INSERT') as ledger_insert,
         has_table_privilege('app_runtime', 'roles', 'UPDATE') as role_update,
         has_sequence_privilege('app_runtime', 'attempts_id_seq', 'USAGE') as sequence_usage,
         has_function_privilege('app_runtime', 'app_set_updated_at()', 'EXECUTE') as trigger_execute,
+        has_function_privilege('app_runtime', 'app_question_publication_gate_failures(text,bigint,text)', 'EXECUTE') as publication_gate_execute,
         has_function_privilege('app_runtime', 'app_question_snapshot(text)', 'EXECUTE') as snapshot_execute,
         has_function_privilege('app_runtime', 'app_record_question_version(text)', 'EXECUTE') as version_function_execute,
         has_function_privilege('app_runtime', 'app_user_can_review(text)', 'EXECUTE') as reviewer_function_execute,
@@ -116,9 +185,11 @@ describe("least-privilege runtime role provisioning", () => {
     expect(verification.rows[0]).toEqual({
       row_level_security_tables: 30,
       ledger_insert: false,
+      publication_gate_execute: true,
       role_update: false,
       reviewer_function_execute: true,
       reserve_event_insert: true,
+      reserve_view_select: true,
       runtime_policies: 30,
       rolbypassrls: false,
       rolcanlogin: false,
@@ -146,6 +217,7 @@ describe("least-privilege runtime role provisioning", () => {
         select set_config('app.reserve_write', 'allowed', true);
         update questions
         set is_reserved = true,
+            reserve_practice_allowed = true,
             reserve_reason_code = 'save_for_later',
             reserved_by_user_id = 'user:runtime-role-professor',
             reserved_at = now()
@@ -168,6 +240,31 @@ describe("least-privilege runtime role provisioning", () => {
       ),
     ).resolves.toMatchObject({ rows: [{ count: 1 }] });
     await expect(
+      database.query(
+        "select count(*)::int as count from app_reserve_practice_questions where id = 'runtime-role-reserve-question'",
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: 1 }] });
+    await expect(
+      database.exec(`
+        insert into tutor_sessions (
+          id, user_id, question_id, solved, status, current_state,
+          completed_at
+        ) values (
+          'runtime-role-origin-session', 'user:runtime-role-professor',
+          'runtime-role-origin-question', true, 'completed', 'solved', now()
+        );
+        insert into tutor_sessions (
+          id, user_id, question_id, question_version_id,
+          practice_context, origin_session_id
+        ) select
+          'runtime-role-reserve-session', 'user:runtime-role-professor',
+          q.id, q.working_version_id, 'reserve_practice',
+          'runtime-role-origin-session'
+        from questions q
+        where q.id = 'runtime-role-reserve-question';
+      `),
+    ).resolves.toBeDefined();
+    await expect(
       database.exec("create table runtime_must_not_create (id integer)"),
     ).rejects.toThrow(/permission denied/);
     await expect(
@@ -183,7 +280,7 @@ describe("least-privilege runtime role provisioning", () => {
     ).rejects.toThrow(/permission denied/);
     await expect(readRoleAttestation(client)).resolves.toMatchObject({
       bypassRls: false,
-      executableRoutineCount: 5,
+      executableRoutineCount: 8,
       missingRuntimeFunctionCount: 0,
       missingRuntimeWriteCount: 0,
       protectedWriteCount: 0,

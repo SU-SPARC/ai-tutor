@@ -4,13 +4,13 @@ import { useState } from "react";
 import { Loader2, Shuffle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { SimilarPublishedQuestionDto } from "@/lib/types";
+import type { SimilarPracticeSessionDto } from "@/lib/types";
 
 type SimilarProblemState = "idle" | "loading" | "none" | "error";
 
 export function similarProblemStatusMessage(state: SimilarProblemState) {
   if (state === "none") {
-    return "No similar published problem is available yet.";
+    return "No additional approved practice problem is available for this question yet.";
   }
   if (state === "error") {
     return "A similar problem could not be checked right now. Try again.";
@@ -24,7 +24,7 @@ export function PracticeSimilarProblemAction({
   sessionId,
 }: {
   disabled: boolean;
-  onMatch: (question: SimilarPublishedQuestionDto) => void;
+  onMatch: (practice: SimilarPracticeSessionDto) => void;
   sessionId: string;
 }) {
   const [state, setState] = useState<SimilarProblemState>("idle");
@@ -35,20 +35,23 @@ export function PracticeSimilarProblemAction({
     try {
       const response = await fetch(
         `/api/tutor/session/${encodeURIComponent(sessionId)}/similar`,
-        { headers: { Accept: "application/json" } },
+        {
+          headers: { Accept: "application/json" },
+          method: "POST",
+        },
       );
       const payload = (await response.json().catch(() => ({}))) as {
-        question?: SimilarPublishedQuestionDto | null;
+        practice?: SimilarPracticeSessionDto | null;
       };
       if (!response.ok) {
         setState("error");
         return;
       }
-      if (!payload.question) {
+      if (!payload.practice) {
         setState("none");
         return;
       }
-      onMatch(payload.question);
+      onMatch(payload.practice);
     } catch {
       setState("error");
     }
@@ -71,8 +74,8 @@ export function PracticeSimilarProblemAction({
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Uses an existing professor-approved published question. No new
-              problem is generated.
+              Uses an optional professor-approved problem from Reserve. It does
+              not count as assigned practice. No new problem is generated.
             </p>
           )}
         </div>

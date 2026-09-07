@@ -8,7 +8,6 @@ import {
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChartNoAxesColumn,
@@ -38,7 +37,7 @@ import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import type {
   CourseTopic,
-  SimilarPublishedQuestionDto,
+  SimilarPracticeSessionDto,
   StudentPracticeQuestion,
   TutorMode,
   TutorResponse,
@@ -111,7 +110,6 @@ export function PracticeWorkspace({
   questions,
   topics,
 }: PracticeWorkspaceProps) {
-  const router = useRouter();
   const initialQuestion = questions.find(
     (question) => question.id === initialQuestionId,
   );
@@ -139,7 +137,20 @@ export function PracticeWorkspace({
       questions[0]?.id ??
       "",
   );
+  const [reservePractice, setReservePractice] =
+    useState<SimilarPracticeSessionDto | null>(null);
+  const [resumeSession, setResumeSession] = useState<{
+    questionId: string;
+    sessionId: string;
+  } | null>(null);
+  const [isInitialSessionResolving, setIsInitialSessionResolving] = useState(
+    Boolean(initialSessionId && !initialQuestion),
+  );
+  const [initialSessionFailed, setInitialSessionFailed] = useState(false);
   const selectedQuestion =
+    (reservePractice?.question.id === selectedQuestionId
+      ? reservePractice.question
+      : undefined) ??
     questions.find((question) => question.id === selectedQuestionId) ??
     topicQuestions[0] ??
     questions[0];
@@ -204,31 +215,77 @@ export function PracticeWorkspace({
   }, [messages]);
 
   useEffect(() => {
+    if (!initialSessionId || initialQuestion) return;
+    let isStale = false;
+
+    void fetchTutorSession(initialSessionId)
+      .then((recovered) => {
+        if (isStale) return;
+        if (recovered.question) {
+          setReservePractice({
+            question: recovered.question,
+            sessionId: recovered.id,
+          });
+          setSelectedTopicId(recovered.question.topicId);
+          setSelectedQuestionId(recovered.question.id);
+        } else if (questions.some(({ id }) => id === recovered.questionId)) {
+          setSelectedQuestionId(recovered.questionId);
+        }
+        setResumeSession({
+          questionId: recovered.questionId,
+          sessionId: recovered.id,
+        });
+      })
+      .catch((error) => {
+        if (!isStale) {
+          setInitialSessionFailed(true);
+          setSessionError(errorMessageFor(error));
+        }
+      })
+      .finally(() => {
+        if (!isStale) setIsInitialSessionResolving(false);
+      });
+
+    return () => {
+      isStale = true;
+    };
+  }, [initialQuestion, initialSessionId, questions]);
+
+  useEffect(() => {
     let isStale = false;
 
     async function loadSession() {
       setAnswer("");
       setLatestResponse(null);
       setSession(null);
-      setSessionError(null);
       setMessages([]);
       setDisclosedHints([]);
       setHintCount(0);
       setHintViewIndex(0);
 
-      if (!selectedQuestionIdForSession) {
+      if (
+        !selectedQuestionIdForSession ||
+        isInitialSessionResolving ||
+        initialSessionFailed
+      ) {
         setIsSessionLoading(false);
         return;
       }
+
+      setSessionError(null);
 
       setIsSessionLoading(true);
 
       try {
         const nextSession = await createOrResumeTutorSession(
           selectedQuestionIdForSession,
-          selectedQuestionIdForSession === initialQuestionId
-            ? initialSessionId
-            : undefined,
+          reservePractice?.question.id === selectedQuestionIdForSession
+            ? reservePractice.sessionId
+            : resumeSession?.questionId === selectedQuestionIdForSession
+              ? resumeSession.sessionId
+              : selectedQuestionIdForSession === initialQuestionId
+                ? initialSessionId
+                : undefined,
         );
 
         if (!isStale) {
@@ -270,6 +327,10 @@ export function PracticeWorkspace({
   }, [
     initialQuestionId,
     initialSessionId,
+    initialSessionFailed,
+    isInitialSessionResolving,
+    reservePractice,
+    resumeSession,
     selectedQuestion,
     selectedQuestionIdForSession,
   ]);
@@ -363,6 +424,8 @@ export function PracticeWorkspace({
   }
 
   function selectQuestion(questionId: string, topicId: string) {
+    setInitialSessionFailed(false);
+    setReservePractice(null);
     setSelectedTopicId(topicId);
     setExpandedTopicIds((previous) => new Set(previous).add(topicId));
     setSelectedQuestionId(questionId);
@@ -371,15 +434,14 @@ export function PracticeWorkspace({
     resetChat();
   }
 
-  function openSimilarQuestion(question: SimilarPublishedQuestionDto) {
-    const availableQuestion = questions.find(
-      (candidate) => candidate.id === question.questionId,
-    );
-    if (!availableQuestion) {
-      router.push(`/practice/${encodeURIComponent(question.questionId)}`);
-      return;
-    }
-    selectQuestion(availableQuestion.id, availableQuestion.topicId);
+  function openSimilarQuestion(practice: SimilarPracticeSessionDto) {
+    setInitialSessionFailed(false);
+    setReservePractice(practice);
+    setSelectedTopicId(practice.question.topicId);
+    setSelectedQuestionId(practice.question.id);
+    setAnswer("");
+    setLatestResponse(null);
+    resetChat();
   }
 
   async function sendAnswer() {
@@ -749,6 +811,9 @@ export function PracticeWorkspace({
               <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                 <div className="min-w-0">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    {session?.practiceContext === "reserve_practice" ? (
+                      <Badge variant="success">Extra practice</Badge>
+                    ) : null}
                     <Badge>{selectedTopic?.title}</Badge>
                     <Badge variant="outline">
                       {selectedQuestion.difficulty}
@@ -773,7 +838,10 @@ export function PracticeWorkspace({
                     size="icon"
                     title="Reset"
                     aria-label="Reset conversation"
-                    disabled={isTutorBusy}
+                    disabled={
+                      isTutorBusy ||
+                      session?.practiceContext === "reserve_practice"
+                    }
                     onClick={() => {
                       void restartTutorSession();
                     }}
@@ -782,6 +850,26 @@ export function PracticeWorkspace({
                   </Button>
                 </div>
               </div>
+
+              {session?.practiceContext === "reserve_practice" ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-success/5 px-5 py-2 text-sm">
+                  <span>
+                    Extra practice · professor-approved and separate from
+                    assigned progress
+                  </span>
+                  <Button asChild size="sm" variant="ghost">
+                    <Link
+                      href={
+                        session.originSessionId
+                          ? `/practice?sessionId=${encodeURIComponent(session.originSessionId)}`
+                          : "/practice"
+                      }
+                    >
+                      Back to course problems
+                    </Link>
+                  </Button>
+                </div>
+              ) : null}
 
               <div
                 className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
