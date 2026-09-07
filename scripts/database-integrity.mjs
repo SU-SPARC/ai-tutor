@@ -25,6 +25,7 @@ import {
 import {
   getMigrationStatus,
   loadMigrations,
+  normalizeMigrationDatabaseUrl,
 } from "./lib/database-migrations.mjs";
 
 const { Pool } = pg;
@@ -75,7 +76,9 @@ export async function main(args = process.argv.slice(2)) {
   const urlFingerprint = fingerprintDatabaseUrl(databaseUrl);
   const pool = new Pool({
     application_name: `ai-tutor-database-integrity-${options.mode}`,
-    connectionString: databaseUrl,
+    // Managed sslmode=require strings need libpq-compatible TLS handling in
+    // pg 8, exactly as the migration runner already applies.
+    connectionString: normalizeMigrationDatabaseUrl(databaseUrl),
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 5_000,
     max: 1,
