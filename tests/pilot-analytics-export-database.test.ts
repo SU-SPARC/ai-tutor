@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
@@ -22,6 +23,9 @@ const RAW_ANSWER = "RAW-STUDENT-ANSWER-SENSITIVE";
 const PRIVATE_SUMMARY = "PRIVATE-REFERENCE-SUMMARY-SENSITIVE";
 const FEEDBACK_MESSAGE = "FEEDBACK-MESSAGE-SENSITIVE";
 const RESOLUTION_NOTES = "RESOLUTION-NOTES-SENSITIVE";
+const PROFESSOR_PARTICIPANT_ID = createHash("sha256")
+  .update(`user:${TEST_PROFESSOR.userId}`)
+  .digest("hex");
 
 afterEach(() => mockPrincipal(undefined));
 
@@ -44,7 +48,7 @@ describe("pilot analytics research export", () => {
     await seed(database);
   }, 60_000);
 
-  it("derives every requested metric with explicit tutor-path semantics", async () => {
+  it("derives tutor metrics while excluding professor-owned sessions", async () => {
     const document = await repository.build(
       await professorAuthorization(),
       "2026-08-31T12:00:00.000Z",
@@ -107,6 +111,18 @@ describe("pilot analytics research export", () => {
     expect(document.metricDefinitions.researchOutcomes.statement).toMatch(
       /does not measure or establish learning improvement/i,
     );
+    expect(document.metricDefinitions.performance).toMatch(
+      /without a current effective professor role/i,
+    );
+    expect(document.limitations).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/current database role projection/i),
+        expect.stringMatching(/anonymous sessions remain included/i),
+      ]),
+    );
+    expect(
+      document.participants.map((participant) => participant.participantId),
+    ).not.toContain(PROFESSOR_PARTICIPANT_ID);
   });
 
   it("uses only global AI accounting so multi-scope writes are not multiplied", async () => {
@@ -317,6 +333,15 @@ async function seed(database: PGlite) {
     steps: 1,
     userId: TEST_STUDENT.userId,
   });
+  await seedSession(database, {
+    hints: 7,
+    misconceptionCodes: ["staff-only-misconception"],
+    questionId: "question-a",
+    questionVersionId: versions.get("question-a")!,
+    sessionId: "session-professor-practice",
+    steps: 7,
+    userId: TEST_PROFESSOR.userId,
+  });
   await database.exec(`
     alter table tutor_sessions
       disable trigger tutor_sessions_guard_practice_context;
@@ -365,6 +390,14 @@ async function seed(database: PGlite) {
       "blocked",
     ],
     ["session-user", "question-a", "topic-a", "check", "rule", "correct"],
+    [
+      "session-professor-practice",
+      "question-a",
+      "topic-a",
+      "check",
+      "llm",
+      "incorrect",
+    ],
   ] as const;
   for (const [
     sessionId,

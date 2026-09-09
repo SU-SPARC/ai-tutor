@@ -154,13 +154,13 @@ export function pilotAnalyticsMetricDefinitions(): PilotAnalyticsExport["metricD
     feedback:
       "Counts of submitted question reports by workflow category and status; report text and resolution notes are excluded.",
     performance:
-      "Observed answer-check results recorded by the tutor. These descriptive counts are not measures of mastery or learning gain.",
+      "Observed answer-check results from published-practice sessions owned by anonymous participants or authenticated accounts without a current effective professor role. These descriptive counts are not measures of mastery or learning gain.",
     researchOutcomes: {
       included: false,
       statement: RESEARCH_OUTCOME_STATEMENT,
     },
     usage:
-      "Participation, session, tutoring-path, hint, solution-reveal, and AI accounting activity recorded by the application.",
+      "Participation, session, tutoring-path, hint, and solution-reveal counts exclude sessions owned by authenticated accounts with a current effective professor role. AI accounting is reported separately.",
   };
 }
 
@@ -168,6 +168,9 @@ export function pilotAnalyticsLimitations() {
   return [
     "Participant identifiers are stable pseudonyms, not anonymous identifiers; access to exports must remain restricted.",
     "Correctness is based only on recorded answer-check verdicts and excludes unscored or blocked checks from the numerator.",
+    "Authenticated session activity is excluded when the owner's current database role projection has an effective professor grant; historical role-at-session-time is not stored.",
+    "Anonymous sessions remain included because anonymous owners have no authoritative role membership.",
+    "Global AI accounting and feedback workflow counts are not session-owner populations and are not role-filtered.",
     "Misconception frequency counts the latest retained misconception codes per session, not every historical occurrence.",
     "AI token values can include estimates when the provider did not return usage; estimatedTokenPortion identifies that amount.",
   ];

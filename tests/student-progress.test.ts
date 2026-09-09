@@ -3,19 +3,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/student/progress/route";
 import { requireStudent } from "@/lib/auth/authorization";
 import { activeCanonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
+import { setContentRepositoryForTests } from "@/lib/data/data-store";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
+import { demoContentRepository } from "@/lib/data/demo-repository";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import {
   createDatabaseTutorSessionRepository,
+  createMemoryTutorSessionRepository,
   createReservePracticeTutorSession,
   createTutorSession,
+  persistTutorSessionTransition,
   recordTutorSessionAttempt,
   recordTutorSessionAttemptOutcome,
   resetTutorSessionsForTests,
   revealTutorSessionHint,
   revealTutorSessionStep,
+  setTutorSessionRepositoryForTests,
 } from "@/lib/data/tutor-session-repository";
 import type { AuthenticatedPrincipal } from "@/lib/auth/principal";
+import type { TutorSessionRecord } from "@/lib/types";
 import {
   authorizationForStudentOwner,
   mockPrincipal,
@@ -47,11 +53,13 @@ const otherSessionAuthorization = authorizationForStudentOwner(otherOwner);
 describe("student progress dashboard", () => {
   beforeEach(() => {
     resetTutorSessionsForTests();
+    setContentRepositoryForTests(undefined);
     mockPrincipal(TEST_STUDENT);
     vi.stubEnv("APP_DEMO_MODE", "true");
   });
 
   afterEach(() => {
+    setContentRepositoryForTests(undefined);
     vi.unstubAllEnvs();
     resetAuthMocks();
   });
@@ -155,6 +163,281 @@ describe("student progress dashboard", () => {
     expect(JSON.stringify(progress)).not.toContain("private working");
   });
 
+  it("counts only answer attempts while preserving revealed hint totals", async () => {
+    const session = await createTutorSession(
+      studentSessionAuthorization,
+      "dice-sum-eight",
+    );
+    const initialState = session.engineState!;
+    const response = {
+      misconceptions: [],
+      responseLabel: "approved_course_content" as const,
+      source: "rule" as const,
+      usage: {
+        contextUsed: false,
+        estimatedTokens: 0,
+        fallbackUsed: false,
+      },
+      verdict: "guidance" as const,
+    };
+
+    const checked = await persistTutorSessionTransition(
+      studentSessionAuthorization,
+      {
+        expectedRevision: 0,
+        idempotencyKey: "event:progress-check",
+        mode: "check",
+        response: { ...response, verdict: "incorrect" },
+        sessionId: session.id,
+        state: {
+          ...initialState,
+          attemptCount: 1,
+          state: "misconception_detected",
+          wrongAttemptCount: 1,
+        },
+        submittedAnswer: "1/5",
+      },
+    );
+    const hinted = await persistTutorSessionTransition(
+      studentSessionAuthorization,
+      {
+        expectedRevision: 1,
+        idempotencyKey: "event:progress-hint",
+        mode: "hint",
+        response,
+        sessionId: session.id,
+        state: {
+          ...initialState,
+          attemptCount: 1,
+          hintsRevealed: 1,
+          state: "hinting",
+          wrongAttemptCount: 1,
+        },
+      },
+    );
+    const revealedSolution = await persistTutorSessionTransition(
+      studentSessionAuthorization,
+      {
+        expectedRevision: 2,
+        idempotencyKey: "event:progress-solution",
+        mode: "solution",
+        response,
+        sessionId: session.id,
+        state: {
+          ...initialState,
+          attemptCount: 1,
+          hintsRevealed: 1,
+          state: "step_reveal",
+          stepsRevealed: 1,
+          wrongAttemptCount: 1,
+        },
+      },
+    );
+
+    const progress = await getStudentProgress(await requireStudent());
+
+    expect([checked.outcome, hinted.outcome, revealedSolution.outcome]).toEqual([
+      "applied",
+      "applied",
+      "applied",
+    ]);
+    expect(progress.questions).toEqual([
+      expect.objectContaining({
+        attemptCount: 1,
+        hintsUsed: 1,
+        questionId: "dice-sum-eight",
+      }),
+    ]);
+    expect(progress.recentSessions).toEqual([
+      expect.objectContaining({
+        attemptCount: 1,
+        hintsUsed: 1,
+        sessionId: session.id,
+      }),
+    ]);
+  });
+
+  it("preserves completed work after a question leaves the live catalog", async () => {
+    const liveQuestions = await demoContentRepository.listQuestions();
+    const liveTopics = await demoContentRepository.listTopics();
+    const completedQuestion = liveQuestions.find(
+      (question) => question.id === "dice-sum-eight",
+    )!;
+    const currentQuestion = liveQuestions.find(
+      (question) => question.id === "five-question-quiz",
+    )!;
+    const completedAt = "2026-08-12T10:00:00.000Z";
+    const sessions: TutorSessionRecord[] = [
+      {
+        attempts: [
+          {
+            createdAt: completedAt,
+            id: "attempt:historical-correct",
+            mode: "check",
+            submittedAnswer: "PRIVATE-STUDENT-ANSWER",
+            verdict: "correct",
+          },
+        ],
+        completedAt,
+        createdAt: "2026-08-12T09:00:00.000Z",
+        id: "session:historical-completed",
+        lastSeenAt: completedAt,
+        practiceContext: "published",
+        questionId: completedQuestion.id,
+        questionTitle: completedQuestion.title,
+        questionVersion: {
+          ...completedQuestion,
+          answer: {
+            acceptedAnswers: ["PRIVATE-ACCEPTED-ANSWER"],
+            explanation: "PRIVATE-SOLUTION-EXPLANATION",
+          },
+          hints: ["PRIVATE-HINT-BODY"],
+          solutionSteps: ["PRIVATE-SOLUTION-STEP"],
+          source: {
+            ...completedQuestion.source,
+            originalityNote: "PRIVATE-REFERENCE-NOTE",
+          },
+        },
+        questionVersionId: 101,
+        revealedHints: 1,
+        revealedSteps: 1,
+        solved: true,
+        status: "completed",
+        topicId: completedQuestion.topicId,
+      },
+      {
+        attempts: [
+          {
+            createdAt: "2026-08-13T10:00:00.000Z",
+            id: "attempt:current-incorrect",
+            mode: "check",
+            verdict: "incorrect",
+          },
+        ],
+        createdAt: "2026-08-13T09:00:00.000Z",
+        id: "session:current-question",
+        lastSeenAt: "2026-08-13T10:00:00.000Z",
+        practiceContext: "published",
+        questionId: currentQuestion.id,
+        questionTitle: currentQuestion.title,
+        questionVersionId: 102,
+        revealedHints: 0,
+        revealedSteps: 0,
+        solved: false,
+        status: "active",
+        topicId: currentQuestion.topicId,
+      },
+    ];
+    const sessionRepository = createMemoryTutorSessionRepository();
+    sessionRepository.listSessionsForStudent = async () => sessions;
+    setTutorSessionRepositoryForTests(sessionRepository);
+
+    const beforeRotation = await getStudentProgress(await requireStudent());
+
+    expect(beforeRotation.questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          available: true,
+          questionId: completedQuestion.id,
+          status: "completed",
+        }),
+      ]),
+    );
+    expect(beforeRotation.summary).toMatchObject({
+      availableCompletedQuestions: 1,
+      completedQuestions: 1,
+      previouslyCompletedQuestions: 0,
+    });
+
+    setContentRepositoryForTests({
+      ...demoContentRepository,
+      async listQuestions() {
+        return liveQuestions.filter(
+          (question) => question.id !== completedQuestion.id,
+        );
+      },
+      async listTopics() {
+        return liveTopics;
+      },
+    });
+
+    const afterRotation = await getStudentProgress(await requireStudent());
+    const historical = afterRotation.questions.find(
+      (question) => question.questionId === completedQuestion.id,
+    );
+    const current = afterRotation.questions.find(
+      (question) => question.questionId === currentQuestion.id,
+    );
+    const historicalSession = afterRotation.recentSessions.find(
+      (session) => session.questionId === completedQuestion.id,
+    );
+    const serialized = JSON.stringify(afterRotation);
+
+    expect(afterRotation.summary).toMatchObject({
+      availableCompletedQuestions: 0,
+      availableQuestions: liveQuestions.length - 1,
+      completedQuestions: 1,
+      previouslyCompletedQuestions: 1,
+    });
+    expect(historical).toMatchObject({
+      available: false,
+      questionId: completedQuestion.id,
+      questionTitle: completedQuestion.title,
+      resumeSessionId: undefined,
+      status: "completed",
+    });
+    expect(current).toMatchObject({
+      available: true,
+      questionId: currentQuestion.id,
+      status: "in_progress",
+    });
+    expect(historicalSession).toMatchObject({
+      available: false,
+      questionId: completedQuestion.id,
+      questionTitle: completedQuestion.title,
+      status: "unavailable",
+    });
+    expect(serialized).not.toMatch(
+      /PRIVATE-STUDENT-ANSWER|PRIVATE-ACCEPTED-ANSWER|PRIVATE-SOLUTION|PRIVATE-HINT|PRIVATE-REFERENCE/,
+    );
+
+    setContentRepositoryForTests({
+      ...demoContentRepository,
+      async listQuestions() {
+        return liveQuestions.filter(
+          (question) => question.id !== completedQuestion.id,
+        );
+      },
+      async listTopics() {
+        return liveTopics.filter(
+          (topic) => topic.id !== completedQuestion.topicId,
+        );
+      },
+    });
+
+    const afterTopicDeactivation = await getStudentProgress(
+      await requireStudent(),
+    );
+    expect(
+      afterTopicDeactivation.questions.find(
+        (question) => question.questionId === completedQuestion.id,
+      ),
+    ).toMatchObject({
+      available: false,
+      questionTitle: completedQuestion.title,
+      topicId: completedQuestion.topicId,
+      topicTitle: "Earlier course content",
+    });
+    expect(afterTopicDeactivation.summary).toMatchObject({
+      availableCompletedQuestions: 0,
+      completedQuestions: 1,
+      previouslyCompletedQuestions: 1,
+    });
+    expect(
+      afterTopicDeactivation.topics.map((topic) => topic.id),
+    ).not.toContain(completedQuestion.topicId);
+  });
+
   it("requires an authenticated account even when a signed anonymous owner exists", async () => {
     mockPrincipal(undefined);
     mockStudentOwner(TEST_ANONYMOUS_OWNER);
@@ -189,10 +472,20 @@ describe("student progress dashboard", () => {
       source: "rule",
       verdict: "correct",
     });
+    const liveQuestions = await demoContentRepository.listQuestions();
+    setContentRepositoryForTests({
+      ...demoContentRepository,
+      async listQuestions() {
+        return liveQuestions.filter(
+          (question) => question.id !== "dice-sum-eight",
+        );
+      },
+    });
 
     const progress = await getStudentProgress(await requireStudent());
 
     expect(progress.summary.completedQuestions).toBe(0);
+    expect(progress.summary.previouslyCompletedQuestions).toBe(0);
     expect(progress.summary.extraPracticeSessions).toBe(1);
     expect(progress.questions).toEqual([
       expect.objectContaining({
@@ -205,12 +498,9 @@ describe("student progress dashboard", () => {
         expect.objectContaining({ questionId: "dice-sum-eight" }),
       ]),
     );
-    expect(progress.recentSessions).toEqual(
+    expect(progress.recentSessions).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          practiceContext: "reserve_practice",
-          sessionId: extra.id,
-        }),
+        expect.objectContaining({ sessionId: extra.id }),
       ]),
     );
   });
@@ -307,6 +597,15 @@ describe("student progress dashboard", () => {
     );
     expect(calls[0].sql).toContain(
       "$1 = 'anonymous' and s.anonymous_user_id = $2 and s.user_id is null",
+    );
+    expect(calls[0].sql).toContain(
+      "qv.snapshot_json as question_snapshot_json",
+    );
+    expect(calls[0].sql).toContain(
+      "qv.snapshot_json ->> 'title' as question_title",
+    );
+    expect(calls[0].sql).toContain(
+      "qv.snapshot_json ->> 'topicId' as topic_id",
     );
     expect(calls[1]).toMatchObject({
       params: [["session:owned-production"]],

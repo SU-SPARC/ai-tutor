@@ -19,7 +19,10 @@ import {
   type DatabaseQueryExecutor,
   type DatabaseQueryValue,
 } from "@/lib/data/database-executor";
-import { STUDENT_KEY_SQL } from "@/lib/data/instructor-student-repository";
+import {
+  ANALYTICS_STUDENT_SESSION_FILTER_SQL,
+  STUDENT_KEY_SQL,
+} from "@/lib/data/analytics-population";
 
 type ActivityRow = {
   answer_attempts: number | string | null;
@@ -84,6 +87,7 @@ const SESSION_FACTS_CTE = `
     from tutor_sessions s
     join questions q on q.id = s.question_id
     where s.practice_context = 'published'
+      and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
   ),
   attempt_facts as (
     select
@@ -227,6 +231,7 @@ export function createDatabasePilotAnalyticsExportRepository(
                s.last_misconception_ids_json
              ) as code
              where s.practice_context = 'published'
+               and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
            ) retained
            group by misconception_code
            order by session_occurrences desc, misconception_code`,
@@ -267,12 +272,14 @@ export function createDatabasePilotAnalyticsExportRepository(
           query,
           `select min(recorded_at) as earliest_at, max(recorded_at) as latest_at
            from (
-             select created_at as recorded_at from tutor_sessions
-             where practice_context = 'published'
+             select s.created_at as recorded_at from tutor_sessions s
+             where s.practice_context = 'published'
+               and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
              union all
              select a.created_at from attempts a
              join tutor_sessions s on s.id = a.session_id
              where s.practice_context = 'published'
+               and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
              union all
              select created_at from feedback_reports
              union all

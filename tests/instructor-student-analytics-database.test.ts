@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -16,16 +17,22 @@ import {
 import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
+import type { InstructorStudentList } from "@/lib/types";
 
 const databases: PGlite[] = [];
 
 /**
- * Two students with deliberately different shapes: one struggling on a single
- * topic, one mostly succeeding across two. Every count asserted below is hand
+ * Three students with deliberately different shapes: one struggling on a
+ * single topic, one mostly succeeding across two, and one with low overall
+ * accuracy spread across three topics. Every count asserted below is hand
  * derived from these rows.
  */
 const STRUGGLING = "anon:11111111-1111-1111-1111-111111111111";
 const STEADY = "user:instructor-analytics-student";
+const DISTRIBUTED = "user:distributed-attempts-student";
+const PROFESSOR_STUDENT_KEY = createHash("sha256")
+  .update(`user:${TEST_PROFESSOR.userId}`)
+  .digest("hex");
 
 afterEach(() => {
   mockPrincipal(undefined);
@@ -56,12 +63,16 @@ describe("instructor student analytics", () => {
     const authorization = await professorAuthorization();
     const list = await repository.listStudents(authorization);
 
-    expect(list.total).toBe(2);
-    expect(list.students).toHaveLength(2);
+    expect(list.total).toBe(3);
+    expect(list.students).toHaveLength(3);
 
     const serialized = JSON.stringify(list);
     expect(serialized).not.toContain(STRUGGLING);
     expect(serialized).not.toContain("instructor-analytics-student");
+    expect(serialized).not.toContain("distributed-attempts-student");
+    expect(list.students.map((student) => student.studentKey)).not.toContain(
+      PROFESSOR_STUDENT_KEY,
+    );
     for (const student of list.students) {
       expect(student.studentKey).toMatch(/^[0-9a-f]{64}$/);
     }
@@ -72,7 +83,7 @@ describe("instructor student analytics", () => {
     const list = await repository.listStudents(authorization, {
       sort: "lowest_accuracy",
     });
-    const struggling = list.students[0];
+    const struggling = studentNeedingAttention(list);
 
     // Four `check` attempts, one correct. The hint and solution rows are not
     // answer submissions and must not inflate the attempt count.
@@ -87,14 +98,61 @@ describe("instructor student analytics", () => {
     expect(struggling.extraPracticeSessions).toBe(1);
   });
 
-  it("orders by lowest accuracy so the struggling student surfaces first", async () => {
+  it("orders by lowest overall accuracy", async () => {
     const authorization = await professorAuthorization();
     const byAccuracy = await repository.listStudents(authorization, {
       sort: "lowest_accuracy",
     });
 
-    expect(byAccuracy.students[0].correctAttempts).toBe(1);
-    expect(byAccuracy.students[1].correctAttempts).toBe(3);
+    expect(byAccuracy.students[0]).toMatchObject({
+      attempts: 6,
+      correctAttempts: 1,
+      needsAttention: false,
+    });
+    expect(byAccuracy.students[1]).toMatchObject({
+      attempts: 4,
+      correctAttempts: 1,
+      needsAttention: true,
+    });
+  });
+
+  it("flags students from per-topic difficulty rather than overall accuracy", async () => {
+    const authorization = await professorAuthorization();
+    const list = await repository.listStudents(authorization);
+    const struggling = studentNeedingAttention(list);
+    const distributed = list.students.find((student) => student.attempts === 6);
+
+    expect(struggling).toMatchObject({
+      attempts: 4,
+      correctAttempts: 1,
+      needsAttention: true,
+      topicsPracticed: 1,
+    });
+    expect(distributed).toMatchObject({
+      attempts: 6,
+      correctAttempts: 1,
+      needsAttention: false,
+      topicsPracticed: 3,
+    });
+  });
+
+  it("excludes professor practice from the student population and attention count", async () => {
+    const authorization = await professorAuthorization();
+    const [list, cohort] = await Promise.all([
+      repository.listStudents(authorization),
+      repository.getCohortAnalytics(authorization),
+    ]);
+
+    expect(list.total).toBe(3);
+    expect(list.students.map((student) => student.studentKey)).not.toContain(
+      PROFESSOR_STUDENT_KEY,
+    );
+    expect(cohort).toMatchObject({
+      activeStudents: 3,
+      attempts: 15,
+      excludedStaffSessions: 1,
+      studentsNeedingAttention: 1,
+    });
   });
 
   it("paginates without losing the total", async () => {
@@ -109,8 +167,8 @@ describe("instructor student analytics", () => {
       sort: "lowest_accuracy",
     });
 
-    expect(firstPage.total).toBe(2);
-    expect(secondPage.total).toBe(2);
+    expect(firstPage.total).toBe(3);
+    expect(secondPage.total).toBe(3);
     expect(firstPage.students).toHaveLength(1);
     expect(secondPage.students).toHaveLength(1);
     expect(firstPage.students[0].studentKey).not.toBe(
@@ -125,7 +183,7 @@ describe("instructor student analytics", () => {
     });
     const detail = await repository.getStudentDetail(
       authorization,
-      list.students[0].studentKey,
+      studentNeedingAttention(list).studentKey,
     );
 
     expect(detail).toBeDefined();
@@ -149,7 +207,7 @@ describe("instructor student analytics", () => {
     });
     const detail = await repository.getStudentDetail(
       authorization,
-      list.students[0].studentKey,
+      studentNeedingAttention(list).studentKey,
     );
 
     expect(detail?.misconceptions).toEqual([
@@ -168,7 +226,7 @@ describe("instructor student analytics", () => {
     });
     const detail = await repository.getStudentDetail(
       authorization,
-      list.students[0].studentKey,
+      studentNeedingAttention(list).studentKey,
     );
     const serialized = JSON.stringify(detail);
 
@@ -187,26 +245,37 @@ describe("instructor student analytics", () => {
     expect(detail).toBeUndefined();
   });
 
+  it("does not expose professor-owned activity through direct drilldown", async () => {
+    const detail = await repository.getStudentDetail(
+      await professorAuthorization(),
+      PROFESSOR_STUDENT_KEY,
+    );
+
+    expect(detail).toBeUndefined();
+  });
+
   it("aggregates the cohort with the tutor path split", async () => {
     const authorization = await professorAuthorization();
     const cohort = await repository.getCohortAnalytics(authorization);
 
-    expect(cohort.activeStudents).toBe(2);
+    expect(cohort.activeStudents).toBe(3);
     expect(cohort.extraPracticeSessions).toBe(1);
-    expect(cohort.attempts).toBe(8);
-    expect(cohort.correctAttempts).toBe(4);
-    // Eight of the ten recorded rows were answered by the rule engine; the
-    // other two are the single retrieval and single LLM fallback.
-    expect(cohort.ruleAttempts).toBe(8);
+    expect(cohort.attempts).toBe(15);
+    expect(cohort.correctAttempts).toBe(5);
+    expect(cohort.excludedStaffSessions).toBe(1);
+    // Fourteen of the seventeen included published rows use the rule engine;
+    // the others use retrieval, LLM fallback, and blocked paths.
+    expect(cohort.ruleAttempts).toBe(14);
     expect(cohort.retrievalAttempts).toBe(1);
     expect(cohort.llmAttempts).toBe(1);
+    expect(cohort.blockedAttempts).toBe(1);
     expect(cohort.studentsNeedingAttention).toBe(1);
     expect(cohort.misconceptions[0]).toMatchObject({
       misconceptionId: "conditional-probability-denominator-mistake",
     });
   });
 
-  it("keeps Reserve-practice rows out of the legacy professor practice totals", async () => {
+  it("excludes Reserve practice and counts only explicit incorrect verdicts", async () => {
     const analytics = await createDatabaseContentRepository(
       "postgres://unused.example/db",
       pgliteQuery(database),
@@ -214,9 +283,23 @@ describe("instructor student analytics", () => {
 
     expect(analytics).toMatchObject({
       summary: {
-        totalAttempts: 10,
-        totalTutorSessions: 4,
+        totalAttempts: 15,
+        totalHintsUsed: 4,
+        totalStepsRevealed: 2,
+        totalTutorSessions: 7,
       },
+    });
+    expect(
+      analytics.questions.find(
+        (question) => question.questionId === "cp-question",
+      ),
+    ).toMatchObject({
+      attempts: 9,
+      correctAttempts: 3,
+      hintsUsed: 3,
+      incorrectAttempts: 5,
+      llmAttempts: 0,
+      stepsRevealed: 2,
     });
   });
 
@@ -259,6 +342,16 @@ async function professorAuthorization() {
   return requireAnalyticsAccess();
 }
 
+function studentNeedingAttention(list: InstructorStudentList) {
+  const student = list.students.find((candidate) => candidate.needsAttention);
+
+  if (!student) {
+    throw new Error("Expected a student needing instructor attention.");
+  }
+
+  return student;
+}
+
 async function migratedDatabase() {
   const database = new PGlite();
   databases.push(database);
@@ -285,8 +378,13 @@ async function seed(database: PGlite) {
        id, identity_provider, external_subject, email, display_name, status
      ) values
        ($1, 'test', 'analytics-professor', 'professor@example.edu', 'Professor', 'active'),
-       ($2, 'test', 'analytics-student', 'student@example.edu', 'Student', 'active')`,
-    [TEST_PROFESSOR.userId, STEADY.slice("user:".length)],
+       ($2, 'test', 'analytics-student', 'student@example.edu', 'Student', 'active'),
+       ($3, 'test', 'distributed-student', 'distributed@example.edu', 'Distributed Student', 'active')`,
+    [
+      TEST_PROFESSOR.userId,
+      STEADY.slice("user:".length),
+      DISTRIBUTED.slice("user:".length),
+    ],
   );
   await database.query(
     "insert into user_roles (user_id, role_id) values ($1, 'professor')",
@@ -295,12 +393,17 @@ async function seed(database: PGlite) {
   await database.query(
     `insert into topics (id, title, description, sort_order, is_active) values
        ('conditional-probability', 'Conditional Probability', '', 1, true),
-       ('binomial-models', 'Binomial Models', '', 2, true)`,
+       ('binomial-models', 'Binomial Models', '', 2, true),
+       ('normal-models', 'Normal Models', '', 3, true)`,
+  );
+  await database.exec(
+    "select set_config('app.current_creation_method', 'manual', false)",
   );
 
   for (const [questionId, topicId] of [
     ["cp-question", "conditional-probability"],
     ["bm-question", "binomial-models"],
+    ["nm-question", "normal-models"],
   ]) {
     await database.query(
       `insert into questions (
@@ -334,6 +437,34 @@ async function seed(database: PGlite) {
     versions.rows.map((row) => [row.question_id, row.id]),
   );
 
+  for (const [questionId, versionId] of versionByQuestion) {
+    for (const [action, expectedState] of [
+      ["submit", "draft"],
+      ["approve", "needs_review"],
+      ["publish", "approved"],
+    ]) {
+      await database.query(
+        `select * from app_transition_question_version(
+           target_question_id => $1,
+           target_question_version_id => $2,
+           transition_action => $3,
+           actor_id => $4,
+           actor_display => 'Professor',
+           expected_state => $5,
+           idempotency_key_value => $6
+         )`,
+        [
+          questionId,
+          versionId,
+          action,
+          TEST_PROFESSOR.userId,
+          expectedState,
+          `seed:${questionId}:${action}`,
+        ],
+      );
+    }
+  }
+
   // Struggling student: two sessions on one topic, one correct answer out of
   // four, hints and solutions revealed, the same misconception code twice.
   await seedSession(database, {
@@ -366,6 +497,16 @@ async function seed(database: PGlite) {
     solved: true,
     userId: STEADY.slice("user:".length),
   });
+  await seedSession(database, {
+    misconceptionIds: ["staff-only-misconception"],
+    questionId: "cp-question",
+    questionVersionId: versionByQuestion.get("cp-question"),
+    revealedHints: 7,
+    revealedSteps: 7,
+    sessionId: "session-professor-practice",
+    solved: false,
+    userId: TEST_PROFESSOR.userId,
+  });
 
   await database.exec(`
     alter table tutor_sessions
@@ -396,6 +537,22 @@ async function seed(database: PGlite) {
     solved: true,
     userId: STEADY.slice("user:".length),
   });
+  for (const [questionId, sessionId, solved] of [
+    ["cp-question", "session-distributed-cp", true],
+    ["bm-question", "session-distributed-bm", false],
+    ["nm-question", "session-distributed-nm", false],
+  ] as const) {
+    await seedSession(database, {
+      misconceptionIds: [],
+      questionId,
+      questionVersionId: versionByQuestion.get(questionId),
+      revealedHints: 0,
+      revealedSteps: 0,
+      sessionId,
+      solved,
+      userId: DISTRIBUTED.slice("user:".length),
+    });
+  }
 
   const attemptRows: Array<
     [string, string, string, string, string, string, string]
@@ -464,6 +621,17 @@ async function seed(database: PGlite) {
       "correct",
       "[]",
     ],
+    ...Array.from({ length: 4 }, () =>
+      [
+        "session-professor-practice",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "rule",
+        "incorrect",
+        '["STAFF-ONLY-MISCONCEPTION"]',
+      ] as [string, string, string, string, string, string, string],
+    ),
     [
       "session-steady-1",
       "cp-question",
@@ -471,6 +639,15 @@ async function seed(database: PGlite) {
       "check",
       "rule",
       "incorrect",
+      "[]",
+    ],
+    [
+      "session-steady-1",
+      "cp-question",
+      "conditional-probability",
+      "check",
+      "blocked",
+      "blocked",
       "[]",
     ],
     [
@@ -489,6 +666,60 @@ async function seed(database: PGlite) {
       "check",
       "llm",
       "correct",
+      "[]",
+    ],
+    [
+      "session-distributed-cp",
+      "cp-question",
+      "conditional-probability",
+      "check",
+      "rule",
+      "correct",
+      "[]",
+    ],
+    [
+      "session-distributed-cp",
+      "cp-question",
+      "conditional-probability",
+      "check",
+      "rule",
+      "incorrect",
+      "[]",
+    ],
+    [
+      "session-distributed-bm",
+      "bm-question",
+      "binomial-models",
+      "check",
+      "rule",
+      "incorrect",
+      "[]",
+    ],
+    [
+      "session-distributed-bm",
+      "bm-question",
+      "binomial-models",
+      "check",
+      "rule",
+      "incorrect",
+      "[]",
+    ],
+    [
+      "session-distributed-nm",
+      "nm-question",
+      "normal-models",
+      "check",
+      "rule",
+      "incorrect",
+      "[]",
+    ],
+    [
+      "session-distributed-nm",
+      "nm-question",
+      "normal-models",
+      "check",
+      "rule",
+      "incorrect",
       "[]",
     ],
     [

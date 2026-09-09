@@ -12,6 +12,7 @@ import {
   type DatabaseQueryExecutor,
   type DatabaseQueryValue,
 } from "@/lib/data/database-executor";
+import { ANALYTICS_STUDENT_SESSION_FILTER_SQL } from "@/lib/data/analytics-population";
 import {
   reviewStatusForAction,
   type AdminQuestionDetailAction,
@@ -168,11 +169,10 @@ export function createDatabaseContentRepository(
 
     async getProfessorPracticeAnalytics(authorization) {
       assertAuthorization(authorization, "professor");
-      const [questionRows, summaryRows, misconceptionRows, generatedRows] =
-        await Promise.all([
-          readDatabaseRows(
-            query,
-            `
+      const [questionRows, summaryRows, generatedRows] = await Promise.all([
+        readDatabaseRows(
+          query,
+          `
           select
             q.id as question_id,
             q.title as question_title,
@@ -180,6 +180,7 @@ export function createDatabaseContentRepository(
             t.title as topic_title,
             coalesce(attempts.attempt_count, 0)::int as attempts,
             coalesce(attempts.correct_attempts, 0)::int as correct_attempts,
+            coalesce(attempts.incorrect_attempts, 0)::int as incorrect_attempts,
             coalesce(attempts.llm_attempts, 0)::int as llm_attempts,
             coalesce(sessions.hints_used, 0)::int as hints_used,
             coalesce(sessions.steps_revealed, 0)::int as steps_revealed
@@ -188,13 +189,16 @@ export function createDatabaseContentRepository(
           left join (
             select
               question_id,
-              count(*)::int as attempt_count,
-              count(*) filter (where verdict = 'correct')::int as correct_attempts,
+              count(*) filter (where mode = 'check')::int as attempt_count,
+              count(*) filter (where verdict = 'correct' and mode = 'check')::int as correct_attempts,
+              count(*) filter (where verdict = 'incorrect' and mode = 'check')::int as incorrect_attempts,
               count(*) filter (where source = 'llm')::int as llm_attempts
             from attempts
             where question_id is not null
               and session_id in (
-                select id from tutor_sessions where practice_context = 'published'
+                select s.id from tutor_sessions s
+                where s.practice_context = 'published'
+                  and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
               )
             group by question_id
           ) attempts on attempts.question_id = q.id
@@ -203,70 +207,41 @@ export function createDatabaseContentRepository(
               question_id,
               sum(revealed_hints)::int as hints_used,
               sum(revealed_steps)::int as steps_revealed
-            from tutor_sessions
-            where question_id is not null
-              and practice_context = 'published'
+            from tutor_sessions s
+            where s.question_id is not null
+              and s.practice_context = 'published'
+              and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
             group by question_id
           ) sessions on sessions.question_id = q.id
           order by t.sort_order, t.title, t.id, q.title, q.id
         `,
-          ),
-          readDatabaseRows(
-            query,
-            `
+        ),
+        readDatabaseRows(
+          query,
+          `
           select
-            (select count(*)::int from tutor_sessions where practice_context = 'published') as total_tutor_sessions,
-            (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published') as total_attempts,
-            (select coalesce(sum(revealed_hints), 0)::int from tutor_sessions where practice_context = 'published') as total_hints_used,
-            (select coalesce(sum(revealed_steps), 0)::int from tutor_sessions where practice_context = 'published') as total_steps_revealed
+            (select count(*)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_tutor_sessions,
+            (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} and a.mode = 'check') as total_attempts,
+            (select coalesce(sum(s.revealed_hints), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_hints_used,
+            (select coalesce(sum(s.revealed_steps), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_steps_revealed
         `,
-          ),
-          readDatabaseRows(
-            query,
-            `
-          with missed as (
-            select
-              question_id,
-              count(*) filter (where verdict = 'incorrect')::int as missed_attempts
-            from attempts
-            where question_id is not null
-              and session_id in (
-                select id from tutor_sessions where practice_context = 'published'
-              )
-            group by question_id
-          )
-          select
-            m.id as misconception_id,
-            m.feedback,
-            q.id as question_id,
-            q.title as question_title,
-            q.topic_id,
-            t.title as topic_title,
-            missed.missed_attempts
-          from misconceptions m
-          join app_public_questions q on q.id = m.question_id
-          join topics t on t.id = q.topic_id
-          join missed on missed.question_id = q.id
-          where missed.missed_attempts > 0
-          order by missed.missed_attempts desc, t.sort_order, t.title, t.id, q.title, m.id
-          limit 20
-        `,
-          ),
-          readDatabaseRows(
-            query,
-            `
+        ),
+        readDatabaseRows(
+          query,
+          `
           select review_status, count(*)::int as question_count
           from questions
           where visibility = 'public'
             and source_type in ('generated_original', 'pattern_derived_original')
           group by review_status
         `,
-          ),
-        ]);
+        ),
+      ]);
       const questions = questionRows.map((row) => ({
         attempts: Number(row.attempts ?? 0),
         correctAttempts: Number(row.correct_attempts ?? 0),
         hintsUsed: Number(row.hints_used ?? 0),
+        incorrectAttempts: Number(row.incorrect_attempts ?? 0),
         llmAttempts: Number(row.llm_attempts ?? 0),
         questionId: String(row.question_id),
         questionTitle: String(row.question_title),
@@ -312,15 +287,6 @@ export function createDatabaseContentRepository(
       const summary = summaryRows[0];
 
       return {
-        commonMisconceptions: misconceptionRows.map((row) => ({
-          feedback: String(row.feedback),
-          misconceptionId: String(row.misconception_id),
-          missedAttempts: Number(row.missed_attempts ?? 0),
-          questionId: String(row.question_id),
-          questionTitle: String(row.question_title),
-          topicId: String(row.topic_id),
-          topicTitle: String(row.topic_title),
-        })),
         generatedQuestionOutcomes,
         mode: "database",
         questions,

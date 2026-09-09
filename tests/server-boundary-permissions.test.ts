@@ -22,7 +22,6 @@ import { POST as batchAdminQuestions } from "@/app/api/professor/questions/batch
 import { POST as inspectAdminQuestion } from "@/app/api/professor/questions/inspections/route";
 import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
-import { GET as getProfessorAnalytics } from "@/app/api/professor/analytics/route";
 import { GET as exportPilotAnalytics } from "@/app/api/professor/analytics/export/route";
 import {
   GET as getProfessorReview,
@@ -158,7 +157,6 @@ describe("server boundary permission matrix", () => {
 
 describe("direct professor API authorization", () => {
   const boundaries = [
-    ["GET /api/professor/analytics", () => getProfessorAnalytics()],
     [
       "GET /api/professor/analytics/export",
       () =>

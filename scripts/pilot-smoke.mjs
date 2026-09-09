@@ -122,13 +122,13 @@ export async function runSmoke({
 
   const professorResponse = await request(
     baseUrl,
-    "/api/professor/analytics",
+    "/api/professor/analytics/export",
     undefined,
     fetchImpl,
   );
   assert(
-    professorResponse.status === 401 || professorResponse.status === 403,
-    "Signed-out professor API access must be denied.",
+    professorResponse.status === 401,
+    "Signed-out professor analytics export access must return 401.",
   );
 
   return {

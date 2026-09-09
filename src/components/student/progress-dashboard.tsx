@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
+  Archive,
   BookOpenCheck,
   CheckCircle2,
   GraduationCap,
@@ -27,9 +28,19 @@ type QuestionProgress = StudentProgressDashboard["questions"][number];
 
 const metricDefinitions = [
   {
+    icon: GraduationCap,
+    key: "availableQuestions",
+    label: "Currently available",
+  },
+  {
     icon: CheckCircle2,
-    key: "completedQuestions",
-    label: "Questions completed",
+    key: "availableCompletedQuestions",
+    label: "Available questions completed",
+  },
+  {
+    icon: Archive,
+    key: "previouslyCompletedQuestions",
+    label: "Completed earlier",
   },
   {
     icon: BookOpenCheck,
@@ -104,7 +115,7 @@ export function ProgressDashboard({
         </header>
 
         <section
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
           aria-label="Practice totals"
         >
           {metricDefinitions.map(({ icon: Icon, key, label }) => (
@@ -163,18 +174,24 @@ export function ProgressDashboard({
                       </Badge>
                     ) : null}
                   </div>
-                  {topic.availableQuestions > 0 ? (
+                  {topic.availableQuestions > 0 ||
+                  topic.previouslyCompletedQuestions > 0 ? (
                     <>
-                      <Progress
-                        className="mt-4"
-                        aria-label={`${topic.title} practice completion`}
-                        indicatorClassName="bg-cta"
-                        max={topic.availableQuestions}
-                        value={topic.completedQuestions}
-                      />
+                      {topic.availableQuestions > 0 ? (
+                        <Progress
+                          className="mt-4"
+                          aria-label={`${topic.title} currently available practice completion`}
+                          indicatorClassName="bg-cta"
+                          max={topic.availableQuestions}
+                          value={topic.completedQuestions}
+                        />
+                      ) : null}
                       <p className="mt-2 text-sm text-muted-foreground">
                         {topic.completedQuestions} of {topic.availableQuestions}{" "}
-                        practice questions completed
+                        currently available completed
+                        {topic.previouslyCompletedQuestions > 0
+                          ? ` · ${topic.previouslyCompletedQuestions} completed earlier`
+                          : ""}
                         {topic.inProgressQuestions > 0
                           ? ` · ${topic.inProgressQuestions} in progress`
                           : ""}
@@ -302,7 +319,7 @@ export function ProgressDashboard({
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            Unavailable
+                            No action
                           </span>
                         )}
                       </TableCell>
@@ -383,6 +400,9 @@ function QuestionRow({ question }: { question: QuestionProgress }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium">{question.questionTitle}</h3>
+            {!question.available ? (
+              <Badge variant="secondary">No longer available</Badge>
+            ) : null}
             {question.needsAnotherAttempt ? (
               <Badge variant="outline">Try again</Badge>
             ) : null}
@@ -392,14 +412,20 @@ function QuestionRow({ question }: { question: QuestionProgress }) {
             {question.hintsUsed} hints
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link
-            href={resumeHref(question.questionId, question.resumeSessionId)}
-          >
-            {question.status === "completed" ? "Practice again" : "Resume"}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
+        {question.available ? (
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={resumeHref(question.questionId, question.resumeSessionId)}
+            >
+              {question.status === "completed"
+                ? "Practice again"
+                : question.resumeSessionId
+                  ? "Resume"
+                  : "Start"}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -413,7 +439,7 @@ function ProgressStatusBadge({
   status: StudentProgressDashboard["recentSessions"][number]["status"];
 }) {
   if (status === "unavailable") {
-    return <Badge variant="secondary">Unavailable</Badge>;
+    return <Badge variant="secondary">No longer available</Badge>;
   }
 
   if (needsAnotherAttempt) {

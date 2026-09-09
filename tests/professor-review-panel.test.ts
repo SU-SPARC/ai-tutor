@@ -55,14 +55,7 @@ describe("professor-friendly review panel", () => {
       readFileSync(
         path.join(
           process.cwd(),
-          "src/components/tutor/professor-review-panel.tsx",
-        ),
-        "utf8",
-      ),
-      readFileSync(
-        path.join(
-          process.cwd(),
-          "src/components/professor/instructor-analytics-panel.tsx",
+          "src/components/professor/instructor-practice-performance.tsx",
         ),
         "utf8",
       ),

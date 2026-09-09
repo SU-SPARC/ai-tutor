@@ -435,6 +435,7 @@ function demoInstructorCohortAnalytics(): InstructorCohortAnalytics {
     attempts: 0,
     blockedAttempts: 0,
     correctAttempts: 0,
+    excludedStaffSessions: 0,
     extraPracticeSessions: 0,
     hintsUsed: 0,
     llmAttempts: 0,

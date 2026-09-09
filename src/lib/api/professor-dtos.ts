@@ -1,8 +1,4 @@
 import type {
-  InstructorAnalyticsDashboard,
-  ProfessorAnalyticsDashboard,
-  ProfessorPracticeAnalytics,
-  ProfessorReviewAnalytics,
   ReviewCandidate,
 } from "@/lib/types";
 
@@ -19,13 +15,6 @@ export type ProfessorReviewCandidateDto = Omit<
     ReviewCandidate["source"],
     "originalityNote" | "sourceType" | "trustLevel"
   >;
-};
-
-export type ProfessorAnalyticsDto = {
-  instructor: InstructorAnalyticsDashboard;
-  mode: ProfessorAnalyticsDashboard["mode"];
-  practice: Pick<ProfessorPracticeAnalytics, "questions" | "topics">;
-  review: ProfessorReviewAnalytics;
 };
 
 export function toProfessorReviewCandidateDto(
@@ -59,19 +48,5 @@ export function toProfessorReviewCandidateDto(
     title: candidate.title,
     topic: candidate.topic,
     topicId: candidate.topicId,
-  };
-}
-
-export function toProfessorAnalyticsDto(
-  analytics: ProfessorAnalyticsDashboard,
-): ProfessorAnalyticsDto {
-  return {
-    instructor: analytics.instructor,
-    mode: analytics.mode,
-    practice: {
-      questions: analytics.practice.questions,
-      topics: analytics.practice.topics,
-    },
-    review: analytics.review,
   };
 }

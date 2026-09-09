@@ -12,6 +12,8 @@ type QuestionProgress = StudentProgressDashboard["questions"][number];
 
 type QuestionAccumulator = {
   attemptCount: number;
+  available: boolean;
+  completed: boolean;
   completedAt?: string;
   correctAttempts: number;
   hintsUsed: number;
@@ -27,8 +29,19 @@ type QuestionAccumulator = {
 
 type TopicAccumulator = Pick<
   StudentProgressDashboard["topics"][number],
-  "completedQuestions" | "inProgressQuestions" | "needsAnotherAttempt"
+  | "completedQuestions"
+  | "inProgressQuestions"
+  | "needsAnotherAttempt"
+  | "previouslyCompletedQuestions"
 >;
+
+const EARLIER_COURSE_CONTENT = "Earlier course content";
+
+function isAnswerAttempt(
+  attempt: TutorSessionRecord["attempts"][number],
+) {
+  return attempt.mode === "check" || attempt.mode === undefined;
+}
 
 export async function getStudentProgress(
   authorization: AuthenticatedStudentAuthorization,
@@ -65,6 +78,9 @@ export async function getStudentProgress(
   );
   const questionProgress = [...progressByQuestion.values()]
     .map(toQuestionProgress)
+    .filter(
+      (question) => question.available || question.status === "completed",
+    )
     .sort(
       (left, right) =>
         compareCanonicalTopicIds(left.topicId, right.topicId) ||
@@ -83,19 +99,28 @@ export async function getStudentProgress(
 
   const progressByTopic = new Map<string, TopicAccumulator>();
   let completedQuestions = 0;
+  let availableCompletedQuestions = 0;
   let inProgressQuestions = 0;
   let needsAnotherAttempt = 0;
+  let previouslyCompletedQuestions = 0;
 
   for (const question of questionProgress) {
     const topic = progressByTopic.get(question.topicId) ?? {
       completedQuestions: 0,
       inProgressQuestions: 0,
       needsAnotherAttempt: 0,
+      previouslyCompletedQuestions: 0,
     };
 
     if (question.status === "completed") {
       completedQuestions += 1;
-      topic.completedQuestions += 1;
+      if (question.available) {
+        availableCompletedQuestions += 1;
+        topic.completedQuestions += 1;
+      } else {
+        previouslyCompletedQuestions += 1;
+        topic.previouslyCompletedQuestions += 1;
+      }
     } else {
       inProgressQuestions += 1;
       topic.inProgressQuestions += 1;
@@ -117,6 +142,8 @@ export async function getStudentProgress(
       progressByTopic.get(topic.id)?.inProgressQuestions ?? 0,
     needsAnotherAttempt:
       progressByTopic.get(topic.id)?.needsAnotherAttempt ?? 0,
+    previouslyCompletedQuestions:
+      progressByTopic.get(topic.id)?.previouslyCompletedQuestions ?? 0,
     title: topic.title,
   }));
 
@@ -138,19 +165,28 @@ export async function getStudentProgress(
           session.practiceContext === "reserve_practice"
             ? session.questionVersion
             : undefined;
+        const snapshotTitle =
+          session.questionTitle ?? session.questionVersion?.title;
         const topicId =
-          question?.topicId ?? reserveQuestion?.topicId ?? session.topicId;
+          question?.topicId ??
+          reserveQuestion?.topicId ??
+          session.topicId ??
+          session.questionVersion?.topicId;
         const topic = topicId ? topicsById.get(topicId) : undefined;
 
-        if (!topicId || !topic) {
+        if (!topicId || (!question && !reserveQuestion && !snapshotTitle)) {
           return [];
         }
 
         const progress = progressByQuestion.get(session.questionId);
-        const available = Boolean(
-          question ||
-          (reserveQuestion && session.status !== "content_unpublished"),
-        );
+        const available =
+          session.status !== "content_unpublished" &&
+          Boolean(
+            topic &&
+              (question ||
+                (session.practiceContext === "reserve_practice" &&
+                  reserveQuestion)),
+          );
         const reserveCorrect = session.attempts.some(
           (attempt) => attempt.verdict === "correct",
         );
@@ -160,24 +196,30 @@ export async function getStudentProgress(
         const completed =
           session.practiceContext === "reserve_practice"
             ? Boolean(session.solved || session.status === "completed")
-            : Boolean(progress && progress.correctAttempts > 0);
+            : Boolean(
+                progress &&
+                  (progress.completed || progress.correctAttempts > 0),
+              );
 
         return [
           {
-            attemptCount: session.attempts.length,
+            attemptCount: session.attempts.filter(isAnswerAttempt).length,
             available,
             hintsUsed: session.revealedHints,
             lastSeenAt: session.lastSeenAt,
-            needsAnotherAttempt: progress
-              ? progress.correctAttempts === 0 && progress.incorrectAttempts > 0
-              : reserveIncorrect && !reserveCorrect,
+            needsAnotherAttempt:
+              available &&
+              (progress
+                ? !progress.completed &&
+                  progress.correctAttempts === 0 &&
+                  progress.incorrectAttempts > 0
+                : reserveIncorrect && !reserveCorrect),
             questionId: session.questionId,
-            questionTitle: available
-              ? (session.questionTitle ??
-                question?.title ??
-                reserveQuestion?.title ??
-                "Question")
-              : "Unavailable question",
+            questionTitle:
+              question?.title ??
+              reserveQuestion?.title ??
+              snapshotTitle ??
+              "Earlier practice question",
             practiceContext: session.practiceContext ?? "published",
             sessionId: session.id,
             status: available
@@ -187,11 +229,12 @@ export async function getStudentProgress(
               : ("unavailable" as const),
             stepsRevealed: session.revealedSteps,
             topicId,
-            topicTitle: topic.title,
+            topicTitle: topic?.title ?? EARLIER_COURSE_CONTENT,
           },
         ];
       }),
     summary: {
+      availableCompletedQuestions,
       availableQuestions: orderedQuestions.length,
       completedQuestions,
       extraPracticeSessions: sessions.filter(
@@ -203,9 +246,12 @@ export async function getStudentProgress(
       ),
       inProgressQuestions,
       needsAnotherAttempt,
+      previouslyCompletedQuestions,
       topicsStarted: topicProgress.filter(
         (topic) =>
-          topic.completedQuestions > 0 || topic.inProgressQuestions > 0,
+          topic.completedQuestions > 0 ||
+          topic.inProgressQuestions > 0 ||
+          topic.previouslyCompletedQuestions > 0,
       ).length,
     },
     topics: topicProgress,
@@ -224,32 +270,48 @@ function aggregateQuestionProgress(
 
   for (const session of sessions) {
     const question = questionsById.get(session.questionId);
-    const topic = question ? topicsById.get(question.topicId) : undefined;
+    const questionTitle =
+      question?.title ?? session.questionTitle ?? session.questionVersion?.title;
+    const topicId =
+      question?.topicId ?? session.topicId ?? session.questionVersion?.topicId;
+    const topic = topicId ? topicsById.get(topicId) : undefined;
 
-    if (!question || !topic) {
+    if (!questionTitle || !topicId) {
       continue;
     }
 
-    const current = progressByQuestion.get(question.id) ?? {
+    const available = Boolean(question && topic);
+    const current = progressByQuestion.get(session.questionId) ?? {
       attemptCount: 0,
+      available,
+      completed: false,
       correctAttempts: 0,
       hintsUsed: 0,
       incorrectAttempts: 0,
       lastActiveAt: session.lastSeenAt,
-      questionId: question.id,
-      questionTitle: question.title,
-      topicId: topic.id,
-      topicTitle: topic.title,
+      questionId: session.questionId,
+      questionTitle,
+      topicId,
+      topicTitle: topic?.title ?? EARLIER_COURSE_CONTENT,
     };
-    current.attemptCount += session.attempts.length;
+    current.attemptCount += session.attempts.filter(isAnswerAttempt).length;
     current.hintsUsed += session.revealedHints;
     current.lastActiveAt = laterIsoDate(
       current.lastActiveAt,
       session.lastSeenAt,
     );
 
-    for (const attempt of session.attempts) {
+    if (session.solved || session.status === "completed") {
+      current.completed = true;
+      const completedAt = session.completedAt ?? session.lastSeenAt;
+      current.completedAt = current.completedAt
+        ? earlierIsoDate(current.completedAt, completedAt)
+        : completedAt;
+    }
+
+    for (const attempt of session.attempts.filter(isAnswerAttempt)) {
       if (attempt.verdict === "correct") {
+        current.completed = true;
         current.correctAttempts += 1;
         current.completedAt = current.completedAt
           ? earlierIsoDate(current.completedAt, attempt.createdAt)
@@ -260,6 +322,7 @@ function aggregateQuestionProgress(
     }
 
     if (
+      available &&
       session.status === "active" &&
       (!current.latestActiveAt || session.lastSeenAt > current.latestActiveAt)
     ) {
@@ -267,24 +330,28 @@ function aggregateQuestionProgress(
       current.latestActiveSessionId = session.id;
     }
 
-    progressByQuestion.set(question.id, current);
+    progressByQuestion.set(session.questionId, current);
   }
 
   return progressByQuestion;
 }
 
 function toQuestionProgress(progress: QuestionAccumulator): QuestionProgress {
-  const completed = progress.correctAttempts > 0;
+  const completed = progress.completed || progress.correctAttempts > 0;
 
   return {
     attemptCount: progress.attemptCount,
+    available: progress.available,
     completedAt: progress.completedAt,
     hintsUsed: progress.hintsUsed,
     lastActiveAt: progress.lastActiveAt,
-    needsAnotherAttempt: !completed && progress.incorrectAttempts > 0,
+    needsAnotherAttempt:
+      progress.available && !completed && progress.incorrectAttempts > 0,
     questionId: progress.questionId,
     questionTitle: progress.questionTitle,
-    resumeSessionId: progress.latestActiveSessionId,
+    resumeSessionId: progress.available
+      ? progress.latestActiveSessionId
+      : undefined,
     status: completed ? "completed" : "in_progress",
     topicId: progress.topicId,
     topicTitle: progress.topicTitle,

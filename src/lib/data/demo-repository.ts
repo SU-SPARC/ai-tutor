@@ -215,6 +215,7 @@ function getDemoProfessorPracticeAnalytics() {
       attempts: 22,
       correctAttempts: 14,
       hintsUsed: 12,
+      incorrectAttempts: 8,
       llmAttempts: 2,
       stepsRevealed: 7,
     },
@@ -222,6 +223,7 @@ function getDemoProfessorPracticeAnalytics() {
       attempts: 18,
       correctAttempts: 10,
       hintsUsed: 9,
+      incorrectAttempts: 8,
       llmAttempts: 1,
       stepsRevealed: 6,
     },
@@ -229,6 +231,7 @@ function getDemoProfessorPracticeAnalytics() {
       attempts: 14,
       correctAttempts: 11,
       hintsUsed: 4,
+      incorrectAttempts: 3,
       llmAttempts: 0,
       stepsRevealed: 3,
     },
@@ -272,27 +275,6 @@ function getDemoProfessorPracticeAnalytics() {
   }
 
   return {
-    commonMisconceptions: questions.flatMap((question) => {
-      const source = demoQuestions.find(
-        (item) => item.id === question.questionId,
-      );
-      const missedAttempts = Math.max(
-        0,
-        question.attempts - question.correctAttempts,
-      );
-
-      return (
-        source?.misconceptions.map((misconception) => ({
-          feedback: misconception.feedback,
-          misconceptionId: misconception.id,
-          missedAttempts,
-          questionId: question.questionId,
-          questionTitle: question.questionTitle,
-          topicId: question.topicId,
-          topicTitle: question.topicTitle,
-        })) ?? []
-      );
-    }),
     generatedQuestionOutcomes: demoGeneratedQuestionOutcomes(),
     mode: "demo" as const,
     questions,

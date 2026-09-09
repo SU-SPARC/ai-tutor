@@ -106,7 +106,7 @@ export default async function ProfessorStudentsPage({
               name="sort"
             >
               <option value="last_active">Last active</option>
-              <option value="lowest_accuracy">Repeated difficulty first</option>
+              <option value="lowest_accuracy">Lowest overall accuracy</option>
               <option value="attempts">Most attempts</option>
               <option value="sessions">Most sessions</option>
             </select>

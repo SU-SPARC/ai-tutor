@@ -877,6 +877,7 @@ export type InstructorStudentSummary = {
   lastActiveAt?: string;
   llmAttempts: number;
   misconceptionAttempts: number;
+  needsAttention: boolean;
   sessions: number;
   solutionsRevealed: number;
   solvedSessions: number;
@@ -979,6 +980,7 @@ export type InstructorCohortAnalytics = {
   attempts: number;
   blockedAttempts: number;
   correctAttempts: number;
+  excludedStaffSessions: number;
   extraPracticeSessions: number;
   hintsUsed: number;
   llmAttempts: number;
@@ -995,6 +997,7 @@ export type StudentProgressDashboard = {
   mode: "database" | "demo";
   questions: Array<{
     attemptCount: number;
+    available: boolean;
     completedAt?: string;
     hintsUsed: number;
     lastActiveAt: string;
@@ -1022,12 +1025,14 @@ export type StudentProgressDashboard = {
     topicTitle: string;
   }>;
   summary: {
+    availableCompletedQuestions: number;
     availableQuestions: number;
     completedQuestions: number;
     extraPracticeSessions?: number;
     hintsUsed: number;
     inProgressQuestions: number;
     needsAnotherAttempt: number;
+    previouslyCompletedQuestions: number;
     topicsStarted: number;
   };
   topics: Array<{
@@ -1036,6 +1041,7 @@ export type StudentProgressDashboard = {
     id: string;
     inProgressQuestions: number;
     needsAnotherAttempt: number;
+    previouslyCompletedQuestions: number;
     title: string;
   }>;
 };
@@ -1064,14 +1070,6 @@ export type TutorProgress = {
   wrongAttemptCount: number;
 };
 
-export type ProfessorReviewAnalytics = {
-  byDifficulty: Record<Difficulty, number>;
-  byPriority: Record<ReviewPriority, number>;
-  byStatus: Record<ReviewStatus, number>;
-  byTopic: Record<string, number>;
-  totalBacklog: number;
-};
-
 export type ProfessorTopicReviewProgress = {
   approved: number;
   needsReview: number;
@@ -1084,21 +1082,13 @@ export type ProfessorTopicReviewProgress = {
 export type GeneratedQuestionReviewOutcomes = Record<ReviewStatus, number>;
 
 export type ProfessorPracticeAnalytics = {
-  commonMisconceptions: Array<{
-    feedback: string;
-    misconceptionId: string;
-    missedAttempts: number;
-    questionId: string;
-    questionTitle: string;
-    topicId: string;
-    topicTitle: string;
-  }>;
   generatedQuestionOutcomes: GeneratedQuestionReviewOutcomes;
   mode: "database" | "demo" | "unavailable";
   questions: Array<{
     attempts: number;
     correctAttempts: number;
     hintsUsed: number;
+    incorrectAttempts: number;
     llmAttempts: number;
     questionId: string;
     questionTitle: string;
@@ -1121,43 +1111,4 @@ export type ProfessorPracticeAnalytics = {
     topicId: string;
     topicTitle: string;
   }>;
-};
-
-export type InstructorAnalyticsDashboard = {
-  commonMisconceptions: ProfessorPracticeAnalytics["commonMisconceptions"];
-  generatedQuestions: {
-    approved: number;
-    needsEdit: number;
-    needsRegeneration: number;
-    needsReview: number;
-    rejected: number;
-  };
-  mode: "database" | "demo";
-  mostMissedQuestions: Array<{
-    attempts: number;
-    correctAttempts: number;
-    missedAttempts: number;
-    missRate: number;
-    questionId: string;
-    questionTitle: string;
-    topicId: string;
-    topicTitle: string;
-  }>;
-  mostPracticedTopics: ProfessorPracticeAnalytics["topics"];
-  notes: string[];
-  totals: {
-    averageHintsUsed: number;
-    generatedQuestionsApproved: number;
-    generatedQuestionsRejected: number;
-    llmCallsUsed: number;
-    totalAttempts: number;
-    totalTutorSessions: number;
-  };
-};
-
-export type ProfessorAnalyticsDashboard = {
-  instructor: InstructorAnalyticsDashboard;
-  mode: "database" | "demo";
-  practice: ProfessorPracticeAnalytics;
-  review: ProfessorReviewAnalytics;
 };

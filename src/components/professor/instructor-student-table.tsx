@@ -15,9 +15,6 @@ import {
 } from "@/lib/professor/student-pseudonym";
 import type { InstructorStudentList } from "@/lib/types";
 
-const REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS = 4;
-const REPEATED_DIFFICULTY_MAXIMUM_ACCURACY = 0.4;
-
 function formatDate(value: string | undefined) {
   if (!value) return "—";
   const date = new Date(value);
@@ -26,17 +23,6 @@ function formatDate(value: string | undefined) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
-}
-
-/**
- * The same rule the repository uses for the cohort count, applied to a row so
- * the table and the cohort total can never disagree.
- */
-function needsAttention(attempts: number, correctAttempts: number) {
-  return (
-    attempts >= REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS &&
-    correctAttempts / attempts <= REPEATED_DIFFICULTY_MAXIMUM_ACCURACY
-  );
 }
 
 export function InstructorStudentTable({
@@ -75,7 +61,7 @@ export function InstructorStudentTable({
                   >
                     {labels.get(student.studentKey)}
                   </Link>
-                  {needsAttention(student.attempts, student.correctAttempts) ? (
+                  {student.needsAttention ? (
                     <Badge variant="outline" className="w-fit gap-1">
                       May benefit from instructor attention
                     </Badge>

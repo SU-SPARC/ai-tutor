@@ -58,6 +58,7 @@ const progress: StudentProgressDashboard = {
   questions: [
     {
       attemptCount: 2,
+      available: true,
       completedAt: "2026-08-13T10:00:00.000Z",
       hintsUsed: 1,
       lastActiveAt: "2026-08-13T10:00:00.000Z",
@@ -71,6 +72,7 @@ const progress: StudentProgressDashboard = {
     },
     {
       attemptCount: 1,
+      available: true,
       hintsUsed: 2,
       lastActiveAt: "2026-08-14T10:00:00.000Z",
       needsAnotherAttempt: true,
@@ -81,8 +83,35 @@ const progress: StudentProgressDashboard = {
       topicId: "binomial-models",
       topicTitle: "Binomial Models",
     },
+    {
+      attemptCount: 1,
+      available: false,
+      completedAt: "2026-08-12T10:00:00.000Z",
+      hintsUsed: 0,
+      lastActiveAt: "2026-08-12T10:00:00.000Z",
+      needsAnotherAttempt: false,
+      questionId: "withdrawn-question",
+      questionTitle: "Earlier published question",
+      status: "completed",
+      topicId: "conditional-probability",
+      topicTitle: "Conditional Probability",
+    },
   ],
   recentSessions: [
+    {
+      attemptCount: 1,
+      available: false,
+      hintsUsed: 0,
+      lastSeenAt: "2026-08-12T10:00:00.000Z",
+      needsAnotherAttempt: false,
+      questionId: "withdrawn-question",
+      questionTitle: "Earlier published question",
+      sessionId: "session:withdrawn-owned",
+      status: "unavailable",
+      stepsRevealed: 0,
+      topicId: "conditional-probability",
+      topicTitle: "Conditional Probability",
+    },
     {
       attemptCount: 1,
       available: true,
@@ -99,11 +128,13 @@ const progress: StudentProgressDashboard = {
     },
   ],
   summary: {
+    availableCompletedQuestions: 1,
     availableQuestions: 5,
-    completedQuestions: 1,
+    completedQuestions: 2,
     hintsUsed: 3,
     inProgressQuestions: 1,
     needsAnotherAttempt: 1,
+    previouslyCompletedQuestions: 1,
     topicsStarted: 2,
   },
   topics: [
@@ -113,6 +144,7 @@ const progress: StudentProgressDashboard = {
       id: "conditional-probability",
       inProgressQuestions: 0,
       needsAnotherAttempt: 0,
+      previouslyCompletedQuestions: 1,
       title: "Conditional Probability",
     },
     {
@@ -121,6 +153,7 @@ const progress: StudentProgressDashboard = {
       id: "binomial-models",
       inProgressQuestions: 1,
       needsAnotherAttempt: 1,
+      previouslyCompletedQuestions: 0,
       title: "Binomial Models",
     },
   ],
@@ -211,6 +244,15 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain("Questions to try again");
     expect(markup).toContain("Recent tutor sessions");
     expect(markup).toContain("Hints used");
+    expect(markup).toContain("Currently available");
+    expect(markup).toContain("Available questions completed");
+    expect(markup).toContain("Completed earlier");
+    expect(markup).toContain(
+      "1 of 3 currently available completed · 1 completed earlier",
+    );
+    expect(markup).toContain("No longer available");
+    expect(markup).toContain("Earlier published question");
+    expect(markup).not.toContain("questionId=withdrawn-question");
     expect(markup).toContain("Resume");
     expect(markup).toContain(
       'href="/practice?questionId=five-question-quiz&amp;sessionId=session%3Astudent-owned"',
@@ -229,9 +271,11 @@ describe("student progress dashboard states", () => {
       summary: {
         ...progress.summary,
         completedQuestions: 0,
+        availableCompletedQuestions: 0,
         hintsUsed: 0,
         inProgressQuestions: 0,
         needsAnotherAttempt: 0,
+        previouslyCompletedQuestions: 0,
         topicsStarted: 0,
       },
       topics: progress.topics.map((topic) => ({
@@ -239,6 +283,7 @@ describe("student progress dashboard states", () => {
         completedQuestions: 0,
         inProgressQuestions: 0,
         needsAnotherAttempt: 0,
+        previouslyCompletedQuestions: 0,
       })),
     };
     const markup = renderToStaticMarkup(

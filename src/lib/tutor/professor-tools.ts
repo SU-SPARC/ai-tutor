@@ -1,7 +1,5 @@
 import "server-only"
 
-import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics"
-
 import {
   REVIEW_PRIORITIES,
   REVIEW_STATUSES,
@@ -9,10 +7,6 @@ import {
   TRUST_LEVELS,
   type Difficulty,
   type GeneratedQuestionReviewOutcomes,
-  type InstructorAnalyticsDashboard,
-  type ProfessorAnalyticsDashboard,
-  type ProfessorPracticeAnalytics,
-  type ProfessorReviewAnalytics,
   type ReviewCandidate,
   type ReviewPriority,
   type ReviewStatus,
@@ -64,156 +58,11 @@ const copiedSourceSignal =
 
 const MAX_UPLOAD_CANDIDATES = 100
 
-export function buildProfessorAnalyticsDashboard(input: {
-  mode: "database" | "demo"
-  practice: ProfessorPracticeAnalytics
-  reviewQueue: ReviewCandidate[]
-}): ProfessorAnalyticsDashboard {
-  return {
-    instructor: buildInstructorAnalyticsDashboard(input),
-    mode: input.mode,
-    practice: input.practice,
-    review: buildReviewAnalytics(input.reviewQueue),
-  }
-}
-
-export function buildInstructorAnalyticsDashboard(input: {
-  mode: "database" | "demo"
-  practice: ProfessorPracticeAnalytics
-  reviewQueue: ReviewCandidate[]
-}): InstructorAnalyticsDashboard {
-  const generated = normalizeGeneratedOutcomes(
-    input.practice.generatedQuestionOutcomes,
-  )
-  const mostMissedQuestions = input.practice.questions
-    .map((question) => {
-      const missedAttempts = Math.max(
-        0,
-        question.attempts - question.correctAttempts,
-      )
-
-      return {
-        attempts: question.attempts,
-        correctAttempts: question.correctAttempts,
-        missedAttempts,
-        missRate:
-          question.attempts > 0 ? missedAttempts / question.attempts : 0,
-        questionId: question.questionId,
-        questionTitle: question.questionTitle,
-        topicId: question.topicId,
-        topicTitle: question.topicTitle,
-      }
-    })
-    .filter((question) => question.missedAttempts > 0)
-    .sort(
-      (left, right) =>
-        right.missedAttempts - left.missedAttempts ||
-        right.missRate - left.missRate ||
-        compareCanonicalTopicIds(left.topicId, right.topicId) ||
-        left.questionTitle.localeCompare(right.questionTitle),
-    )
-    .slice(0, 8)
-  const mostPracticedTopics = [...input.practice.topics]
-    .sort(
-      (left, right) =>
-        right.attempts - left.attempts ||
-        compareCanonicalTopicIds(left.topicId, right.topicId),
-    )
-    .slice(0, 8)
-  const commonMisconceptions = [...input.practice.commonMisconceptions]
-    .sort(
-      (left, right) =>
-        right.missedAttempts - left.missedAttempts ||
-        compareCanonicalTopicIds(left.topicId, right.topicId) ||
-        left.feedback.localeCompare(right.feedback),
-    )
-    .slice(0, 8)
-  const mode = input.practice.mode === "database" ? "database" : "demo"
-
-  return {
-    commonMisconceptions,
-    generatedQuestions: {
-      approved: generated.approved,
-      needsEdit: generated.needs_edit,
-      needsRegeneration: generated.needs_regeneration,
-      needsReview: generated.needs_review,
-      rejected: generated.rejected,
-    },
-    mode,
-    mostMissedQuestions,
-    mostPracticedTopics,
-    notes:
-      mode === "database"
-        ? []
-        : [
-            "Demo analytics are shown because database-backed analytics are unavailable or incomplete.",
-          ],
-    totals: {
-      averageHintsUsed:
-        input.practice.summary.totalTutorSessions > 0
-          ? input.practice.summary.totalHintsUsed /
-            input.practice.summary.totalTutorSessions
-          : 0,
-      generatedQuestionsApproved: generated.approved,
-      generatedQuestionsRejected: generated.rejected,
-      llmCallsUsed: input.practice.questions.reduce(
-        (total, question) => total + question.llmAttempts,
-        0,
-      ),
-      totalAttempts: input.practice.summary.totalAttempts,
-      totalTutorSessions: input.practice.summary.totalTutorSessions,
-    },
-  }
-}
-
-export function buildReviewAnalytics(
-  reviewQueue: ReviewCandidate[],
-): ProfessorReviewAnalytics {
-  const byDifficulty = {
-    challenge: 0,
-    foundational: 0,
-    intermediate: 0,
-  } satisfies Record<Difficulty, number>
-  const byPriority = {
-    normal: 0,
-    priority: 0,
-  } satisfies Record<ReviewPriority, number>
-  const byStatus = REVIEW_STATUSES.reduce(
-    (counts, status) => ({ ...counts, [status]: 0 }),
-    {} as Record<ReviewStatus, number>,
-  )
-  const byTopic: Record<string, number> = {}
-
-  for (const candidate of reviewQueue) {
-    byDifficulty[candidate.difficulty] += 1
-    byPriority[candidate.review.reviewPriority ?? "normal"] += 1
-    byStatus[candidate.review.status] += 1
-    byTopic[candidate.topicId] = (byTopic[candidate.topicId] ?? 0) + 1
-  }
-
-  return {
-    byDifficulty,
-    byPriority,
-    byStatus,
-    byTopic,
-    totalBacklog: reviewQueue.length,
-  }
-}
-
 export function emptyGeneratedQuestionReviewOutcomes(): GeneratedQuestionReviewOutcomes {
   return REVIEW_STATUSES.reduce(
     (counts, status) => ({ ...counts, [status]: 0 }),
     {} as GeneratedQuestionReviewOutcomes,
   )
-}
-
-function normalizeGeneratedOutcomes(
-  outcomes: GeneratedQuestionReviewOutcomes,
-): GeneratedQuestionReviewOutcomes {
-  return {
-    ...emptyGeneratedQuestionReviewOutcomes(),
-    ...outcomes,
-  }
 }
 
 export function validateGeneratedReviewUpload(

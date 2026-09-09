@@ -14,29 +14,46 @@ function jsonResponse(value: unknown, status = 200) {
   });
 }
 
-describe("ticketed Production smoke evidence", () => {
-  it("covers health, public privacy, and signed-out authorization boundaries", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({
+function createSmokeFetch(professorStatus = 401) {
+  return vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+
+    switch (url.pathname) {
+      case "/api/health/database":
+        return jsonResponse({
           database: { required: true, status: "healthy" },
           status: "healthy",
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ questions: [{ id: "approved-question", title: "Q" }] }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ question: { id: "approved-question", title: "Q" } }),
-      )
-      .mockResolvedValueOnce(
-        new Response(null, {
+        });
+      case "/api/questions":
+        return jsonResponse({
+          questions: [{ id: "approved-question", title: "Q" }],
+        });
+      case "/api/questions/approved-question":
+        return jsonResponse({
+          question: { id: "approved-question", title: "Q" },
+        });
+      case "/dashboard":
+        return new Response(null, {
           headers: { location: "/sign-in?redirect_url=%2Fdashboard" },
           status: 302,
-        }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+        });
+      case "/api/professor/analytics/export":
+        return new Response(null, { status: professorStatus });
+      default:
+        return new Response(null, { status: 404 });
+    }
+  });
+}
+
+function requestedPaths(fetchImpl: ReturnType<typeof createSmokeFetch>) {
+  return fetchImpl.mock.calls.map(([input]) =>
+    new URL(input instanceof Request ? input.url : input.toString()).pathname,
+  );
+}
+
+describe("ticketed Production smoke evidence", () => {
+  it("covers health, public privacy, and signed-out authorization boundaries", async () => {
+    const fetchImpl = createSmokeFetch();
 
     await expect(
       runSmoke({
@@ -54,6 +71,43 @@ describe("ticketed Production smoke evidence", () => {
       status: "passed",
     });
     expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(requestedPaths(fetchImpl)).toEqual([
+      "/api/health/database",
+      "/api/questions",
+      "/api/questions/approved-question",
+      "/dashboard",
+      "/api/professor/analytics/export",
+    ]);
+  });
+
+  it.each([200, 403, 404, 500])(
+    "fails when the anonymous professor authorization probe returns %i",
+    async (professorStatus) => {
+      const fetchImpl = createSmokeFetch(professorStatus);
+
+      await expect(
+        runSmoke({
+          baseUrl: new URL("https://production.example.edu"),
+          fetchImpl: fetchImpl as typeof fetch,
+          requireDatabase: true,
+        }),
+      ).rejects.toThrow(
+        "Signed-out professor analytics export access must return 401.",
+      );
+      expect(requestedPaths(fetchImpl).at(-1)).toBe(
+        "/api/professor/analytics/export",
+      );
+    },
+  );
+
+  it("fails closed if the script requests an unrecognized route", async () => {
+    const fetchImpl = createSmokeFetch();
+
+    const missingRouteResponse = await fetchImpl(
+      new URL("https://production.example.edu/api/professor/analytics"),
+    );
+
+    expect(missingRouteResponse.status).toBe(404);
   });
 
   it("binds retained output to the ticket and independently confirmed deployment hash", () => {

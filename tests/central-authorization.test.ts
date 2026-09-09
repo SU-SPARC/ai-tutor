@@ -22,10 +22,7 @@ import {
   toCurrentUserDto,
   type AuthorizationPermission,
 } from "@/lib/auth/authorization";
-import {
-  toProfessorAnalyticsDto,
-  toProfessorReviewCandidateDto,
-} from "@/lib/api/professor-dtos";
+import { toProfessorReviewCandidateDto } from "@/lib/api/professor-dtos";
 import { toTutorSessionDto } from "@/lib/api/tutor-session-dto";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import { demoContentRepository } from "@/lib/data/demo-repository";
@@ -34,7 +31,6 @@ import {
   getTutorSession,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
-import { buildProfessorAnalyticsDashboard } from "@/lib/tutor/professor-tools";
 import { retrieveTutorContext } from "@/lib/tutor/retrieval";
 import type {
   RetrievalChunk,
@@ -259,23 +255,9 @@ describe("authorized repository boundaries and DTOs", () => {
   it("serializes only fields required by each browser workflow", async () => {
     mockPrincipal(TEST_PROFESSOR);
     const reviewAuthorization = await requireProfessorReview();
-    const analyticsAuthorization = await requireAnalyticsAccess();
     const [candidate] =
       await demoContentRepository.getReviewQueue(reviewAuthorization);
-    const [practice, reviewQueue] = await Promise.all([
-      demoContentRepository.getProfessorPracticeAnalytics(
-        analyticsAuthorization,
-      ),
-      demoContentRepository.getReviewQueue(analyticsAuthorization),
-    ]);
     const candidateDto = toProfessorReviewCandidateDto(candidate);
-    const analyticsDto = toProfessorAnalyticsDto(
-      buildProfessorAnalyticsDashboard({
-        mode: "demo",
-        practice,
-        reviewQueue,
-      }),
-    );
     const sessionDto = toTutorSessionDto({
       id: "session:test",
       questionId: "dice-sum-eight",
@@ -291,15 +273,6 @@ describe("authorized repository boundaries and DTOs", () => {
     expect(JSON.stringify(candidateDto)).not.toMatch(
       /matchTerms|patternIds|reviewedBy|visibility/,
     );
-    expect(Object.keys(analyticsDto.practice).sort()).toEqual([
-      "questions",
-      "topics",
-    ]);
-    expect(analyticsDto.practice).not.toHaveProperty("commonMisconceptions");
-    expect(analyticsDto.practice).not.toHaveProperty(
-      "generatedQuestionOutcomes",
-    );
-    expect(analyticsDto.practice).not.toHaveProperty("summary");
   });
 });
 

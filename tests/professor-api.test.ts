@@ -4,7 +4,6 @@ import followingSyllabusReviewCandidateData from "../data/demo/following-syllabu
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json";
 import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json";
 import topicData from "../data/canonical/syllabus-topics.json";
-import { GET as getAnalytics } from "@/app/api/professor/analytics/route";
 import {
   GET as getReviewQueue,
   PATCH as patchReviewQueue,
@@ -13,7 +12,6 @@ import {
 import { POST as uploadGeneratedReview } from "@/app/api/professor/upload/route";
 import { resetReviewQueueForTests } from "@/lib/data/data-store";
 import type {
-  ProfessorAnalyticsDashboard,
   ProfessorTopicReviewProgress,
   ReviewCandidate,
 } from "@/lib/types";
@@ -504,45 +502,6 @@ describe("professor admin APIs", () => {
     expect(copiedSource.status).toBe(400);
   });
 
-  it("returns protected analytics without raw answers or private source fields", async () => {
-    mockPrincipal(undefined);
-    const unauthenticated = await getAnalytics();
-    mockPrincipal(TEST_PROFESSOR);
-    const authenticated = await getAnalytics();
-    const payload = (await authenticated.json()) as {
-      analytics: ProfessorAnalyticsDashboard;
-    };
-    const serialized = JSON.stringify(payload);
-
-    expect(unauthenticated.status).toBe(401);
-    expect(authenticated.status).toBe(200);
-    expect(payload.analytics).toMatchObject({
-      instructor: {
-        mode: "demo",
-        totals: {
-          generatedQuestionsApproved: expect.any(Number),
-          generatedQuestionsRejected: expect.any(Number),
-          totalAttempts: expect.any(Number),
-          totalTutorSessions: expect.any(Number),
-        },
-      },
-      review: {
-        totalBacklog: expect.any(Number),
-      },
-    });
-    expect(
-      payload.analytics.instructor.mostPracticedTopics.length,
-    ).toBeGreaterThan(0);
-    expect(
-      payload.analytics.instructor.mostMissedQuestions.length,
-    ).toBeGreaterThan(0);
-    expect(
-      payload.analytics.instructor.commonMisconceptions.length,
-    ).toBeGreaterThan(0);
-    expect(serialized).not.toMatch(
-      /answerPreview|acceptedAnswers|privatePhraseHashes|sourceItemIds|rawText|extractedText|anonymousStudentId|sessionId|private chunk|source page/i,
-    );
-  });
 });
 
 async function firstCandidates(count: number) {

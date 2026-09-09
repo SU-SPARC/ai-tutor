@@ -39,8 +39,9 @@ export function InstructorCohortPanel({
         <div className="flex flex-col gap-1.5">
           <CardTitle>Class practice</CardTitle>
           <CardDescription>
-            Aggregated across every recorded tutor session. Individual students
-            are reachable only through their pseudonymous record.
+            Published normal-practice sessions only; extra practice is reported
+            separately. Individual students are reachable only through their
+            pseudonymous record.
           </CardDescription>
         </div>
         <Button asChild variant="outline">
@@ -62,7 +63,7 @@ export function InstructorCohortPanel({
                 label="Extra practice"
                 value={cohort.extraPracticeSessions}
               />
-              <Metric label="Attempts" value={cohort.attempts} />
+              <Metric label="Answer attempts" value={cohort.attempts} />
               <Metric
                 label="Correct"
                 value={formatAccuracy(cohort.correctAttempts, cohort.attempts)}
@@ -70,6 +71,15 @@ export function InstructorCohortPanel({
               <Metric label="Hints" value={cohort.hintsUsed} />
               <Metric label="Solutions" value={cohort.solutionsRevealed} />
             </div>
+
+            {cohort.excludedStaffSessions > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {cohort.excludedStaffSessions}
+                {cohort.excludedStaffSessions === 1
+                  ? " session by a professor account is excluded."
+                  : " sessions by professor accounts are excluded."}
+              </p>
+            ) : null}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="flex flex-col gap-3">
@@ -104,7 +114,7 @@ export function InstructorCohortPanel({
 
               <div className="flex flex-col gap-3">
                 <h3 className="text-sm font-semibold">
-                  Most recorded misconceptions
+                  Most recorded misconceptions (sessions)
                 </h3>
                 {cohort.misconceptions.length > 0 ? (
                   <dl className="flex flex-col gap-2 text-sm">

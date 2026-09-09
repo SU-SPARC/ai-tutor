@@ -330,7 +330,6 @@ function contentRepositoryFixture(
 
 function emptyPracticeAnalytics() {
   return {
-    commonMisconceptions: [],
     generatedQuestionOutcomes: {
       approved: 0,
       needs_edit: 0,
