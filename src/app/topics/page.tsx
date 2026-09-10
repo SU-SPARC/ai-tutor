@@ -40,8 +40,8 @@ export default async function TopicsPage() {
             Topics
           </h1>
           <p className="text-base leading-7 text-muted-foreground">
-            Pick a topic to see its approved practice questions. Every question
-            is original and professor-reviewed before it appears here.
+            Pick a topic to start practicing. Every question is reviewed by your
+            professor before it appears here.
           </p>
         </div>
 
@@ -53,7 +53,8 @@ export default async function TopicsPage() {
                 No topics yet
               </CardTitle>
               <CardDescription>
-                Topics will appear here once approved content is available.
+                Topics will appear here once your professor makes practice
+                questions available.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -91,7 +92,7 @@ export default async function TopicsPage() {
                             : `/practice?topicId=${topic.id}`
                         }
                       >
-                        {count === 0 ? "View topic" : "Start"}
+                        {count === 0 ? "Nothing to practice yet" : "Start practicing"}
                         <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>

@@ -407,6 +407,12 @@ export type StudentPracticeQuestion = {
   difficultyLabel: string;
   hintCount: number;
   id: string;
+  /**
+   * Plain-language guidance on how to type the answer (for example "Enter a
+   * decimal, fraction, or percentage"). Derived on the server from the answer
+   * rules without exposing the expected value.
+   */
+  inputFormatHint: string;
   prompt: string;
   sourceLabel: string;
   sourceType: SourceType;

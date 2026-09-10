@@ -3,11 +3,13 @@ import { notFound } from "next/navigation"
 
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace"
 import { normalizeSummary } from "@/lib/api/question-serialization"
+import { requirePracticePageAccess } from "@/lib/auth/practice-page-access"
 import {
   getApprovedQuestionById,
   getApprovedQuestions,
   getTopics,
 } from "@/lib/data/data-store"
+import { getServerEnv } from "@/lib/env/server"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +35,11 @@ export default async function PracticeQuestionPage({
   params,
 }: PracticeQuestionPageProps) {
   const { questionId } = await params
+  const env = getServerEnv()
+  await requirePracticePageAccess(
+    env,
+    `/practice/${encodeURIComponent(questionId)}`,
+  )
 
   const question = await getApprovedQuestionById(questionId)
   if (!question) {
@@ -46,6 +53,7 @@ export default async function PracticeQuestionPage({
 
   return (
     <PracticeWorkspace
+      aiHelpEnabled={env.AI_ENABLED}
       initialQuestionId={question.id}
       topics={topics}
       questions={questions.map(normalizeSummary)}

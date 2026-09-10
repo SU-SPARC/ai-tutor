@@ -262,10 +262,9 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain("does not replace your professor");
     expect(markup).toContain("Activity that is saved");
     expect(markup).toContain("short answer preview");
-    expect(markup).toContain("Optional AI fallback");
-    expect(markup).toContain(
-      "Generated explanations can be incomplete or wrong",
-    );
+    expect(markup).toContain("Optional AI help");
+    expect(markup).not.toMatch(/fallback|provider/i);
+    expect(markup).toContain("Explanations can be incomplete or wrong");
     expect(markup).toContain("To report an error");
     expect(markup).toContain("Pilot limits, errors, and support");
     expect(markup).toContain("Account → Tutor and data notice");

@@ -8,7 +8,7 @@ import {
 } from "@/components/tutor/practice-similar-problem-action";
 
 describe("PracticeSimilarProblemAction", () => {
-  it("offers professor-approved Reserve practice without promising generation", () => {
+  it("offers professor-approved extra practice in student language", () => {
     const html = renderToStaticMarkup(
       createElement(PracticeSimilarProblemAction, {
         disabled: false,
@@ -17,14 +17,14 @@ describe("PracticeSimilarProblemAction", () => {
       }),
     );
 
-    expect(html).toContain("Practice a similar problem");
-    expect(html).toContain("professor-approved problem from Reserve");
-    expect(html).toContain("No new problem is generated");
+    expect(html).toContain("Try a similar problem");
+    expect(html).toContain("professor-approved problem");
+    expect(html).not.toMatch(/Reserve|candidate|generated/);
   });
 
   it("uses the graceful no-match message", () => {
     expect(similarProblemStatusMessage("none")).toBe(
-      "No additional approved practice problem is available for this question yet.",
+      "No similar problem is available right now. You can continue to the next question or choose another topic.",
     );
   });
 });

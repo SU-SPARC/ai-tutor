@@ -1,13 +1,11 @@
 import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowRight,
-  Archive,
   BookOpenCheck,
   CheckCircle2,
   GraduationCap,
   Lightbulb,
-  ListRestart,
+  Play,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -25,39 +23,75 @@ import {
 import type { StudentProgressDashboard } from "@/lib/types";
 
 type QuestionProgress = StudentProgressDashboard["questions"][number];
+type RecentSession = StudentProgressDashboard["recentSessions"][number];
 
 const metricDefinitions = [
   {
     icon: GraduationCap,
     key: "availableQuestions",
-    label: "Currently available",
+    label: "Questions available",
   },
   {
     icon: CheckCircle2,
     key: "availableCompletedQuestions",
-    label: "Available questions completed",
-  },
-  {
-    icon: Archive,
-    key: "previouslyCompletedQuestions",
-    label: "Completed earlier",
+    label: "Completed",
   },
   {
     icon: BookOpenCheck,
     key: "inProgressQuestions",
-    label: "Questions in progress",
+    label: "In progress",
   },
   {
     icon: Lightbulb,
     key: "hintsUsed",
     label: "Hints used",
   },
-  {
-    icon: ListRestart,
-    key: "needsAnotherAttempt",
-    label: "Try another attempt",
-  },
 ] as const;
+
+/**
+ * The single action a returning student should take next: resume the most
+ * recently active question that still needs work, otherwise start fresh.
+ */
+export function primaryPracticeAction(progress: StudentProgressDashboard) {
+  const resumable = progress.recentSessions.find(
+    (session) =>
+      session.available &&
+      session.status === "in_progress" &&
+      session.practiceContext !== "reserve_practice",
+  );
+  if (resumable) {
+    return {
+      href: resumeHref(
+        resumable.questionId,
+        resumable.sessionId,
+        resumable.practiceContext,
+      ),
+      kind: "continue" as const,
+      label: "Continue practice",
+      questionTitle: resumable.questionTitle,
+    };
+  }
+
+  const retry = progress.questions.find(
+    (question) => question.available && question.needsAnotherAttempt,
+  );
+  if (retry) {
+    return {
+      href: resumeHref(retry.questionId, retry.resumeSessionId),
+      kind: "continue" as const,
+      label: "Continue practice",
+      questionTitle: retry.questionTitle,
+    };
+  }
+
+  return {
+    href: "/practice",
+    kind: "start" as const,
+    label:
+      progress.questions.length > 0 ? "Practice more" : "Start practicing",
+    questionTitle: undefined,
+  };
+}
 
 export function ProgressDashboard({
   progress,
@@ -83,39 +117,44 @@ export function ProgressDashboard({
   const hasPracticeActivity =
     progress.questions.length > 0 ||
     (progress.summary.extraPracticeSessions ?? 0) > 0;
+  const primaryAction = primaryPracticeAction(progress);
 
   return (
     <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-6 py-8">
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 py-8 sm:px-6">
         <header className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Button asChild variant="ghost" size="sm" className="mb-3 -ml-3">
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back
-              </Link>
-            </Button>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-normal">
-                Your practice progress
-              </h1>
-              <Badge variant="secondary">Saved to your account</Badge>
-            </div>
+            <h1 className="text-3xl font-semibold tracking-normal">
+              Your progress
+            </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              This is a record of tutor practice activity, not a formal course
+              A private record of your tutor practice. It is not a course
               grade.
             </p>
+            {primaryAction.questionTitle ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Up next:{" "}
+                <span className="font-medium text-foreground">
+                  {primaryAction.questionTitle}
+                </span>
+              </p>
+            ) : null}
           </div>
-          <Button asChild>
-            <Link href="/practice">
-              <GraduationCap className="h-4 w-4" aria-hidden="true" />
-              Practice
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="cta" size="lg">
+              <Link href={primaryAction.href}>
+                <Play className="h-4 w-4" aria-hidden="true" />
+                {primaryAction.label}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/topics">Choose a topic</Link>
+            </Button>
+          </div>
         </header>
 
         <section
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
           aria-label="Practice totals"
         >
           {metricDefinitions.map(({ icon: Icon, key, label }) => (
@@ -129,6 +168,13 @@ export function ProgressDashboard({
                   <CardTitle className="mt-1 text-sm font-medium text-muted-foreground">
                     {label}
                   </CardTitle>
+                  {key === "availableCompletedQuestions" &&
+                  progress.summary.previouslyCompletedQuestions > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      + {progress.summary.previouslyCompletedQuestions}{" "}
+                      completed earlier
+                    </p>
+                  ) : null}
                 </div>
               </CardHeader>
             </Card>
@@ -144,7 +190,7 @@ export function ProgressDashboard({
                 id="syllabus-progress-heading"
                 className="text-lg font-semibold"
               >
-                Syllabus topic progress
+                Progress by topic
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Topics follow the course syllabus order.
@@ -152,9 +198,7 @@ export function ProgressDashboard({
             </div>
             <span className="text-xs text-muted-foreground">
               {progress.summary.topicsStarted} topics started ·{" "}
-              {progress.summary.availableQuestions} questions available ·{" "}
-              {progress.summary.extraPracticeSessions ?? 0} extra-practice
-              sessions
+              {progress.summary.availableQuestions} questions available
             </span>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -180,22 +224,37 @@ export function ProgressDashboard({
                       {topic.availableQuestions > 0 ? (
                         <Progress
                           className="mt-4"
-                          aria-label={`${topic.title} currently available practice completion`}
+                          aria-label={`${topic.title} practice completion`}
                           indicatorClassName="bg-cta"
                           max={topic.availableQuestions}
                           value={topic.completedQuestions}
                         />
                       ) : null}
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {topic.completedQuestions} of {topic.availableQuestions}{" "}
-                        currently available completed
-                        {topic.previouslyCompletedQuestions > 0
-                          ? ` · ${topic.previouslyCompletedQuestions} completed earlier`
-                          : ""}
-                        {topic.inProgressQuestions > 0
-                          ? ` · ${topic.inProgressQuestions} in progress`
-                          : ""}
-                      </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm text-muted-foreground">
+                          {topic.completedQuestions} of {topic.availableQuestions}{" "}
+                          completed
+                          {topic.previouslyCompletedQuestions > 0
+                            ? ` · ${topic.previouslyCompletedQuestions} completed earlier`
+                            : ""}
+                          {topic.inProgressQuestions > 0
+                            ? ` · ${topic.inProgressQuestions} in progress`
+                            : ""}
+                        </p>
+                        {topic.availableQuestions > 0 ? (
+                          <Button asChild variant="ghost" size="sm">
+                            <Link href={`/practice?topicId=${topic.id}`}>
+                              {topic.completedQuestions >= topic.availableQuestions
+                                ? "Practice again"
+                                : "Practice"}
+                              <ArrowRight
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </Link>
+                          </Button>
+                        ) : null}
+                      </div>
                     </>
                   ) : (
                     <p className="mt-4 text-sm text-muted-foreground">
@@ -226,116 +285,125 @@ export function ProgressDashboard({
           </section>
         ) : null}
 
-        <section aria-labelledby="another-attempt-heading">
-          <div className="mb-3">
-            <h2 id="another-attempt-heading" className="text-lg font-semibold">
-              Questions to try again
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              These questions have an incorrect attempt and no correct attempt
-              yet.
-            </p>
-          </div>
-          {needsAnotherAttempt.length > 0 ? (
+        {needsAnotherAttempt.length > 0 ? (
+          <section aria-labelledby="another-attempt-heading">
+            <div className="mb-3">
+              <h2
+                id="another-attempt-heading"
+                className="text-lg font-semibold"
+              >
+                Questions to try again
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You have not answered these correctly yet.
+              </p>
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               {needsAnotherAttempt.map((question) => (
                 <QuestionRow key={question.questionId} question={question} />
               ))}
             </div>
-          ) : (
-            <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
-              No questions currently need another attempt.
-            </p>
-          )}
-        </section>
+          </section>
+        ) : null}
 
-        <section aria-labelledby="recent-sessions-heading">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 id="recent-sessions-heading" className="text-lg font-semibold">
-              Recent practice sessions
-            </h2>
-            <span className="text-xs text-muted-foreground">Most recent 8</span>
-          </div>
-          {progress.recentSessions.length > 0 ? (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Question</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Attempts</TableHead>
-                    <TableHead className="text-right">Hints</TableHead>
-                    <TableHead>Last active</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {progress.recentSessions.map((session) => (
-                    <TableRow key={session.sessionId}>
-                      <TableCell className="min-w-56">
-                        <span className="font-medium">
-                          {session.questionTitle}
-                        </span>
-                        {session.practiceContext === "reserve_practice" ? (
-                          <Badge variant="success" className="ml-2">
-                            Extra practice
-                          </Badge>
-                        ) : null}
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {session.topicTitle}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <ProgressStatusBadge
-                          needsAnotherAttempt={session.needsAnotherAttempt}
-                          status={session.status}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {session.attemptCount}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {session.hintsUsed}
-                      </TableCell>
-                      <TableCell className="min-w-32 text-muted-foreground">
-                        {formatSessionDate(session.lastSeenAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {session.available ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link
-                              href={resumeHref(
-                                session.questionId,
-                                session.sessionId,
-                                session.practiceContext,
-                              )}
-                            >
-                              Resume
-                              <ArrowRight
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            </Link>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            No action
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        {hasPracticeActivity ? (
+          <section aria-labelledby="recent-sessions-heading">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2
+                id="recent-sessions-heading"
+                className="text-lg font-semibold"
+              >
+                Recent practice
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                Most recent 8
+              </span>
             </div>
-          ) : (
-            <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
-              No practice activity yet.
-            </p>
-          )}
-        </section>
+            {progress.recentSessions.length > 0 ? (
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Question</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Attempts</TableHead>
+                      <TableHead className="text-right">Hints</TableHead>
+                      <TableHead>Last active</TableHead>
+                      <TableHead className="text-right">
+                        <span className="sr-only">Action</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {progress.recentSessions.map((session) => (
+                      <RecentSessionRow
+                        key={session.sessionId}
+                        session={session}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
+                No practice activity yet.
+              </p>
+            )}
+          </section>
+        ) : null}
       </section>
     </main>
+  );
+}
+
+function RecentSessionRow({ session }: { session: RecentSession }) {
+  return (
+    <TableRow>
+      <TableCell className="min-w-56">
+        <span className="font-medium">{session.questionTitle}</span>
+        {session.practiceContext === "reserve_practice" ? (
+          <Badge variant="success" className="ml-2">
+            Extra practice
+          </Badge>
+        ) : null}
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {session.topicTitle}
+        </span>
+      </TableCell>
+      <TableCell>
+        <ProgressStatusBadge
+          needsAnotherAttempt={session.needsAnotherAttempt}
+          status={session.status}
+        />
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        {session.attemptCount}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        {session.hintsUsed}
+      </TableCell>
+      <TableCell className="min-w-32 text-muted-foreground">
+        {formatSessionDate(session.lastSeenAt)}
+      </TableCell>
+      <TableCell className="text-right">
+        {session.available ? (
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={resumeHref(
+                session.questionId,
+                session.sessionId,
+                session.practiceContext,
+              )}
+            >
+              {session.status === "completed" ? "Review" : "Resume"}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        ) : (
+          <span className="text-xs text-muted-foreground">Not available</span>
+        )}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -346,10 +414,11 @@ function EmptyProgressState() {
         <div>
           <h2 className="font-semibold">No saved practice yet</h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Start a practice question to build your private progress record.
+            Pick a topic and answer your first question. Your progress will
+            show up here.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="cta">
           <Link href="/practice">
             Start practicing
             <ArrowRight className="h-4 w-4" aria-hidden="true" />

@@ -1,6 +1,8 @@
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace";
 import { normalizeSummary } from "@/lib/api/question-serialization";
+import { requirePracticePageAccess } from "@/lib/auth/practice-page-access";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
+import { getServerEnv } from "@/lib/env/server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +17,25 @@ type PracticePageProps = {
 export default async function PracticePage({
   searchParams,
 }: PracticePageProps) {
-  const [topics, questions] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-  ]);
   const {
     questionId: requestedQuestionId,
     sessionId: requestedSessionId,
     topicId: requestedTopicId,
   } = await searchParams;
+  const env = getServerEnv();
+  await requirePracticePageAccess(
+    env,
+    practiceReturnPath({
+      questionId: requestedQuestionId,
+      sessionId: requestedSessionId,
+      topicId: requestedTopicId,
+    }),
+  );
+
+  const [topics, questions] = await Promise.all([
+    getTopics(),
+    getApprovedQuestions(),
+  ]);
   const initialQuestionId =
     typeof requestedQuestionId === "string" &&
     questions.some((question) => question.id === requestedQuestionId)
@@ -42,6 +54,7 @@ export default async function PracticePage({
 
   return (
     <PracticeWorkspace
+      aiHelpEnabled={env.AI_ENABLED}
       initialQuestionId={initialQuestionId}
       initialSessionId={initialSessionId}
       initialTopicId={initialTopicId}
@@ -49,4 +62,19 @@ export default async function PracticePage({
       questions={questions.map(normalizeSummary)}
     />
   );
+}
+
+function practiceReturnPath(params: {
+  questionId?: string | string[];
+  sessionId?: string | string[];
+  topicId?: string | string[];
+}) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string" && value.length > 0) {
+      search.set(key, value);
+    }
+  }
+  const query = search.toString();
+  return query ? `/practice?${query}` : "/practice";
 }

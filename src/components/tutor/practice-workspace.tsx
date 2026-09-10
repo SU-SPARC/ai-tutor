@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -9,20 +11,24 @@ import {
 } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
+  ArrowRight,
+  BookOpen,
   ChartNoAxesColumn,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   Eye,
+  Info,
   Lightbulb,
   Loader2,
+  PartyPopper,
   RotateCcw,
   Search,
-  Send,
   Sparkles,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { MathText } from "@/components/math/math-renderer";
@@ -30,10 +36,17 @@ import { QuestionFeedbackForm } from "@/components/tutor/question-feedback-form"
 import { PracticeSimilarProblemAction } from "@/components/tutor/practice-similar-problem-action";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
+import { signInPath } from "@/lib/auth/return-path";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
 import type {
   CourseTopic,
@@ -45,6 +58,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 type PracticeWorkspaceProps = {
+  aiHelpEnabled?: boolean;
   initialQuestionId?: string;
   initialSessionId?: string;
   initialTopicId?: string;
@@ -52,13 +66,27 @@ type PracticeWorkspaceProps = {
   topics: CourseTopic[];
 };
 
-type ChatMessage = {
+export type ChatMessageTone =
+  | "correct"
+  | "incorrect"
+  | "guidance"
+  | "notice"
+  | "neutral";
+
+export type ChatMessage = {
   id: string;
+  label?: string;
   note?: string;
   role: "student" | "tutor";
   stepLabel?: string;
   text: string;
-  tone?: "correct" | "incorrect" | "neutral";
+  tone?: ChatMessageTone;
+};
+
+type SessionErrorState = {
+  code?: string;
+  message: string;
+  signInHref?: string;
 };
 
 type TutorSessionPayload = {
@@ -86,6 +114,11 @@ const SAFE_TUTOR_ERROR_CODES = new Set([
   "TUTOR_SESSION_UNAVAILABLE",
 ]);
 
+export const SIGN_IN_REQUIRED_CODE = "SIGN_IN_REQUIRED";
+export const SIGN_IN_REQUIRED_MESSAGE =
+  "Sign in to start practicing. Your progress is saved to your account.";
+const UNREADABLE_MESSAGE_PREFIX = "I could not read";
+
 export class TutorClientRequestError extends Error {
   readonly code?: string;
   readonly requestId?: string;
@@ -103,7 +136,89 @@ export class TutorClientRequestError extends Error {
   }
 }
 
+/**
+ * Picks the question a student should move to after finishing the current
+ * one: the next unsolved question later in the topic list, then any earlier
+ * unsolved question, otherwise nothing (the topic is complete).
+ */
+export function nextQuestionAfter<
+  Question extends Pick<StudentPracticeQuestion, "id">,
+>(
+  currentQuestionId: string | undefined,
+  topicQuestions: Question[],
+  solvedQuestionIds: ReadonlySet<string>,
+): Question | undefined {
+  const index = topicQuestions.findIndex(
+    (question) => question.id === currentQuestionId,
+  );
+  const later = topicQuestions
+    .slice(index + 1)
+    .find((question) => !solvedQuestionIds.has(question.id));
+  if (later) {
+    return later;
+  }
+  return topicQuestions.find(
+    (question, position) =>
+      position !== index && !solvedQuestionIds.has(question.id),
+  );
+}
+
+/**
+ * Translates a tutor response into the transcript entry the student sees.
+ * Format guidance ("I could not read that…") and blocked help are shown as
+ * notices, never as wrong attempts, matching the engine, which does not count
+ * them as incorrect.
+ */
+export function chatMessageForResponse(
+  response: Pick<TutorResponse, "message" | "misconceptions" | "verdict">,
+): Omit<ChatMessage, "id"> {
+  if (response.verdict === "correct") {
+    return {
+      label: "Correct",
+      role: "tutor",
+      text: response.message,
+      tone: "correct",
+    };
+  }
+
+  if (response.verdict === "incorrect") {
+    return {
+      label: "Not quite",
+      note: response.misconceptions[0],
+      role: "tutor",
+      text: stripNotQuitePrefix(response.message),
+      tone: "incorrect",
+    };
+  }
+
+  if (response.verdict === "blocked") {
+    return {
+      label: "Extra help is unavailable right now",
+      role: "tutor",
+      text: response.message,
+      tone: "notice",
+    };
+  }
+
+  const unreadable = response.message.startsWith(UNREADABLE_MESSAGE_PREFIX);
+  return {
+    label: unreadable ? "Couldn't read that answer" : undefined,
+    note: unreadable
+      ? "This was not marked wrong. Retype it in a readable form and check again."
+      : undefined,
+    role: "tutor",
+    text: response.message,
+    tone: "guidance",
+  };
+}
+
+function stripNotQuitePrefix(message: string) {
+  const stripped = message.replace(/^not quite[.!]?\s*/i, "").trim();
+  return stripped.length > 0 ? stripped : "Give it another try.";
+}
+
 export function PracticeWorkspace({
+  aiHelpEnabled = false,
   initialQuestionId,
   initialSessionId,
   initialTopicId,
@@ -113,14 +228,31 @@ export function PracticeWorkspace({
   const initialQuestion = questions.find(
     (question) => question.id === initialQuestionId,
   );
-  // A specific question wins; otherwise enter topic-first (from ?topicId);
-  // otherwise fall back to the first topic.
-  const resolvedTopicId =
-    initialQuestion?.topicId ??
-    (initialTopicId && topics.some((topic) => topic.id === initialTopicId)
+  // Topic-first entry (arriving from the Topics page via ?topicId=…): the user
+  // already picked a topic there, so the sidebar shows just that topic's
+  // problems as a flat list — no need to re-navigate the whole topic tree.
+  const isTopicFirstEntry =
+    !initialQuestion &&
+    Boolean(initialTopicId) &&
+    topics.some((topic) => topic.id === initialTopicId);
+  const requestedTopicId =
+    initialTopicId && topics.some((topic) => topic.id === initialTopicId)
       ? initialTopicId
-      : topics[0]?.id) ??
-    "";
+      : undefined;
+  // The question shown first. A specific question wins; a topic the student
+  // chose deliberately stays inside that topic even when it has nothing to
+  // practice yet (never silently swap to another topic); otherwise the first
+  // available question, preferring the first listed topic.
+  const startingQuestion =
+    initialQuestion ??
+    (requestedTopicId
+      ? questions.find((question) => question.topicId === requestedTopicId)
+      : (questions.find((question) => question.topicId === topics[0]?.id) ??
+        questions[0]));
+  // The selected topic always matches the displayed question, so progress
+  // counts, Continue, and topic completion never mix two topics.
+  const resolvedTopicId =
+    startingQuestion?.topicId ?? requestedTopicId ?? topics[0]?.id ?? "";
   const [selectedTopicId, setSelectedTopicId] = useState(resolvedTopicId);
   // Which topics are expanded in the sidebar (VS Code-style tree — each topic
   // expands/collapses independently, decoupled from what's loaded in the chat).
@@ -132,10 +264,7 @@ export function PracticeWorkspace({
     [questions, selectedTopicId],
   );
   const [selectedQuestionId, setSelectedQuestionId] = useState(
-    initialQuestion?.id ??
-      questions.find((question) => question.topicId === resolvedTopicId)?.id ??
-      questions[0]?.id ??
-      "",
+    startingQuestion?.id ?? "",
   );
   const [reservePractice, setReservePractice] =
     useState<SimilarPracticeSessionDto | null>(null);
@@ -151,11 +280,11 @@ export function PracticeWorkspace({
     (reservePractice?.question.id === selectedQuestionId
       ? reservePractice.question
       : undefined) ??
-    questions.find((question) => question.id === selectedQuestionId) ??
-    topicQuestions[0] ??
-    questions[0];
+    questions.find((question) => question.id === selectedQuestionId);
   const selectedTopic =
-    topics.find((topic) => topic.id === selectedQuestion?.topicId) ?? topics[0];
+    topics.find((topic) => topic.id === selectedQuestion?.topicId) ??
+    topics.find((topic) => topic.id === selectedTopicId) ??
+    topics[0];
   const [answer, setAnswer] = useState("");
   const [activeMode, setActiveMode] = useState<TutorMode | "ai" | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
@@ -163,13 +292,24 @@ export function PracticeWorkspace({
     null,
   );
   const [session, setSession] = useState<TutorSessionDto | null>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<SessionErrorState | null>(
+    null,
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [disclosedHints, setDisclosedHints] = useState<string[]>([]);
   const [hintCount, setHintCount] = useState(0);
   const [hintViewIndex, setHintViewIndex] = useState(0);
+  const [solutionSteps, setSolutionSteps] = useState<string[]>([]);
+  const [solvedQuestionIds, setSolvedQuestionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [showTopicComplete, setShowTopicComplete] = useState(false);
   const [search, setSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const answerInputRef = useRef<HTMLTextAreaElement>(null);
+  const continueButtonRef = useRef<HTMLButtonElement>(null);
+  const answerInputId = useId();
+  const answerFormatHintId = useId();
 
   const selectedQuestionIdForSession = selectedQuestion?.id;
   const isTutorBusy = activeMode !== null || isSessionLoading;
@@ -181,6 +321,16 @@ export function PracticeWorkspace({
   const hintsExhausted = Boolean(
     selectedQuestion && hintCount >= selectedQuestion.hintCount,
   );
+  const hintsRemaining = selectedQuestion
+    ? Math.max(0, selectedQuestion.hintCount - hintCount)
+    : 0;
+  const solutionFullyRevealed = Boolean(
+    selectedQuestion &&
+      selectedQuestion.stepCount > 0 &&
+      session &&
+      session.revealedSteps >= selectedQuestion.stepCount,
+  );
+  const lastVerdict = latestResponse?.verdict;
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
   const visibleTopics = isSearching
@@ -194,18 +344,23 @@ export function PracticeWorkspace({
           ),
       )
     : topics;
-  // Topic-first entry (arriving from the Topics page via ?topicId=…): the user
-  // already picked a topic there, so the sidebar shows just that topic's
-  // problems as a flat list — no need to re-navigate the whole topic tree.
-  const isTopicFirstEntry =
-    !initialQuestion &&
-    Boolean(initialTopicId) &&
-    topics.some((topic) => topic.id === initialTopicId);
   const topicFirstProblems = isSearching
     ? topicQuestions.filter((question) =>
         question.title.toLowerCase().includes(searchQuery),
       )
     : topicQuestions;
+  const questionPosition = topicQuestions.findIndex(
+    (question) => question.id === selectedQuestion?.id,
+  );
+  const solvedInTopic = topicQuestions.filter((question) =>
+    solvedQuestionIds.has(question.id),
+  ).length;
+  const nextQuestion = useMemo(
+    () =>
+      nextQuestionAfter(selectedQuestion?.id, topicQuestions, solvedQuestionIds),
+    [selectedQuestion?.id, solvedQuestionIds, topicQuestions],
+  );
+  const isReservePractice = session?.practiceContext === "reserve_practice";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -239,7 +394,7 @@ export function PracticeWorkspace({
       .catch((error) => {
         if (!isStale) {
           setInitialSessionFailed(true);
-          setSessionError(errorMessageFor(error));
+          setSessionError(sessionErrorFor(error));
         }
       })
       .finally(() => {
@@ -250,6 +405,22 @@ export function PracticeWorkspace({
       isStale = true;
     };
   }, [initialQuestion, initialSessionId, questions]);
+
+  const applySessionSnapshot = useCallback(
+    (snapshot: TutorSessionDto, question: StudentPracticeQuestion) => {
+      const revealed = Math.min(snapshot.revealedHints, question.hintCount);
+      setSession(snapshot);
+      setMessages(recoveryMessages(snapshot, question));
+      setDisclosedHints((snapshot.disclosedHints ?? []).slice(0, revealed));
+      setHintCount(revealed);
+      setHintViewIndex(Math.max(0, revealed - 1));
+      setSolutionSteps(snapshot.disclosedSolutionSteps ?? []);
+      if (snapshot.solved) {
+        setSolvedQuestionIds((ids) => new Set(ids).add(question.id));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let isStale = false;
@@ -262,9 +433,12 @@ export function PracticeWorkspace({
       setDisclosedHints([]);
       setHintCount(0);
       setHintViewIndex(0);
+      setSolutionSteps([]);
+      setShowTopicComplete(false);
 
       if (
         !selectedQuestionIdForSession ||
+        !selectedQuestion ||
         isInitialSessionResolving ||
         initialSessionFailed
       ) {
@@ -289,28 +463,11 @@ export function PracticeWorkspace({
         );
 
         if (!isStale) {
-          setSession(nextSession);
-          setMessages(recoveryMessages(nextSession, selectedQuestion));
-          setDisclosedHints(nextSession.disclosedHints ?? []);
-          setHintCount(
-            Math.min(
-              nextSession.revealedHints,
-              selectedQuestion?.hintCount ?? 0,
-            ),
-          );
-          setHintViewIndex(
-            Math.max(
-              0,
-              Math.min(
-                nextSession.revealedHints,
-                selectedQuestion?.hintCount ?? 0,
-              ) - 1,
-            ),
-          );
+          applySessionSnapshot(nextSession, selectedQuestion);
         }
       } catch (error) {
         if (!isStale) {
-          setSessionError(errorMessageFor(error));
+          setSessionError(sessionErrorFor(error));
         }
       } finally {
         if (!isStale) {
@@ -325,6 +482,7 @@ export function PracticeWorkspace({
       isStale = true;
     };
   }, [
+    applySessionSnapshot,
     initialQuestionId,
     initialSessionId,
     initialSessionFailed,
@@ -340,6 +498,8 @@ export function PracticeWorkspace({
     setDisclosedHints([]);
     setHintCount(0);
     setHintViewIndex(0);
+    setSolutionSteps([]);
+    setShowTopicComplete(false);
   }
 
   function pushMessage(message: Omit<ChatMessage, "id">) {
@@ -347,6 +507,10 @@ export function PracticeWorkspace({
       ...items,
       { ...message, id: createClientId(message.role) },
     ]);
+  }
+
+  function focusAnswerInput() {
+    window.setTimeout(() => answerInputRef.current?.focus(), 0);
   }
 
   async function handleTutorRequestFailure(
@@ -361,43 +525,31 @@ export function PracticeWorkspace({
         clearTutorSessionId(selectedQuestion.id);
       }
       setSession(null);
-      setSessionError(error.message);
+      setSessionError({ code: error.code, message: error.message });
       return;
     }
 
     if (
       session &&
+      selectedQuestion &&
       error instanceof TutorClientRequestError &&
       ["NETWORK_INTERRUPTED", "TUTOR_SESSION_STALE"].includes(error.code ?? "")
     ) {
       try {
         const recovered = await fetchTutorSession(session.id);
         const writeWasRecovered = recovered.revision > session.revision;
-        setSession(recovered);
-        setMessages(recoveryMessages(recovered, selectedQuestion));
-        setDisclosedHints(recovered.disclosedHints ?? []);
-        setHintCount(
-          Math.min(recovered.revealedHints, selectedQuestion?.hintCount ?? 0),
-        );
-        setHintViewIndex(
-          Math.max(
-            0,
-            Math.min(
-              recovered.revealedHints,
-              selectedQuestion?.hintCount ?? 0,
-            ) - 1,
-          ),
-        );
+        applySessionSnapshot(recovered, selectedQuestion);
         if (!writeWasRecovered && unsavedAnswer) {
           setAnswer(unsavedAnswer);
         }
-        setSessionError(
-          writeWasRecovered
-            ? "The connection recovered and your saved tutor progress was restored."
+        setSessionError({
+          code: error.code,
+          message: writeWasRecovered
+            ? "The connection recovered and your saved progress was restored."
             : error.code === "TUTOR_SESSION_STALE"
-              ? "Your saved tutor progress was refreshed. Please submit again."
-              : "The connection recovered, but no saved change is visible yet. Please wait a moment, then submit again.",
-        );
+              ? "Your saved progress was refreshed. Please check your answer again."
+              : "The connection recovered, but no saved change is visible yet. Please wait a moment, then check your answer again.",
+        });
         return;
       } catch {
         // Keep the original, already-sanitized error. The existing session ID
@@ -408,7 +560,7 @@ export function PracticeWorkspace({
     if (unsavedAnswer) {
       setAnswer(unsavedAnswer);
     }
-    setSessionError(errorMessageFor(error));
+    setSessionError(sessionErrorFor(error));
   }
 
   function toggleTopic(topicId: string) {
@@ -444,6 +596,52 @@ export function PracticeWorkspace({
     resetChat();
   }
 
+  function continueToNextQuestion() {
+    if (nextQuestion) {
+      selectQuestion(nextQuestion.id, nextQuestion.topicId);
+      return;
+    }
+    setShowTopicComplete(true);
+  }
+
+  async function syncHintsFromSession(sessionId: string, question: StudentPracticeQuestion) {
+    try {
+      const snapshot = await fetchTutorSession(sessionId);
+      const revealed = Math.min(snapshot.revealedHints, question.hintCount);
+      setDisclosedHints((snapshot.disclosedHints ?? []).slice(0, revealed));
+      setHintCount(revealed);
+      setHintViewIndex(Math.max(0, revealed - 1));
+    } catch {
+      // The transcript already shows the feedback; the hint panel refreshes on
+      // the next hint request or page reload.
+    }
+  }
+
+  function applyHintsFromResponse(
+    response: TutorResponse,
+    question: StudentPracticeQuestion,
+  ) {
+    const revealed = Math.min(
+      question.hintCount,
+      response.progress?.hintsRevealed ?? response.hints.length,
+    );
+    if (revealed === 0) {
+      return;
+    }
+    if (response.misconceptions.length > 0 || response.hints.length < revealed) {
+      // A misconception reply carries corrective guidance instead of the
+      // question's own hints, so the hint panel is refreshed from the session
+      // rather than from this reply.
+      if (session) {
+        void syncHintsFromSession(session.id, question);
+      }
+      return;
+    }
+    setDisclosedHints(response.hints.slice(0, revealed));
+    setHintCount(revealed);
+    setHintViewIndex(Math.max(0, revealed - 1));
+  }
+
   async function sendAnswer() {
     const trimmed = answer.trim();
 
@@ -467,23 +665,18 @@ export function PracticeWorkspace({
 
       setLatestResponse(tutorResponse);
       setSession((current) => sessionWithProgress(current, tutorResponse));
-      if (tutorResponse.hints.length > 0) {
-        const nextHintCount = Math.min(
-          selectedQuestion.hintCount,
-          tutorResponse.progress?.hintsRevealed ?? tutorResponse.hints.length,
-        );
-        setDisclosedHints(tutorResponse.hints.slice(0, nextHintCount));
-        setHintCount(nextHintCount);
-        setHintViewIndex(Math.max(0, nextHintCount - 1));
+      applyHintsFromResponse(tutorResponse, selectedQuestion);
+      pushMessage(chatMessageForResponse(tutorResponse));
+      if (tutorResponse.verdict === "correct") {
+        setSolutionSteps(tutorResponse.steps);
+        setSolvedQuestionIds((ids) => new Set(ids).add(selectedQuestion.id));
+        window.setTimeout(() => continueButtonRef.current?.focus(), 0);
+      } else {
+        focusAnswerInput();
       }
-      pushMessage({
-        note: tutorResponse.misconceptions[0],
-        role: "tutor",
-        text: tutorResponse.message,
-        tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
-      });
     } catch (error) {
       await handleTutorRequestFailure(error, trimmed);
+      focusAnswerInput();
     } finally {
       setActiveMode(null);
     }
@@ -514,6 +707,7 @@ export function PracticeWorkspace({
       setHintViewIndex(Math.max(0, next - 1));
       setLatestResponse(response);
       setSession((current) => sessionWithProgress(current, response));
+      focusAnswerInput();
     } catch (error) {
       await handleTutorRequestFailure(error);
     } finally {
@@ -540,6 +734,7 @@ export function PracticeWorkspace({
 
       setLatestResponse(tutorResponse);
       setSession((current) => sessionWithProgress(current, tutorResponse));
+      setSolutionSteps(tutorResponse.steps);
 
       const total = tutorResponse.steps.length;
       setMessages((items) => [
@@ -553,8 +748,8 @@ export function PracticeWorkspace({
         })),
         {
           id: createClientId("tutor"),
+          label: "Worked solution",
           role: "tutor" as const,
-          stepLabel: "Full solution",
           text: tutorResponse.message,
           tone: "neutral" as const,
         },
@@ -589,15 +784,18 @@ export function PracticeWorkspace({
 
       setLatestResponse(tutorResponse);
       setSession((current) => sessionWithProgress(current, tutorResponse));
+      const message = chatMessageForResponse(tutorResponse);
       pushMessage({
-        note: tutorResponse.misconceptions[0],
-        role: "tutor",
+        ...message,
         text:
           tutorResponse.source === "retrieval" && tutorResponse.hints[0]
             ? `${tutorResponse.message} ${tutorResponse.hints[0]}`
-            : tutorResponse.message,
-        tone: tutorResponse.verdict === "correct" ? "correct" : "incorrect",
+            : message.text,
       });
+      if (tutorResponse.verdict === "correct") {
+        setSolutionSteps(tutorResponse.steps);
+        setSolvedQuestionIds((ids) => new Set(ids).add(selectedQuestion.id));
+      }
     } catch (error) {
       await handleTutorRequestFailure(error);
     } finally {
@@ -622,8 +820,9 @@ export function PracticeWorkspace({
       setLatestResponse(null);
       setSession(nextSession);
       resetChat();
+      focusAnswerInput();
     } catch (error) {
-      setSessionError(errorMessageFor(error));
+      setSessionError(sessionErrorFor(error));
     } finally {
       setIsSessionLoading(false);
     }
@@ -636,37 +835,41 @@ export function PracticeWorkspace({
     }
   }
 
+  const navigationLinks = (
+    <div className="flex flex-wrap items-center gap-1 text-sm">
+      <Button asChild variant="ghost" size="sm">
+        <Link href="/topics">
+          <BookOpen className="h-4 w-4" aria-hidden="true" />
+          All topics
+        </Link>
+      </Button>
+      <Button asChild variant="ghost" size="sm">
+        <Link href="/dashboard">
+          <ChartNoAxesColumn className="h-4 w-4" aria-hidden="true" />
+          Your progress
+        </Link>
+      </Button>
+    </div>
+  );
+
   return (
     <main className="min-h-svh bg-background lg:h-[calc(100svh-3.5rem)] lg:min-h-0 lg:overflow-hidden">
-      <section className="mx-auto grid w-full max-w-[90rem] gap-6 px-6 py-8 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden lg:py-6">
-        <aside className="flex flex-col gap-4 lg:h-[calc(100svh-6.5rem)] lg:min-h-0">
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="ghost" size="sm" className="px-0">
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/dashboard">
-                <ChartNoAxesColumn className="h-4 w-4" />
-                Progress
-              </Link>
-            </Button>
-          </div>
+      <section className="mx-auto grid w-full max-w-[90rem] gap-4 px-4 py-4 sm:px-6 sm:py-6 lg:h-full lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6 lg:overflow-hidden">
+        <aside className="order-2 flex flex-col gap-3 lg:order-1 lg:h-[calc(100svh-6.5rem)] lg:min-h-0">
+          <div className="hidden lg:block">{navigationLinks}</div>
 
           <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-            <CardHeader>
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base">
                 {isTopicFirstEntry
-                  ? (selectedTopic?.title ?? "Problems")
-                  : "Topics"}
+                  ? "Problems in this topic"
+                  : "Topics and problems"}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
               <div className="relative mb-2">
                 <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <Input
@@ -689,7 +892,7 @@ export function PracticeWorkspace({
                     type="button"
                     aria-label="Clear search"
                     onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -701,27 +904,20 @@ export function PracticeWorkspace({
                     <p className="px-2 py-3 text-sm text-muted-foreground">
                       {isSearching
                         ? `No matches for “${search.trim()}”.`
-                        : "No problems yet."}
+                        : "No practice questions are available for this topic yet."}
                     </p>
                   ) : (
                     topicFirstProblems.map((problem) => (
-                      <Button
+                      <ProblemButton
                         key={problem.id}
-                        type="button"
-                        size="sm"
-                        variant={
-                          problem.id === selectedQuestionId
-                            ? "default"
-                            : "ghost"
-                        }
-                        className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                        active={problem.id === selectedQuestionId}
                         disabled={isTutorBusy}
                         onClick={() =>
                           selectQuestion(problem.id, selectedTopicId)
                         }
-                      >
-                        {problem.title}
-                      </Button>
+                        solved={solvedQuestionIds.has(problem.id)}
+                        title={problem.title}
+                      />
                     ))
                   )
                 ) : visibleTopics.length === 0 ? (
@@ -750,7 +946,7 @@ export function PracticeWorkspace({
                         <Button
                           type="button"
                           variant={isOpen ? "secondary" : "ghost"}
-                          className="h-auto w-full justify-start gap-2 whitespace-normal py-2.5 text-left"
+                          className="h-auto w-full justify-start gap-2 py-2.5 text-left whitespace-normal"
                           aria-expanded={isOpen}
                           onClick={() => toggleTopic(topic.id)}
                         >
@@ -766,32 +962,28 @@ export function PracticeWorkspace({
                             />
                           )}
                           <span className="min-w-0 flex-1">{topic.title}</span>
+                          <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                            {topicProblems.length}
+                          </span>
                         </Button>
                         {isOpen ? (
                           <div className="mt-1 ml-4 flex flex-col gap-1 border-l pl-2">
                             {problems.length > 0 ? (
                               problems.map((problem) => (
-                                <Button
+                                <ProblemButton
                                   key={problem.id}
-                                  type="button"
-                                  size="sm"
-                                  variant={
-                                    problem.id === selectedQuestionId
-                                      ? "default"
-                                      : "ghost"
-                                  }
-                                  className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                                  active={problem.id === selectedQuestionId}
                                   disabled={isTutorBusy}
                                   onClick={() =>
                                     selectQuestion(problem.id, topic.id)
                                   }
-                                >
-                                  {problem.title}
-                                </Button>
+                                  solved={solvedQuestionIds.has(problem.id)}
+                                  title={problem.title}
+                                />
                               ))
                             ) : (
                               <p className="px-2 py-1 text-xs text-muted-foreground">
-                                No problems yet.
+                                No practice questions yet.
                               </p>
                             )}
                           </div>
@@ -805,62 +997,65 @@ export function PracticeWorkspace({
           </Card>
         </aside>
 
-        <div className="flex min-w-0 flex-col h-[75svh] lg:h-[calc(100svh-6.5rem)]">
+        <div className="order-1 flex min-w-0 flex-col gap-3 lg:order-2 lg:h-[calc(100svh-6.5rem)]">
+          <div className="lg:hidden">{navigationLinks}</div>
+
           {selectedQuestion ? (
-            <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
-              <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
-                <div className="min-w-0">
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                    {session?.practiceContext === "reserve_practice" ? (
-                      <Badge variant="success">Extra practice</Badge>
-                    ) : null}
-                    <Badge>{selectedTopic?.title}</Badge>
-                    <Badge variant="outline">
-                      {selectedQuestion.difficulty}
-                    </Badge>
-                  </div>
-                  <h1 className="text-base font-semibold leading-6">
-                    {selectedQuestion.title}
-                  </h1>
-                  <div className="mt-1 text-sm leading-6 text-muted-foreground">
-                    <MathText>{selectedQuestion.prompt}</MathText>
+            <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card lg:overflow-hidden">
+              <div className="border-b px-4 py-4 sm:px-5 lg:max-h-[45svh] lg:overflow-y-auto">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {selectedTopic?.title}
+                  </span>
+                  {isReservePractice ? (
+                    <Badge variant="success">Extra practice</Badge>
+                  ) : questionPosition >= 0 ? (
+                    <span className="tabular-nums">
+                      Question {questionPosition + 1} of {topicQuestions.length}
+                      {solvedInTopic > 0 ? ` · ${solvedInTopic} solved` : ""}
+                    </span>
+                  ) : null}
+                  <Badge variant="outline">{selectedQuestion.difficultyLabel}</Badge>
+                  <div className="ml-auto flex items-center gap-1">
+                    <QuestionFeedbackForm
+                      key={session?.id ?? selectedQuestion.id}
+                      questionTitle={selectedQuestion.title}
+                      sessionId={session?.id}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      title="Start this question over"
+                      aria-label="Start this question over"
+                      disabled={isTutorBusy || !session || isReservePractice}
+                      onClick={() => {
+                        void restartTutorSession();
+                      }}
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      <span className="hidden sm:inline">Start over</span>
+                    </Button>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <QuestionFeedbackForm
-                    key={session?.id ?? selectedQuestion.id}
-                    questionTitle={selectedQuestion.title}
-                    sessionId={session?.id}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    title="Reset"
-                    aria-label="Reset conversation"
-                    disabled={
-                      isTutorBusy ||
-                      session?.practiceContext === "reserve_practice"
-                    }
-                    onClick={() => {
-                      void restartTutorSession();
-                    }}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
+                <h1 className="mt-3 text-lg leading-7 font-semibold sm:text-xl">
+                  {selectedQuestion.title}
+                </h1>
+                <div className="mt-2 text-base leading-7">
+                  <MathText>{selectedQuestion.prompt}</MathText>
                 </div>
               </div>
 
-              {session?.practiceContext === "reserve_practice" ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-success/5 px-5 py-2 text-sm">
+              {isReservePractice ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-success/5 px-4 py-2 text-sm sm:px-5">
                   <span>
-                    Extra practice · professor-approved and separate from
-                    assigned progress
+                    Extra practice. This problem does not count toward your
+                    assigned practice.
                   </span>
                   <Button asChild size="sm" variant="ghost">
                     <Link
                       href={
-                        session.originSessionId
+                        session?.originSessionId
                           ? `/practice?sessionId=${encodeURIComponent(session.originSessionId)}`
                           : "/practice"
                       }
@@ -872,12 +1067,23 @@ export function PracticeWorkspace({
               ) : null}
 
               <div
-                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
+                className="flex max-h-[55svh] min-h-32 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-5 lg:max-h-none lg:min-h-0 lg:flex-1"
+                role="log"
                 aria-live="polite"
+                aria-label="Tutor conversation"
               >
-                {messages.length === 0 ? (
-                  <p className="m-auto max-w-xs text-center text-sm text-muted-foreground">
-                    Type your answer below to begin.
+                {isSessionLoading ? (
+                  <p className="m-auto flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                    Getting this question ready…
+                  </p>
+                ) : messages.length === 0 ? (
+                  <p className="m-auto max-w-sm text-center text-sm leading-6 text-muted-foreground">
+                    Work out your answer and type it below. You can ask for a
+                    hint at any time.
                   </p>
                 ) : (
                   messages.map((message) => (
@@ -887,8 +1093,8 @@ export function PracticeWorkspace({
                 <div ref={messagesEndRef} />
               </div>
 
-              {hintCount > 0 ? (
-                <div className="border-t px-5 py-3">
+              {!session?.solved && hintCount > 0 && disclosedHints[hintViewIndex] ? (
+                <div className="border-t px-4 py-3 sm:px-5">
                   <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
                     <Lightbulb
                       className="mt-0.5 h-4 w-4 shrink-0 text-primary"
@@ -897,45 +1103,48 @@ export function PracticeWorkspace({
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <span className="text-xs font-medium text-muted-foreground">
-                          Hint {hintViewIndex + 1} of {hintCount}
+                          Hint {hintViewIndex + 1} of {selectedQuestion.hintCount}
+                          {hintsRemaining > 0
+                            ? ` · ${hintsRemaining} more available`
+                            : ""}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            aria-label="Previous hint"
-                            disabled={hintViewIndex === 0}
-                            onClick={() =>
-                              setHintViewIndex((index) =>
-                                Math.max(0, index - 1),
-                              )
-                            }
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            aria-label="Next hint"
-                            disabled={hintViewIndex >= hintCount - 1}
-                            onClick={() =>
-                              setHintViewIndex((index) =>
-                                Math.min(hintCount - 1, index + 1),
-                              )
-                            }
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {hintCount > 1 ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              aria-label="Previous hint"
+                              disabled={hintViewIndex === 0}
+                              onClick={() =>
+                                setHintViewIndex((index) =>
+                                  Math.max(0, index - 1),
+                                )
+                              }
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              aria-label="Next hint"
+                              disabled={hintViewIndex >= hintCount - 1}
+                              onClick={() =>
+                                setHintViewIndex((index) =>
+                                  Math.min(hintCount - 1, index + 1),
+                                )
+                              }
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="leading-6">
-                        <MathText>
-                          {disclosedHints[hintViewIndex] ?? ""}
-                        </MathText>
+                        <MathText>{disclosedHints[hintViewIndex] ?? ""}</MathText>
                       </div>
                     </div>
                   </div>
@@ -943,103 +1152,233 @@ export function PracticeWorkspace({
               ) : null}
 
               {sessionError ? (
-                <div className="border-t px-5 py-2 text-sm text-destructive">
-                  {sessionError}
-                </div>
-              ) : null}
-
-              {session?.solved ? (
-                <PracticeSimilarProblemAction
-                  key={session.id}
-                  disabled={isTutorBusy}
-                  sessionId={session.id}
-                  onMatch={openSimilarQuestion}
-                />
-              ) : null}
-
-              <div className="border-t px-5 py-4">
-                <div className="flex items-end gap-2">
-                  <Textarea
-                    value={answer}
-                    onChange={(event) => setAnswer(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder="Type your answer…"
-                    rows={2}
-                    className="min-h-0 resize-none"
-                  />
-                  <Button
-                    type="button"
-                    disabled={!canSend}
-                    onClick={() => {
-                      void sendAnswer();
-                    }}
-                  >
-                    {activeMode === "check" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    Send
-                  </Button>
-                </div>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isTutorBusy || !session || hintsExhausted}
-                    onClick={() => {
-                      void getHint();
-                    }}
-                  >
-                    <Lightbulb className="h-4 w-4" />
-                    Hint
-                  </Button>
-                  {hintsExhausted ? (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center justify-between gap-3 border-t bg-warning/5 px-4 py-3 text-sm sm:px-5"
+                >
+                  <span className="flex min-w-0 items-start gap-2">
+                    <Info
+                      className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+                      aria-hidden="true"
+                    />
+                    <span>{sessionError.message}</span>
+                  </span>
+                  {sessionError.signInHref ? (
+                    <Button asChild size="sm">
+                      <Link href={sessionError.signInHref}>Sign in</Link>
+                    </Button>
+                  ) : !session && !isSessionLoading ? (
                     <Button
                       type="button"
+                      size="sm"
                       variant="outline"
-                      size="sm"
-                      disabled={isTutorBusy || !session}
                       onClick={() => {
-                        void showAnswer();
+                        void restartTutorSession();
                       }}
                     >
-                      {activeMode === "full_solution" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      Show answer
-                    </Button>
-                  ) : null}
-                  {latestResponse?.usage.llmFallbackEligible ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={isTutorBusy || !session}
-                      onClick={() => {
-                        void requestLimitedAiHelp();
-                      }}
-                    >
-                      {activeMode === "ai" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      I&apos;m stuck
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      Start a new attempt
                     </Button>
                   ) : null}
                 </div>
-              </div>
+              ) : null}
+
+              {showTopicComplete ? (
+                <TopicCompletePanel
+                  onPracticeAgain={() => setShowTopicComplete(false)}
+                  solvedCount={solvedInTopic}
+                  topicTitle={selectedTopic?.title ?? "this topic"}
+                  totalCount={topicQuestions.length}
+                />
+              ) : session?.solved ? (
+                <div
+                  className="border-t bg-success/5 px-4 py-4 sm:px-5"
+                  role="status"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="flex items-center gap-2 font-medium">
+                      <CheckCircle2
+                        className="h-5 w-5 text-success"
+                        aria-hidden="true"
+                      />
+                      Solved. Nice work.
+                    </p>
+                    <Button
+                      ref={continueButtonRef}
+                      type="button"
+                      variant="cta"
+                      disabled={isTutorBusy}
+                      onClick={continueToNextQuestion}
+                    >
+                      {nextQuestion ? "Continue" : "Finish topic"}
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {solutionSteps.length > 0 ? (
+                    <details className="mt-3 rounded-md border bg-card text-sm">
+                      <summary className="cursor-pointer px-3 py-2 font-medium">
+                        Show the worked solution
+                      </summary>
+                      <ol className="max-h-56 list-decimal space-y-2 overflow-y-auto px-3 pb-3 pl-8 leading-6">
+                        {solutionSteps.map((step, index) => (
+                          <li key={index}>
+                            <MathText>{step}</MathText>
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  ) : null}
+                  <div className="mt-3 border-t pt-3">
+                    <PracticeSimilarProblemAction
+                      key={session.id}
+                      disabled={isTutorBusy}
+                      sessionId={session.id}
+                      onMatch={openSimilarQuestion}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t px-4 py-4 sm:px-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <label
+                      htmlFor={answerInputId}
+                      className="text-sm font-medium"
+                    >
+                      {lastVerdict === "incorrect"
+                        ? "Try again"
+                        : "Your answer"}
+                    </label>
+                    <p
+                      id={answerFormatHintId}
+                      className="text-xs leading-5 text-muted-foreground"
+                    >
+                      {selectedQuestion.inputFormatHint} Press Enter to check.
+                    </p>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <Textarea
+                      id={answerInputId}
+                      ref={answerInputRef}
+                      value={answer}
+                      onChange={(event) => setAnswer(event.target.value)}
+                      onKeyDown={handleComposerKeyDown}
+                      aria-describedby={answerFormatHintId}
+                      placeholder="Type your answer…"
+                      rows={2}
+                      disabled={!session || isSessionLoading}
+                      className="min-h-0 resize-none"
+                    />
+                    <Button
+                      type="button"
+                      variant="cta"
+                      className="w-full sm:w-auto"
+                      disabled={!canSend}
+                      onClick={() => {
+                        void sendAnswer();
+                      }}
+                    >
+                      {activeMode === "check" ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Check answer
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {!hintsExhausted ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isTutorBusy || !session}
+                        onClick={() => {
+                          void getHint();
+                        }}
+                      >
+                        {activeMode === "hint" ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Lightbulb className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        Get a hint
+                        {selectedQuestion.hintCount > 0 ? (
+                          <span className="text-xs text-muted-foreground">
+                            ({hintsRemaining} left)
+                          </span>
+                        ) : null}
+                      </Button>
+                    ) : selectedQuestion.stepCount > 0 && !solutionFullyRevealed ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isTutorBusy || !session}
+                        onClick={() => {
+                          void showAnswer();
+                        }}
+                      >
+                        {activeMode === "full_solution" ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        Show the worked solution
+                      </Button>
+                    ) : null}
+                    {aiHelpEnabled && latestResponse?.usage.llmFallbackEligible ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isTutorBusy || !session}
+                        onClick={() => {
+                          void requestLimitedAiHelp();
+                        }}
+                      >
+                        {activeMode === "ai" ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Sparkles className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        Ask AI for help
+                      </Button>
+                    ) : null}
+                    {solutionFullyRevealed ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="ml-auto"
+                        disabled={isTutorBusy}
+                        onClick={continueToNextQuestion}
+                      >
+                        {nextQuestion ? "Next question" : "Finish topic"}
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <Card>
-              <CardContent className="py-8 text-sm text-muted-foreground">
-                No approved questions are available for this topic yet.
-              </CardContent>
-            </Card>
+            <EmptyTopicState
+              hasAnyQuestions={questions.length > 0}
+              topicTitle={selectedTopic?.title}
+            />
           )}
         </div>
       </section>
@@ -1047,21 +1386,149 @@ export function PracticeWorkspace({
   );
 }
 
+function ProblemButton({
+  active,
+  disabled,
+  onClick,
+  solved,
+  title,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  solved: boolean;
+  title: string;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={active ? "default" : "ghost"}
+      className="h-auto w-full justify-start gap-2 py-2 text-left whitespace-normal"
+      aria-current={active ? "true" : undefined}
+      aria-label={solved ? `${title} (solved)` : title}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {solved ? (
+        <CheckCircle2
+          className={cn(
+            "h-4 w-4 shrink-0",
+            active ? "text-primary-foreground" : "text-success",
+          )}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className="min-w-0 flex-1">{title}</span>
+    </Button>
+  );
+}
+
+function EmptyTopicState({
+  hasAnyQuestions,
+  topicTitle,
+}: {
+  hasAnyQuestions: boolean;
+  topicTitle?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <CircleHelp className="h-5 w-5 text-primary" aria-hidden="true" />
+          No practice questions are available for this topic yet.
+        </CardTitle>
+        <CardDescription className="leading-6">
+          {topicTitle ? `${topicTitle} has ` : "This topic has "}
+          nothing to practice right now. Questions appear here once your
+          professor makes them available, so check back soon.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-3">
+        <Button asChild variant="cta">
+          <Link href="/topics">
+            {hasAnyQuestions ? "Choose another topic" : "Browse topics"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">Return to dashboard</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopicCompletePanel({
+  onPracticeAgain,
+  solvedCount,
+  topicTitle,
+  totalCount,
+}: {
+  onPracticeAgain: () => void;
+  solvedCount: number;
+  topicTitle: string;
+  totalCount: number;
+}) {
+  return (
+    <div className="border-t bg-success/5 px-4 py-5 sm:px-5" role="status">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <PartyPopper className="h-5 w-5 text-success" aria-hidden="true" />
+        Topic complete
+      </h2>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+        You worked through every available question in {topicTitle}
+        {totalCount > 0
+          ? ` (${solvedCount} of ${totalCount} solved this visit)`
+          : ""}
+        . Choose what to do next.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button asChild variant="cta">
+          <Link href="/topics">
+            Practice another topic
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">Return to dashboard</Link>
+        </Button>
+        <Button type="button" variant="ghost" onClick={onPracticeAgain}>
+          Stay on this question
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ChatBubble({ message }: { message: ChatMessage }) {
   if (message.role === "student") {
     return (
       <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap">
+        <span className="sr-only">You answered: </span>
         {message.text}
       </div>
     );
   }
 
+  const tone = message.tone ?? "neutral";
+  const Icon =
+    tone === "correct"
+      ? CheckCircle2
+      : tone === "incorrect"
+        ? XCircle
+        : tone === "guidance" || tone === "notice"
+          ? Info
+          : undefined;
+
   return (
     <div
       className={cn(
         "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm border bg-muted/40 px-4 py-2.5 text-sm",
-        message.tone === "correct" && "border-success/50 bg-success/5",
-        message.tone === "incorrect" && "border-destructive/40",
+        tone === "correct" && "border-success/50 bg-success/5",
+        tone === "incorrect" && "border-destructive/40",
+        tone === "guidance" && "border-primary/30 bg-primary/5",
+        tone === "notice" && "border-warning/40 bg-warning/5",
       )}
     >
       {message.stepLabel ? (
@@ -1069,17 +1536,31 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           {message.stepLabel}
         </div>
       ) : null}
-      {message.tone === "correct" ? (
-        <div className="mb-1 inline-flex items-center gap-1 font-medium text-success">
-          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          Correct
+      {message.label ? (
+        <div
+          className={cn(
+            "mb-1 inline-flex items-center gap-1 font-medium",
+            tone === "correct" && "text-success",
+            tone === "incorrect" && "text-destructive",
+            tone === "guidance" && "text-primary",
+            tone === "notice" && "text-warning",
+          )}
+        >
+          {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+          {message.label}
         </div>
       ) : null}
       <div className="leading-6">
         <MathText>{message.text}</MathText>
       </div>
       {message.note ? (
-        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs leading-5 text-muted-foreground">
+        <div
+          className={cn(
+            "mt-2 rounded-md border p-2 text-xs leading-5 text-muted-foreground",
+            tone === "incorrect" && "border-destructive/30 bg-destructive/5",
+            tone !== "incorrect" && "border-primary/20 bg-primary/5",
+          )}
+        >
           <MathText>{message.note}</MathText>
         </div>
       ) : null}
@@ -1273,9 +1754,16 @@ function tutorClientError(
   payload: TutorErrorPayload,
   fallbackMessage: string,
 ) {
+  if (response.status === 401) {
+    return new TutorClientRequestError(SIGN_IN_REQUIRED_MESSAGE, {
+      code: SIGN_IN_REQUIRED_CODE,
+      requestId: response.headers.get("x-request-id") ?? undefined,
+      status: response.status,
+    });
+  }
   const message =
     response.status >= 500
-      ? "The tutor service is temporarily unavailable. The tutor did not confirm a saved change. Please try again shortly."
+      ? "The tutor is temporarily unavailable. Nothing was saved from that request. Please try again shortly."
       : response.status >= 400 &&
           payload.code &&
           SAFE_TUTOR_ERROR_CODES.has(payload.code) &&
@@ -1427,6 +1915,16 @@ function createClientId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2)}`;
 }
 
+function currentPracticeSignInHref() {
+  if (typeof window === "undefined") {
+    return signInPath("/practice");
+  }
+  const { pathname, search } = window.location;
+  return signInPath(
+    pathname.startsWith("/practice") ? `${pathname}${search}` : "/practice",
+  );
+}
+
 function sessionWithProgress(
   session: TutorSessionDto | null,
   response: TutorResponse,
@@ -1447,8 +1945,11 @@ function sessionWithProgress(
   };
 }
 
-function recoveryMessages(
-  session: TutorSessionDto,
+export function recoveryMessages(
+  session: Pick<
+    TutorSessionDto,
+    "attempts" | "disclosedAnswerExplanation" | "disclosedSolutionSteps"
+  >,
   question: StudentPracticeQuestion | undefined,
 ): ChatMessage[] {
   if (!question) {
@@ -1480,21 +1981,23 @@ function recoveryMessages(
     } else if (attempt.verdict === "correct") {
       messages.push({
         id: `recovered-tutor-${attemptIndex}`,
+        label: "Correct",
         role: "tutor",
         text:
           session.disclosedAnswerExplanation ??
-          "This question was completed correctly.",
+          "You already answered this question correctly.",
         tone: "correct",
       });
     } else if (attempt.verdict === "incorrect") {
       messages.push({
         id: `recovered-tutor-${attemptIndex}`,
+        label: "Not quite",
         note: attempt.misconceptionFeedback[0],
         role: "tutor",
         text:
           attempt.misconceptionFeedback.length > 0
-            ? "Not quite. I found a likely misconception to check first."
-            : "Not quite.",
+            ? "There is a likely misconception to check first."
+            : "Give it another try.",
         tone: "incorrect",
       });
     }
@@ -1503,8 +2006,19 @@ function recoveryMessages(
   });
 }
 
-function errorMessageFor(error: unknown) {
-  return error instanceof TutorClientRequestError
-    ? error.message
-    : "The tutor could not be reached safely. Please check your connection and try again.";
+function sessionErrorFor(error: unknown): SessionErrorState {
+  if (error instanceof TutorClientRequestError) {
+    return {
+      code: error.code,
+      message: error.message,
+      signInHref:
+        error.code === SIGN_IN_REQUIRED_CODE
+          ? currentPracticeSignInHref()
+          : undefined,
+    };
+  }
+  return {
+    message:
+      "The tutor could not be reached. Please check your connection and try again.",
+  };
 }

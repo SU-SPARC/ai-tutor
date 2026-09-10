@@ -223,7 +223,7 @@ describe("authenticated student dashboard page", () => {
     const markup = renderToStaticMarkup(element);
 
     expect(mocks.getStudentProgress).toHaveBeenCalledOnce();
-    expect(markup).toContain("Your practice progress");
+    expect(markup).toContain("Your progress");
     expect(markup).toContain("Five-question quiz");
     expect(markup).not.toMatch(/leaderboard|class rank|percentile/i);
   });
@@ -235,21 +235,20 @@ describe("student progress dashboard states", () => {
       createElement(ProgressDashboard, { progress }),
     );
 
-    expect(markup).toContain("Syllabus topic progress");
+    expect(markup).toContain("Progress by topic");
     expect(markup.indexOf("Conditional Probability")).toBeLessThan(
       markup.indexOf("Binomial Models"),
     );
     expect(markup).toContain("In progress");
     expect(markup).toContain("Completed");
     expect(markup).toContain("Questions to try again");
-    expect(markup).toContain("Recent practice sessions");
+    expect(markup).toContain("Recent practice");
     expect(markup).toContain("Hints used");
-    expect(markup).toContain("Currently available");
-    expect(markup).toContain("Available questions completed");
-    expect(markup).toContain("Completed earlier");
-    expect(markup).toContain(
-      "1 of 3 currently available completed · 1 completed earlier",
-    );
+    expect(markup).toContain("Questions available");
+    expect(markup).toContain("Completed");
+    expect(markup).toContain("completed earlier");
+    expect(markup).toContain("1 of 3 completed · 1 completed earlier");
+    expect(markup).toContain("Continue practice");
     expect(markup).toContain("No longer available");
     expect(markup).toContain("Earlier published question");
     expect(markup).not.toContain("questionId=withdrawn-question");
@@ -257,7 +256,7 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain(
       'href="/practice?questionId=five-question-quiz&amp;sessionId=session%3Astudent-owned"',
     );
-    expect(markup).toContain("not a formal course grade");
+    expect(markup).toContain("not a course grade");
     expect(markup).not.toMatch(
       /leaderboard|class rank|percentile|other student/i,
     );
@@ -293,7 +292,7 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain("No saved practice yet");
     expect(markup).toContain("Start practicing");
     expect(markup).toContain("Conditional Probability");
-    expect(markup).toContain("No practice activity yet");
+    expect(markup).not.toContain("Continue practice");
   });
 
   it("renders explicit loading and recoverable error states", () => {

@@ -86,17 +86,19 @@ export default async function OnboardingPage({
               practiced, a short answer preview, results, hints and steps used,
               timestamps, and limited usage counts.
             </NoticeItem>
-            <NoticeItem icon={Sparkles} title="Optional AI fallback">
-              If you choose <span className="font-medium">Ask AI for help</span>
-              , the current question, your answer or message, limited progress
-              context, and selected grounding material may be sent to the
-              configured AI provider. AI usage and cached responses may also be
-              recorded.
+            <NoticeItem icon={Sparkles} title="Optional AI help">
+              Hints, feedback, and worked solutions come from professor-reviewed
+              course content. If you choose{" "}
+              <span className="font-medium">Ask AI for help</span> when it is
+              offered, the current question, your answer or message, limited
+              progress context, and selected course material may be sent to an
+              AI service. AI usage and responses may also be recorded.
             </NoticeItem>
             <NoticeItem icon={CircleAlert} title="Check explanations">
-              Generated explanations can be incomplete or wrong. Compare them
-              with course materials and ask your professor when something does
-              not look right.
+              Explanations can be incomplete or wrong. Compare them with your
+              course materials and ask your professor when something does not
+              look right. Use the <span className="font-medium">Report</span>{" "}
+              button on any question to flag a problem.
             </NoticeItem>
           </section>
 
@@ -146,8 +148,9 @@ export default async function OnboardingPage({
             </div>
           </dl>
           <p className="text-xs leading-5 text-muted-foreground">
-            Clerk manages your password and email verification. The tutor does
-            not receive or store your password or password hash.
+            Sign-in, passwords, and email verification are handled by the
+            account service (Clerk). The tutor does not receive or store your
+            password.
           </p>
 
           {isReview ? (
