@@ -1,5 +1,7 @@
 "use client";
 
+import { AnswerCheckingEditor } from "@/components/professor/answer-checking-editor";
+import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import { useMemo, useState, type ReactNode } from "react";
 import { Loader2, Save, X } from "lucide-react";
 
@@ -17,6 +19,7 @@ import type {
 } from "@/lib/types";
 
 type RevisionForm = {
+  spec?: AnswerSpec;
   acceptedAnswers: string;
   answerExplanation: string;
   difficulty: Difficulty;
@@ -170,15 +173,40 @@ export function ProfessorQuestionRevisionEditor({
             ))}
           </select>
         </RevisionField>
-        <RevisionField label="Accepted final answers (one per line)">
-          <Textarea
-            value={form.acceptedAnswers}
-            className="min-h-24"
-            onChange={(event) =>
-              updateForm("acceptedAnswers", event.target.value)
-            }
-          />
-        </RevisionField>
+        <AnswerCheckingEditor
+          disabled={disabled || isSaving}
+          answer={{
+            acceptedAnswers: form.acceptedAnswers.split("\n"),
+            explanation: form.answerExplanation,
+            spec: form.spec,
+            numericValue: form.numericValue.trim()
+              ? Number(form.numericValue)
+              : undefined,
+            tolerance: form.tolerance.trim()
+              ? Number(form.tolerance)
+              : undefined,
+          }}
+          onChange={(answer) =>
+            setForm((current) => ({
+              ...current,
+              spec: answer.spec,
+              acceptedAnswers: answer.acceptedAnswers.join("\n"),
+              numericValue: answer.spec ? "" : current.numericValue,
+              tolerance: answer.spec ? "" : current.tolerance,
+            }))
+          }
+        />
+        {!form.spec && (
+          <RevisionField label="Accepted final answers (one per line)">
+            <Textarea
+              value={form.acceptedAnswers}
+              className="min-h-24"
+              onChange={(event) =>
+                updateForm("acceptedAnswers", event.target.value)
+              }
+            />
+          </RevisionField>
+        )}
       </div>
 
       <RevisionField label="Question wording">
@@ -201,23 +229,31 @@ export function ProfessorQuestionRevisionEditor({
       </RevisionField>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <RevisionField label="Numeric answer (optional)">
-          <Input
-            type="number"
-            step="any"
-            value={form.numericValue}
-            onChange={(event) => updateForm("numericValue", event.target.value)}
-          />
-        </RevisionField>
-        <RevisionField label="Tolerance (optional, non-negative)">
-          <Input
-            type="number"
-            min="0"
-            step="any"
-            value={form.tolerance}
-            onChange={(event) => updateForm("tolerance", event.target.value)}
-          />
-        </RevisionField>
+        {!form.spec && (
+          <>
+            <RevisionField label="Numeric answer (optional)">
+              <Input
+                type="number"
+                step="any"
+                value={form.numericValue}
+                onChange={(event) =>
+                  updateForm("numericValue", event.target.value)
+                }
+              />
+            </RevisionField>
+            <RevisionField label="Tolerance (optional, non-negative)">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={form.tolerance}
+                onChange={(event) =>
+                  updateForm("tolerance", event.target.value)
+                }
+              />
+            </RevisionField>
+          </>
+        )}
         <RevisionField label="Solution steps (one per line)">
           <Textarea
             value={form.solutionSteps}
@@ -330,6 +366,7 @@ function revisionFormFromQuestion(
   const version = question.workingVersion;
   return {
     acceptedAnswers: version.answer.acceptedAnswers.join("\n"),
+    spec: version.answer.spec,
     answerExplanation: version.answer.explanation,
     difficulty: version.difficulty,
     hints: version.hints.join("\n"),
@@ -376,6 +413,7 @@ function revisionFromForm(
   return {
     answer: {
       acceptedAnswers,
+      ...(form.spec !== undefined ? { spec: form.spec } : {}),
       explanation: form.answerExplanation.trim(),
       numericValue,
       tolerance,

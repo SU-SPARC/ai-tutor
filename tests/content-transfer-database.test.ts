@@ -5,7 +5,10 @@ import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { requireProfessorReview } from "@/lib/auth/authorization";
-import { validateContentTransferDocument } from "@/lib/content-transfer/schema";
+import {
+  buildQuestionContentExport,
+  validateContentTransferDocument,
+} from "@/lib/content-transfer/schema";
 import type { ContentTransferDocument } from "@/lib/content-transfer/types";
 import { activeCanonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
@@ -26,6 +29,49 @@ afterEach(async () => {
 });
 
 describe("question content-transfer database import", () => {
+  it("round-trips a typed answer through transfer v1 and a new immutable v2 snapshot", async () => {
+    const database = await migratedDatabase();
+    await seedProfessorAndTopics(database, 1);
+    const auth = await professorAuthorization();
+    const repo = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const spec = {
+      kind: "numeric" as const,
+      value: "1/2",
+      domain: "probability" as const,
+      percentMode: "either" as const,
+      tolerance: { mode: "exact" as const },
+    };
+    const question = validQuestion();
+    question.answer.spec = spec;
+    const validation = validateContentTransferDocument(
+      validDocument({ questions: [question] }),
+    );
+    expect(validation.document).toBeDefined();
+    const imported = await repo.importContentTransfer(auth, {
+      document: validation.document!,
+      requestId: "typed-transfer",
+    });
+    const loaded = await repo.getQuestion(auth, imported.importedIds[0]);
+    expect(loaded!.workingVersion.answer.spec).toEqual(spec);
+    const exported = buildQuestionContentExport({
+      questions: [loaded!],
+      scope: "all",
+    });
+    expect(exported.schemaVersion).toBe(1);
+    expect(exported.questions[0].answer.spec).toEqual(spec);
+    expect(validateContentTransferDocument(exported).document).toBeDefined();
+    expect(
+      (
+        await database.query(
+          "select schema_version from question_versions where question_id=$1",
+          [question.stableId],
+        )
+      ).rows,
+    ).toEqual([{ schema_version: 2 }]);
+  });
+
   it("validates and imports the example transfer files without publishing", async () => {
     const database = await migratedDatabase();
     await seedProfessorAndTopics(database, 3);

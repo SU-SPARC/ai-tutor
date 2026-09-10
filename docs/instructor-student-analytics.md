@@ -7,7 +7,7 @@ records. No model is involved, and no analytics table was added.
 
 ## Student identity
 
-A student is whoever owns a tutor session: either an authenticated user
+A participating student owns a meaningful published practice session: either an authenticated user
 (`tutor_sessions.user_id`) or an anonymous cookie subject
 (`tutor_sessions.anonymous_user_id`). Instructor surfaces never see either.
 
@@ -42,10 +42,19 @@ linked to the session; only the digest input would change, not the analytics.
 
 ## Counting rules
 
+A **practice session** is a tutor session with at least one persisted tutoring
+interaction or durable progress evidence. Opening, browsing, reloading, or
+recovering a question alone does not count. See the shared
+[engagement definition and architecture audit](tutor-session-engagement.md).
+Student lists, drilldown, cohort totals, question analytics, attention signals,
+and pilot export use this same population. Historical opened rows remain stored
+but do not create activity, participants, topics, or recent-practice entries.
+The excluded-professor-session count also counts only meaningful sessions.
+
 Assigned-work counts, correctness, hint/solution totals, attention signals, and
 misconception trends include only `practice_context = 'published'` sessions.
 Reserve similar-practice sessions are excluded from those metrics and reported
-separately as `extraPracticeSessions` in student and cohort summaries.
+separately, only after meaningful use, as `extraPracticeSessions` in student and cohort summaries.
 
 - **Attempts** are rows with `mode = 'check'`. Hint and solution requests are
   separate interactions and never inflate the attempt count.
@@ -84,3 +93,13 @@ Misconception **codes** are recorded per session, not per attempt, so the
 per-attempt view can only report whether a misconception was matched. Attaching
 codes to `attempts` would need a migration and is not required by anything here;
 it is worth doing if per-attempt misconception trends become important.
+
+## Scored correctness versus activity
+
+Student, cohort, and question/topic correctness percentages use scored checks
+(`correctAttempts + incorrectAttempts`). The minimum evidence threshold and
+low-accuracy attention signal use that same denominator. Guidance, unreadable
+numeric submissions, and blocked requests still count as interaction activity,
+but cannot lower correctness or independently trigger repeated-difficulty
+attention. Reserve-practice counts remain separate. See
+[answer-checker.md](answer-checker.md) for typed and legacy grading behavior.

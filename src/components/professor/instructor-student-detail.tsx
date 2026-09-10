@@ -132,13 +132,16 @@ export function InstructorStudentDetailPanel({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
-        <Metric label="Sessions" value={summary.sessions} />
+        <Metric label="Practice sessions" value={summary.sessions} />
         <Metric label="Extra practice" value={summary.extraPracticeSessions} />
         <Metric label="Attempts" value={summary.attempts} />
         <Metric label="Correct" value={summary.correctAttempts} />
         <Metric
           label="Accuracy"
-          value={formatAccuracy(summary.correctAttempts, summary.attempts)}
+          value={formatAccuracy(
+            summary.correctAttempts,
+            summary.correctAttempts + (summary.incorrectAttempts ?? 0),
+          )}
         />
         <Metric label="Hints" value={summary.hintsUsed} />
         <Metric label="Solutions" value={summary.solutionsRevealed} />
@@ -212,7 +215,10 @@ export function InstructorStudentDetailPanel({
                       {topic.correctAttempts}
                     </TableCell>
                     <TableCell className="px-6 py-3">
-                      {formatAccuracy(topic.correctAttempts, topic.attempts)}
+                      {formatAccuracy(
+                        topic.correctAttempts,
+                        topic.correctAttempts + (topic.incorrectAttempts ?? 0),
+                      )}
                     </TableCell>
                     <TableCell className="px-6 py-3">
                       {topic.hintsUsed}

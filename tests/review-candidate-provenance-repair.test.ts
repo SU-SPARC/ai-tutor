@@ -348,7 +348,7 @@ describe("review-candidate provenance repair", () => {
     const repairableIds = plan.repairable.map((entry) => entry.id);
     expect(repairableIds).toContain(FAILING_QUESTION_ID);
     expect(repairableIds).toContain(PATTERN_DERIVED_QUESTION_ID);
-    expect(repairableIds).toHaveLength(234);
+    expect(repairableIds).toHaveLength(264);
     expect(plan.blocked).toEqual([]);
     expect(plan.absent).toEqual([]);
 

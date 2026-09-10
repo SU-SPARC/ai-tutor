@@ -268,6 +268,7 @@ export function createDatabasePilotAnalyticsExportRepository(
            group by status
            order by status`,
         ),
+        // The attempt branch already implies engagement; retain the shared population filter.
         readRows<CoverageRow>(
           query,
           `select min(recorded_at) as earliest_at, max(recorded_at) as latest_at
@@ -364,7 +365,10 @@ function activity(row: ActivityRow | undefined): PilotAnalyticsActivity {
     ...tutorPath(row),
     answerAttempts,
     correctAnswerAttempts,
-    correctnessRate: correctnessRate(correctAnswerAttempts, answerAttempts),
+    correctnessRate: correctnessRate(
+      correctAnswerAttempts,
+      correctAnswerAttempts + incorrectAnswerAttempts,
+    ),
     hintsUsed: count(row?.total_revealed_hints),
     incorrectAnswerAttempts,
     questionsAttempted: count(row?.questions_attempted),

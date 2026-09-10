@@ -1,3 +1,4 @@
+import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import type {
   Difficulty,
   Misconception,
@@ -26,6 +27,7 @@ export type ContentTransferTopicMapping = {
 
 export type ContentTransferQuestion = {
   answer: {
+    spec?: AnswerSpec;
     acceptedAnswers: string[];
     explanation: string;
     numericValue?: number;

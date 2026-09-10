@@ -15,6 +15,8 @@ import {
   requireStudent,
 } from "@/lib/auth/authorization";
 import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
+import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-analytics-export-repository";
+import { createDatabaseTutorSessionRepository } from "@/lib/data/tutor-session-repository";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import type { InstructorStudentList } from "@/lib/types";
@@ -319,6 +321,184 @@ describe("instructor student analytics", () => {
     await expect(
       repository.getCohortAnalytics(studentAuthorization as never),
     ).rejects.toThrow();
+  });
+
+  it("excludes browsing-only historical rows across cohort, drilldown, question analytics, and export", async () => {
+    const db = await migratedDatabase();
+    await seed(db);
+    const query = pgliteQuery(db);
+    const instructor = createDatabaseInstructorStudentRepository(query);
+    const exporter = createDatabasePilotAnalyticsExportRepository(query);
+    const content = createDatabaseContentRepository(
+      "postgres://unused.example/db",
+      query,
+    );
+    const authorization = await professorAuthorization();
+    const generatedAt = "2026-09-09T12:00:00.000Z";
+    const before = await instructor.getCohortAnalytics(authorization);
+    const exportBefore = await exporter.build(authorization, generatedAt);
+    const practiceBefore =
+      await content.getProfessorPracticeAnalytics(authorization);
+    // Student A browses three different questions. Include old creation dates,
+    // a fresh passive timestamp, and stale misconception metadata without use.
+    await db.exec(`
+      insert into tutor_sessions (id, anonymous_user_id, question_id, created_at,
+        last_seen_at, last_misconception_ids_json)
+      select 'browse-' || q.id, 'student-a-browsing', q.id,
+        '2020-01-01'::timestamptz, now(), '["browsing-only-code"]'::jsonb
+      from questions q;
+      insert into tutor_sessions (id, user_id, question_id)
+      values ('professor-open', '${TEST_PROFESSOR.userId}', 'cp-question');
+    `);
+    const browsingKey = createHash("sha256")
+      .update("anon:student-a-browsing")
+      .digest("hex");
+    expect(await instructor.getCohortAnalytics(authorization)).toEqual(before);
+    expect(
+      await instructor.getStudentDetail(authorization, browsingKey),
+    ).toBeUndefined();
+    expect(
+      await instructor.listStudents(authorization, { search: browsingKey }),
+    ).toMatchObject({ total: 0, students: [] });
+    expect(await content.getProfessorPracticeAnalytics(authorization)).toEqual(
+      practiceBefore,
+    );
+    expect(await exporter.build(authorization, generatedAt)).toEqual(
+      exportBefore,
+    );
+
+    // Student B submits an answer; Student C requests a hint without answering.
+    await db.exec(`
+      insert into tutor_sessions (id, anonymous_user_id, question_id, revealed_hints)
+      values ('student-b-check', 'student-b', 'cp-question', 0),
+             ('student-c-hint', 'student-c', 'cp-question', 1);
+      insert into attempts (session_id, question_id, topic_id, mode, source, verdict)
+      values ('student-b-check', 'cp-question', 'conditional-probability', 'check', 'rule', 'incorrect'),
+             ('student-c-hint', 'cp-question', 'conditional-probability', 'hint', 'rule', 'guidance');
+    `);
+    const cohort = await instructor.getCohortAnalytics(authorization);
+    expect(cohort).toMatchObject({
+      activeStudents: before.activeStudents + 2,
+      sessions: before.sessions + 2,
+      attempts: before.attempts + 1,
+      hintsUsed: before.hintsUsed + 1,
+      studentsNeedingAttention: before.studentsNeedingAttention,
+      extraPracticeSessions: before.extraPracticeSessions,
+      excludedStaffSessions: before.excludedStaffSessions,
+    });
+    const studentCKey = createHash("sha256")
+      .update("anon:student-c")
+      .digest("hex");
+    const detail = await instructor.getStudentDetail(
+      authorization,
+      studentCKey,
+    );
+    expect(detail?.summary).toMatchObject({
+      sessions: 1,
+      attempts: 0,
+      hintsUsed: 1,
+      topicsPracticed: 1,
+    });
+    expect(detail?.attempts).toHaveLength(1);
+    expect(detail?.attempts[0].mode).toBe("hint");
+    expect(detail?.topics).toHaveLength(1);
+    const exported = await exporter.build(authorization, generatedAt);
+    expect(exported.cohort).toMatchObject({
+      participatingStudents: cohort.activeStudents,
+      sessions: cohort.sessions,
+      answerAttempts: cohort.attempts,
+      hintsUsed: cohort.hintsUsed,
+    });
+    expect(
+      exported.participants.some((row) => row.participantId === browsingKey),
+    ).toBe(false);
+    expect(
+      (await content.getProfessorPracticeAnalytics(authorization)).summary
+        .totalTutorSessions,
+    ).toBe(cohort.sessions);
+    expect(
+      (
+        await db.query<{ count: number }>(
+          "select count(*)::int as count from tutor_sessions where id like 'browse-%'",
+        )
+      ).rows[0].count,
+    ).toBe(3);
+  });
+
+  it("includes legacy counter-only practice without inventing answer attempts", async () => {
+    const db = await migratedDatabase();
+    await seed(db);
+    const query = pgliteQuery(db);
+    const instructor = createDatabaseInstructorStudentRepository(query);
+    const exporter = createDatabasePilotAnalyticsExportRepository(query);
+    const tutor = createDatabaseTutorSessionRepository(
+      "postgres://unused.example/db",
+      query,
+    );
+    const authorization = await professorAuthorization();
+    const beforeCohort = await instructor.getCohortAnalytics(authorization);
+    const beforeExport = await exporter.build(authorization);
+    const anonymousId = "legacy-counter-only-owner";
+    const sessionId = "legacy-counter-only-session";
+    const studentKey = createHash("sha256")
+      .update(`anon:${anonymousId}`)
+      .digest("hex");
+
+    await db.query(
+      `insert into tutor_sessions (
+         id, anonymous_user_id, question_id, attempt_count, wrong_attempt_count
+       ) values ($1, $2, 'cp-question', 1, 1)`,
+      [sessionId, anonymousId],
+    );
+    const attemptRows = await db.query(
+      "select id from attempts where session_id = $1",
+      [sessionId],
+    );
+    expect(attemptRows.rows).toEqual([]);
+
+    const list = await instructor.listStudents(authorization, {
+      search: studentKey,
+    });
+    expect(list.total).toBe(1);
+    expect(list.students).toEqual([
+      expect.objectContaining({ studentKey, sessions: 1, attempts: 0 }),
+    ]);
+    const detail = await instructor.getStudentDetail(authorization, studentKey);
+    expect(detail?.summary).toMatchObject({
+      studentKey,
+      sessions: 1,
+      attempts: 0,
+    });
+    expect(detail?.attempts).toEqual([]);
+
+    const cohort = await instructor.getCohortAnalytics(authorization);
+    expect(cohort).toMatchObject({
+      activeStudents: beforeCohort.activeStudents + 1,
+      sessions: beforeCohort.sessions + 1,
+      attempts: beforeCohort.attempts,
+    });
+    const exported = await exporter.build(authorization);
+    expect(exported.cohort).toMatchObject({
+      participatingStudents: beforeExport.cohort.participatingStudents + 1,
+      sessions: beforeExport.cohort.sessions + 1,
+      answerAttempts: beforeExport.cohort.answerAttempts,
+    });
+    expect(
+      exported.participants.find((row) => row.participantId === studentKey),
+    ).toMatchObject({ sessions: 1, answerAttempts: 0 });
+    expect(
+      await tutor.listSessionsForStudent(
+        { kind: "anonymous", anonymousId },
+        { engagedOnly: true },
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        attemptCount: 1,
+        wrongAttemptCount: 1,
+        attempts: [],
+      }),
+    ]);
   });
 
   it("reports an empty cohort rather than failing when nothing is recorded", async () => {

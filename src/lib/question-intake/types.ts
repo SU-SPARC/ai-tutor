@@ -1,3 +1,4 @@
+import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import type {
   Difficulty,
   Misconception,
@@ -28,6 +29,7 @@ export type QuestionIntakeTopic = {
 };
 
 export type QuestionIntakeConfidence = {
+  checker?: number;
   answer: number;
   extraction: number;
   overall: number;
@@ -36,6 +38,7 @@ export type QuestionIntakeConfidence = {
 
 export type QuestionIntakeModelDraft = {
   answer: {
+    spec?: AnswerSpec;
     acceptedAnswers: string[];
     explanation: string;
     numericValue?: number;
@@ -58,6 +61,7 @@ export type QuestionIntakeModelDraft = {
 
 export type QuestionIntakeVerificationCheck = {
   code:
+    | "answer_checker_config"
     | "answer_schema"
     | "answer_solution_consistency"
     | "hint_progression"

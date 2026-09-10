@@ -58,7 +58,7 @@ describe("safe database migration workflow", () => {
 
     expect(migrations.map((migration) => migration.version)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-      22, 23,
+      22, 23, 24,
     ]);
     expect(
       migrations.every((migration) =>
@@ -104,7 +104,7 @@ describe("safe database migration workflow", () => {
       issues: [],
       ledgerExists: false,
       state: "pending",
-      total: 23,
+      total: 24,
     });
     expect(status.pending.map((migration) => migration.filename)).toEqual(
       migrations.map((migration) => migration.filename),
@@ -134,16 +134,16 @@ describe("safe database migration workflow", () => {
       target: "test",
     });
 
-    expect(firstRun.applied).toHaveLength(23);
+    expect(firstRun.applied).toHaveLength(24);
     expect(firstRun.status.state).toBe("current");
     expect(deploymentCheckExitCode(firstRun.status)).toBe(0);
     expect(statements[0]).toContain("pg_advisory_lock");
     expect(
       statements.filter((statement) => statement === "begin"),
-    ).toHaveLength(23);
+    ).toHaveLength(24);
     expect(
       statements.filter((statement) => statement === "commit"),
-    ).toHaveLength(23);
+    ).toHaveLength(24);
     expect(statements.at(-1)).toContain("pg_advisory_unlock");
 
     const ledger = await database.query<{
@@ -166,7 +166,7 @@ describe("safe database migration workflow", () => {
       from schema_migrations
       order by version
     `);
-    expect(ledger.rows).toHaveLength(23);
+    expect(ledger.rows).toHaveLength(24);
     expect(ledger.rows[0]).toMatchObject({
       actor: "ci:migration-test",
       deployment_sha: "0123456789abcdef",

@@ -1,0 +1,1447 @@
+[
+  {
+    "id": "generated-syllabus-uniform-library-cards-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Library Card Selection Draft v2",
+    "prompt": "A tray holds 16 equally likely library cards, and 6 are marked for pickup today. If one card is selected at random, what is the probability that it is marked for pickup today?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "3/8",
+        "0.375",
+        "37.5%"
+      ],
+      "numericValue": 0.375,
+      "tolerance": 0.001,
+      "explanation": "P(marked) = 6/16 = 3/8 = 0.375.",
+      "spec": {
+        "kind": "numeric",
+        "value": "3/8",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "Every card is equally likely to be selected, so the probability compares the number of favorable cards with the number of cards in the whole tray.",
+      "The sample space is all 16 cards; the event is the set of cards marked for pickup today.",
+      "Divide the favorable count by the total count, then reduce the fraction or convert it to a decimal or percent."
+    ],
+    "solutionSteps": [
+      "Each of the 16 cards is equally likely, so P(event) = (favorable cards)/(all cards).",
+      "The event 'marked for pickup today' contains 6 of the 16 cards.",
+      "P(marked) = 6/16 = 3/8 = 0.375."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-library-cards-favorable-count-as-denominator",
+        "matchTerms": [
+          "16/6",
+          "8/3",
+          "2.666667",
+          "2.6667",
+          "2.667",
+          "2.67",
+          "266.67%",
+          "266.7%"
+        ],
+        "feedback": "A probability can never exceed 1. The number of equally likely outcomes, 16, belongs in the denominator and the favorable count, 6, in the numerator."
+      },
+      {
+        "id": "misconception-uniform-library-cards-odds-instead-of-probability",
+        "matchTerms": [
+          "6/10",
+          "3/5",
+          "60%"
+        ],
+        "feedback": "This compares marked cards with unmarked cards. A probability divides by every card in the tray, including the marked ones: 6 out of 16."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-uniform-library-cards with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-uniform-library-cards: publish candidate for equally likely outcomes. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-uniform-spinner-sectors-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-uniform-numbered-tiles-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Numbered Tile Event Draft v2",
+    "prompt": "One tile is chosen at random from tiles numbered 1 through 18. What is the probability of choosing a multiple of 3?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "1/3",
+        "0.333333",
+        "33.33%"
+      ],
+      "numericValue": 0.3333333333333333,
+      "tolerance": 0.001,
+      "explanation": "P(multiple of 3) = 6/18 = 1/3, about 0.3333.",
+      "spec": {
+        "kind": "numeric",
+        "value": "1/3",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "With equally likely tiles, the probability is the number of tiles that satisfy the condition divided by the number of tiles.",
+      "List the multiples of 3 between 1 and 18 explicitly, including the endpoint 18, and count them.",
+      "Divide that count by 18 and simplify the fraction."
+    ],
+    "solutionSteps": [
+      "The 18 tiles are equally likely, so P(multiple of 3) = (multiples of 3)/(all tiles).",
+      "The multiples of 3 from 1 to 18 are 3, 6, 9, 12, 15, 18: six tiles.",
+      "P(multiple of 3) = 6/18 = 1/3, about 0.3333."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-numbered-tiles-missed-endpoint-multiple",
+        "matchTerms": [
+          "5/18",
+          "0.277778",
+          "0.2778",
+          "0.278",
+          "0.28",
+          "27.78%",
+          "27.8%"
+        ],
+        "feedback": "Counting 3, 6, 9, 12, 15 misses 18, which is also a multiple of 3 and is one of the tiles."
+      },
+      {
+        "id": "misconception-uniform-numbered-tiles-odds-instead-of-probability",
+        "matchTerms": [
+          "6/12",
+          "1/2",
+          "0.5",
+          "50%"
+        ],
+        "feedback": "This compares multiples of 3 with the other tiles. The denominator must be all 18 tiles."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-uniform-numbered-tiles with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-uniform-numbered-tiles: publish candidate for equally likely outcomes with an event that must be counted. The prompt wording was clarified; the answer is unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-complement-not-green-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Complements",
+    "title": "Not Green Complement Draft v2",
+    "prompt": "A box contains 15 equally likely markers, 4 of which are green. If one marker is selected at random, what is the probability that it is not green?",
+    "patternSource": "finite complement event",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "11/15",
+        "0.733333",
+        "73.33%"
+      ],
+      "numericValue": 0.7333333333333333,
+      "tolerance": 0.001,
+      "explanation": "P(not green) = 11/15, about 0.7333.",
+      "spec": {
+        "kind": "numeric",
+        "value": "11/15",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'Not green' is the complement of 'green': find the probability of the event you are avoiding, or count the markers that are not green.",
+      "P(not green) = 1 - P(green), where P(green) is green markers over all markers.",
+      "Compute 1 - 4/15, or equivalently count the 15 - 4 non-green markers out of 15."
+    ],
+    "solutionSteps": [
+      "The 15 markers are equally likely, and 'not green' is the complement of 'green'.",
+      "P(green) = 4/15, so P(not green) = 1 - 4/15 = 11/15.",
+      "P(not green) = 11/15, about 0.7333."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-complement-not-green-complement-not-applied",
+        "matchTerms": [
+          "4/15",
+          "0.266667",
+          "0.2667",
+          "0.267",
+          "0.27",
+          "26.67%",
+          "26.7%"
+        ],
+        "feedback": "4/15 is the probability of drawing a green marker. The question asks for the complement, 1 - 4/15."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-complement-not-green with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-complement-not-green: publish candidate for complement of a single event. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-clubs-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Club Membership Union Draft v2",
+    "prompt": "In a group of 40 students, 18 joined the coding club, 14 joined the design club, and 6 joined both. If one student is selected at random, what is the probability that the student joined at least one of the two clubs?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "13/20",
+        "0.65",
+        "65%"
+      ],
+      "numericValue": 0.65,
+      "tolerance": 0.001,
+      "explanation": "P(at least one club) = 26/40 = 13/20 = 0.65.",
+      "spec": {
+        "kind": "numeric",
+        "value": "13/20",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'At least one of the two clubs' is the union of the two membership groups. Students in both clubs belong to the union once, not twice.",
+      "Use |A or B| = |A| + |B| - |A and B| with A = coding club and B = design club.",
+      "Compute 18 + 14 - 6, then divide by the 40 students."
+    ],
+    "solutionSteps": [
+      "'At least one club' is the union A or B, and P(A or B) = P(A) + P(B) - P(A and B).",
+      "Counting members: 18 + 14 - 6 = 26 students, because the 6 in both clubs were counted twice.",
+      "P(at least one club) = 26/40 = 13/20 = 0.65."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-clubs-exactly-one-instead-of-union",
+        "matchTerms": [
+          "20/40",
+          "1/2",
+          "0.5",
+          "50%"
+        ],
+        "feedback": "Removing the overlap from both groups counts students in exactly one club. 'At least one' also keeps the students in both clubs."
+      },
+      {
+        "id": "misconception-venn-clubs-overlap-not-subtracted",
+        "matchTerms": [
+          "32/40",
+          "4/5",
+          "0.8",
+          "80%"
+        ],
+        "feedback": "Adding 18 and 14 counts the 6 students in both clubs twice. Subtract the overlap once."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-venn-clubs with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-venn-clubs: publish candidate for two-set union (at least one). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-venn-transit-passes-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-exactly-one-language-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Exactly One Language Group Draft v2",
+    "prompt": "Of 36 students, 17 study French, 15 study Spanish, and 6 study both. What is the probability that a randomly selected student studies exactly one of the two languages?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "5/9",
+        "0.555556",
+        "55.56%"
+      ],
+      "numericValue": 0.5555555555555556,
+      "tolerance": 0.001,
+      "explanation": "P(exactly one language) = 20/36 = 5/9, about 0.5556.",
+      "spec": {
+        "kind": "numeric",
+        "value": "5/9",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'Exactly one language' excludes the students who study both, so the overlap is removed from each group.",
+      "Draw a two-set Venn diagram: French only = 17 - 6, Spanish only = 15 - 6, both = 6.",
+      "Add the two 'only' regions and divide by 36."
+    ],
+    "solutionSteps": [
+      "Exactly one language means French only or Spanish only, two disjoint Venn regions.",
+      "French only: 17 - 6 = 11. Spanish only: 15 - 6 = 9. Together: 11 + 9 = 20 students.",
+      "P(exactly one language) = 20/36 = 5/9, about 0.5556."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-exactly-one-language-one-group-only",
+        "matchTerms": [
+          "11/36",
+          "0.305556",
+          "0.3056",
+          "0.306",
+          "0.31",
+          "30.56%",
+          "30.6%"
+        ],
+        "feedback": "11 counts only the French-only students. Exactly one language also includes the Spanish-only students."
+      },
+      {
+        "id": "misconception-venn-exactly-one-language-union-instead-of-exactly-one",
+        "matchTerms": [
+          "26/36",
+          "13/18",
+          "0.722222",
+          "0.7222",
+          "0.722",
+          "0.72",
+          "72.22%",
+          "72.2%"
+        ],
+        "feedback": "17 + 15 - 6 = 26 counts students who study at least one language, including those who study both. For exactly one, remove the overlap from each group."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-venn-exactly-one-language with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-venn-exactly-one-language: publish candidate for two-set Venn region: exactly one. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-venn-exactly-one-course-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-neither-newsletter-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Neither Newsletter Draft v2",
+    "prompt": "Among 45 subscribers, 20 read the morning newsletter, 18 read the evening newsletter, and 8 read both. What is the probability that a randomly selected subscriber reads neither newsletter?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "1/3",
+        "0.333333",
+        "33.33%"
+      ],
+      "numericValue": 0.3333333333333333,
+      "tolerance": 0.001,
+      "explanation": "P(neither) = 15/45 = 1/3, about 0.3333.",
+      "spec": {
+        "kind": "numeric",
+        "value": "1/3",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'Neither newsletter' is the complement of 'at least one newsletter', so first find how many subscribers read at least one.",
+      "At least one: 20 + 18 - 8. Neither: 45 minus that union count.",
+      "Divide the neither count by 45."
+    ],
+    "solutionSteps": [
+      "'Neither' is the complement of the union, so count the union first.",
+      "At least one newsletter: 20 + 18 - 8 = 30 subscribers, so 45 - 30 = 15 read neither.",
+      "P(neither) = 15/45 = 1/3, about 0.3333."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-neither-newsletter-complement-of-one-group",
+        "matchTerms": [
+          "25/45",
+          "5/9",
+          "0.555556",
+          "0.5556",
+          "0.556",
+          "0.56",
+          "55.56%",
+          "55.6%",
+          "27/45",
+          "3/5",
+          "60%"
+        ],
+        "feedback": "That is the probability of not reading one particular newsletter. 'Neither' means outside both groups, the complement of the union."
+      },
+      {
+        "id": "misconception-venn-neither-newsletter-overlap-subtracted-twice",
+        "matchTerms": [
+          "0.155556",
+          "0.1556",
+          "0.156",
+          "0.16",
+          "15.56%",
+          "15.6%"
+        ],
+        "feedback": "Subtracting both group sizes from 45 removes the 8 readers of both newsletters twice. Subtract the union count, 20 + 18 - 8, instead."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-venn-neither-newsletter with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-venn-neither-newsletter: publish candidate for two-set Venn region: neither (complement of the union). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-complement-rain-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Complement of Rain Draft v2",
+    "prompt": "The probability of rain during an event is 0.37. What is the probability that it does not rain during the event?",
+    "patternSource": "probability complement rule",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.63",
+        "63%"
+      ],
+      "numericValue": 0.63,
+      "tolerance": 0.001,
+      "explanation": "P(no rain) = 0.63.",
+      "spec": {
+        "kind": "numeric",
+        "value": "0.63",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'Does not rain' is the complement of 'rains'. An event and its complement together cover the whole sample space.",
+      "P(not A) = 1 - P(A).",
+      "Subtract 0.37 from 1."
+    ],
+    "solutionSteps": [
+      "An event and its complement have probabilities that add to 1, so P(no rain) = 1 - P(rain).",
+      "Substitute: 1 - 0.37.",
+      "P(no rain) = 0.63."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-complement-rain-given-probability-repeated",
+        "matchTerms": [
+          "0.37",
+          "37%"
+        ],
+        "feedback": "0.37 is the probability of rain. The question asks for the complement, 1 - 0.37."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-rule-complement-rain with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-rule-complement-rain: publish candidate for complement rule with a given probability. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-rule-intersection-from-union-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Recovering an Intersection Draft v2",
+    "prompt": "For two events A and B, P(A) = 0.48, P(B) = 0.39, and P(A union B) = 0.72. What is P(A intersection B)?",
+    "patternSource": "probability addition rule",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.15",
+        "15%"
+      ],
+      "numericValue": 0.15000000000000002,
+      "tolerance": 0.001,
+      "explanation": "P(A and B) = 0.15.",
+      "spec": {
+        "kind": "numeric",
+        "value": "0.15",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "A ∪ B (A union B) is the event 'A or B', and A ∩ B (A intersection B) is 'A and B'. The addition rule links P(A), P(B), P(A or B), and P(A and B), and three of the four are given.",
+      "Rearrange P(A or B) = P(A) + P(B) - P(A and B) to isolate the intersection.",
+      "Compute 0.48 + 0.39 - 0.72."
+    ],
+    "solutionSteps": [
+      "Addition rule, with A ∪ B read as 'A or B' and A ∩ B as 'A and B': P(A or B) = P(A) + P(B) - P(A and B), so P(A and B) = P(A) + P(B) - P(A or B).",
+      "Substitute: 0.48 + 0.39 - 0.72.",
+      "P(A and B) = 0.15."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-rule-intersection-from-union-independence-assumed",
+        "matchTerms": [
+          "0.1872",
+          "0.187",
+          "0.19",
+          "18.72%",
+          "18.7%"
+        ],
+        "feedback": "Multiplying P(A) by P(B) assumes the events are independent, which was not given. Use the addition rule with the given union probability."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-rule-intersection-from-union with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-rule-intersection-from-union: publish candidate for addition rule solved for the intersection. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-uniform-spinner-sectors-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Introduction to probability",
+    "title": "Spinner Sector Probability Draft v2",
+    "prompt": "A fair spinner has 12 equal sectors, 5 of which are blue. What is the probability that one spin lands on blue?",
+    "patternSource": "finite equally likely outcomes",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "5/12",
+        "0.416667",
+        "41.67%"
+      ],
+      "numericValue": 0.4166666666666667,
+      "tolerance": 0.001,
+      "explanation": "P(blue) = 5/12, about 0.4167.",
+      "spec": {
+        "kind": "numeric",
+        "value": "5/12",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "Every sector is equally likely, so the probability compares the number of blue sectors with the number of sectors on the spinner.",
+      "The sample space is all 12 sectors; the event is the set of blue sectors.",
+      "Divide the blue count by the total count and simplify."
+    ],
+    "solutionSteps": [
+      "Each of the 12 sectors is equally likely, so P(blue) = (blue sectors)/(all sectors).",
+      "There are 5 blue sectors out of 12.",
+      "P(blue) = 5/12, about 0.4167."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-uniform-spinner-sectors-favorable-count-as-denominator",
+        "matchTerms": [
+          "12/5",
+          "2.4",
+          "240%"
+        ],
+        "feedback": "A probability can never exceed 1. The 12 equally likely sectors belong in the denominator and the 5 blue sectors in the numerator."
+      },
+      {
+        "id": "misconception-uniform-spinner-sectors-odds-instead-of-probability",
+        "matchTerms": [
+          "5/7",
+          "0.714286",
+          "0.7143",
+          "0.714",
+          "0.71",
+          "71.43%",
+          "71.4%"
+        ],
+        "feedback": "This compares blue sectors with non-blue sectors. A probability divides by all 12 sectors."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-uniform-spinner-sectors with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-uniform-spinner-sectors: Reserve candidate for equally likely outcomes. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-uniform-library-cards-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-transit-passes-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Transit Pass Union Draft v2",
+    "prompt": "In a survey of 80 commuters, 35 use a bus pass, 32 use a rail pass, and 12 use both. What is the probability that a randomly selected commuter uses at least one of the two passes?",
+    "patternSource": "two-set Venn union",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "11/16",
+        "0.6875",
+        "68.75%"
+      ],
+      "numericValue": 0.6875,
+      "tolerance": 0.001,
+      "explanation": "P(at least one pass) = 55/80 = 11/16 = 0.6875.",
+      "spec": {
+        "kind": "numeric",
+        "value": "11/16",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'At least one of the two passes' is the union of the bus-pass group and the rail-pass group. Commuters with both passes belong to the union once.",
+      "Use |A or B| = |A| + |B| - |A and B| with A = bus pass and B = rail pass.",
+      "Compute 35 + 32 - 12, then divide by the 80 commuters."
+    ],
+    "solutionSteps": [
+      "'At least one pass' is the union A or B, and P(A or B) = P(A) + P(B) - P(A and B).",
+      "Counting commuters: 35 + 32 - 12 = 55, because the 12 with both passes were counted twice.",
+      "P(at least one pass) = 55/80 = 11/16 = 0.6875."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-transit-passes-exactly-one-instead-of-union",
+        "matchTerms": [
+          "43/80",
+          "0.5375",
+          "0.537",
+          "0.54",
+          "53.75%",
+          "53.8%"
+        ],
+        "feedback": "Removing the overlap from both groups counts commuters with exactly one pass. 'At least one' also keeps those with both passes."
+      },
+      {
+        "id": "misconception-venn-transit-passes-overlap-not-subtracted",
+        "matchTerms": [
+          "67/80",
+          "0.8375",
+          "0.838",
+          "0.84",
+          "83.75%",
+          "83.8%"
+        ],
+        "feedback": "Adding 35 and 32 counts the 12 commuters with both passes twice. Subtract the overlap once."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-venn-transit-passes with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-venn-transit-passes: Reserve candidate for two-set union (at least one). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-venn-clubs-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-venn-exactly-one-course-v2",
+    "topicId": "introduction-probability-venn-diagrams",
+    "topic": "Venn diagrams",
+    "title": "Exactly One Course Draft v2",
+    "prompt": "In a cohort of 50 students, 24 take economics, 19 take programming, and 7 take both. What is the probability that a randomly selected student takes exactly one of the two courses?",
+    "patternSource": "two-set Venn regions",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "29/50",
+        "0.58",
+        "58%"
+      ],
+      "numericValue": 0.58,
+      "tolerance": 0.001,
+      "explanation": "P(exactly one course) = 29/50 = 0.58.",
+      "spec": {
+        "kind": "numeric",
+        "value": "29/50",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "'Exactly one of the two courses' excludes the students who take both, so the overlap is removed from each group.",
+      "Draw a two-set Venn diagram: economics only = 24 - 7, programming only = 19 - 7, both = 7.",
+      "Add the two 'only' regions and divide by 50."
+    ],
+    "solutionSteps": [
+      "Exactly one course means economics only or programming only, two disjoint Venn regions.",
+      "Economics only: 24 - 7 = 17. Programming only: 19 - 7 = 12. Together: 17 + 12 = 29 students.",
+      "P(exactly one course) = 29/50 = 0.58."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-venn-exactly-one-course-one-group-only",
+        "matchTerms": [
+          "17/50",
+          "0.34",
+          "34%"
+        ],
+        "feedback": "17 counts only the economics-only students. Exactly one course also includes the programming-only students."
+      },
+      {
+        "id": "misconception-venn-exactly-one-course-union-instead-of-exactly-one",
+        "matchTerms": [
+          "36/50",
+          "18/25",
+          "0.72",
+          "72%"
+        ],
+        "feedback": "24 + 19 - 7 = 36 counts students who take at least one course, including those who take both. For exactly one, remove the overlap from each group."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-venn-exactly-one-course with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-venn-exactly-one-course: Reserve candidate for two-set Venn region: exactly one. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-venn-exactly-one-language-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-product-outfits-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Outfit Choice Product Draft v2",
+    "prompt": "A display pairs one of 3 shirts with one of 4 pairs of pants and one of 2 pairs of shoes. How many different outfits can be displayed?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "24"
+      ],
+      "numericValue": 24,
+      "tolerance": 0,
+      "explanation": "12 * 2 = 24 outfits.",
+      "spec": {
+        "kind": "numeric",
+        "value": "24",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "An outfit is built in stages: choose a shirt, then pants, then shoes. Each stage is a separate choice.",
+      "The multiplication principle says the number of outcomes is the product of the number of choices at each stage.",
+      "Multiply 3 by 4 by 2."
+    ],
+    "solutionSteps": [
+      "Multiplication principle: a sequence of choices with 3, 4, and 2 options has 3 * 4 * 2 outcomes.",
+      "3 * 4 = 12 shirt-and-pants pairs, and each pair combines with 2 shoe options.",
+      "12 * 2 = 24 outfits."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-outfits-stage-dropped",
+        "matchTerms": [
+          "12"
+        ],
+        "feedback": "12 counts shirt-and-pants pairs only. Each pair still combines with 2 shoe options."
+      },
+      {
+        "id": "misconception-product-outfits-stages-added",
+        "matchTerms": [
+          "9"
+        ],
+        "feedback": "Adding 3 + 4 + 2 counts individual items, not outfits. Each shirt combines with every pair of pants and every pair of shoes, so multiply."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-product-outfits with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-product-outfits: publish candidate for multiplication principle across three stages. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-product-route-code-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-presentations-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Ordered Presentations Draft v2",
+    "prompt": "Seven students volunteer to give the first three presentations. No student presents twice. How many ordered choices for first, second, and third presenter are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "210"
+      ],
+      "numericValue": 210,
+      "tolerance": 0,
+      "explanation": "7 * 6 * 5 = 210 ordered choices.",
+      "spec": {
+        "kind": "numeric",
+        "value": "210",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "First, second, and third presenter are different positions, so the same three students in a different order is a different outcome.",
+      "Fill the positions in sequence: 7 choices for first, then fewer for second, then fewer for third, because nobody presents twice.",
+      "Multiply the three descending counts; that product is P(7,3) = 7!/4!."
+    ],
+    "solutionSteps": [
+      "Order matters and repetition is not allowed, so this is a permutation of 3 students chosen from 7: P(7,3).",
+      "P(7,3) = 7 * 6 * 5.",
+      "7 * 6 * 5 = 210 ordered choices."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-presentations-combination-instead-of-permutation",
+        "matchTerms": [
+          "35"
+        ],
+        "feedback": "C(7,3) = 35 treats the three presenters as an unordered group. The presentation order matters, so use P(7,3), which is 3! times larger."
+      },
+      {
+        "id": "misconception-permutation-presentations-repetition-allowed",
+        "matchTerms": [
+          "343"
+        ],
+        "feedback": "7 * 7 * 7 lets the same student present more than once, but no student presents twice. The choices decrease at each position."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-permutation-presentations with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-permutation-presentations: publish candidate for permutation of k from n (ordered positions). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-permutation-awards-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-photo-row-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Photo Row Arrangement Draft v2",
+    "prompt": "Six distinct posters are arranged in a row. How many different arrangements are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "720"
+      ],
+      "numericValue": 720,
+      "tolerance": 0,
+      "explanation": "6! = 720 arrangements.",
+      "spec": {
+        "kind": "numeric",
+        "value": "720",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "Arranging all six posters in a row is an ordering problem: every rearrangement of the same posters is a different arrangement.",
+      "Fill the six positions from left to right: 6 choices for the first spot, 5 for the next, and so on down to 1.",
+      "Multiply 6 * 5 * 4 * 3 * 2 * 1, which is 6!."
+    ],
+    "solutionSteps": [
+      "All 6 distinct posters are arranged, so the count is the number of permutations of 6 objects, 6!.",
+      "6! = 6 * 5 * 4 * 3 * 2 * 1.",
+      "6! = 720 arrangements."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-photo-row-repetition-allowed",
+        "matchTerms": [
+          "46656"
+        ],
+        "feedback": "6^6 = 46656 would let one poster occupy several spots. Each poster is used exactly once, so the number of choices drops by one at every position."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-permutation-photo-row with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-permutation-photo-row: publish candidate for full arrangement of n distinct objects (n!). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-books-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Book Set Selection Draft v2",
+    "prompt": "A shelf has 10 distinct books and a reader selects 4 to borrow. How many different sets of books can be selected?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "210"
+      ],
+      "numericValue": 210,
+      "tolerance": 0,
+      "explanation": "C(10,4) = 210 sets of books.",
+      "spec": {
+        "kind": "numeric",
+        "value": "210",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "A set of borrowed books has no order: taking the same four books in a different sequence is the same set.",
+      "Count ordered selections with P(10,4), then remove the 4! orderings of each set; that quotient is C(10,4).",
+      "Compute C(10,4) = 10!/(4! 6!), or 10 * 9 * 8 * 7 divided by 4 * 3 * 2 * 1."
+    ],
+    "solutionSteps": [
+      "The books form an unordered set, so use combinations: C(10,4) = 10!/(4! 6!).",
+      "C(10,4) = (10 * 9 * 8 * 7)/(4 * 3 * 2 * 1) = 5040/24.",
+      "C(10,4) = 210 sets of books."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-books-permutation-instead-of-combination",
+        "matchTerms": [
+          "5040"
+        ],
+        "feedback": "P(10,4) = 5040 counts every order of the same four books separately. A set of books is unordered, so divide by 4! = 24."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-combination-books with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-combination-books: publish candidate for combination of k from n (unordered selection). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-combination-partners-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-calendar-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Calendar or Reminder Draft v2",
+    "prompt": "For events A and B, P(A) = 0.45, P(B) = 0.38, and P(A intersection B) = 0.20. What is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "0.63",
+        "63%"
+      ],
+      "numericValue": 0.6300000000000001,
+      "tolerance": 0.001,
+      "explanation": "P(A or B) = 0.63.",
+      "spec": {
+        "kind": "numeric",
+        "value": "0.63",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "P(A ∪ B), A union B, is the event 'A or B'. The intersection A ∩ B, 'A and B', lies inside both A and B, so adding P(A) and P(B) counts it twice.",
+      "Addition rule: P(A or B) = P(A) + P(B) - P(A and B).",
+      "Compute 0.45 + 0.38 - 0.20."
+    ],
+    "solutionSteps": [
+      "Addition rule, with A ∪ B read as 'A or B' and A ∩ B as 'A and B': P(A or B) = P(A) + P(B) - P(A and B).",
+      "Substitute: 0.45 + 0.38 - 0.20.",
+      "P(A or B) = 0.63."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-calendar-overlap-not-subtracted",
+        "matchTerms": [
+          "0.83",
+          "83%"
+        ],
+        "feedback": "0.45 + 0.38 counts the intersection twice. Subtract P(A and B) = 0.20 once."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-addition-calendar with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-addition-calendar: publish candidate for addition rule with overlap. The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-addition-disjoint-checks-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Axioms of probability",
+    "title": "Disjoint Check Outcomes Draft v2",
+    "prompt": "Two events A and B are disjoint, with P(A) = 0.27 and P(B) = 0.31. What is P(A union B)?",
+    "patternSource": "probability addition axiom",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "0.58",
+        "58%"
+      ],
+      "numericValue": 0.5800000000000001,
+      "tolerance": 0.001,
+      "explanation": "P(A or B) = 0.58.",
+      "spec": {
+        "kind": "numeric",
+        "value": "0.58",
+        "domain": "probability",
+        "percentMode": "either",
+        "tolerance": {
+          "mode": "absolute",
+          "value": 0.001
+        }
+      }
+    },
+    "hints": [
+      "Disjoint events cannot happen together, so P(A ∩ B), the probability of 'A and B', is 0 and nothing is double counted.",
+      "For disjoint events the addition rule simplifies to P(A ∪ B) = P(A or B) = P(A) + P(B).",
+      "Add 0.27 and 0.31."
+    ],
+    "solutionSteps": [
+      "A and B are disjoint, so P(A and B) = 0 and P(A ∪ B), the probability of 'A or B', is P(A) + P(B).",
+      "Substitute: 0.27 + 0.31.",
+      "P(A or B) = 0.58."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-addition-disjoint-checks-probabilities-multiplied",
+        "matchTerms": [
+          "0.0837",
+          "0.084",
+          "0.08",
+          "8.37%",
+          "8.4%"
+        ],
+        "feedback": "Multiplying gives P(A and B) only for independent events. Disjoint events have P(A and B) = 0, and the probability of the union is the sum."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-addition-disjoint-checks with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-addition-disjoint-checks: publish candidate for addition rule for disjoint events. The prompt and answer are unchanged. Difficulty relabeled from intermediate to foundational. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten."
+    }
+  },
+  {
+    "id": "generated-syllabus-role-volunteers-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Coordinator and Assistants Draft v2",
+    "prompt": "From 8 volunteers, choose one coordinator and then choose 2 assistants from the remaining volunteers. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "168"
+      ],
+      "numericValue": 168,
+      "tolerance": 0,
+      "explanation": "8 * 21 = 168 teams.",
+      "spec": {
+        "kind": "numeric",
+        "value": "168",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "The coordinator is a distinguished role, but the two assistants are an unordered pair. Count the team in two stages.",
+      "Stage 1: choose the coordinator from 8. Stage 2: choose 2 assistants from the 7 remaining volunteers with a combination.",
+      "Multiply 8 by C(7,2)."
+    ],
+    "solutionSteps": [
+      "Two stages: pick the coordinator, then an unordered pair of assistants from the remaining volunteers.",
+      "Coordinator: 8 ways. Assistants: C(7,2) = 21 ways.",
+      "8 * 21 = 168 teams."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-volunteers-coordinator-reused-as-assistant",
+        "matchTerms": [
+          "224"
+        ],
+        "feedback": "Choosing the assistants from all 8 lets the coordinator also serve as an assistant. Choose the 2 assistants from the remaining 7."
+      },
+      {
+        "id": "misconception-role-volunteers-roles-not-distinguished",
+        "matchTerms": [
+          "56"
+        ],
+        "feedback": "C(8,3) = 56 treats all three roles as interchangeable. The coordinator is a distinct role, so choose it separately and then choose the assistants."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-role-volunteers with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-role-volunteers: publish candidate for distinguished role followed by an unordered group. The prompt and answer are unchanged. Difficulty relabeled from challenge to intermediate. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested Reserve sibling for similar practice: generated-syllabus-role-editors-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-product-route-code-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Route Code Product Draft v2",
+    "prompt": "A route code uses one letter chosen from 6 options followed by one digit chosen from 10 options. How many different route codes are possible?",
+    "patternSource": "fundamental counting principle",
+    "difficulty": "foundational",
+    "answer": {
+      "acceptedAnswers": [
+        "60"
+      ],
+      "numericValue": 60,
+      "tolerance": 0,
+      "explanation": "6 * 10 = 60 route codes.",
+      "spec": {
+        "kind": "numeric",
+        "value": "60",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "A route code is built in two stages: choose the letter, then choose the digit.",
+      "The multiplication principle says the number of codes is the product of the number of choices at each stage.",
+      "Multiply 6 by 10."
+    ],
+    "solutionSteps": [
+      "Multiplication principle: a letter choice with 6 options followed by a digit choice with 10 options gives 6 * 10 codes.",
+      "Each of the 6 letters can be followed by any of the 10 digits.",
+      "6 * 10 = 60 route codes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-product-route-code-stages-added",
+        "matchTerms": [
+          "16"
+        ],
+        "feedback": "Adding 6 + 10 counts symbols, not codes. Every letter pairs with every digit, so multiply."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-product-route-code with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-product-route-code: Reserve candidate for multiplication principle across two stages. The prompt wording was clarified; the answer is unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-product-outfits-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-permutation-awards-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Award Placements Draft v2",
+    "prompt": "Nine finalists can receive first, second, and third place, with no ties. How many different award outcomes are possible?",
+    "patternSource": "permutations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "504"
+      ],
+      "numericValue": 504,
+      "tolerance": 0,
+      "explanation": "9 * 8 * 7 = 504 award outcomes.",
+      "spec": {
+        "kind": "numeric",
+        "value": "504",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "First, second, and third place are different positions, so the same three finalists in a different order is a different outcome.",
+      "Fill the places in sequence: 9 choices for first, then fewer for second and third, because a finalist cannot take two places.",
+      "Multiply the three descending counts; that product is P(9,3) = 9!/6!."
+    ],
+    "solutionSteps": [
+      "Order matters and no finalist repeats, so this is a permutation of 3 finalists chosen from 9: P(9,3).",
+      "P(9,3) = 9 * 8 * 7.",
+      "9 * 8 * 7 = 504 award outcomes."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-permutation-awards-combination-instead-of-permutation",
+        "matchTerms": [
+          "84"
+        ],
+        "feedback": "C(9,3) = 84 treats the three placed finalists as an unordered group. The places are ordered, so use P(9,3), which is 3! times larger."
+      },
+      {
+        "id": "misconception-permutation-awards-repetition-allowed",
+        "matchTerms": [
+          "729"
+        ],
+        "feedback": "9 * 9 * 9 lets one finalist take more than one place. With no ties, the choices decrease at each place."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-permutation-awards with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-permutation-awards: Reserve candidate for permutation of k from n (ordered positions). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-permutation-presentations-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-combination-partners-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Partner Pair Selection Draft v2",
+    "prompt": "A group has 12 students. How many different unordered pairs of partners can be formed?",
+    "patternSource": "combinations without replacement",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "66"
+      ],
+      "numericValue": 66,
+      "tolerance": 0,
+      "explanation": "C(12,2) = 66 pairs.",
+      "spec": {
+        "kind": "numeric",
+        "value": "66",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "A pair of partners has no order: the pair made of two particular students is the same pair either way round.",
+      "Count ordered pairs with 12 * 11, then remove the 2 orderings of each pair; that quotient is C(12,2).",
+      "Compute C(12,2) = 12!/(2! 10!), or (12 * 11)/2."
+    ],
+    "solutionSteps": [
+      "Partners form an unordered pair, so use combinations: C(12,2) = 12!/(2! 10!).",
+      "C(12,2) = (12 * 11)/(2 * 1) = 132/2.",
+      "C(12,2) = 66 pairs."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-combination-partners-permutation-instead-of-combination",
+        "matchTerms": [
+          "132"
+        ],
+        "feedback": "12 * 11 = 132 counts each pair twice, once in each order. A pair of partners is unordered, so divide by 2."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-combination-partners with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-combination-partners: Reserve candidate for combination of 2 from n (unordered pairs). The prompt and answer are unchanged. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-combination-books-v2."
+    }
+  },
+  {
+    "id": "generated-syllabus-role-editors-v2",
+    "topicId": "axioms-probability-counting-methods",
+    "topic": "Counting methods",
+    "title": "Lead and Reviewers Draft v2",
+    "prompt": "From 7 editors, choose one lead editor and then choose 3 reviewers from the remaining editors. How many teams with these roles are possible?",
+    "patternSource": "distinguished role plus combination",
+    "difficulty": "intermediate",
+    "answer": {
+      "acceptedAnswers": [
+        "140"
+      ],
+      "numericValue": 140,
+      "tolerance": 0,
+      "explanation": "7 * 20 = 140 teams.",
+      "spec": {
+        "kind": "numeric",
+        "value": "140",
+        "domain": "count",
+        "percentMode": "decimal",
+        "tolerance": {
+          "mode": "exact"
+        },
+        "requiredForm": "integer",
+        "formPolicy": "note"
+      }
+    },
+    "hints": [
+      "The lead editor is a distinguished role, but the three reviewers are an unordered group. Count the team in two stages.",
+      "Stage 1: choose the lead editor from 7. Stage 2: choose 3 reviewers from the 6 remaining editors with a combination.",
+      "Multiply 7 by C(6,3)."
+    ],
+    "solutionSteps": [
+      "Two stages: pick the lead editor, then an unordered group of reviewers from the remaining editors.",
+      "Lead editor: 7 ways. Reviewers: C(6,3) = 20 ways.",
+      "7 * 20 = 140 teams."
+    ],
+    "misconceptions": [
+      {
+        "id": "misconception-role-editors-lead-reused-as-reviewer",
+        "matchTerms": [
+          "245"
+        ],
+        "feedback": "Choosing the reviewers from all 7 lets the lead editor also serve as a reviewer. Choose the 3 reviewers from the remaining 6."
+      },
+      {
+        "id": "misconception-role-editors-roles-not-distinguished",
+        "matchTerms": [
+          "35"
+        ],
+        "feedback": "C(7,4) = 35 treats all four roles as interchangeable. The lead editor is a distinct role, so choose it separately and then choose the reviewers."
+      }
+    ],
+    "source": {
+      "sourceType": "generated_original",
+      "trustLevel": "generated_unverified",
+      "visibility": "public",
+      "originalityNote": "Original generated practice draft from a public-safe topic pattern; no private course text used. Version 2 of generated-syllabus-role-editors with rewritten hints, misconception match terms, and a typed answer spec; the wording and answer stay original."
+    },
+    "review": {
+      "status": "needs_review",
+      "notes": "Remediation batch 1 (2026-09-10), version 2 of generated-syllabus-role-editors: Reserve candidate for distinguished role followed by an unordered group. The prompt and answer are unchanged. Difficulty relabeled from challenge to intermediate. Hints, solution steps, misconception match terms, and a typed answer spec were rewritten. Suggested as the Reserve similar-practice sibling of generated-syllabus-role-volunteers-v2."
+    }
+  }
+]

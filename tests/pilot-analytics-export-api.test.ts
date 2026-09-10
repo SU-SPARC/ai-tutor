@@ -56,7 +56,7 @@ describe("pilot analytics export API", () => {
       /^pilot-[0-9a-f-]{36}$/,
     );
     expect(document).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportType: "pilot_analytics",
       privacy: {
         directIdentifiersIncluded: false,

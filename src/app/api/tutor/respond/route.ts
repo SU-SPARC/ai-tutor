@@ -130,6 +130,18 @@ export async function POST(request: Request) {
       400,
     );
   }
+  if (
+    body.mode === "check" &&
+    typeof body.answer === "string" &&
+    body.answer.length > 500
+  ) {
+    return malformedTutorResponse(
+      requestId,
+      "MALFORMED_TUTOR_REQUEST",
+      "Check answers must be 500 characters or fewer.",
+      400,
+    );
+  }
   const access = await authorizeStudentResourceApi({
     request,
     requestId,
@@ -494,6 +506,7 @@ function recoveredResponse(
       wrongAttemptCount: session.wrongAttemptCount ?? 0,
     },
     responseLabel: attempt.responseLabel,
+    ...(attempt.checkDetail ? { checkDetail: attempt.checkDetail } : {}),
     retrievedContext: [],
     source: attempt.source ?? "rule",
     steps:

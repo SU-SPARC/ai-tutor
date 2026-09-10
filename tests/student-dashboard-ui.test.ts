@@ -242,7 +242,7 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain("In progress");
     expect(markup).toContain("Completed");
     expect(markup).toContain("Questions to try again");
-    expect(markup).toContain("Recent tutor sessions");
+    expect(markup).toContain("Recent practice sessions");
     expect(markup).toContain("Hints used");
     expect(markup).toContain("Currently available");
     expect(markup).toContain("Available questions completed");
@@ -293,7 +293,7 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain("No saved practice yet");
     expect(markup).toContain("Start practicing");
     expect(markup).toContain("Conditional Probability");
-    expect(markup).toContain("No tutor sessions yet");
+    expect(markup).toContain("No practice activity yet");
   });
 
   it("renders explicit loading and recoverable error states", () => {

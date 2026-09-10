@@ -1,5 +1,8 @@
 "use client";
 
+import { AnswerCheckingEditor } from "@/components/professor/answer-checking-editor";
+import { LinesTextarea } from "@/components/professor/lines-textarea";
+
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -679,16 +682,33 @@ function QuestionDraftEditor({
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Field label="Correct accepted answers (one per line)">
-          <Textarea
-            className="min-h-28"
-            value={draft.answer.acceptedAnswers.join("\n")}
-            onChange={(event) =>
-              updateAnswer("acceptedAnswers", lines(event.target.value))
-            }
-          />
-        </Field>
-        {draft.answerType === "numeric" ? (
+        <AnswerCheckingEditor
+          answer={draft.answer}
+          onChange={(answer) =>
+            onDraftChange({
+              ...draft,
+              answer,
+              answerType:
+                answer.spec?.kind === "numeric"
+                  ? "numeric"
+                  : answer.spec
+                    ? "text"
+                    : draft.answerType,
+            })
+          }
+        />
+        {!draft.answer.spec && (
+          <Field label="Correct accepted answers (one per line)">
+            <LinesTextarea
+              className="min-h-28"
+              values={draft.answer.acceptedAnswers}
+              onChange={(acceptedAnswers) =>
+                updateAnswer("acceptedAnswers", acceptedAnswers)
+              }
+            />
+          </Field>
+        )}
+        {draft.answerType === "numeric" && !draft.answer.spec ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Numeric value">
               <Input
@@ -737,19 +757,17 @@ function QuestionDraftEditor({
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="Progressive hints (2–4, one per line)">
-          <Textarea
+          <LinesTextarea
             className="min-h-44"
-            value={draft.hints.join("\n")}
-            onChange={(event) => update("hints", lines(event.target.value))}
+            values={draft.hints}
+            onChange={(hints) => update("hints", hints)}
           />
         </Field>
         <Field label="Full solution steps (one per line)">
-          <Textarea
+          <LinesTextarea
             className="min-h-44"
-            value={draft.solutionSteps.join("\n")}
-            onChange={(event) =>
-              update("solutionSteps", lines(event.target.value))
-            }
+            values={draft.solutionSteps}
+            onChange={(solutionSteps) => update("solutionSteps", solutionSteps)}
           />
         </Field>
       </div>
@@ -1026,13 +1044,6 @@ function updateMisconception(
       itemIndex === index ? { ...item, ...update } : item,
     ),
   });
-}
-
-function lines(value: string) {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function commaSeparated(value: string) {

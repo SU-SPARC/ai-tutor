@@ -39,9 +39,10 @@ export function InstructorCohortPanel({
         <div className="flex flex-col gap-1.5">
           <CardTitle>Class practice</CardTitle>
           <CardDescription>
-            Published normal-practice sessions only; extra practice is reported
-            separately. Individual students are reachable only through their
-            pseudonymous record.
+            Practice sessions require a tutoring interaction; opening a question
+            alone does not count. Published practice only; extra practice is
+            reported separately. Individual students are reachable only through
+            their pseudonymous record.
           </CardDescription>
         </div>
         <Button asChild variant="outline">
@@ -58,7 +59,7 @@ export function InstructorCohortPanel({
           <>
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
               <Metric label="Active students" value={cohort.activeStudents} />
-              <Metric label="Sessions" value={cohort.sessions} />
+              <Metric label="Practice sessions" value={cohort.sessions} />
               <Metric
                 label="Extra practice"
                 value={cohort.extraPracticeSessions}
@@ -66,7 +67,10 @@ export function InstructorCohortPanel({
               <Metric label="Answer attempts" value={cohort.attempts} />
               <Metric
                 label="Correct"
-                value={formatAccuracy(cohort.correctAttempts, cohort.attempts)}
+                value={formatAccuracy(
+                  cohort.correctAttempts,
+                  cohort.correctAttempts + (cohort.incorrectAttempts ?? 0),
+                )}
               />
               <Metric label="Hints" value={cohort.hintsUsed} />
               <Metric label="Solutions" value={cohort.solutionsRevealed} />

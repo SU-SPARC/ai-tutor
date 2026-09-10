@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -45,6 +48,8 @@
     "prepare:next-syllabus-questions": "node scripts/generate-next-syllabus-review-candidates.mjs",
     "prepare:next-uncovered-syllabus-questions": "node scripts/generate-next-uncovered-syllabus-review-candidates.mjs",
     "prepare:syllabus-questions": "node scripts/generate-syllabus-review-candidates.mjs",
+    "prepare:remediated-syllabus-questions": "node scripts/generate-remediated-syllabus-review-candidates.mjs",
+    "prepare:discrete-models-batch-2": "node scripts/generate-discrete-models-batch-2.mjs",
     "promote:approved-questions": "node scripts/promote-approved-questions.mjs",
     "generate:questions": "node scripts/generate-questions.mjs",
     "suggest:patterns": "node scripts/suggest-patterns.mjs",
@@ -55,7 +60,7 @@
     "pilot:smoke": "node scripts/pilot-smoke.mjs",
     "pilot:smoke:evidence": "node scripts/pilot-smoke.mjs --evidence-dir docs/evidence/database-custody",
     "test:ai-production": "vitest run tests/ai-production-evaluation.test.ts tests/ai-usage-controls.test.ts tests/llm-tutor.test.ts tests/retrieval.test.ts tests/response-guardrails.test.ts tests/tutor-engine.test.ts tests/tutor-respond-api.test.ts tests/tutor-response-boundary.test.ts",
-    "test:migrations": "vitest run tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts tests/app-runtime-role.test.ts tests/database-custody.test.ts tests/pilot-data-cleanup.test.ts",
+    "test:migrations": "vitest run tests/importer-node-runtime.test.ts tests/database-migration-workflow.test.ts tests/production-schema-migration.test.ts tests/approved-content-import.test.ts tests/database-integrity.test.ts tests/database-integrity-evidence.test.ts tests/app-runtime-role.test.ts tests/database-custody.test.ts tests/pilot-data-cleanup.test.ts",
     "test:recovery": "vitest run tests/database-recovery.test.ts tests/database-recovery-evidence.test.ts tests/database-backup-export.test.ts tests/database-backup-verification.test.ts tests/backup-custody.test.ts"
   },
   "dependencies": {

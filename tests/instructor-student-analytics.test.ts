@@ -89,11 +89,15 @@ describe("attention signals", () => {
   it("flags a topic only after repeated attempts at low accuracy", () => {
     const belowThreshold = deriveAttentionSignals({
       misconceptions: [],
-      topics: [topic({ attempts: 3, correctAttempts: 0 })],
+      topics: [
+        topic({ attempts: 3, correctAttempts: 0, incorrectAttempts: 3 }),
+      ],
     });
     const flagged = deriveAttentionSignals({
       misconceptions: [],
-      topics: [topic({ attempts: 8, correctAttempts: 2 })],
+      topics: [
+        topic({ attempts: 8, correctAttempts: 2, incorrectAttempts: 6 }),
+      ],
     });
 
     expect(belowThreshold).toHaveLength(0);
@@ -102,7 +106,7 @@ describe("attention signals", () => {
       attempts: 8,
       code: "repeated_topic_difficulty",
       correctAttempts: 2,
-      detail: "2 of 8 attempts correct",
+      detail: "2 of 8 scored attempts correct",
       topicTitle: "Conditional Probability",
     });
   });

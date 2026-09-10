@@ -47,6 +47,14 @@ The only accepted format is JSON with an exact, versioned root shape:
 }
 ```
 
+`answer.spec` is an optional backward-compatible extension to transfer schema
+**1**. It carries explicitly authored numeric, categorical, or number-list
+checking metadata and is validated by the shared deterministic checker. Existing
+v1 documents without it preserve legacy checking. Imports store it only in a new
+immutable question snapshot (snapshot schema **2**); exports recover it from the
+selected version. Transfer and snapshot version numbers are separate contracts.
+See [answer-checker.md](answer-checker.md) for the complete configuration rules.
+
 Importable states are `draft`, `needs_review`, `revision_requested`,
 `approved`, and `rejected`. Published and unpublished states are not
 importable. An imported approved version remains invisible to students until a

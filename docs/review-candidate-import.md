@@ -1,11 +1,13 @@
 # Production review-candidate import
 
 The committed files under `data/demo/` contain 11 canonical active syllabus
-topics and 234 original, public-safe generated drafts. Production remains
+topics and 264 original, public-safe generated drafts, including the 22
+remediated `-v2` candidates of content remediation batch 1 and eight targeted
+discrete-models batch 2 candidates. Production remains
 database-backed; these fixtures are copied into Postgres only by the explicit
 operator command documented here.
 
-The importer reads only `data/canonical/syllabus-topics.json` and the five hard-coded
+The importer reads only `data/canonical/syllabus-topics.json` and the seven hard-coded
 `*-review-candidates.json` files listed in
 `scripts/lib/review-candidate-import.mjs`. It never scans or reads
 `data/private/`, extracted course material, retrieval chunks, or arbitrary
@@ -99,7 +101,7 @@ idempotent; a second run reports every corrected draft as already correct.
 Safety model:
 
 - Only IDs whose committed fixture says `generated_original` are considered.
-  All 234 current review-candidate fixtures use that classification because
+  All 264 current review-candidate fixtures use that classification because
   this importer does not invent or approve catalogued pattern relationships.
 - A draft is repaired only when the question row and its working version both
   still claim `pattern_derived_original` and no pattern ID is linked anywhere.

@@ -14,13 +14,13 @@ improvement, mastery, or causal impact.
 
 The exporter reads only the fields needed to derive its aggregates:
 
-| Store                  | Read for export                                                                                                             | Deliberately excluded                                                                                            |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `tutor_sessions`       | owner namespace for server-side hashing; question/version; hint and step counters; retained misconception codes; timestamps | raw user or anonymous owner, session id, idempotency keys, answer fingerprint                                    |
-| `attempts`             | question/topic/version dimensions, mode, source, verdict, timestamp                                                         | submitted and normalized answers, previews, hashes, misconception feedback text, response text, idempotency keys |
-| `ai_usage`             | aggregate counters from `scope = 'global'` only                                                                             | HMAC scope keys, reservations, request hashes, cache bodies, prompts, provider responses                         |
-| `feedback_reports`     | category, status, timestamp                                                                                                 | reporter, session, message, metadata, assignment, resolution notes                                               |
-| `topics` / `questions` | stable ids and topic title for aggregate labels                                                                             | prompts, accepted answers, explanations, hints, solution bodies, review notes                                    |
+| Store                  | Read for export                                                                                                                                    | Deliberately excluded                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `tutor_sessions`       | owner namespace for server-side hashing; question/version; answer, hint and step counters; solved/status; retained misconception codes; timestamps | raw user or anonymous owner, session id, idempotency keys, answer fingerprint                                    |
+| `attempts`             | question/topic/version dimensions, mode, source, verdict, timestamp                                                                                | submitted and normalized answers, previews, hashes, misconception feedback text, response text, idempotency keys |
+| `ai_usage`             | aggregate counters from `scope = 'global'` only                                                                                                    | HMAC scope keys, reservations, request hashes, cache bodies, prompts, provider responses                         |
+| `feedback_reports`     | category, status, timestamp                                                                                                                        | reporter, session, message, metadata, assignment, resolution notes                                               |
+| `topics` / `questions` | stable ids and topic title for aggregate labels                                                                                                    | prompts, accepted answers, explanations, hints, solution bodies, review notes                                    |
 
 The exporter never queries `users`, `retrieval_chunks`, `ai_response_cache`, or
 `ai_llm_reservations`. Passwords and provider auth tokens are not stored in the
@@ -39,13 +39,18 @@ same participant across exports, so downloaded files must remain access
 controlled. The export has no participant timestamps or event-level rows and no
 direct identifiers, raw student text, private-reference content, or report text.
 
-## Version 1 schema
+## Version 2 schema
+
+Version 2 keeps the field shape but changes participation and `sessions` to
+meaningful practice. Version 1 counted technical sessions created on question
+open. Do not compare the two session/participation series without accounting
+for this definition change. Consumers must explicitly accept version 2.
 
 Top-level fields:
 
 | Field               | Meaning                                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
-| `schemaVersion`     | Integer `1`; consumers must reject unknown versions.                                                |
+| `schemaVersion`     | Integer `2`; consumers must reject unknown versions.                                                |
 | `exportType`        | Constant `pilot_analytics`.                                                                         |
 | `generatedAt`       | Server generation timestamp.                                                                        |
 | `mode`              | `database` for retained production data or `demo` for an honest empty export.                       |
@@ -96,13 +101,27 @@ rows would multiply usage.
 
 ## Counting and interpretation
 
-- Version 1 includes only `practice_context = 'published'` tutor sessions and
+- Version 2 includes only engaged `practice_context = 'published'` tutor sessions and
   their attempts. Reserve similar-practice sessions remain outside every
   participant, cohort, topic, question, usage, and performance aggregate.
-- A participating student is a distinct retained tutor-session owner.
+- A practice session has a persisted tutoring interaction or durable progress,
+  using the shared [engagement definition](tutor-session-engagement.md). Simply
+  opening, reloading, or recovering a question does not qualify. Technical-only
+  rows stay stored but are excluded from participation, session counts, topic
+  and question activity, misconception aggregates, and session-based coverage.
+- A participating student is a distinct owner of such published practice.
+- Recorded `check`, `hint`, `solution`, and `full_solution` requests qualify,
+  including rule, retrieval, LLM, cache, and blocked outcomes. Legacy interaction
+  rows without a mode also qualify; answer counts still require `mode = 'check'`.
+  Durable answer/reveal counters or completion also preserve historical practice.
+- No raw technical-session total is exported. Global AI accounting and feedback
+  workflow counts keep their separate operational population and coverage.
 - A question is attempted when a retained `mode = 'check'` interaction exists.
-- Correctness is `correctAnswerAttempts / answerAttempts`; blocked or otherwise
-  unscored checks remain in the denominator and are reported separately.
+- Correctness is `correctAnswerAttempts / (correctAnswerAttempts +
+incorrectAnswerAttempts)`, or null when there are no scored checks. Blocked
+  checks and unreadable guidance remain in `answerAttempts` and
+  `unscoredAnswerAttempts`, but do not lower correctness. Typed checker support
+  retains export schema version 2 and Reserve-practice separation.
 - Hint and solution-step counts are the durable counters on each session. Each
   session belongs to one question version, allowing aggregation by participant,
   topic, and question without duplicating those counters.

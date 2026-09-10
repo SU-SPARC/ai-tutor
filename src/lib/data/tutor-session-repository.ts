@@ -1,6 +1,12 @@
+import { answerSpecFromSnapshot } from "@/lib/tutor/answer/spec";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+
+import {
+  isMeaningfulTutorSession,
+  MEANINGFUL_TUTOR_SESSION_SQL,
+} from "@/lib/tutor/session-engagement";
 
 import {
   isSameOwner,
@@ -82,6 +88,7 @@ export class ReservePracticeEligibilityChangedError extends Error {
 }
 
 type TutorAttemptRow = {
+  check_detail?: TutorResponse["checkDetail"] | null;
   answer_preview: string | null;
   context_used?: boolean;
   created_at: Date | string;
@@ -135,7 +142,12 @@ export type PersistTutorSessionTransitionInput = {
   owner: StudentOwner;
   response: Pick<
     TutorResponse,
-    "misconceptions" | "responseLabel" | "source" | "usage" | "verdict"
+    | "checkDetail"
+    | "misconceptions"
+    | "responseLabel"
+    | "source"
+    | "usage"
+    | "verdict"
   >;
   sessionId: string;
   state: TutorSessionEngineState;
@@ -153,7 +165,10 @@ export type TutorSessionRepository = {
     sessionId: string,
     owner: StudentOwner,
   ): Promise<TutorSessionRecord | undefined>;
-  listSessionsForStudent(owner: StudentOwner): Promise<TutorSessionRecord[]>;
+  listSessionsForStudent(
+    owner: StudentOwner,
+    options?: { engagedOnly?: boolean },
+  ): Promise<TutorSessionRecord[]>;
   recordAttempt(
     input: RecordTutorSessionAttemptInput,
   ): Promise<TutorSessionRecord | undefined>;
@@ -274,8 +289,10 @@ export async function persistTutorSessionTransition(
   );
 }
 
+/** Operational listings include opened sessions; progress opts into engagement. */
 export async function listTutorSessionsForStudent(
   authorization: StudentAuthorization,
+  options: { engagedOnly?: boolean } = {},
 ): Promise<{
   mode: "database" | "demo";
   sessions: TutorSessionRecord[];
@@ -288,8 +305,10 @@ export async function listTutorSessionsForStudent(
     try {
       return {
         mode: policy.repositorySource,
-        sessions:
-          await tutorSessionRepositoryOverride.listSessionsForStudent(owner),
+        sessions: await tutorSessionRepositoryOverride.listSessionsForStudent(
+          owner,
+          options,
+        ),
       };
     } catch (cause) {
       if (!policy.allowDemoFallback) {
@@ -298,8 +317,10 @@ export async function listTutorSessionsForStudent(
 
       return {
         mode: "demo",
-        sessions:
-          await memoryTutorSessionRepository.listSessionsForStudent(owner),
+        sessions: await memoryTutorSessionRepository.listSessionsForStudent(
+          owner,
+          options,
+        ),
       };
     }
   }
@@ -307,8 +328,10 @@ export async function listTutorSessionsForStudent(
   if (policy.repositorySource === "demo") {
     return {
       mode: "demo",
-      sessions:
-        await memoryTutorSessionRepository.listSessionsForStudent(owner),
+      sessions: await memoryTutorSessionRepository.listSessionsForStudent(
+        owner,
+        options,
+      ),
     };
   }
 
@@ -323,7 +346,7 @@ export async function listTutorSessionsForStudent(
     );
     return {
       mode: "database",
-      sessions: await repository.listSessionsForStudent(owner),
+      sessions: await repository.listSessionsForStudent(owner, options),
     };
   } catch (cause) {
     if (!policy.allowDemoFallback) {
@@ -332,8 +355,10 @@ export async function listTutorSessionsForStudent(
 
     return {
       mode: "demo",
-      sessions:
-        await memoryTutorSessionRepository.listSessionsForStudent(owner),
+      sessions: await memoryTutorSessionRepository.listSessionsForStudent(
+        owner,
+        options,
+      ),
     };
   }
 }
@@ -428,11 +453,13 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         : undefined;
     },
 
-    async listSessionsForStudent(owner) {
+    async listSessionsForStudent(owner, options = {}) {
       return [...sessions.values()]
         .filter(
           (stored) =>
             isSameOwner(stored.owner, owner) &&
+            (!options.engagedOnly ||
+              isMeaningfulTutorSession(stored.session)) &&
             stored.session.status !== "expired" &&
             (!stored.session.expiresAt ||
               new Date(stored.session.expiresAt).getTime() > Date.now()),
@@ -542,6 +569,9 @@ export function createMemoryTutorSessionRepository(): TutorSessionRepository {
         idempotencyKey: input.idempotencyKey,
       };
       Object.assign(attempt, {
+        ...(input.response.checkDetail
+          ? { checkDetail: input.response.checkDetail }
+          : {}),
         answerPreview: input.submittedAnswer?.slice(0, 80),
         contextUsed: input.response.usage.contextUsed,
         fallbackUsed: input.response.usage.fallbackUsed,
@@ -690,7 +720,7 @@ export function createDatabaseTutorSessionRepository(
       return readDatabaseSession(query, sessionId, owner);
     },
 
-    async listSessionsForStudent(owner) {
+    async listSessionsForStudent(owner, options = {}) {
       const rows = (await readDatabaseRows(
         query,
         `
@@ -707,6 +737,7 @@ export function createDatabaseTutorSessionRepository(
             ($1 = 'anonymous' and s.anonymous_user_id = $2 and s.user_id is null)
           )
             and s.status <> 'expired'
+            ${options.engagedOnly ? `and ${MEANINGFUL_TUTOR_SESSION_SQL}` : ""}
             and s.expires_at > now()
           order by s.last_seen_at desc, s.created_at desc
         `,
@@ -731,6 +762,7 @@ export function createDatabaseTutorSessionRepository(
             idempotency_key,
             submitted_answer,
             normalized_answer,
+            check_detail,
             tutor_state,
             misconception_feedback_json,
             context_used,
@@ -909,11 +941,12 @@ export function createDatabaseTutorSessionRepository(
                 context_used,
                 fallback_used,
                 response_label,
-                progress_revision
+                progress_revision,
+                check_detail
               )
               values (
                 $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, $11, $12::jsonb, $13, $14, $15, $16
+                $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17
               )
               on conflict (session_id, idempotency_key) do update
               set source = excluded.source,
@@ -926,7 +959,8 @@ export function createDatabaseTutorSessionRepository(
                   context_used = excluded.context_used,
                   fallback_used = excluded.fallback_used,
                   response_label = excluded.response_label,
-                  progress_revision = excluded.progress_revision
+                  progress_revision = excluded.progress_revision,
+                  check_detail = excluded.check_detail
               where attempts.verdict is null
             `,
             [
@@ -946,6 +980,7 @@ export function createDatabaseTutorSessionRepository(
               input.response.usage.fallbackUsed,
               input.response.responseLabel ?? null,
               nextRevision,
+              input.response.checkDetail ?? null,
             ],
           );
 
@@ -1312,6 +1347,7 @@ async function readDatabaseSessionAttempts(
         idempotency_key,
         submitted_answer,
         normalized_answer,
+        check_detail,
         tutor_state,
         misconception_feedback_json,
         context_used,
@@ -1369,6 +1405,7 @@ function mapTutorSession(
 function mapTutorAttempt(row: TutorAttemptRow): TutorSessionAttempt {
   return {
     answerPreview: row.answer_preview ?? undefined,
+    ...(row.check_detail ? { checkDetail: row.check_detail } : {}),
     contextUsed: row.context_used,
     createdAt: toIsoString(row.created_at),
     estimatedTokens: Number(row.estimated_tokens ?? 0),
@@ -1614,6 +1651,9 @@ function practiceQuestionFromSnapshot(
   return {
     answer: {
       acceptedAnswers,
+      ...(answerSpecFromSnapshot(snapshot) !== undefined
+        ? { spec: answerSpecFromSnapshot(snapshot) }
+        : {}),
       explanation,
       numericValue: finiteNumber(snapshot.numericValue),
       tolerance: finiteNumber(snapshot.tolerance),

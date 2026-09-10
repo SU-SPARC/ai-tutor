@@ -258,3 +258,15 @@ The seed script refuses private-looking fields, generated-unverified drafts,
 copied-source signals, and private review candidates before producing SQL.
 Approved development fixtures are attributed to the non-human migration actor;
 this seed is not the professor-signed Production importer.
+
+## Typed answer configuration (024)
+
+Migration `024_typed_answer_spec.sql` keeps answer configuration solely in new
+`question_versions.snapshot_json.answer.spec` values. It appends a derived
+`answer_spec_json` column to the version/public/review/Reserve views, adds bounded
+nullable `attempts.check_detail`, extends numeric publication grammar, and adds
+structural typed publication gates. Three helper functions receive explicit
+`app_runtime` execute grants. Historical snapshots and migrations 001–023 remain
+unchanged; no `questions` spec column or version bump is introduced. Apply through
+the existing checksummed migration runner. See
+[answer-checker.md](answer-checker.md) for the application/SQL validation boundary.

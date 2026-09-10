@@ -234,6 +234,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "POST",
+    "/api/professor/answer-checker",
+    "src/app/api/professor/answer-checker/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "checkAnswer"],
+  ),
+  route(
+    "POST",
     "/api/professor/content-preview",
     "src/app/api/professor/content-preview/route.ts",
     "professor",

@@ -22,6 +22,25 @@ Unpublish and publication replacement immediately mark sessions pinned to the
 displaced version as `content_unpublished`. Historical attempts and attribution
 remain, but student session DTOs expose only tombstoned question metadata.
 
+## Typed final-answer configuration
+
+Phase B supports optional numeric, categorical, and number-list `answer.spec`
+metadata. Its sole persisted authority is the newly created immutable version's
+`snapshot_json.answer.spec`; editing it creates a revision and pinned sessions
+keep the exact old configuration. Legacy snapshots remain unchanged. See
+[answer-checker.md](answer-checker.md) for authoring controls, the professor-only
+non-persisting simulator, deterministic AI intake validation, and publication
+gates. AI proposals never bypass professor review or publish automatically.
+
+## Tutor behavior
+
+For numeric questions, an unreadable submission returns guidance when it matches
+no misconception and AI fallback is disabled. It does not count as a wrong
+attempt or reveal another hint. The check is still recorded and appears in the
+pilot export's unscored bucket (`unscoredAnswerAttempts`). Text questions,
+recognized misconceptions, and requests with AI fallback enabled continue
+through the existing feedback and coaching paths.
+
 ## Transition contract
 
 | Action                          | Allowed source                            | Result               | Additional requirement                             |

@@ -1,3 +1,5 @@
+import { validateAnswerSpec, type AnswerSpec } from "@/lib/tutor/answer/spec";
+import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
 import { NextResponse } from "next/server";
 
 import type { QuestionVersionContentInput } from "@/lib/data/question-lifecycle-repository";
@@ -70,6 +72,7 @@ const REVISION_FIELDS = new Set([
   "topicId",
 ]);
 const ANSWER_FIELDS = new Set([
+  "spec",
   "acceptedAnswers",
   "explanation",
   "numericValue",
@@ -232,6 +235,11 @@ export function parseQuestionRevisionContent(
     };
   }
 
+  if (answer.spec !== undefined) {
+    const issues = validateAnswerSpec(answer.spec, acceptedAnswers);
+    if (issues.length)
+      return { error: issues.map((issue) => issue.message).join(" ") };
+  }
   const numericValue = optionalFiniteNumber(answer.numericValue);
   const tolerance = optionalFiniteNumber(answer.tolerance);
   if (numericValue === null || tolerance === null) {
@@ -247,6 +255,7 @@ export function parseQuestionRevisionContent(
     };
   }
   if (
+    answer.spec === undefined &&
     numericValue !== undefined &&
     !acceptedAnswers.some((candidate) =>
       numericAnswerMatches(candidate, numericValue, tolerance ?? 1e-9),
@@ -337,6 +346,9 @@ export function parseQuestionRevisionContent(
     revision: {
       answer: {
         acceptedAnswers,
+        ...(answer.spec !== undefined
+          ? { spec: answer.spec as AnswerSpec }
+          : {}),
         explanation,
         numericValue,
         tolerance,
@@ -417,28 +429,6 @@ function strictStringArray(value: unknown, allowEmpty: boolean) {
   if (values.some((item) => !item)) return undefined;
   const strings = values as string[];
   return strings.length > 0 || allowEmpty ? strings : undefined;
-}
-
-function numericAnswerMatches(
-  rawAnswer: string,
-  numericValue: number,
-  tolerance: number,
-) {
-  const answer = rawAnswer.trim().replaceAll(",", "").replace(/^\$/, "");
-  let parsed: number;
-  if (/^[-+]?\d+(?:\.\d+)?%$/.test(answer)) {
-    parsed = Number(answer.slice(0, -1)) / 100;
-  } else if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(answer)) {
-    const [numerator, denominator] = answer.split("/").map(Number);
-    if (!denominator) return false;
-    parsed = numerator / denominator;
-  } else {
-    parsed = Number(answer);
-  }
-  return (
-    Number.isFinite(parsed) &&
-    Math.abs(parsed - numericValue) <= Math.max(tolerance, 1e-9)
-  );
 }
 
 function stringArray(value: unknown) {

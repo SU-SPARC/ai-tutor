@@ -4,6 +4,10 @@ import path from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { requireAnalyticsAccess, requireStudent } from "@/lib/auth/authorization";
+import { getStudentProgress } from "@/lib/data/student-progress";
+import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
+import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-analytics-export-repository";
 import { claimAnonymousIdentity } from "@/lib/auth/anonymous-claims";
 import { setContentRepositoryForTests } from "@/lib/data/data-store";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
@@ -21,12 +25,17 @@ import { startSimilarReservePractice } from "@/lib/tutor/similar-reserve-practic
 import { AUTHENTICATED_TUTOR_SESSION_RETENTION_DAYS } from "@/lib/tutor/session-persistence";
 import {
   authorizationForStudentOwner,
+  mockPrincipal,
+  resetAuthMocks,
+  TEST_STUDENT,
+  TEST_PROFESSOR,
   TEST_ANONYMOUS_OWNER,
 } from "./auth-test-helpers";
 
 const databases: PGlite[] = [];
 
 afterEach(async () => {
+  resetAuthMocks();
   setContentRepositoryForTests(undefined);
   setReservePracticeRepositoryForTests(undefined);
   resetTutorSessionsForTests();
@@ -34,6 +43,132 @@ afterEach(async () => {
 });
 
 describe("Reserve-practice anonymous claims on the migrated schema", () => {
+  it("claims technical rows harmlessly and counts Reserve only after tutoring activity", async () => {
+    const database = await migratedDatabase();
+    const reserveVersionId = await seedQuestionsAndActors(database);
+    const anonymousId = "anon:engagement-claim";
+    await seedAnonymousPair(database, {
+      anonymousId,
+      childId: "engagement-reserve",
+      originId: "engagement-origin",
+      reserveVersionId,
+    });
+    await database.query(
+      `
+      insert into tutor_sessions (id, anonymous_user_id, question_id, revealed_hints)
+      values ('engagement-open', $1, 'claim-origin-question', 0),
+             ('engagement-hint', $1, 'claim-origin-question', 1)
+    `,
+      [anonymousId],
+    );
+    await database.exec(`
+      insert into attempts (session_id, question_id, topic_id, mode, source, verdict)
+      select 'engagement-hint', q.id, q.topic_id, 'hint', 'rule', 'guidance'
+      from questions q where q.id = 'claim-origin-question';
+    `);
+    const query = pgliteQuery(database);
+    const tutor = createDatabaseTutorSessionRepository(
+      "postgres://unused.example/db",
+      query,
+    );
+    const anonymousOwner = { kind: "anonymous" as const, anonymousId };
+    expect(await tutor.listSessionsForStudent(anonymousOwner)).toHaveLength(4);
+    expect(
+      await tutor.listSessionsForStudent(anonymousOwner, { engagedOnly: true }),
+    ).toHaveLength(2);
+    expect(
+      await claimAnonymousIdentity(
+        { anonymousId, userId: "user:claim-enabled", source: "signed_cookie" },
+        query,
+      ),
+    ).toMatchObject({ migratedSessionCount: 4 });
+    const owner = { kind: "user" as const, userId: "user:claim-enabled" };
+    setTutorSessionRepositoryForTests(tutor);
+    setContentRepositoryForTests(
+      createDatabaseContentRepository("postgres://unused.example/db", query),
+    );
+    mockPrincipal({ ...TEST_STUDENT, userId: owner.userId });
+    const studentAuthorization = await requireStudent();
+    const before = await getStudentProgress(studentAuthorization);
+    expect(before.summary).toMatchObject({
+      completedQuestions: 1,
+      inProgressQuestions: 0,
+      topicsStarted: 1,
+      hintsUsed: 1,
+      extraPracticeSessions: 0,
+    });
+    expect(before.recentSessions.map((row) => row.sessionId).sort()).toEqual([
+      "engagement-hint",
+      "engagement-origin",
+    ]);
+    expect(await tutor.getSession("engagement-reserve", owner)).toMatchObject({
+      questionVersionId: reserveVersionId,
+      originSessionId: "engagement-origin",
+      practiceContext: "reserve_practice",
+    });
+    expect(await tutor.getSession("engagement-open", owner)).toBeDefined();
+    expect(
+      await tutor.getSession("engagement-reserve", anonymousOwner),
+    ).toBeUndefined();
+    mockPrincipal(TEST_PROFESSOR);
+    const professorAuthorization = await requireAnalyticsAccess();
+    const instructor = createDatabaseInstructorStudentRepository(query);
+    const exporter = createDatabasePilotAnalyticsExportRepository(query);
+    expect(
+      await instructor.getCohortAnalytics(professorAuthorization),
+    ).toMatchObject({
+      activeStudents: 1,
+      sessions: 2,
+      attempts: 0,
+      extraPracticeSessions: 0,
+    });
+    const exportBefore = await exporter.build(
+      professorAuthorization,
+      "2026-09-09T12:00:00.000Z",
+    );
+    expect(exportBefore.cohort).toMatchObject({
+      participatingStudents: 1,
+      sessions: 2,
+      answerAttempts: 0,
+    });
+
+    // The selected Reserve child now receives a durable hint reveal. Published
+    // progress and export remain the same, while optional practice increments.
+    await tutor.revealHint("engagement-reserve", owner);
+    const after = await getStudentProgress(studentAuthorization);
+    expect(after.summary).toEqual({
+      ...before.summary,
+      extraPracticeSessions: 1,
+    });
+    expect(after.questions).toEqual(before.questions);
+    expect(
+      after.recentSessions.find(
+        (row) => row.sessionId === "engagement-reserve",
+      ),
+    ).toMatchObject({
+      practiceContext: "reserve_practice",
+      attemptCount: 0,
+      hintsUsed: 1,
+      status: "in_progress",
+    });
+    expect(
+      await instructor.getCohortAnalytics(professorAuthorization),
+    ).toMatchObject({
+      activeStudents: 1,
+      sessions: 2,
+      attempts: 0,
+      extraPracticeSessions: 1,
+    });
+    expect(
+      (await instructor.listStudents(professorAuthorization)).students[0]
+        .extraPracticeSessions,
+    ).toBe(1);
+    expect(
+      await exporter.build(professorAuthorization, "2026-09-09T12:00:00.000Z"),
+    ).toEqual(exportBefore);
+    expect(await tutor.listSessionsForStudent(owner)).toHaveLength(4);
+  });
+
   it("rejects an active published-context session pinned to an unpublished version", async () => {
     const database = await migratedDatabase();
     const reserveVersionId = await seedQuestionsAndActors(database);

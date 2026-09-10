@@ -40,7 +40,7 @@ export function InstructorStudentTable({
         <TableHeader>
           <TableRow>
             <TableHead className="px-4">Student</TableHead>
-            <TableHead className="px-4">Sessions</TableHead>
+            <TableHead className="px-4">Practice sessions</TableHead>
             <TableHead className="px-4">Extra practice</TableHead>
             <TableHead className="px-4">Attempts</TableHead>
             <TableHead className="px-4">Correct</TableHead>
@@ -77,7 +77,12 @@ export function InstructorStudentTable({
                 <span className="font-medium">{student.correctAttempts}</span>
                 <span className="text-muted-foreground">
                   {" "}
-                  ({formatAccuracy(student.correctAttempts, student.attempts)})
+                  (
+                  {formatAccuracy(
+                    student.correctAttempts,
+                    student.correctAttempts + (student.incorrectAttempts ?? 0),
+                  )}
+                  )
                 </span>
               </TableCell>
               <TableCell className="px-4 py-3">

@@ -1,3 +1,4 @@
+import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import "server-only";
 
 import {
@@ -46,6 +47,7 @@ import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-
 import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-tools";
 
 type QuestionRow = {
+  answer_spec_json?: AnswerSpec | null;
   accepted_answers_json: unknown;
   answer_explanation: string;
   difficulty: Difficulty;
@@ -221,6 +223,7 @@ export function createDatabaseContentRepository(
           `
           select
             (select count(*)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_tutor_sessions,
+            -- A joined attempt already implies engagement; retain the shared population filter.
             (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} and a.mode = 'check') as total_attempts,
             (select coalesce(sum(s.revealed_hints), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_hints_used,
             (select coalesce(sum(s.revealed_steps), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_steps_revealed
@@ -258,6 +261,7 @@ export function createDatabaseContentRepository(
         const current = byTopic.get(question.topicId) ?? {
           attempts: 0,
           correctAttempts: 0,
+          incorrectAttempts: 0,
           hintsUsed: 0,
           llmAttempts: 0,
           stepsRevealed: 0,
@@ -267,6 +271,8 @@ export function createDatabaseContentRepository(
 
         current.attempts += question.attempts;
         current.correctAttempts += question.correctAttempts;
+        current.incorrectAttempts =
+          (current.incorrectAttempts ?? 0) + question.incorrectAttempts;
         current.hintsUsed += question.hintsUsed;
         current.llmAttempts += question.llmAttempts;
         current.stepsRevealed += question.stepsRevealed;
@@ -980,6 +986,7 @@ export function mapQuestionRow(row: QuestionRow): TutorQuestion {
     prompt: row.prompt,
     answer: {
       acceptedAnswers: stringArray(row.accepted_answers_json),
+      ...(row.answer_spec_json != null ? { spec: row.answer_spec_json } : {}),
       explanation: row.answer_explanation,
       numericValue: row.numeric_value ?? undefined,
       tolerance: row.tolerance ?? undefined,

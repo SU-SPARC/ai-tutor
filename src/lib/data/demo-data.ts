@@ -12,6 +12,8 @@ import generatedReviewCandidateData from "../../../data/demo/generated-review-ca
 import nextSyllabusReviewCandidateData from "../../../data/demo/next-syllabus-review-candidates.json"
 import nextUncoveredSyllabusReviewCandidateData from "../../../data/demo/next-uncovered-syllabus-review-candidates.json"
 import demoQuestionData from "../../../data/demo/questions.json"
+import remediatedSyllabusReviewCandidateData from "../../../data/demo/remediated-syllabus-review-candidates.json"
+import discreteModelsBatch2Data from "../../../data/demo/discrete-models-batch-2-review-candidates.json"
 import syllabusReviewCandidateData from "../../../data/demo/syllabus-review-candidates.json"
 import {
   activeCanonicalSyllabusTopics,
@@ -137,6 +139,8 @@ export const retrievalChunks: RetrievalChunk[] = [
 export const reviewCandidates: ReviewCandidate[] = [
   ...(generatedReviewCandidateData as ReviewCandidate[]),
   ...(syllabusReviewCandidateData as ReviewCandidate[]),
+  ...(remediatedSyllabusReviewCandidateData as ReviewCandidate[]),
+  ...(discreteModelsBatch2Data as ReviewCandidate[]),
   ...(nextSyllabusReviewCandidateData as ReviewCandidate[]),
   ...(followingSyllabusReviewCandidateData as ReviewCandidate[]),
   ...(nextUncoveredSyllabusReviewCandidateData as ReviewCandidate[]),

@@ -12,6 +12,7 @@ import {
   createMemoryTutorSessionRepository,
   createReservePracticeTutorSession,
   createTutorSession,
+  getTutorSession,
   persistTutorSessionTransition,
   recordTutorSessionAttempt,
   recordTutorSessionAttemptOutcome,
@@ -63,6 +64,63 @@ describe("student progress dashboard", () => {
     vi.unstubAllEnvs();
     resetAuthMocks();
   });
+
+  it("keeps an opened session recoverable without progress, topics, or recent activity", async () => {
+    const session = await createTutorSession(
+      studentSessionAuthorization,
+      "dice-sum-eight",
+    );
+    const progress = await getStudentProgress(await requireStudent());
+    expect(progress.summary).toMatchObject({
+      completedQuestions: 0,
+      inProgressQuestions: 0,
+      topicsStarted: 0,
+      hintsUsed: 0,
+      extraPracticeSessions: 0,
+    });
+    expect(progress.questions).toEqual([]);
+    expect(progress.recentSessions).toEqual([]);
+    expect(
+      await getTutorSession(studentSessionAuthorization, session.id),
+    ).toMatchObject({ id: session.id, attempts: [] });
+  });
+
+  it.each(["hint", "solution", "incorrect", "correct"] as const)(
+    "starts progress only after %s activity and preserves answer counts",
+    async (action) => {
+      const session = await createTutorSession(
+        studentSessionAuthorization,
+        "dice-sum-eight",
+      );
+      if (action === "hint")
+        await revealTutorSessionHint(studentSessionAuthorization, session.id);
+      else if (action === "solution")
+        await revealTutorSessionStep(studentSessionAuthorization, session.id);
+      else
+        await recordTutorSessionAttemptOutcome(studentSessionAuthorization, {
+          sessionId: session.id,
+          source: "rule",
+          verdict: action,
+          estimatedTokens: 0,
+        });
+      const progress = await getStudentProgress(await requireStudent());
+      expect(progress.summary.topicsStarted).toBe(1);
+      expect(progress.summary.inProgressQuestions).toBe(
+        action === "correct" ? 0 : 1,
+      );
+      expect(progress.summary.completedQuestions).toBe(
+        action === "correct" ? 1 : 0,
+      );
+      expect(progress.questions[0].attemptCount).toBe(
+        action === "hint" || action === "solution" ? 0 : 1,
+      );
+      expect(progress.recentSessions).toHaveLength(1);
+      expect(progress.recentSessions[0]).toMatchObject({
+        hintsUsed: action === "hint" ? 1 : 0,
+        stepsRevealed: action === "solution" ? 1 : 0,
+      });
+    },
+  );
 
   it("builds canonical topic, question, retry, help, and recent-session progress", async () => {
     const firstSession = await createTutorSession(
@@ -487,12 +545,9 @@ describe("student progress dashboard", () => {
     expect(progress.summary.completedQuestions).toBe(0);
     expect(progress.summary.previouslyCompletedQuestions).toBe(0);
     expect(progress.summary.extraPracticeSessions).toBe(1);
-    expect(progress.questions).toEqual([
-      expect.objectContaining({
-        questionId: "five-question-quiz",
-        status: "in_progress",
-      }),
-    ]);
+    expect(progress.questions).toEqual([]);
+    expect(progress.summary.topicsStarted).toBe(0);
+    expect(progress.summary.inProgressQuestions).toBe(0);
     expect(progress.questions).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ questionId: "dice-sum-eight" }),

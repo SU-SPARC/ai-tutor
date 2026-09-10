@@ -109,6 +109,20 @@ The manifest signer must already be an active institutional human with an
 active `professor` application role. A role label, demo identity, shared token,
 or `system:schema-migration` is rejected as the approval identity.
 
+## Node.js Runtime
+
+`scripts/import-approved-content.mjs` and `scripts/import-review-candidates.mjs`
+load the shared TypeScript answer-spec validator
+(`src/lib/tutor/answer/spec.ts`) directly, with no build step, so plain Node
+must strip TypeScript types natively. `package.json` therefore declares
+`"engines": { "node": ">=22.18" }`. Node 22.17 and earlier fail at startup with
+`ERR_UNKNOWN_FILE_EXTENSION` before reading any manifest or connecting to a
+database. Run the content-import job with Node 22.18 or newer; CI uses the
+current 22.x release and Vercel builds use 24.x. The migration workflow loads
+both CLIs with `node … --help` under plain Node, without a database, manifest,
+or secret, so an unsupported runtime, a TypeScript loading failure, or an
+importer startup failure fails CI.
+
 ## Commands
 
 Always start with Staging and retain the JSON reports with the change ticket.

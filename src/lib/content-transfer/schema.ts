@@ -1,3 +1,5 @@
+import { validateAnswerSpec, type AnswerSpec } from "@/lib/tutor/answer/spec";
+import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
 import {
   activeCanonicalSyllabusTopics,
   compareCanonicalTopicIds,
@@ -40,6 +42,7 @@ const QUESTION_FIELDS = new Set([
   "topicId",
 ]);
 const ANSWER_FIELDS = new Set([
+  "spec",
   "acceptedAnswers",
   "explanation",
   "numericValue",
@@ -412,6 +415,12 @@ function parseAnswer(value: unknown, errors: string[]) {
       "answer.explanation is required and must not exceed 8,000 characters.",
     );
   }
+  if (item.spec !== undefined)
+    errors.push(
+      ...validateAnswerSpec(item.spec, acceptedAnswers ?? []).map(
+        (issue) => issue.message,
+      ),
+    );
   const numericValue = optionalFiniteNumber(item.numericValue);
   const tolerance = optionalFiniteNumber(item.tolerance);
   if (numericValue === null || tolerance === null) {
@@ -427,6 +436,7 @@ function parseAnswer(value: unknown, errors: string[]) {
     );
   }
   if (
+    item.spec === undefined &&
     acceptedAnswers &&
     numericValue !== undefined &&
     numericValue !== null &&
@@ -442,6 +452,7 @@ function parseAnswer(value: unknown, errors: string[]) {
     tolerance !== null
     ? {
         acceptedAnswers,
+        ...(item.spec !== undefined ? { spec: item.spec as AnswerSpec } : {}),
         explanation,
         numericValue,
         tolerance,
@@ -573,6 +584,9 @@ function versionToTransferQuestion(
   return {
     answer: {
       acceptedAnswers: [...version.answer.acceptedAnswers],
+      ...(version.answer.spec !== undefined
+        ? { spec: structuredClone(version.answer.spec) }
+        : {}),
       explanation: version.answer.explanation,
       numericValue: version.answer.numericValue,
       tolerance: version.answer.tolerance,
@@ -702,29 +716,5 @@ function isIsoDateTime(value: string) {
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(
       value,
     ) && Number.isFinite(Date.parse(value))
-  );
-}
-
-function numericAnswerMatches(
-  answer: string,
-  value: number,
-  tolerance: number,
-) {
-  const normalized = answer.trim().replaceAll(",", "").replace(/^\$/, "");
-  let parsed: number;
-  if (/^[-+]?\d+(?:\.\d+)?%$/.test(normalized)) {
-    parsed = Number(normalized.slice(0, -1)) / 100;
-  } else if (
-    /^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(normalized)
-  ) {
-    const [numerator, denominator] = normalized.split("/").map(Number);
-    if (!denominator) return false;
-    parsed = numerator / denominator;
-  } else {
-    parsed = Number(normalized);
-  }
-  return (
-    Number.isFinite(parsed) &&
-    Math.abs(parsed - value) <= Math.max(tolerance, 1e-9)
   );
 }

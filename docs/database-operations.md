@@ -238,6 +238,11 @@ The content job must finish and replay as an exact no-op before application
 traffic. It does not import demo fixtures, retrieval chunks, student/session
 records, generated drafts, or logs.
 
+Both importer CLIs (`db:import:approved` and `db:import:review-candidates`)
+load the TypeScript answer-spec validator directly under plain Node, so the job
+runner must use Node 22.18 or newer, as declared by `engines.node` in
+`package.json`; older runtimes fail at startup before any database access.
+
 ## Failure, Rollback, And Forward Fix
 
 If a migration statement fails, its transaction rolls back and the runner does
@@ -268,6 +273,9 @@ migration.
 without any database secret. The tests use an isolated embedded PostgreSQL
 runtime and prove:
 
+- plain-Node startup of both importer CLIs (`--help`, no database), which fails
+  on Node older than 22.18 because the importers load the TypeScript
+  answer-spec validator directly;
 - fresh application of the complete repository history;
 - legacy upgrade preservation and seed compatibility;
 - status and pending-deployment exit behavior;

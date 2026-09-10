@@ -1,4 +1,10 @@
+import {
+  validateAnswerSpec,
+  answerSpecFromSnapshot,
+} from "@/lib/tutor/answer/spec";
 import "server-only";
+
+import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
 
 import {
   assertAuthorization,
@@ -465,11 +471,21 @@ export function createDatabaseQuestionLifecycleRepository(
             await transactionQuery(
               "select set_config('app.suppress_question_version', 'false', true)",
             );
-            const versionRows = await transactionQuery(
-              "select app_record_question_version($1) as version_id",
-              [content.id],
-            );
-            const versionId = Number(versionRows[0]?.version_id);
+            const versionId =
+              content.answer.spec !== undefined
+                ? await insertQuestionVersion(transactionQuery, {
+                    content,
+                    creationMethod: "imported",
+                    createdByUserId: reviewer.userId,
+                  })
+                : Number(
+                    (
+                      await transactionQuery(
+                        "select app_record_question_version($1) as version_id",
+                        [content.id],
+                      )
+                    )[0]?.version_id,
+                  );
             await transitionImportedVersion(
               transactionQuery,
               authorization,
@@ -563,11 +579,21 @@ export function createDatabaseQuestionLifecycleRepository(
           await transactionQuery(
             "select set_config('app.suppress_question_version', 'false', true)",
           );
-          const rows = await transactionQuery(
-            "select app_record_question_version($1) as version_id",
-            [input.content.id],
-          );
-          const versionId = Number(rows[0]?.version_id);
+          const versionId =
+            input.content.answer.spec !== undefined
+              ? await insertQuestionVersion(transactionQuery, {
+                  content: input.content,
+                  creationMethod: input.creationMethod,
+                  createdByUserId: reviewer.userId,
+                })
+              : Number(
+                  (
+                    await transactionQuery(
+                      "select app_record_question_version($1) as version_id",
+                      [input.content.id],
+                    )
+                  )[0]?.version_id,
+                );
 
           if (input.submit) {
             await applyTransition(transactionQuery, authorization, {
@@ -2264,7 +2290,7 @@ async function insertQuestionVersion(
     creationMethod: QuestionCreationMethod;
     createdByUserId: string;
     generationMetadata?: Record<string, unknown>;
-    parentVersionId: number;
+    parentVersionId?: number;
     supersedeReason?: string;
   },
 ) {
@@ -2303,7 +2329,7 @@ async function insertQuestionVersion(
       input.content.id,
       JSON.stringify(snapshot),
       input.createdByUserId,
-      input.parentVersionId,
+      input.parentVersionId ?? null,
       input.creationMethod,
       JSON.stringify(input.generationMetadata ?? {}),
     ],
@@ -2391,6 +2417,9 @@ function transferQuestionContent(
   return {
     answer: {
       acceptedAnswers: [...question.answer.acceptedAnswers],
+      ...(question.answer.spec !== undefined
+        ? { spec: structuredClone(question.answer.spec) }
+        : {}),
       explanation: question.answer.explanation,
       numericValue: question.answer.numericValue,
       tolerance: question.answer.tolerance,
@@ -2783,6 +2812,9 @@ function mapQuestionVersion(row: QuestionVersionRow): QuestionVersionDto {
     allowedActions: allowedActionsForVersionRow(row),
     answer: {
       acceptedAnswers: stringArray(row.accepted_answers_json),
+      ...(answerSpecFromSnapshot(snapshot) !== undefined
+        ? { spec: answerSpecFromSnapshot(snapshot) }
+        : {}),
       explanation: row.answer_explanation,
       numericValue: row.numeric_value ?? undefined,
       tolerance: row.tolerance ?? undefined,
@@ -2968,6 +3000,9 @@ function mapLifecycleEvent(row: LifecycleEventRow): QuestionLifecycleEventDto {
 
 function snapshotForContent(content: QuestionVersionContentInput) {
   return {
+    ...(content.answer.spec !== undefined
+      ? { answer: { spec: content.answer.spec } }
+      : {}),
     acceptedAnswers: content.answer.acceptedAnswers,
     answerExplanation: content.answer.explanation,
     difficulty: content.difficulty,
@@ -3077,6 +3112,16 @@ function validateQuestionVersionContent(
   content: QuestionVersionContentInput,
   expectedQuestionId = content.id,
 ) {
+  if (content.answer.spec !== undefined) {
+    const issues = validateAnswerSpec(
+      content.answer.spec,
+      content.answer.acceptedAnswers,
+    );
+    if (issues.length)
+      throw new QuestionLifecycleValidationError(
+        issues.map((issue) => issue.message).join(" "),
+      );
+  }
   if (content.id !== expectedQuestionId) {
     throw new QuestionLifecycleValidationError(
       "Version content must retain the stable question ID.",
@@ -3164,6 +3209,7 @@ function validateQuestionVersionContent(
     );
   }
   if (
+    content.answer.spec === undefined &&
     content.answer.numericValue !== undefined &&
     !content.answer.acceptedAnswers.some((answer) =>
       numericAnswerMatches(
@@ -3213,28 +3259,6 @@ async function requireActiveTopic(
       "The selected syllabus topic is unavailable.",
     );
   }
-}
-
-function numericAnswerMatches(
-  rawAnswer: string,
-  numericValue: number,
-  tolerance: number,
-) {
-  const answer = rawAnswer.trim().replaceAll(",", "").replace(/^\$/, "");
-  let parsed: number;
-  if (/^[-+]?\d+(?:\.\d+)?%$/.test(answer)) {
-    parsed = Number(answer.slice(0, -1)) / 100;
-  } else if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(answer)) {
-    const [numerator, denominator] = answer.split("/").map(Number);
-    if (!denominator) return false;
-    parsed = numerator / denominator;
-  } else {
-    parsed = Number(answer);
-  }
-  return (
-    Number.isFinite(parsed) &&
-    Math.abs(parsed - numericValue) <= Math.max(tolerance, 1e-9)
-  );
 }
 
 function versionToAdminQuestion(version: QuestionVersionDto): AdminQuestion {

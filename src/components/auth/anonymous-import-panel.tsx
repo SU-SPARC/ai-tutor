@@ -95,8 +95,8 @@ export function AnonymousImportPanel({
         kind: "success",
         text:
           count === 1
-            ? "Imported 1 practice session into your account."
-            : `Imported ${count} practice sessions into your account.`,
+            ? "Imported 1 saved tutor session into your account."
+            : `Imported ${count} saved tutor sessions into your account.`,
       });
     } catch {
       setFeedback({

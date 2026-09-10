@@ -93,7 +93,8 @@ describe("professor admin APIs", () => {
     expect(payload.topics).toEqual(
       topicData.map(({ id, title }) => ({ id, title })),
     );
-    expect(payload.candidates).toHaveLength(20);
+    // 20 original drafts plus the 11 remediated "-v2" drafts for this topic.
+    expect(payload.candidates).toHaveLength(31);
     expect(JSON.stringify(payload.candidates)).not.toMatch(
       /generationMetadata|patternIds|sourceItemIds|privatePhraseHashes|sourceNumberSets|sourceStoryFamilies|rawText|extractedText|locator/i,
     );
@@ -110,11 +111,11 @@ describe("professor admin APIs", () => {
     ).toBe(true);
     expect(payload.topicProgress).toEqual({
       approved: 1,
-      needsReview: 20,
+      needsReview: 31,
       rejected: 0,
-      remaining: 20,
+      remaining: 31,
       topicId,
-      totalDrafts: 21,
+      totalDrafts: 32,
     });
   });
 
@@ -153,7 +154,8 @@ describe("professor admin APIs", () => {
 
     expect(approved.status).toBe(200);
     expect(rejected.status).toBe(200);
-    expect(updated.candidates).toHaveLength(18);
+    // 31 needs-review drafts for the topic minus the two resolved here.
+    expect(updated.candidates).toHaveLength(29);
     expect(
       updated.candidates.every(
         (candidate) =>
@@ -163,11 +165,11 @@ describe("professor admin APIs", () => {
     ).toBe(true);
     expect(updated.topicProgress).toEqual({
       approved: 2,
-      needsReview: 18,
+      needsReview: 29,
       rejected: 1,
-      remaining: 18,
+      remaining: 29,
       topicId,
-      totalDrafts: 21,
+      totalDrafts: 32,
     });
   });
 
@@ -501,7 +503,6 @@ describe("professor admin APIs", () => {
     expect(privateKeys.status).toBe(400);
     expect(copiedSource.status).toBe(400);
   });
-
 });
 
 async function firstCandidates(count: number) {

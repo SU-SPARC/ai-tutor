@@ -280,7 +280,7 @@ describe("least-privilege runtime role provisioning", () => {
     ).rejects.toThrow(/permission denied/);
     await expect(readRoleAttestation(client)).resolves.toMatchObject({
       bypassRls: false,
-      executableRoutineCount: 8,
+      executableRoutineCount: 11,
       missingRuntimeFunctionCount: 0,
       missingRuntimeWriteCount: 0,
       protectedWriteCount: 0,

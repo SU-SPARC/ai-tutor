@@ -130,6 +130,36 @@ npm run prepare:next-uncovered-syllabus-questions
 npm run prepare:next-uncovered-syllabus-questions -- --check
 ```
 
+Content remediation batch 1 replaces the strongest early-topic drafts with
+review-ready `-v2` candidates derived from the untouched originals:
+
+```bash
+npm run prepare:remediated-syllabus-questions
+npm run prepare:remediated-syllabus-questions -- --check
+```
+
+This writes `data/demo/remediated-syllabus-review-candidates.json`. Because the
+review-candidate importer never updates an existing ID, improvements always
+travel under a new `-v2` identity; the original fixture stays byte-identical.
+
+Targeted content generation batch 2 adds exactly eight discrete-models tasks
+under the canonical `binomial-models` topic, without changing historical drafts:
+
+```bash
+npm run prepare:discrete-models-batch-2
+npm run prepare:discrete-models-batch-2 -- --check
+```
+
+This writes `data/demo/discrete-models-batch-2-review-candidates.json`. The check
+runs the public review-fixture validator and the real `validateAnswerSpec`,
+compares deterministic output, and checks for reused IDs/prompts. It is local
+and does not connect to a database. The fixture is registered with the demo
+review loader and the normal import allowlist; every item remains
+`generated_original`, `generated_unverified`, and `needs_review` with no
+preassigned priority or pattern ID. See the [batch 2 mathematical and diversity
+audit](discrete-models-batch-2-report.md). Probability specs preserve the existing
+absolute tolerance of 0.001; professor rounding policy is still required.
+
 This writes `data/demo/next-uncovered-syllabus-review-candidates.json` and
 checks all earlier review fixtures for reused IDs or prompts.
 

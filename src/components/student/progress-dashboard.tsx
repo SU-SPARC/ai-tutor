@@ -252,7 +252,7 @@ export function ProgressDashboard({
         <section aria-labelledby="recent-sessions-heading">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 id="recent-sessions-heading" className="text-lg font-semibold">
-              Recent tutor sessions
+              Recent practice sessions
             </h2>
             <span className="text-xs text-muted-foreground">Most recent 8</span>
           </div>
@@ -330,7 +330,7 @@ export function ProgressDashboard({
             </div>
           ) : (
             <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
-              No tutor sessions yet.
+              No practice activity yet.
             </p>
           )}
         </section>

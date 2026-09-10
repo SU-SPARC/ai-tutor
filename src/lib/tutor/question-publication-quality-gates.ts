@@ -1,3 +1,5 @@
+import { validateAnswerSpec } from "@/lib/tutor/answer/spec";
+import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
 import type {
   QuestionPublicationBlocker,
   QuestionPublicationGateCode,
@@ -7,6 +9,13 @@ import type {
 } from "@/lib/types";
 
 export const QUESTION_PUBLICATION_GATE_CODES = [
+  "invalid_answer_spec",
+  "answer_value_unparseable",
+  "tolerance_out_of_bounds",
+  "accepted_answer_inconsistent",
+  "percent_mode_missing",
+  "required_form_unsatisfiable",
+  "categorical_alias_empty",
   "invalid_syllabus_topic",
   "missing_question_text",
   "missing_final_answer",
@@ -57,6 +66,13 @@ export function evaluateQuestionPublicationQualityGates(
 ): QuestionPublicationBlocker[] {
   const blockers: QuestionPublicationBlocker[] = [];
   const version = input.version;
+  if (version.answer.spec !== undefined)
+    blockers.push(
+      ...validateAnswerSpec(
+        version.answer.spec,
+        version.answer.acceptedAnswers,
+      ),
+    );
 
   if (input.reservedForLater) {
     blockers.push({
@@ -213,6 +229,7 @@ function answerSchemaIsValid(answer: QuestionVersionDto["answer"]) {
     return false;
   }
   return (
+    answer.spec !== undefined ||
     answer.numericValue === undefined ||
     answer.acceptedAnswers.some((candidate) =>
       numericAnswerMatches(
@@ -352,26 +369,4 @@ function shortText(value: string) {
 
 function longText(value: string) {
   return value.trim().length > 0 && value.length <= MAX_LONG_TEXT_LENGTH;
-}
-
-function numericAnswerMatches(
-  rawAnswer: string,
-  numericValue: number,
-  tolerance: number,
-) {
-  const answer = rawAnswer.trim().replaceAll(",", "").replace(/^\$/, "");
-  let parsed: number;
-  if (/^[-+]?\d+(?:\.\d+)?%$/.test(answer)) {
-    parsed = Number(answer.slice(0, -1)) / 100;
-  } else if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(answer)) {
-    const [numerator, denominator] = answer.split("/").map(Number);
-    if (!denominator) return false;
-    parsed = numerator / denominator;
-  } else {
-    parsed = Number(answer);
-  }
-  return (
-    Number.isFinite(parsed) &&
-    Math.abs(parsed - numericValue) <= Math.max(tolerance, 1e-9)
-  );
 }

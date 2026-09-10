@@ -1,3 +1,4 @@
+import { validateAnswerSpec } from "../../src/lib/tutor/answer/spec.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -10,6 +11,8 @@ export const REVIEW_CANDIDATE_IMPORT_LOCK_ID = 7_241_903_207;
 export const REVIEW_CANDIDATE_FILES = Object.freeze([
   "data/demo/generated-review-candidates.json",
   "data/demo/syllabus-review-candidates.json",
+  "data/demo/remediated-syllabus-review-candidates.json",
+  "data/demo/discrete-models-batch-2-review-candidates.json",
   "data/demo/next-syllabus-review-candidates.json",
   "data/demo/following-syllabus-review-candidates.json",
   "data/demo/next-uncovered-syllabus-review-candidates.json",
@@ -398,7 +401,7 @@ async function insertReviewCandidate(client, { candidate, sourceFile }) {
   const versionResult = await client.query(
     `
       with snapshot as (
-        select app_question_snapshot($1) as content
+        select app_question_snapshot($1) || case when $3::jsonb is null then '{}'::jsonb else jsonb_build_object('answer', jsonb_build_object('spec', $3::jsonb)) end as content
       )
       insert into question_versions (
         question_id,
@@ -422,7 +425,13 @@ async function insertReviewCandidate(client, { candidate, sourceFile }) {
       from snapshot
       returning id
     `,
-    [candidate.id, JSON.stringify(generationMetadata)],
+    [
+      candidate.id,
+      JSON.stringify(generationMetadata),
+      candidate.answer.spec === undefined
+        ? null
+        : JSON.stringify(candidate.answer.spec),
+    ],
   );
   const versionId = versionResult.rows[0]?.id;
   if (!versionId) {
@@ -519,6 +528,9 @@ function sameStoredDouble(stored, expected) {
 
 function expectedSnapshot(candidate) {
   return {
+    ...(candidate.answer.spec !== undefined
+      ? { answer: { spec: candidate.answer.spec } }
+      : {}),
     acceptedAnswers: candidate.answer.acceptedAnswers,
     answerExplanation: candidate.answer.explanation,
     archivedAt: null,
@@ -722,6 +734,14 @@ function validateCandidate(candidate, label, topicIds, issues) {
   }
   if (candidate.source?.visibility !== "public") {
     issues.push(`${label}.source.visibility must equal public.`);
+  }
+  if (candidate.answer?.spec !== undefined) {
+    issues.push(
+      ...validateAnswerSpec(
+        candidate.answer.spec,
+        candidate.answer.acceptedAnswers,
+      ).map((issue) => `${label}: ${issue.message}`),
+    );
   }
   if (
     candidate.answer?.numericValue !== undefined &&

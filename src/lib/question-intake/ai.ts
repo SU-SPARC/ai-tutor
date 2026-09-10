@@ -1,3 +1,4 @@
+import { ANSWER_SPEC_JSON_SCHEMA } from "@/lib/tutor/answer/spec";
 import "server-only";
 
 import OpenAI from "openai";
@@ -189,12 +190,13 @@ function systemPrompt() {
     "For a multiple-choice source, keep all choices in prompt and use free_response with the correct choice text or label as an accepted answer.",
     "Use only foundational, intermediate, or challenge difficulty.",
     "Solve the exact question. answer.acceptedAnswers and answer.explanation are mandatory. Numeric answers require numericValue and an optional nonnegative tolerance; text answers must omit numericValue and tolerance.",
+    "You may propose answer.spec with kind numeric, categorical, or number_list and confidence.checker from 0 to 1. Typed numeric specs require value (string), domain (probability/count/real), percentMode (decimal/percent/either), and tolerance. Counts use exact tolerance. Probability absolute tolerance must be at most 0.01 and relative at most 0.02. Decimal mode accepts unscaled numeric forms including fractions; a correct value written with percent notation is a wrong_form diagnostic governed by formPolicy (note solves with format feedback, require marks it incorrect), and a bare number is never rescaled; percent mode interprets both the canonical value and bare submissions in percentage points (25 means 25%); either mode accepts decimal values and marked percents without rescaling bare numbers. Optional requiredForm, formPolicy (note/require), and unit {label,required} must be justified by the question. Categorical specs require canonical and aliases and may have forbiddenTerms. List specs require values (numeric strings), ordered, tolerance and optional unique labels. Tolerance modes are exact, absolute/relative with value, combined with absolute/relative, decimals with places, or significant with digits. Every accepted answer must pass the chosen spec. Omit legacy numericValue and tolerance when proposing spec. Deterministic validation and professor approval remain mandatory.",
     "Write 2 to 4 progressive hints. Hint 1 must not reveal the answer.",
     "Write a complete ordered solutionSteps array and relevant misconceptions; misconceptions may be empty only when none are meaningful.",
     "Confidence values are numbers from 0 to 1. Use warnings for ambiguity or checks a professor must make.",
     `Call ${SUBMIT_DRAFT_TOOL_NAME} exactly once. Do not return free-form text.`,
     "Submit exactly these root keys: schemaVersion,title,prompt,topicId,questionType,answerType,difficulty,answer,hints,solutionSteps,misconceptions,confidence,warnings,unreadableSegments.",
-    "schemaVersion must be 1. answer keys: acceptedAnswers,explanation and optional numericValue,tolerance. misconception keys: id,feedback,matchTerms. confidence keys: extraction,topic,answer,overall.",
+    "schemaVersion must be 1. answer keys: acceptedAnswers,explanation and optional numericValue,tolerance,spec. misconception keys: id,feedback,matchTerms. confidence keys: extraction,topic,answer,overall and optional checker.",
   ].join(" ");
 }
 
@@ -275,6 +277,7 @@ function questionIntakeDraftTool(topics: QuestionIntakeTopic[]) {
           answer: {
             additionalProperties: false,
             properties: {
+              spec: ANSWER_SPEC_JSON_SCHEMA,
               acceptedAnswers: stringArray(1, 8),
               explanation: { type: "string" },
               numericValue: { type: "number" },
@@ -287,6 +290,7 @@ function questionIntakeDraftTool(topics: QuestionIntakeTopic[]) {
           confidence: {
             additionalProperties: false,
             properties: {
+              checker: { maximum: 1, minimum: 0, type: "number" },
               answer: { maximum: 1, minimum: 0, type: "number" },
               extraction: { maximum: 1, minimum: 0, type: "number" },
               overall: { maximum: 1, minimum: 0, type: "number" },

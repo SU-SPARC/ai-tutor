@@ -47,6 +47,9 @@ const PROTECTED_RUNTIME_TABLES = Object.freeze([
   "topics",
 ]);
 const RUNTIME_FUNCTIONS = Object.freeze([
+  "app_answer_number(text,boolean)",
+  "app_answer_parse_tokens(text[],integer,integer)",
+  "app_answer_spec_failures(jsonb)",
   "app_publication_json_item_text(jsonb)",
   "app_publication_numeric_answer_matches(text,double precision,double precision)",
   "app_question_publication_gate_failures(text,bigint,text)",

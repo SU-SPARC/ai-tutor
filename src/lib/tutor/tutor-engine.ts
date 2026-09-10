@@ -1,35 +1,36 @@
-import "server-only"
+import "server-only";
 
-import { createHash } from "node:crypto"
+import { createHash } from "node:crypto";
 
 import {
   accountingForGeneratedResponse,
   prepareTutorAiGeneration,
   type TutorAiAccounting,
   type TutorAiExecutionContext,
-} from "@/lib/ai/usage-controls"
+} from "@/lib/ai/usage-controls";
 import {
   estimateLlmTutorTokens,
   generateLlmTutorResponse,
   type LlmTutorDisclosure,
   type LlmTutorInput,
   type LlmTutorTask,
-} from "@/lib/ai/llm-tutor"
-import { getApprovedQuestionById } from "@/lib/data/data-store"
-import type { AnswerCheckResult } from "@/lib/tutor/answer-checker"
-import { checkAnswer, normalizeAnswerText } from "@/lib/tutor/answer-checker"
-import { detectMisconceptions } from "@/lib/tutor/misconceptions"
+} from "@/lib/ai/llm-tutor";
+import { getApprovedQuestionById } from "@/lib/data/data-store";
+import type { AnswerCheckResult } from "@/lib/tutor/answer-checker";
+import { checkAnswer, normalizeAnswerText } from "@/lib/tutor/answer-checker";
+import { parseRational } from "@/lib/tutor/answer/rational";
+import { detectMisconceptions } from "@/lib/tutor/misconceptions";
 import {
   buildLlmGroundingContext,
   retrieveTutorContext,
-} from "@/lib/tutor/retrieval"
+} from "@/lib/tutor/retrieval";
 import {
   getTutorSessionState,
   recordTutorAttemptSnapshot,
   saveTutorSessionState,
   tutorProgressFromState,
   type TutorSessionState,
-} from "@/lib/tutor/tutor-state"
+} from "@/lib/tutor/tutor-state";
 import type {
   LlmGroundingContext,
   PracticeQuestion,
@@ -40,78 +41,78 @@ import type {
   TutorResponse,
   TutorResponseLabel,
   TutorRetrievalResult,
-} from "@/lib/types"
+} from "@/lib/types";
 
-export type RuleTutorMode = TutorMode | "full_solution"
+export type RuleTutorMode = TutorMode | "full_solution";
 
 export type TutorDecisionInput = {
-  aiExecutionContext?: TutorAiExecutionContext
-  allowFullSolution?: boolean
-  allowLlmFallback?: boolean
-  answer: string
-  mode: RuleTutorMode
-  question: PracticeQuestion
-  sessionId: string
-  state: TutorSessionState
-}
+  aiExecutionContext?: TutorAiExecutionContext;
+  allowFullSolution?: boolean;
+  allowLlmFallback?: boolean;
+  answer: string;
+  mode: RuleTutorMode;
+  question: PracticeQuestion;
+  sessionId: string;
+  state: TutorSessionState;
+};
 
 export type StudentAttemptCheck = {
-  answerCheck: AnswerCheckResult
-  misconception?: MisconceptionMatch
-}
+  answerCheck: AnswerCheckResult;
+  misconception?: MisconceptionMatch;
+};
 
 export type EscalationInput = {
-  allowLlmFallback?: boolean
-  answer: string
-  mode: RuleTutorMode
-  question?: PracticeQuestion
-  retrievalMatches?: number
-  state: TutorSessionState
-}
+  allowLlmFallback?: boolean;
+  answer: string;
+  mode: RuleTutorMode;
+  question?: PracticeQuestion;
+  retrievalMatches?: number;
+  state: TutorSessionState;
+};
 
 export type TutorResponseTransition = {
-  aiAccounting?: TutorAiAccounting
-  response: TutorResponse
-  state: TutorSessionState
-}
+  aiAccounting?: TutorAiAccounting;
+  response: TutorResponse;
+  state: TutorSessionState;
+};
 
-type RuleResult = TutorResponseTransition
+type RuleResult = TutorResponseTransition;
 
 type LlmTutorResultInput = {
-  aiExecutionContext?: TutorAiExecutionContext
-  answer: string
-  answerCheck?: AnswerCheckResult
-  allowFullSolution?: boolean
-  mode: RuleTutorMode
-  question?: PracticeQuestion
-  retrievalResult?: TutorRetrievalResult
-  state: TutorSessionState
-  stateUpdates?: Partial<TutorSessionState>
-  task: LlmTutorTask
-  topicId?: string
-}
+  aiExecutionContext?: TutorAiExecutionContext;
+  answer: string;
+  answerCheck?: AnswerCheckResult;
+  allowFullSolution?: boolean;
+  mode: RuleTutorMode;
+  question?: PracticeQuestion;
+  retrievalResult?: TutorRetrievalResult;
+  state: TutorSessionState;
+  stateUpdates?: Partial<TutorSessionState>;
+  task: LlmTutorTask;
+  topicId?: string;
+};
 
 export type MisconceptionMatch = {
-  correctiveHint?: string
-  feedback: string
-  id: string
-}
+  correctiveHint?: string;
+  feedback: string;
+  id: string;
+};
 
-const LOW_CONFIDENCE_THRESHOLD = 0.2
-const MAX_LLM_GROUNDING_ITEMS = 2
-const MAX_LLM_GROUNDING_CHARS_TOTAL = 800
+const LOW_CONFIDENCE_THRESHOLD = 0.2;
+const MAX_LLM_GROUNDING_ITEMS = 2;
+const MAX_LLM_GROUNDING_CHARS_TOTAL = 800;
 const GENERAL_AI_HELP_NOTE =
-  "I'm using general AI help beyond approved course content."
+  "I'm using general AI help beyond approved course content.";
 
 export async function createTutorResponse(
   request: TutorRequest,
 ): Promise<TutorResponse> {
-  const sessionId = request.sessionId || "anonymous-demo-session"
-  const questionKey = questionKeyForRequest(request)
-  const state = getTutorSessionState(sessionId, questionKey)
-  const result = await createTutorResponseFromState(request, state)
-  saveTutorSessionState(result.state)
-  return result.response
+  const sessionId = request.sessionId || "anonymous-demo-session";
+  const questionKey = questionKeyForRequest(request);
+  const state = getTutorSessionState(sessionId, questionKey);
+  const result = await createTutorResponseFromState(request, state);
+  saveTutorSessionState(result.state);
+  return result.response;
 }
 
 /**
@@ -125,14 +126,14 @@ export async function createTutorResponseFromState(
   questionVersion?: PracticeQuestion,
   aiExecutionContext?: TutorAiExecutionContext,
 ): Promise<RuleResult> {
-  const sessionId = request.sessionId || state.sessionId
-  const answer = request.answer.trim()
+  const sessionId = request.sessionId || state.sessionId;
+  const answer = request.answer.trim();
 
   const question =
     questionVersion ??
     (request.questionId
       ? await getApprovedQuestionById(request.questionId)
-      : undefined)
+      : undefined);
 
   if (question) {
     const result = await decideTutorResponse({
@@ -144,8 +145,8 @@ export async function createTutorResponseFromState(
       question,
       sessionId,
       state,
-    })
-    const nextState = result.state
+    });
+    const nextState = result.state;
     return {
       aiAccounting: result.aiAccounting,
       response: finalizeResponse(
@@ -159,29 +160,29 @@ export async function createTutorResponseFromState(
         nextState,
       ),
       state: nextState,
-    }
+    };
   }
 
   const shouldRetrieve = shouldEscalateToRetrieval({
     answer,
     mode: request.mode,
     state,
-  })
+  });
   const retrievalResult = shouldRetrieve
     ? await retrieveTutorContext(`${request.topicId ?? ""} ${answer}`, {
         maxResults: MAX_LLM_GROUNDING_ITEMS,
         topicId: request.topicId,
       })
-    : undefined
+    : undefined;
 
   if (hasRetrievedContext(retrievalResult)) {
     const result = buildRetrievalResponseFromResult(
       retrievalResult,
       answer,
       state,
-    )
+    );
     if (result) {
-      const nextState = result.state
+      const nextState = result.state;
       return {
         response: finalizeResponse(
           withProgress(result.response, nextState),
@@ -191,13 +192,13 @@ export async function createTutorResponseFromState(
           nextState,
         ),
         state: nextState,
-      }
+      };
     }
   }
 
   const nextState = nextStateForAttempt(state, {
     state: "blocked",
-  })
+  });
   return {
     response: finalizeResponse(
       blockedResponse(
@@ -212,7 +213,7 @@ export async function createTutorResponseFromState(
       nextState,
     ),
     state: nextState,
-  }
+  };
 }
 
 export async function decideTutorResponse({
@@ -238,14 +239,14 @@ export async function decideTutorResponse({
         state,
         task: "retrieval_explanation",
         topicId: question.topicId,
-      })
+      });
 
       if (retrieved) {
-        return retrieved
+        return retrieved;
       }
     }
 
-    const hintResult = getNextHint(question, state)
+    const hintResult = getNextHint(question, state);
 
     return {
       response: {
@@ -260,7 +261,7 @@ export async function decideTutorResponse({
         usage: usageFor(answer),
       },
       state: hintResult.state,
-    }
+    };
   }
 
   if (mode === "solution" || mode === "full_solution") {
@@ -277,10 +278,10 @@ export async function decideTutorResponse({
         state,
         task: "retrieval_explanation",
         topicId: question.topicId,
-      })
+      });
 
       if (retrieved) {
-        return retrieved
+        return retrieved;
       }
     }
 
@@ -288,7 +289,7 @@ export async function decideTutorResponse({
       allowFullSolution:
         mode === "full_solution" ? Boolean(allowFullSolution) : state.solved,
       fullSolutionRequested: mode === "full_solution",
-    })
+    });
 
     return {
       response: {
@@ -303,13 +304,13 @@ export async function decideTutorResponse({
         usage: usageFor(answer),
       },
       state: stepResult.state,
-    }
+    };
   }
 
   if (answer.length === 0) {
     const nextState = nextStateForAttempt(state, {
       state: "working",
-    })
+    });
 
     return {
       response: {
@@ -324,10 +325,46 @@ export async function decideTutorResponse({
         usage: usageFor(answer),
       },
       state: nextState,
-    }
+    };
   }
 
-  const attemptCheck = checkStudentAttempt(question, answer)
+  const attemptCheck = checkStudentAttempt(question, answer);
+  const diagnostic =
+    question.answer.spec !== undefined && attemptCheck.answerCheck.detail
+      ? { checkDetail: attemptCheck.answerCheck.detail }
+      : {};
+
+  if (
+    attemptCheck.answerCheck.outcome === "unreadable" &&
+    (question.answer.spec?.kind === "numeric" ||
+      question.answer.spec?.kind === "number_list" ||
+      (question.answer.spec === undefined &&
+        (typeof question.answer.numericValue === "number" ||
+          question.answer.acceptedAnswers.some(
+            (answer) => parseRational(answer) !== undefined,
+          )))) &&
+    !attemptCheck.misconception &&
+    !allowLlmFallback
+  ) {
+    return {
+      response: {
+        source: "rule",
+        verdict: "guidance",
+        ...diagnostic,
+        message:
+          question.answer.spec?.kind === "number_list"
+            ? "I could not read that as a list of numbers. Separate values with commas or semicolons and include any requested labels."
+            : "I could not read that as a number. Try forms like 0.25, 1/4, or 25%.",
+        responseLabel: labelForQuestion(question),
+        hints: [],
+        steps: [],
+        misconceptions: [],
+        retrievedContext: [],
+        usage: usageFor(answer),
+      },
+      state: nextStateForAttempt(state, { state: "working" }),
+    };
+  }
 
   if (attemptCheck.answerCheck.isCorrect) {
     const nextState = nextStateForAttempt(state, {
@@ -335,13 +372,16 @@ export async function decideTutorResponse({
       solved: true,
       state: "solved",
       stepsRevealed: question.solutionSteps.length,
-    })
+    });
 
     return {
       response: {
         source: "rule",
         verdict: "correct",
-        message: question.answer.explanation,
+        ...diagnostic,
+        message: attemptCheck.answerCheck.detail
+          ? `${question.answer.explanation} ${attemptCheck.answerCheck.feedback}`
+          : question.answer.explanation,
         responseLabel: labelForQuestion(question),
         hints: [],
         steps: question.solutionSteps,
@@ -350,7 +390,7 @@ export async function decideTutorResponse({
         usage: usageFor(answer),
       },
       state: nextState,
-    }
+    };
   }
 
   if (
@@ -359,7 +399,7 @@ export async function decideTutorResponse({
     !attemptCheck.misconception &&
     attemptCheck.answerCheck.confidence <= LOW_CONFIDENCE_THRESHOLD
   ) {
-    const fingerprint = answerFingerprint(answer)
+    const fingerprint = answerFingerprint(answer);
     const result = await buildRetrievalOrLlmResponse({
       aiExecutionContext,
       allowLlmFallback,
@@ -377,29 +417,29 @@ export async function decideTutorResponse({
       },
       task: "low_confidence_answer_help",
       topicId: question.topicId,
-    })
+    });
 
     if (result) {
-      return result
+      return result;
     }
   }
 
-  const fingerprint = answerFingerprint(answer)
+  const fingerprint = answerFingerprint(answer);
   const misconceptionMatches = attemptCheck.misconception
     ? [attemptCheck.misconception]
-    : []
+    : [];
   const repeatedMisconception =
     fingerprint === state.lastAnswerFingerprint &&
     sameStringSet(
       misconceptionMatches.map((misconception) => misconception.id),
       state.lastMisconceptionIds,
-    )
+    );
   const misconceptions = repeatedMisconception
     ? []
-    : misconceptionMatches.map((misconception) => misconception.feedback)
+    : misconceptionMatches.map((misconception) => misconception.feedback);
   const hintResult = getNextHint(question, state, {
     state: misconceptions.length > 0 ? "misconception_detected" : "working",
-  })
+  });
   const nextState = nextStateForAttempt(state, {
     hintsRevealed: hintResult.state.hintsRevealed,
     lastAnswerFingerprint: fingerprint,
@@ -408,16 +448,20 @@ export async function decideTutorResponse({
     ),
     state: misconceptions.length > 0 ? "misconception_detected" : "working",
     wrongAttemptCount: state.wrongAttemptCount + 1,
-  })
+  });
 
   return {
     response: {
       source: "rule",
       verdict: "incorrect",
+      ...diagnostic,
       message:
         misconceptions.length > 0
           ? "Not quite. I found a likely misconception to check first."
-          : "Not quite.",
+          : question.answer.spec !== undefined &&
+              attemptCheck.answerCheck.detail
+            ? attemptCheck.answerCheck.feedback
+            : "Not quite.",
       responseLabel: labelForQuestion(question),
       hints:
         misconceptions.length > 0 && attemptCheck.misconception?.correctiveHint
@@ -429,7 +473,7 @@ export async function decideTutorResponse({
       usage: usageFor(answer),
     },
     state: nextState,
-  }
+  };
 }
 
 export function checkStudentAttempt(
@@ -439,28 +483,31 @@ export function checkStudentAttempt(
   const answerCheck = checkAnswer({
     ...question.answer,
     studentAnswer: answer,
-  })
+  });
 
   return {
     answerCheck,
     misconception: answerCheck.isCorrect
       ? undefined
       : detectMisconception(question, answer),
-  }
+  };
 }
 
 export function getNextHint(
   question: PracticeQuestion,
   state: TutorSessionState,
   options?: {
-    state?: TutorSessionState["state"]
+    state?: TutorSessionState["state"];
   },
 ) {
-  const hintsRevealed = Math.min(question.hints.length, state.hintsRevealed + 1)
+  const hintsRevealed = Math.min(
+    question.hints.length,
+    state.hintsRevealed + 1,
+  );
   const nextState = nextStateForAttempt(state, {
     hintsRevealed,
     state: options?.state ?? "hinting",
-  })
+  });
 
   return {
     hints: question.hints.slice(0, hintsRevealed),
@@ -469,39 +516,39 @@ export function getNextHint(
         ? "Here is the next approved hint."
         : "All approved hints for this question are visible.",
     state: nextState,
-  }
+  };
 }
 
 export function getNextStep(
   question: PracticeQuestion,
   state: TutorSessionState,
   options?: {
-    allowFullSolution?: boolean
-    fullSolutionRequested?: boolean
+    allowFullSolution?: boolean;
+    fullSolutionRequested?: boolean;
   },
 ) {
-  const allowFullSolution = Boolean(options?.allowFullSolution || state.solved)
+  const allowFullSolution = Boolean(options?.allowFullSolution || state.solved);
   const stepsRevealed = allowFullSolution
     ? question.solutionSteps.length
-    : Math.min(question.solutionSteps.length, state.stepsRevealed + 1)
+    : Math.min(question.solutionSteps.length, state.stepsRevealed + 1);
   const alreadyRevealedAll =
-    state.stepsRevealed >= question.solutionSteps.length
+    state.stepsRevealed >= question.solutionSteps.length;
   const nextState = nextStateForAttempt(state, {
     state: state.solved ? "solved" : "step_reveal",
     stepsRevealed,
-  })
+  });
   const message =
     allowFullSolution || alreadyRevealedAll
       ? question.answer.explanation
       : options?.fullSolutionRequested
         ? "Full solution is not available yet. Here is the next approved solution step."
-        : "Here is the next approved solution step."
+        : "Here is the next approved solution step.";
 
   return {
     message,
     state: nextState,
     steps: question.solutionSteps.slice(0, stepsRevealed),
-  }
+  };
 }
 
 export function detectMisconception(
@@ -516,35 +563,35 @@ export function detectMisconception(
     correctiveHint: misconception.correctiveHint,
     feedback: misconception.feedback,
     id: misconception.id,
-  }))[0]
+  }))[0];
 }
 
 export function shouldEscalateToRetrieval(input: EscalationInput) {
   if (!input.question) {
-    return true
+    return true;
   }
 
   if (input.mode !== "check" || input.answer.trim().length === 0) {
-    return false
+    return false;
   }
 
-  return input.state.hintsRevealed >= input.question.hints.length
+  return input.state.hintsRevealed >= input.question.hints.length;
 }
 
 export function shouldEscalateToLLM(input: EscalationInput) {
   return Boolean(
     input.question &&
-      input.allowLlmFallback &&
-      input.answer.trim().length > 0 &&
-      isLlmFallbackEligible(input.question, input.state),
-  )
+    input.allowLlmFallback &&
+    input.answer.trim().length > 0 &&
+    isLlmFallbackEligible(input.question, input.state),
+  );
 }
 
 export function isLlmFallbackEligible(
   question: PracticeQuestion,
   state: TutorSessionState,
 ) {
-  return !state.solved && state.hintsRevealed >= question.hints.length
+  return !state.solved && state.hintsRevealed >= question.hints.length;
 }
 
 function buildRetrievalResponseFromResult(
@@ -563,16 +610,16 @@ function buildRetrievalResponseFromResult(
         )
   ).filter(
     (chunk) => !excludeQuestionId || chunk.questionId !== excludeQuestionId,
-  )
+  );
 
   if (retrievedContext.length === 0) {
-    return undefined
+    return undefined;
   }
 
   const nextState = nextStateForAttempt(state, {
     retrievalUsed: true,
     state: "retrieval_guidance",
-  })
+  });
 
   return {
     response: {
@@ -590,32 +637,32 @@ function buildRetrievalResponseFromResult(
       }),
     },
     state: nextState,
-  }
+  };
 }
 
 async function buildRetrievalOrLlmResponse(input: {
-  aiExecutionContext?: TutorAiExecutionContext
-  allowFullSolution?: boolean
-  allowLlmFallback?: boolean
-  answer: string
-  answerCheck?: AnswerCheckResult
-  mode: RuleTutorMode
-  query: string
-  question?: PracticeQuestion
-  sessionId: string
-  state: TutorSessionState
-  stateUpdates?: Partial<TutorSessionState>
-  task: LlmTutorTask
-  topicId?: string
+  aiExecutionContext?: TutorAiExecutionContext;
+  allowFullSolution?: boolean;
+  allowLlmFallback?: boolean;
+  answer: string;
+  answerCheck?: AnswerCheckResult;
+  mode: RuleTutorMode;
+  query: string;
+  question?: PracticeQuestion;
+  sessionId: string;
+  state: TutorSessionState;
+  stateUpdates?: Partial<TutorSessionState>;
+  task: LlmTutorTask;
+  topicId?: string;
 }) {
   const retrievalResult = await retrieveTutorContext(input.query, {
     excludeQuestionId: input.question?.id,
     maxResults: MAX_LLM_GROUNDING_ITEMS,
     topicId: input.topicId,
-  })
+  });
 
   const llmEligible =
-    !input.question || isLlmFallbackEligible(input.question, input.state)
+    !input.question || isLlmFallbackEligible(input.question, input.state);
 
   const retrievalResponse = hasRetrievedContext(retrievalResult)
     ? buildRetrievalResponseFromResult(
@@ -624,17 +671,17 @@ async function buildRetrievalOrLlmResponse(input: {
         input.state,
         input.question?.id,
       )
-    : undefined
+    : undefined;
 
   if (
     retrievalResponse &&
     (!input.allowLlmFallback || !llmEligible || !input.state.retrievalUsed)
   ) {
-    return retrievalResponse
+    return retrievalResponse;
   }
 
   if (!input.allowLlmFallback || !llmEligible) {
-    return retrievalResponse
+    return retrievalResponse;
   }
 
   // Retrieval was attempted even if there was nothing new/safe to show
@@ -643,7 +690,7 @@ async function buildRetrievalOrLlmResponse(input: {
   // pointless round trip through an empty retrieval response.
   const stateForLlm = input.state.retrievalUsed
     ? input.state
-    : { ...input.state, retrievalUsed: true }
+    : { ...input.state, retrievalUsed: true };
 
   return buildLlmResponse({
     aiExecutionContext: input.aiExecutionContext,
@@ -661,7 +708,7 @@ async function buildRetrievalOrLlmResponse(input: {
         ? "retrieval_explanation"
         : input.task,
     topicId: input.topicId,
-  })
+  });
 }
 
 async function buildLlmResponse({
@@ -677,12 +724,16 @@ async function buildLlmResponse({
   task,
   topicId,
 }: LlmTutorResultInput): Promise<RuleResult> {
-  const allowedDisclosure = allowedDisclosureFor(mode, state, allowFullSolution)
+  const allowedDisclosure = allowedDisclosureFor(
+    mode,
+    state,
+    allowFullSolution,
+  );
   const groundingContext = selectLlmGroundingContext(
     retrievalResult,
     allowedDisclosure,
-  )
-  const retrievedContext = retrievalResult?.retrievedContext ?? []
+  );
+  const retrievedContext = retrievalResult?.retrievedContext ?? [];
 
   const promptInput: LlmTutorInput = {
     allowedDisclosure,
@@ -712,19 +763,19 @@ async function buildLlmResponse({
     studentMessage: answer,
     task,
     topicId: topicId ?? question?.topicId,
-  }
-  const estimatedTokens = estimateLlmTutorTokens(promptInput)
+  };
+  const estimatedTokens = estimateLlmTutorTokens(promptInput);
   const responseLabel =
     groundingContext.length > 0
       ? labelForGroundingContext(groundingContext)
-      : "general_ai_help"
+      : "general_ai_help";
   const prepared = aiExecutionContext
     ? await prepareTutorAiGeneration(
         aiExecutionContext,
         promptInput,
         estimatedTokens,
       )
-    : undefined
+    : undefined;
   if (prepared?.outcome === "blocked") {
     const retrievalFallback = retrievalResult
       ? buildRetrievalResponseFromResult(
@@ -733,25 +784,25 @@ async function buildLlmResponse({
           state,
           question?.id,
         )
-      : undefined
+      : undefined;
     if (retrievalFallback) {
-      return retrievalFallback
+      return retrievalFallback;
     }
 
     const unavailableState = nextStateForAttempt(state, {
       ...stateUpdates,
       retrievalUsed: state.retrievalUsed || Boolean(retrievalResult),
       state: "blocked",
-    })
+    });
     return {
       response: blockedResponse(prepared.message, unavailableState),
       state: unavailableState,
-    }
+    };
   }
   const generated =
     prepared?.outcome === "cache_hit"
       ? prepared.cacheResult
-      : await generateLlmTutorResponse(promptInput)
+      : await generateLlmTutorResponse(promptInput);
   const aiAccounting = prepared
     ? prepared.outcome === "cache_hit"
       ? prepared.accounting
@@ -760,7 +811,7 @@ async function buildLlmResponse({
           generated,
           responseLabel,
         )
-    : undefined
+    : undefined;
 
   if (!generated.fallbackUsed) {
     const retrievalFallback = retrievalResult
@@ -770,25 +821,25 @@ async function buildLlmResponse({
           state,
           question?.id,
         )
-      : undefined
+      : undefined;
 
     if (retrievalFallback) {
       return {
         ...retrievalFallback,
         aiAccounting,
-      }
+      };
     }
 
     const unavailableState = nextStateForAttempt(state, {
       ...stateUpdates,
       retrievalUsed: state.retrievalUsed || Boolean(retrievalResult),
       state: "blocked",
-    })
+    });
     return {
       aiAccounting,
       response: blockedResponse(generated.tutorMessage, unavailableState),
       state: unavailableState,
-    }
+    };
   }
 
   const nextState = nextStateForAttempt(state, {
@@ -796,7 +847,7 @@ async function buildLlmResponse({
     llmUsed: true,
     retrievalUsed: state.retrievalUsed || retrievedContext.length > 0,
     state: "llm_guidance",
-  })
+  });
 
   const message =
     groundingContext.length === 0 &&
@@ -804,7 +855,7 @@ async function buildLlmResponse({
       .toLowerCase()
       .includes("general ai help beyond approved course content")
       ? `${GENERAL_AI_HELP_NOTE} ${generated.tutorMessage}`
-      : generated.tutorMessage
+      : generated.tutorMessage;
 
   return {
     aiAccounting,
@@ -827,13 +878,13 @@ async function buildLlmResponse({
       },
     },
     state: nextState,
-  }
+  };
 }
 
 function hasRetrievedContext(
   retrievalResult: TutorRetrievalResult | undefined,
 ): retrievalResult is TutorRetrievalResult {
-  return Boolean(retrievalResult?.retrievedContext.length)
+  return Boolean(retrievalResult?.retrievedContext.length);
 }
 
 function allowedDisclosureFor(
@@ -842,54 +893,54 @@ function allowedDisclosureFor(
   allowFullSolution?: boolean,
 ): LlmTutorDisclosure {
   if (state.solved || allowFullSolution) {
-    return "full_solution_allowed"
+    return "full_solution_allowed";
   }
 
   if (mode === "solution" || mode === "full_solution") {
-    return "next_step_only"
+    return "next_step_only";
   }
 
-  return "hint_only"
+  return "hint_only";
 }
 
 function selectLlmGroundingContext(
   retrievalResult: TutorRetrievalResult | undefined,
   allowedDisclosure: LlmTutorDisclosure,
 ) {
-  const matches = retrievalResult?.matches ?? []
+  const matches = retrievalResult?.matches ?? [];
   const safeMatches =
     allowedDisclosure === "full_solution_allowed"
       ? matches
-      : matches.filter(isNotSolutionChunk)
+      : matches.filter(isNotSolutionChunk);
 
   return buildLlmGroundingContext(safeMatches, {
     maxItems: MAX_LLM_GROUNDING_ITEMS,
     maxTotalChars: MAX_LLM_GROUNDING_CHARS_TOTAL,
-  })
+  });
 }
 
 function isNotSolutionChunk(match: RetrievalMatch) {
-  return !["solution_step", "solution_summary"].includes(match.chunk.chunkType)
+  return !["solution_step", "solution_summary"].includes(match.chunk.chunkType);
 }
 
 function labelForQuestion(question: PracticeQuestion): TutorResponseLabel {
   return isGeneratedApprovedSource(question.source)
     ? "generated_approved_content"
-    : "approved_course_content"
+    : "approved_course_content";
 }
 
 function labelForRetrievedContext(
   retrievedContext: RetrievalChunk[],
 ): TutorResponseLabel {
   if (retrievedContext.some(isPrivateReferenceChunk)) {
-    return "private_reference_grounded_explanation"
+    return "private_reference_grounded_explanation";
   }
 
   if (retrievedContext.some(isGeneratedApprovedChunk)) {
-    return "generated_approved_content"
+    return "generated_approved_content";
   }
 
-  return "approved_course_content"
+  return "approved_course_content";
 }
 
 function labelForGroundingContext(
@@ -900,7 +951,7 @@ function labelForGroundingContext(
       (context) => context.priorityTier === "private_reference",
     )
   ) {
-    return "private_reference_grounded_explanation"
+    return "private_reference_grounded_explanation";
   }
 
   if (
@@ -911,10 +962,10 @@ function labelForGroundingContext(
         context.sourceType === "pattern_derived_original",
     )
   ) {
-    return "generated_approved_content"
+    return "generated_approved_content";
   }
 
-  return "approved_course_content"
+  return "approved_course_content";
 }
 
 function isPrivateReferenceChunk(chunk: RetrievalChunk) {
@@ -923,14 +974,14 @@ function isPrivateReferenceChunk(chunk: RetrievalChunk) {
     chunk.source.visibility === "private" ||
     chunk.source.trustLevel === "private_reference" ||
     chunk.source.sourceType === "private_reference_pattern"
-  )
+  );
 }
 
 function isGeneratedApprovedChunk(chunk: RetrievalChunk) {
   return (
     chunk.priorityTier === "approved_generated" ||
     isGeneratedApprovedSource(chunk.source)
-  )
+  );
 }
 
 function isGeneratedApprovedSource(source: RetrievalChunk["source"]) {
@@ -938,15 +989,15 @@ function isGeneratedApprovedSource(source: RetrievalChunk["source"]) {
     source.trustLevel === "professor_approved" &&
     (source.sourceType === "generated_original" ||
       source.sourceType === "pattern_derived_original")
-  )
+  );
 }
 
 function usageFor(
   input: string,
   metadata: {
-    contextUsed?: boolean
-    fallbackUsed?: boolean
-    llmFallbackEligible?: boolean
+    contextUsed?: boolean;
+    fallbackUsed?: boolean;
+    llmFallbackEligible?: boolean;
   } = {},
 ) {
   return {
@@ -954,11 +1005,11 @@ function usageFor(
     estimatedTokens: estimateTokens(input),
     fallbackUsed: Boolean(metadata.fallbackUsed),
     llmFallbackEligible: Boolean(metadata.llmFallbackEligible),
-  }
+  };
 }
 
 function estimateTokens(input: string) {
-  return Math.max(1, Math.ceil(input.length / 4))
+  return Math.max(1, Math.ceil(input.length / 4));
 }
 
 function blockedResponse(
@@ -982,7 +1033,7 @@ function blockedResponse(
       },
     },
     state,
-  )
+  );
 }
 
 function finalizeResponse(
@@ -1005,9 +1056,9 @@ function finalizeResponse(
     state: state.state,
     topicId: request.topicId,
     verdict: response.verdict,
-  })
+  });
 
-  return response
+  return response;
 }
 
 function withLlmFallbackEligibility(
@@ -1017,7 +1068,7 @@ function withLlmFallbackEligibility(
 ): TutorResponse {
   const eligible =
     (response.source === "rule" || response.source === "retrieval") &&
-    isLlmFallbackEligible(question, state)
+    isLlmFallbackEligible(question, state);
 
   return {
     ...response,
@@ -1025,7 +1076,7 @@ function withLlmFallbackEligibility(
       ...response.usage,
       llmFallbackEligible: eligible,
     },
-  }
+  };
 }
 
 function nextStateForAttempt(
@@ -1036,7 +1087,7 @@ function nextStateForAttempt(
     ...state,
     ...updates,
     attemptCount: state.attemptCount + 1,
-  }
+  };
 }
 
 function withProgress(
@@ -1046,19 +1097,19 @@ function withProgress(
   return {
     ...response,
     progress: tutorProgressFromState(state),
-  }
+  };
 }
 
 function questionKeyForRequest(request: TutorRequest) {
-  return request.questionId ?? `topic:${request.topicId ?? "freeform"}`
+  return request.questionId ?? `topic:${request.topicId ?? "freeform"}`;
 }
 
 function answerPreviewFor(answer: string) {
-  return answer.length > 0 ? answer.slice(0, 80) : undefined
+  return answer.length > 0 ? answer.slice(0, 80) : undefined;
 }
 
 function answerFingerprint(answer: string) {
-  return createHash("sha256").update(normalizeAnswerText(answer)).digest("hex")
+  return createHash("sha256").update(normalizeAnswerText(answer)).digest("hex");
 }
 
 function sameStringSet(left: string[], right: string[]) {
@@ -1066,5 +1117,5 @@ function sameStringSet(left: string[], right: string[]) {
     left.length === right.length &&
     left.every((item) => right.includes(item)) &&
     right.every((item) => left.includes(item))
-  )
+  );
 }

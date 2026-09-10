@@ -4,6 +4,7 @@ import type { AuthenticatedStudentAuthorization } from "@/lib/auth/authorization
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
+import { isMeaningfulTutorSession } from "@/lib/tutor/session-engagement";
 import type { StudentProgressDashboard, TutorSessionRecord } from "@/lib/types";
 
 const RECENT_SESSION_LIMIT = 8;
@@ -46,11 +47,13 @@ function isAnswerAttempt(
 export async function getStudentProgress(
   authorization: AuthenticatedStudentAuthorization,
 ): Promise<StudentProgressDashboard> {
-  const [{ mode, sessions }, questions, topics] = await Promise.all([
-    listTutorSessionsForStudent(authorization),
-    getApprovedQuestions(),
-    getTopics(),
-  ]);
+  const [{ mode, sessions: retainedSessions }, questions, topics] =
+    await Promise.all([
+      listTutorSessionsForStudent(authorization, { engagedOnly: true }),
+      getApprovedQuestions(),
+      getTopics(),
+    ]);
+  const sessions = retainedSessions.filter(isMeaningfulTutorSession);
   const orderedTopics = [...topics].sort(
     (left, right) =>
       compareCanonicalTopicIds(left.id, right.id) ||

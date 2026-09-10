@@ -127,6 +127,9 @@ grant execute on function app_question_publication_gate_failures(
   text
 ) to app_runtime;
 grant execute on function app_question_snapshot(text) to app_runtime;
+grant execute on function app_answer_number(text, boolean) to app_runtime;
+grant execute on function app_answer_parse_tokens(text[], integer, integer) to app_runtime;
+grant execute on function app_answer_spec_failures(jsonb) to app_runtime;
 grant execute on function app_record_question_version(text) to app_runtime;
 grant execute on function app_record_question_version_inspection(
   text,

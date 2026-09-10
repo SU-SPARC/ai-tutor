@@ -69,12 +69,8 @@ export function InstructorPracticePerformance({
                 <TableHead className="text-right">Answer attempts</TableHead>
                 <TableHead className="text-right">Correct %</TableHead>
                 <TableHead className="text-right">Hints used</TableHead>
-                <TableHead className="text-right">
-                  Solutions revealed
-                </TableHead>
-                <TableHead className="px-6 text-right">
-                  LLM fallbacks
-                </TableHead>
+                <TableHead className="text-right">Solutions revealed</TableHead>
+                <TableHead className="px-6 text-right">LLM fallbacks</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -88,7 +84,10 @@ export function InstructorPracticePerformance({
                       {topic.attempts}
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatAccuracy(topic.correctAttempts, topic.attempts)}
+                      {formatAccuracy(
+                        topic.correctAttempts,
+                        topic.correctAttempts + (topic.incorrectAttempts ?? 0),
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {topic.hintsUsed}
@@ -116,9 +115,9 @@ export function InstructorPracticePerformance({
         <CardHeader>
           <CardTitle>Question performance</CardTitle>
           <CardDescription>
-            Questions with at least four answer attempts are ranked by lowest
-            correct percentage. Lower-volume questions follow by attempt count
-            and are not labeled as difficult.
+            Questions with at least four scored answer checks are ranked by
+            lowest correct percentage. Lower-volume questions follow by attempt
+            count and are not labeled as difficult.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
@@ -130,12 +129,8 @@ export function InstructorPracticePerformance({
                 <TableHead className="text-right">Answer attempts</TableHead>
                 <TableHead className="text-right">Correct %</TableHead>
                 <TableHead className="text-right">Hints</TableHead>
-                <TableHead className="text-right">
-                  Solutions revealed
-                </TableHead>
-                <TableHead className="px-6 text-right">
-                  LLM fallbacks
-                </TableHead>
+                <TableHead className="text-right">Solutions revealed</TableHead>
+                <TableHead className="px-6 text-right">LLM fallbacks</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -154,7 +149,7 @@ export function InstructorPracticePerformance({
                     <TableCell className="text-right">
                       {formatAccuracy(
                         question.correctAttempts,
-                        question.attempts,
+                        question.correctAttempts + question.incorrectAttempts,
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -186,8 +181,11 @@ function compareQuestionPerformance(
   left: QuestionPerformance,
   right: QuestionPerformance,
 ) {
-  const leftHasEvidence = left.attempts >= RELIABLE_QUESTION_ATTEMPTS;
-  const rightHasEvidence = right.attempts >= RELIABLE_QUESTION_ATTEMPTS;
+  const leftHasEvidence =
+    left.correctAttempts + left.incorrectAttempts >= RELIABLE_QUESTION_ATTEMPTS;
+  const rightHasEvidence =
+    right.correctAttempts + right.incorrectAttempts >=
+    RELIABLE_QUESTION_ATTEMPTS;
 
   if (leftHasEvidence !== rightHasEvidence) {
     return leftHasEvidence ? -1 : 1;
@@ -195,8 +193,8 @@ function compareQuestionPerformance(
 
   if (leftHasEvidence && rightHasEvidence) {
     const accuracyDifference =
-      left.correctAttempts / left.attempts -
-      right.correctAttempts / right.attempts;
+      left.correctAttempts / (left.correctAttempts + left.incorrectAttempts) -
+      right.correctAttempts / (right.correctAttempts + right.incorrectAttempts);
 
     if (accuracyDifference !== 0) {
       return accuracyDifference;

@@ -1,4 +1,9 @@
 import {
+  validateAnswerSpec,
+  checkTypedAnswer,
+  type AnswerSpec,
+} from "@/lib/tutor/answer/spec";
+import {
   normalizeAnswerText,
   parseAnswerNumber,
 } from "@/lib/tutor/answer-checker";
@@ -32,12 +37,19 @@ const ROOT_FIELDS = new Set([
   "warnings",
 ]);
 const ANSWER_FIELDS = new Set([
+  "spec",
   "acceptedAnswers",
   "explanation",
   "numericValue",
   "tolerance",
 ]);
-const CONFIDENCE_FIELDS = new Set(["answer", "extraction", "overall", "topic"]);
+const CONFIDENCE_FIELDS = new Set([
+  "checker",
+  "answer",
+  "extraction",
+  "overall",
+  "topic",
+]);
 const MISCONCEPTION_FIELDS = new Set(["feedback", "id", "matchTerms"]);
 const DIFFICULTIES = new Set<Difficulty>([
   "foundational",
@@ -154,6 +166,19 @@ export function verifyQuestionIntakeDraft(
   topics: QuestionIntakeTopic[],
 ): QuestionIntakeDraft {
   const checks: QuestionIntakeVerificationCheck[] = [];
+  if (draft.answer.spec !== undefined) {
+    const issues = validateAnswerSpec(
+      draft.answer.spec,
+      draft.answer.acceptedAnswers,
+    );
+    checks.push({
+      code: "answer_checker_config",
+      status: issues.length ? "failed" : "passed",
+      message: issues.length
+        ? issues.map((issue) => issue.message).join(" ")
+        : "The typed checker configuration passed deterministic validation.",
+    });
+  }
   const answerSchemaValid = answerSchemaIsConsistent(draft);
   checks.push({
     code: "answer_schema",
@@ -305,8 +330,15 @@ function parseAnswer(
       "answer.explanation is required and must be at most 8,000 characters.",
     );
   }
+  if (answer.spec !== undefined)
+    errors.push(
+      ...validateAnswerSpec(answer.spec, acceptedAnswers ?? []).map(
+        (issue) => issue.message,
+      ),
+    );
   const suppliedNumericValue = optionalFiniteNumber(answer.numericValue);
   const numericValue =
+    answer.spec === undefined &&
     answerType === "numeric" &&
     suppliedNumericValue === undefined &&
     acceptedAnswers
@@ -316,7 +348,11 @@ function parseAnswer(
   if (numericValue === null || tolerance === null) {
     errors.push("numericValue and tolerance must be finite when present.");
   }
-  if (answerType === "numeric" && numericValue === undefined) {
+  if (
+    answer.spec === undefined &&
+    answerType === "numeric" &&
+    numericValue === undefined
+  ) {
     errors.push("numeric answers require numericValue.");
   }
   if (answerType === "text" && numericValue !== undefined) {
@@ -333,7 +369,15 @@ function parseAnswer(
     explanation &&
     numericValue !== null &&
     tolerance !== null
-    ? { acceptedAnswers, explanation, numericValue, tolerance }
+    ? {
+        acceptedAnswers,
+        explanation,
+        numericValue,
+        tolerance,
+        ...(answer.spec !== undefined
+          ? { spec: answer.spec as AnswerSpec }
+          : {}),
+      }
     : undefined;
 }
 
@@ -348,6 +392,9 @@ function parseConfidence(value: unknown, errors: string[]) {
   );
   if (unsupported) errors.push(`Unsupported confidence field: ${unsupported}.`);
   const result = {
+    ...(confidence.checker !== undefined
+      ? { checker: confidenceNumber(confidence.checker) }
+      : {}),
     answer: confidenceNumber(confidence.answer),
     extraction: confidenceNumber(confidence.extraction),
     overall: confidenceNumber(confidence.overall),
@@ -408,6 +455,11 @@ function parseMisconceptions(value: unknown, errors: string[]) {
 }
 
 function answerSchemaIsConsistent(draft: QuestionIntakeModelDraft) {
+  if (draft.answer.spec !== undefined)
+    return (
+      validateAnswerSpec(draft.answer.spec, draft.answer.acceptedAnswers)
+        .length === 0
+    );
   if (draft.answerType === "text") {
     return draft.answer.numericValue === undefined;
   }
@@ -426,7 +478,18 @@ function answerSchemaIsConsistent(draft: QuestionIntakeModelDraft) {
 
 function answerAppearsInSolution(draft: QuestionIntakeModelDraft) {
   const solution = [draft.answer.explanation, ...draft.solutionSteps].join(" ");
-  if (draft.answerType === "text") {
+  if (draft.answer.spec?.kind === "numeric") {
+    const spec = draft.answer.spec;
+    return numericLiteralsInText(solution).some(
+      (candidate) =>
+        checkTypedAnswer(candidate, {
+          ...spec,
+          formPolicy: "note",
+          unit: spec.unit ? { ...spec.unit, required: false } : undefined,
+        }).isCorrect,
+    );
+  }
+  if (draft.answer.spec !== undefined || draft.answerType === "text") {
     const normalizedSolution = normalizeAnswerText(solution);
     return draft.answer.acceptedAnswers.some((answer) => {
       const normalized = normalizeAnswerText(answer);
@@ -454,11 +517,16 @@ function hintRevealsAnswer(
   });
 }
 
-function numericValuesInText(value: string) {
-  const candidates = value.match(
-    /\\(?:dfrac|frac|tfrac)\{[-+]?\d+(?:\.\d+)?\}\{[-+]?\d+(?:\.\d+)?\}|[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?|[-+]?(?:\d+(?:\.\d+)?|\.\d+)%?/gu,
+function numericLiteralsInText(value: string) {
+  return (
+    value.match(
+      /\\(?:dfrac|frac|tfrac)\{[-+]?\d+(?:\.\d+)?\}\{[-+]?\d+(?:\.\d+)?\}|[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?|[-+]?(?:\d+(?:\.\d+)?|\.\d+)%?/gu,
+    ) ?? []
   );
-  return (candidates ?? []).flatMap((candidate) => {
+}
+
+function numericValuesInText(value: string) {
+  return numericLiteralsInText(value).flatMap((candidate) => {
     const parsed = parseAnswerNumber(candidate);
     return parsed === undefined ? [] : [parsed];
   });

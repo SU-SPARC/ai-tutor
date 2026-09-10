@@ -31,14 +31,14 @@ const migrationFiles = readdirSync(migrationDirectory)
   .sort();
 const openDatabases: PGlite[] = [];
 const EXPECTED_COUNTS_BY_TOPIC = {
-  "axioms-probability-counting-methods": 22,
-  "binomial-models": 24,
+  "axioms-probability-counting-methods": 33,
+  "binomial-models": 32,
   "central-limit-theorem": 20,
   "chebyshev-law-large-numbers": 20,
   "conditional-probability": 24,
   "continuous-random-variables": 20,
   "independent-random-variables-sums-correlation": 20,
-  "introduction-probability-venn-diagrams": 20,
+  "introduction-probability-venn-diagrams": 31,
   "moment-generating-functions-joint-distributions": 20,
   "normal-standardization": 20,
   "random-variables": 24,
@@ -68,12 +68,12 @@ describe("public review-candidate fixture validation", () => {
     expect(resolveReviewCandidateDatabaseUrl({})).toBeUndefined();
   });
 
-  it("loads all canonical topics and more than 200 unique public-safe drafts", async () => {
+  it("loads all canonical topics and more than 250 unique public-safe drafts", async () => {
     const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
 
     expect(fixtures.topics).toHaveLength(11);
-    expect(fixtures.candidates).toHaveLength(234);
-    expect(REVIEW_CANDIDATE_FILES).toHaveLength(5);
+    expect(fixtures.candidates).toHaveLength(264);
+    expect(REVIEW_CANDIDATE_FILES).toHaveLength(7);
     expect(
       REVIEW_CANDIDATE_FILES.every(
         (sourceFile) =>
@@ -83,7 +83,7 @@ describe("public review-candidate fixture validation", () => {
     ).toBe(true);
     expect(
       new Set(fixtures.candidates.map(({ candidate }) => candidate.id)).size,
-    ).toBe(234);
+    ).toBe(264);
     expect(
       fixtures.candidates.every(
         ({ candidate }) =>
@@ -172,6 +172,51 @@ describe("production-safe review-candidate database import", () => {
     expect(counts.rows[0]).toEqual({ questions: 0, topics: 0 });
   });
 
+  it("imports an authored typed candidate without converting legacy candidates or rewriting snapshots on replay", async () => {
+    const database = await migratedDatabase();
+    const all = await loadPublicReviewCandidateFixtures(process.cwd());
+    const fixtures = {
+      candidates: structuredClone(all.candidates.slice(0, 2)),
+      topics: structuredClone(all.topics),
+    };
+    const candidate = fixtures.candidates[0].candidate;
+    const spec = {
+      kind: "categorical" as const,
+      canonical: candidate.answer.acceptedAnswers[0],
+      aliases: candidate.answer.acceptedAnswers,
+    };
+    candidate.answer.spec = spec;
+    await importPublicReviewCandidates({
+      client: importClient(database),
+      dryRun: false,
+      fixtures,
+      target: "test",
+    });
+    const before = (
+      await database.query(
+        "select snapshot_json, content_sha256 from question_versions order by id",
+      )
+    ).rows;
+    expect(before[0]).toMatchObject({ snapshot_json: { answer: { spec } } });
+    expect(
+      (before[1] as { snapshot_json: { answer?: unknown } }).snapshot_json
+        .answer,
+    ).toBeUndefined();
+    await importPublicReviewCandidates({
+      client: importClient(database),
+      dryRun: false,
+      fixtures,
+      target: "test",
+    });
+    expect(
+      (
+        await database.query(
+          "select snapshot_json, content_sha256 from question_versions order by id",
+        )
+      ).rows,
+    ).toEqual(before);
+  });
+
   it("persists a verified catalogued pattern in the question and immutable snapshot", async () => {
     const database = await migratedDatabase();
     const allFixtures = await loadPublicReviewCandidateFixtures(process.cwd());
@@ -248,7 +293,7 @@ describe("production-safe review-candidate database import", () => {
     expect(publicQuestion.rows[0].count).toBe(1);
   });
 
-  it("imports topics and 234 drafts idempotently for professors while students see none", async () => {
+  it("imports topics and 264 drafts idempotently for professors while students see none", async () => {
     const database = await migratedDatabase();
     const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
     const client = importClient(database);
@@ -269,10 +314,10 @@ describe("production-safe review-candidate database import", () => {
 
     expect(first).toMatchObject({
       candidates: {
-        inserted: 234,
+        inserted: 264,
         preservedProfessorReviewed: 0,
         skipped: 0,
-        total: 234,
+        total: 264,
       },
       committed: true,
       topics: { inserted: 11, skipped: 0, total: 11, updated: 0 },
@@ -281,8 +326,8 @@ describe("production-safe review-candidate database import", () => {
       candidates: {
         inserted: 0,
         preservedProfessorReviewed: 0,
-        skipped: 234,
-        total: 234,
+        skipped: 264,
+        total: 264,
       },
       committed: true,
       topics: { inserted: 0, skipped: 11, total: 11, updated: 0 },
@@ -303,13 +348,13 @@ describe("production-safe review-candidate database import", () => {
     expect(topicSummaries).toHaveLength(11);
     expect(
       topicSummaries.reduce((total, topic) => total + topic.needsReview, 0),
-    ).toBe(234);
+    ).toBe(264);
     expect(
       Object.fromEntries(
         topicSummaries.map((topic) => [topic.topicId, topic.needsReview]),
       ),
     ).toEqual(EXPECTED_COUNTS_BY_TOPIC);
-    expect(firstTopicCandidates).toHaveLength(20);
+    expect(firstTopicCandidates).toHaveLength(31);
 
     const studentRepository = createDatabaseContentRepository(
       "postgresql://unused.invalid/database",
@@ -347,7 +392,7 @@ describe("production-safe review-candidate database import", () => {
         join question_versions qv on qv.id = q.working_version_id
       `);
     expect(databaseState.rows[0]).toEqual({
-      candidate_count: 234,
+      candidate_count: 264,
       private_metadata_count: 0,
       published_count: 0,
     });
@@ -503,7 +548,7 @@ describe("production-safe review-candidate database import", () => {
     });
 
     expect(report).toMatchObject({
-      candidates: { inserted: 234, total: 234 },
+      candidates: { inserted: 264, total: 264 },
       committed: false,
       mode: "check",
       topics: { inserted: 11, total: 11 },

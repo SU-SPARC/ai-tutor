@@ -779,6 +779,7 @@ async function createTutorSchema(database: PGlite) {
       answer_preview text,
       source text,
       verdict text,
+      check_detail text,
       estimated_tokens integer not null,
       idempotency_key text not null default gen_random_uuid()::text,
       submitted_answer text,

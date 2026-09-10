@@ -9,8 +9,12 @@ on:
       - "scripts/lib/database-migrations.mjs"
       - "scripts/import-approved-content.mjs"
       - "scripts/lib/approved-content-import.mjs"
+      - "scripts/import-review-candidates.mjs"
+      - "scripts/lib/review-candidate-import.mjs"
+      - "src/lib/tutor/answer/**"
       - "tests/approved-content-import.test.ts"
       - "tests/database-migration-workflow.test.ts"
+      - "tests/importer-node-runtime.test.ts"
       - "tests/production-schema-migration.test.ts"
       - "package.json"
       - "package-lock.json"
@@ -24,8 +28,12 @@ on:
       - "scripts/lib/database-migrations.mjs"
       - "scripts/import-approved-content.mjs"
       - "scripts/lib/approved-content-import.mjs"
+      - "scripts/import-review-candidates.mjs"
+      - "scripts/lib/review-candidate-import.mjs"
+      - "src/lib/tutor/answer/**"
       - "tests/approved-content-import.test.ts"
       - "tests/database-migration-workflow.test.ts"
+      - "tests/importer-node-runtime.test.ts"
       - "tests/production-schema-migration.test.ts"
       - "package.json"
       - "package-lock.json"
@@ -52,6 +60,15 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      # The importer CLIs load src/lib/tutor/answer/spec.ts directly, so plain
+      # Node must strip TypeScript types (Node 22.18+). --help returns before any
+      # environment, manifest, or database access; nothing is imported.
+      - name: Load importer CLIs under plain Node (no database, no import)
+        run: |
+          node --version
+          node scripts/import-approved-content.mjs --help
+          node scripts/import-review-candidates.mjs --help
 
       - name: Test migration history and schema
         run: npm run test:migrations

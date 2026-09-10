@@ -55,7 +55,7 @@ describe("pilot analytics research export", () => {
     );
 
     expect(document).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportType: "pilot_analytics",
       generatedAt: "2026-08-31T12:00:00.000Z",
       mode: "database",
@@ -73,7 +73,7 @@ describe("pilot analytics research export", () => {
         correctAnswerAttempts: 3,
         incorrectAnswerAttempts: 1,
         unscoredAnswerAttempts: 1,
-        correctnessRate: 0.6,
+        correctnessRate: 0.75,
         hintsUsed: 3,
         solutionStepsRevealed: 2,
       },
@@ -205,7 +205,7 @@ describe("pilot analytics research export", () => {
     );
 
     expect(document).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       mode: "database",
       cohort: {
         participatingStudents: 0,

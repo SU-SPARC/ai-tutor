@@ -259,6 +259,7 @@ function getDemoProfessorPracticeAnalytics() {
     const current = byTopic.get(question.topicId) ?? {
       attempts: 0,
       correctAttempts: 0,
+      incorrectAttempts: 0,
       hintsUsed: 0,
       llmAttempts: 0,
       stepsRevealed: 0,
@@ -268,6 +269,8 @@ function getDemoProfessorPracticeAnalytics() {
 
     current.attempts += question.attempts;
     current.correctAttempts += question.correctAttempts;
+    current.incorrectAttempts =
+      (current.incorrectAttempts ?? 0) + question.incorrectAttempts;
     current.hintsUsed += question.hintsUsed;
     current.llmAttempts += question.llmAttempts;
     current.stepsRevealed += question.stepsRevealed;

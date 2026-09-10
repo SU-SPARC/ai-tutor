@@ -40,6 +40,23 @@ npm run prepare:syllabus-questions -- --check
 These candidates must remain `needs_review` and `generated_unverified`, so they
 cannot appear in student practice until professor approval.
 
+`remediated-syllabus-review-candidates.json` holds content remediation batch 1
+(2026-09-10): 22 `-v2` replacements for the strongest representatives of the
+first two syllabus topics. Each keeps its original's prompt (two clarified
+wordings), accepted answers, numeric value, and tolerance, and adds three
+question-specific hints, misconceptions with computed wrong-value match terms,
+a typed answer spec, and review notes that name the suggested publish or
+Reserve disposition and any difficulty relabel. `reviewPriority` is
+intentionally not preset: marking a draft as priority is the professor's own
+explicit review action, so every v2 imports at the default `normal` priority.
+The originals stay untouched because the importer never updates an existing
+ID. Rebuild and validate with:
+
+```bash
+npm run prepare:remediated-syllabus-questions
+npm run prepare:remediated-syllabus-questions -- --check
+```
+
 `next-syllabus-review-candidates.json` preserves the 60-question batch for the
 first three topics after the initial syllabus topics.
 `following-syllabus-review-candidates.json` contains the separate 60-question

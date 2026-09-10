@@ -1,24 +1,25 @@
-import { createHash } from "node:crypto"
-import { readFile, realpath } from "node:fs/promises"
-import path from "node:path"
+import { validateAnswerSpec } from "../../src/lib/tutor/answer/spec.ts";
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
+import path from "node:path";
 
-export const CONTENT_IMPORT_ADVISORY_LOCK_ID = 7_241_903_194
+export const CONTENT_IMPORT_ADVISORY_LOCK_ID = 7_241_903_194;
 
-const SHA256_PATTERN = /^[0-9a-f]{64}$/
-const GIT_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
-const ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,127}$/
-const RELEASE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/
-const DIFFICULTIES = new Set(["foundational", "intermediate", "challenge"])
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const GIT_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,127}$/;
+const RELEASE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+const DIFFICULTIES = new Set(["foundational", "intermediate", "challenge"]);
 const ORIGINS = new Set([
   "professor_original",
   "generated_original",
   "pattern_derived_original",
-])
-const TARGETS = new Set(["test", "staging", "production"])
+]);
+const TARGETS = new Set(["test", "staging", "production"]);
 const PRIVATE_TEXT_PATTERN =
-  /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only/i
-const UNSAFE_SIGNER_PATTERN = /^(?:professor|system:schema-migration)$/i
-const PRODUCTION_SOURCE_PREFIX = "data/production/approved/"
+  /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only/i;
+const UNSAFE_SIGNER_PATTERN = /^(?:professor|system:schema-migration)$/i;
+const PRODUCTION_SOURCE_PREFIX = "data/production/approved/";
 const OPERATIONAL_TABLES = [
   "tutor_sessions",
   "attempts",
@@ -29,7 +30,7 @@ const OPERATIONAL_TABLES = [
   "retrieval_chunks",
   "audit_events",
   "feedback_reports",
-]
+];
 
 const ROOT_KEYS = [
   "schemaVersion",
@@ -44,7 +45,7 @@ const ROOT_KEYS = [
   "topics",
   "patterns",
   "questions",
-]
+];
 
 export async function loadApprovedContentManifest(
   manifestPath,
@@ -53,27 +54,27 @@ export async function loadApprovedContentManifest(
   if (!repositoryRoot) {
     throw new ContentImportValidationError([
       issue("repository_root_required", "repositoryRoot is required."),
-    ])
+    ]);
   }
 
-  let raw
+  let raw;
   try {
-    raw = JSON.parse(await readFile(manifestPath, "utf8"))
+    raw = JSON.parse(await readFile(manifestPath, "utf8"));
   } catch (error) {
     throw new ContentImportValidationError([
       issue(
         "manifest_read_failed",
         `Manifest could not be read as JSON: ${errorMessage(error)}.`,
       ),
-    ])
+    ]);
   }
 
-  const validated = validateApprovedContentManifest(raw, { now })
+  const validated = validateApprovedContentManifest(raw, { now });
   if (canonicalTopics) {
-    validateCanonicalTopicProjection(validated.manifest, canonicalTopics)
+    validateCanonicalTopicProjection(validated.manifest, canonicalTopics);
   }
-  await verifySourceFiles(validated.manifest.sourceFiles, repositoryRoot)
-  return { ...validated, sourceFilesVerified: true }
+  await verifySourceFiles(validated.manifest.sourceFiles, repositoryRoot);
+  return { ...validated, sourceFilesVerified: true };
 }
 
 export function validateCanonicalTopicProjection(manifest, canonicalTopics) {
@@ -85,14 +86,14 @@ export function validateCanonicalTopicProjection(manifest, canonicalTopics) {
     sortOrder: topic.order,
     title: topic.title,
     weekNumber: topic.weekNumber,
-  }))
+  }));
   if (canonicalJson(manifest.topics) !== canonicalJson(projected)) {
     throw new ContentImportValidationError([
       issue(
         "canonical_syllabus_mismatch",
         "Manifest topics must exactly match data/canonical/syllabus-topics.json; update the canonical syllabus first or report the change for human review.",
       ),
-    ])
+    ]);
   }
 }
 
@@ -100,31 +101,31 @@ export function validateApprovedContentManifest(
   raw,
   { now = new Date() } = {},
 ) {
-  const issues = []
-  const manifest = normalizeManifest(raw, issues)
+  const issues = [];
+  const manifest = normalizeManifest(raw, issues);
 
-  validateManifestRelationships(manifest, issues)
-  validateDeclaredContentHashes(manifest, issues)
+  validateManifestRelationships(manifest, issues);
+  validateDeclaredContentHashes(manifest, issues);
 
-  const approvalHash = computeManifestApprovalHash(manifest)
+  const approvalHash = computeManifestApprovalHash(manifest);
   if (manifest.approval.contentSha256 !== approvalHash) {
     issues.push(
       issue(
         "approval_hash_mismatch",
         `approval.contentSha256 does not match the canonical approved content hash ${approvalHash}.`,
       ),
-    )
+    );
   }
 
-  const signedAt = Date.parse(manifest.approval.signedAt)
+  const signedAt = Date.parse(manifest.approval.signedAt);
   if (Number.isFinite(signedAt) && signedAt > now.getTime()) {
     issues.push(
       issue("future_approval", "approval.signedAt must not be in the future."),
-    )
+    );
   }
 
   if (issues.length > 0) {
-    throw new ContentImportValidationError(issues)
+    throw new ContentImportValidationError(issues);
   }
 
   return {
@@ -132,10 +133,10 @@ export function validateApprovedContentManifest(
     manifest,
     manifestHash: approvalHash,
     sourceFilesVerified: false,
-  }
+  };
 }
 export function computeManifestApprovalHash(manifest) {
-  const approval = isPlainObject(manifest?.approval) ? manifest.approval : {}
+  const approval = isPlainObject(manifest?.approval) ? manifest.approval : {};
   return sha256(
     canonicalJson({
       ...manifest,
@@ -146,7 +147,7 @@ export function computeManifestApprovalHash(manifest) {
         status: approval.status,
       },
     }),
-  )
+  );
 }
 
 export function computeContentHashes(manifest) {
@@ -169,7 +170,7 @@ export function computeContentHashes(manifest) {
         sha256(canonicalJson(topic)),
       ]),
     ),
-  }
+  };
 }
 
 export function canonicalJson(value) {
@@ -178,32 +179,34 @@ export function canonicalJson(value) {
     typeof value === "boolean" ||
     typeof value === "string"
   ) {
-    return JSON.stringify(value)
+    return JSON.stringify(value);
   }
 
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new TypeError("Canonical JSON does not support non-finite numbers.")
+      throw new TypeError(
+        "Canonical JSON does not support non-finite numbers.",
+      );
     }
-    return JSON.stringify(Object.is(value, -0) ? 0 : value)
+    return JSON.stringify(Object.is(value, -0) ? 0 : value);
   }
 
   if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`
+    return `[${value.map(canonicalJson).join(",")}]`;
   }
 
   if (isPlainObject(value)) {
     return `{${Object.keys(value)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-      .join(",")}}`
+      .join(",")}}`;
   }
 
-  throw new TypeError("Canonical JSON supports only JSON values.")
+  throw new TypeError("Canonical JSON supports only JSON values.");
 }
 
 export function sha256(value) {
-  return createHash("sha256").update(value).digest("hex")
+  return createHash("sha256").update(value).digest("hex");
 }
 
 export async function importApprovedContent({
@@ -226,83 +229,83 @@ export async function importApprovedContent({
     dryRun,
     target,
     validatedManifest,
-  })
+  });
 
   await client.query(
     dryRun
       ? "begin isolation level repeatable read read only"
       : "begin isolation level serializable",
-  )
+  );
 
   try {
     await client.query("select pg_advisory_xact_lock($1::bigint)", [
       CONTENT_IMPORT_ADVISORY_LOCK_ID,
-    ])
+    ]);
     await client.query(
       `set local lock_timeout = '${validateTimeout(lockTimeoutMs)}ms'`,
-    )
+    );
     await client.query(
       `set local statement_timeout = '${validateTimeout(statementTimeoutMs)}ms'`,
-    )
+    );
 
-    const plan = await buildImportPlan(client, validatedManifest, target)
+    const plan = await buildImportPlan(client, validatedManifest, target);
     if (plan.issues.length > 0) {
-      throw new ContentImportConflictError(plan.issues, plan.report)
+      throw new ContentImportConflictError(plan.issues, plan.report);
     }
 
     if (dryRun) {
-      await client.query("rollback")
+      await client.query("rollback");
       return {
         ...plan.report,
         committed: false,
         mode: "dry-run",
         status:
           plan.report.summary.importRecords.noOp === 1 ? "no-op" : "ready",
-      }
+      };
     }
 
     await client.query("select set_config('app.current_user_id', $1, true)", [
       validatedManifest.manifest.approval.signedByUserId,
-    ])
+    ]);
     await applyImportPlan(client, validatedManifest, plan, {
       actor,
       changeTicket,
       target,
-    })
+    });
 
     const verification = await buildImportPlan(
       client,
       validatedManifest,
       target,
-    )
+    );
     if (verification.issues.length > 0) {
       throw new ContentImportConflictError(
         verification.issues,
         verification.report,
-      )
+      );
     }
 
-    await client.query("commit")
+    await client.query("commit");
     return {
       ...plan.report,
       committed: true,
       mode: "apply",
       status:
         plan.report.summary.importRecords.noOp === 1 ? "no-op" : "applied",
-    }
+    };
   } catch (error) {
-    await rollbackQuietly(client)
-    throw error
+    await rollbackQuietly(client);
+    throw error;
   }
 }
 
 async function buildImportPlan(client, validatedManifest, target) {
-  const { manifest, manifestHash } = validatedManifest
-  const issues = []
-  await assertImportSchema(client, issues)
+  const { manifest, manifestHash } = validatedManifest;
+  const issues = [];
+  await assertImportSchema(client, issues);
 
   if (issues.length > 0) {
-    return rejectedPlan(manifest, manifestHash, issues, target)
+    return rejectedPlan(manifest, manifestHash, issues, target);
   }
 
   const [signerResult, operationalCounts, databaseState, importsResult] =
@@ -341,9 +344,9 @@ async function buildImportPlan(client, validatedManifest, target) {
         from approved_content_imports
         order by release_id
       `),
-    ])
+    ]);
 
-  const signer = signerResult.rows[0]
+  const signer = signerResult.rows[0];
   if (
     !signer ||
     signer.status !== "active" ||
@@ -355,7 +358,7 @@ async function buildImportPlan(client, validatedManifest, target) {
         "invalid_professor_signer",
         "The manifest signer must be an active institutional human with an active professor role.",
       ),
-    )
+    );
   }
 
   if (target === "production") {
@@ -366,7 +369,7 @@ async function buildImportPlan(client, validatedManifest, target) {
             "production_not_empty",
             `Production bootstrap requires ${table} to contain zero rows; found ${count}.`,
           ),
-        )
+        );
       }
     }
 
@@ -374,46 +377,46 @@ async function buildImportPlan(client, validatedManifest, target) {
       select count(*)::int as count
       from user_roles
       where role_id = 'student' and revoked_at is null
-    `)
+    `);
     if (Number(studentRoles.rows[0]?.count ?? 0) !== 0) {
       issues.push(
         issue(
           "production_student_identity_present",
           "Production bootstrap requires zero active student role assignments.",
         ),
-      )
+      );
     }
   }
 
-  const manifestTopicIds = new Set(manifest.topics.map((topic) => topic.id))
+  const manifestTopicIds = new Set(manifest.topics.map((topic) => topic.id));
   const manifestPatternIds = new Set(
     manifest.patterns.map((pattern) => pattern.id),
-  )
+  );
   const manifestQuestionIds = new Set(
     manifest.questions.map((question) => question.id),
-  )
+  );
 
   rejectUnexpectedTargetIds(
     databaseState.topics,
     manifestTopicIds,
     "topic",
     issues,
-  )
+  );
   rejectUnexpectedTargetIds(
     databaseState.patterns,
     manifestPatternIds,
     "pattern",
     issues,
-  )
+  );
   rejectUnexpectedTargetIds(
     databaseState.questions,
     manifestQuestionIds,
     "question",
     issues,
-  )
+  );
 
-  const summary = emptySummary()
-  const inserts = { patterns: [], questions: [], topics: [] }
+  const summary = emptySummary();
+  const inserts = { patterns: [], questions: [], topics: [] };
 
   planEntities({
     approval: manifest.approval,
@@ -423,7 +426,7 @@ async function buildImportPlan(client, validatedManifest, target) {
     kind: "topics",
     manifestItems: manifest.topics,
     summary: summary.topics,
-  })
+  });
   planEntities({
     approval: manifest.approval,
     existing: databaseState.patterns,
@@ -432,7 +435,7 @@ async function buildImportPlan(client, validatedManifest, target) {
     kind: "patterns",
     manifestItems: manifest.patterns,
     summary: summary.patterns,
-  })
+  });
   planEntities({
     approval: manifest.approval,
     existing: databaseState.questions,
@@ -441,16 +444,16 @@ async function buildImportPlan(client, validatedManifest, target) {
     kind: "questions",
     manifestItems: manifest.questions,
     summary: summary.questions,
-  })
+  });
 
   for (const question of manifest.questions) {
     const destination = databaseState.questions.has(question.id)
       ? "noOp"
-      : "inserted"
-    summary.hints[destination] += question.hints.length
-    summary.solutionSteps[destination] += question.solutionSteps.length
-    summary.misconceptions[destination] += question.misconceptions.length
-    summary.approvals[destination] += 1
+      : "inserted";
+    summary.hints[destination] += question.hints.length;
+    summary.solutionSteps[destination] += question.solutionSteps.length;
+    summary.misconceptions[destination] += question.misconceptions.length;
+    summary.approvals[destination] += 1;
   }
 
   const imports = importsResult.rows.map((row) => ({
@@ -462,11 +465,11 @@ async function buildImportPlan(client, validatedManifest, target) {
     sourceGitSha: String(row.source_git_sha),
     summary: jsonObject(row.summary_json),
     target: String(row.target),
-  }))
+  }));
   const sameRelease = imports.find(
     (entry) => entry.releaseId === manifest.releaseId,
-  )
-  const sameHash = imports.find((entry) => entry.manifestHash === manifestHash)
+  );
+  const sameHash = imports.find((entry) => entry.manifestHash === manifestHash);
 
   if (sameRelease && sameRelease.manifestHash !== manifestHash) {
     issues.push(
@@ -474,7 +477,7 @@ async function buildImportPlan(client, validatedManifest, target) {
         "release_id_conflict",
         `Release ${manifest.releaseId} is already recorded with a different manifest hash.`,
       ),
-    )
+    );
   } else if (
     sameRelease &&
     (sameRelease.changeTicket !== manifest.approval.changeTicket ||
@@ -490,18 +493,18 @@ async function buildImportPlan(client, validatedManifest, target) {
         "import_ledger_conflict",
         `Release ${manifest.releaseId} has inconsistent immutable import evidence.`,
       ),
-    )
+    );
   } else if (sameHash && sameHash.releaseId !== manifest.releaseId) {
     issues.push(
       issue(
         "manifest_hash_reused",
         `Manifest hash is already recorded under release ${sameHash.releaseId}.`,
       ),
-    )
+    );
   } else if (sameRelease) {
-    summary.importRecords.noOp = 1
+    summary.importRecords.noOp = 1;
   } else {
-    summary.importRecords.inserted = 1
+    summary.importRecords.inserted = 1;
   }
 
   return {
@@ -519,7 +522,7 @@ async function buildImportPlan(client, validatedManifest, target) {
       target,
       validations: validationResults(issues),
     },
-  }
+  };
 }
 
 async function applyImportPlan(
@@ -528,9 +531,9 @@ async function applyImportPlan(
   plan,
   { actor, changeTicket, target },
 ) {
-  const { manifest, manifestHash } = validatedManifest
-  const signedAt = manifest.approval.signedAt
-  const signer = manifest.approval.signedByUserId
+  const { manifest, manifestHash } = validatedManifest;
+  const signedAt = manifest.approval.signedAt;
+  const signer = manifest.approval.signedByUserId;
 
   for (const topic of plan.inserts.topics) {
     await client.query(
@@ -555,7 +558,7 @@ async function applyImportPlan(
         topic.moduleRef,
         topic.isActive,
       ],
-    )
+    );
   }
 
   for (const pattern of plan.inserts.patterns) {
@@ -586,21 +589,21 @@ async function applyImportPlan(
         signer,
         signedAt,
       ],
-    )
+    );
   }
 
   for (const question of plan.inserts.questions) {
-    const sourceType = sourceTypeForOrigin(question.origin)
+    const sourceType = sourceTypeForOrigin(question.origin);
     const initialTrustLevel =
       question.origin === "professor_original"
         ? "professor_approved"
-        : "generated_unverified"
+        : "generated_unverified";
 
     await client.query(
       `select
          set_config('app.current_creation_method', 'imported', true),
          set_config('app.suppress_question_version', 'true', true)`,
-    )
+    );
 
     await client.query(
       `
@@ -644,14 +647,14 @@ async function applyImportPlan(
         question.originalityNote,
         signedAt,
       ],
-    )
+    );
 
     for (const hint of question.hints) {
       await client.query(
         `insert into hints (question_id, hint_order, body, created_at, updated_at)
          values ($1, $2, $3, $4, $4)`,
         [question.id, hint.order, hint.body, signedAt],
-      )
+      );
     }
 
     for (const step of question.solutionSteps) {
@@ -659,7 +662,7 @@ async function applyImportPlan(
         `insert into solution_steps (question_id, step_order, body, created_at, updated_at)
          values ($1, $2, $3, $4, $4)`,
         [question.id, step.order, step.body, signedAt],
-      )
+      );
     }
 
     for (const misconception of question.misconceptions) {
@@ -684,16 +687,31 @@ async function applyImportPlan(
           JSON.stringify(misconception.metadata),
           signedAt,
         ],
-      )
+      );
     }
 
     await client.query(
       "select set_config('app.suppress_question_version', 'false', true)",
-    )
-    await client.query("select app_record_question_version($1)", [question.id])
+    );
+    if (question.answer?.spec !== undefined) {
+      await client.query(
+        `
+        with snapshot as (
+          select app_question_snapshot($1) || jsonb_build_object('answer', jsonb_build_object('spec', $2::jsonb)) as content
+        )
+        insert into question_versions (question_id, version_number, snapshot_json, content_hash, created_by_user_id, creation_method, schema_version)
+        select $1, 1, content, md5(content::text), $3, 'imported', 2 from snapshot
+      `,
+        [question.id, JSON.stringify(question.answer.spec), signer],
+      );
+    } else {
+      await client.query("select app_record_question_version($1)", [
+        question.id,
+      ]);
+    }
     await client.query(
       "select set_config('app.suppress_question_version', 'true', true)",
-    )
+    );
 
     await client.query(
       `
@@ -706,11 +724,11 @@ async function applyImportPlan(
         where id = $1
       `,
       [question.id, signer, signedAt],
-    )
+    );
 
     await client.query(
       "select set_config('app.suppress_question_version', 'false', true)",
-    )
+    );
   }
 
   if (plan.report.summary.importRecords.inserted === 1) {
@@ -740,7 +758,7 @@ async function applyImportPlan(
         changeTicket,
         JSON.stringify({ expectedCounts: manifest.expectedCounts }),
       ],
-    )
+    );
   }
 }
 
@@ -787,6 +805,7 @@ async function readContentState(client) {
           reviewed_by_user_id,
           reviewed_at,
           archived_at
+          , (select qv.snapshot_json #> '{answer,spec}' from question_versions qv where qv.question_id = questions.id order by qv.version_number desc limit 1) as answer_spec_json
         from questions
         order by id
       `),
@@ -823,12 +842,15 @@ async function readContentState(client) {
         ) latest on true
         order by qah.question_id, qah.id
       `),
-    ])
+    ]);
 
-  const hintsByQuestion = groupRows(hints.rows, "question_id")
-  const stepsByQuestion = groupRows(steps.rows, "question_id")
-  const misconceptionsByQuestion = groupRows(misconceptions.rows, "question_id")
-  const approvalsByQuestion = groupRows(approvals.rows, "question_id")
+  const hintsByQuestion = groupRows(hints.rows, "question_id");
+  const stepsByQuestion = groupRows(steps.rows, "question_id");
+  const misconceptionsByQuestion = groupRows(
+    misconceptions.rows,
+    "question_id",
+  );
+  const approvalsByQuestion = groupRows(approvals.rows, "question_id");
 
   return {
     patterns: new Map(
@@ -878,20 +900,20 @@ async function readContentState(client) {
     topics: new Map(
       topics.rows.map((row) => [String(row.id), { item: topicFromRow(row) }]),
     ),
-  }
+  };
 }
 
 async function readOperationalCounts(client) {
   const selections = OPERATIONAL_TABLES.map(
     (table) => `(select count(*)::int from ${table}) as ${table}`,
-  ).join(",\n")
-  const result = await client.query(`select ${selections}`)
+  ).join(",\n");
+  const result = await client.query(`select ${selections}`);
   return Object.fromEntries(
     OPERATIONAL_TABLES.map((table) => [
       table,
       Number(result.rows[0]?.[table] ?? 0),
     ]),
-  )
+  );
 }
 
 function planEntities({
@@ -904,16 +926,16 @@ function planEntities({
   summary,
 }) {
   for (const item of manifestItems) {
-    const found = existing.get(item.id)
+    const found = existing.get(item.id);
     if (!found) {
-      inserts.push(item)
-      summary.inserted += 1
-      continue
+      inserts.push(item);
+      summary.inserted += 1;
+      continue;
     }
 
-    const expectedHash = sha256(canonicalJson(item))
-    const actualHash = sha256(canonicalJson(found.item))
-    const policyIssues = policyMismatches(kind, found.policy, approval)
+    const expectedHash = sha256(canonicalJson(item));
+    const actualHash = sha256(canonicalJson(found.item));
+    const policyIssues = policyMismatches(kind, found.policy, approval);
 
     if (expectedHash !== actualHash || policyIssues.length > 0) {
       issues.push(
@@ -921,11 +943,11 @@ function planEntities({
           "stable_id_conflict",
           `${kind} ID ${item.id} already exists with different content or approval state.`,
         ),
-      )
-      continue
+      );
+      continue;
     }
 
-    summary.noOp += 1
+    summary.noOp += 1;
   }
 }
 
@@ -934,11 +956,11 @@ function policyMismatches(kind, policy, approval) {
     return policy.reviewedByUserId === approval.signedByUserId &&
       policy.reviewedAt === approval.signedAt
       ? []
-      : ["approval"]
+      : ["approval"];
   }
 
   if (kind !== "questions") {
-    return []
+    return [];
   }
 
   return policy.visibility === "public" &&
@@ -954,7 +976,7 @@ function policyMismatches(kind, policy, approval) {
     policy.approvals[0].isLatestVersion === true &&
     policy.archivedAt === null
     ? []
-    : ["publication"]
+    : ["publication"];
 }
 
 function rejectUnexpectedTargetIds(existing, manifestIds, kind, issues) {
@@ -965,7 +987,7 @@ function rejectUnexpectedTargetIds(existing, manifestIds, kind, issues) {
           "unexpected_target_content",
           `Target contains ${kind} ID ${id}, which is absent from the complete approved manifest.`,
         ),
-      )
+      );
     }
   }
 }
@@ -976,57 +998,57 @@ async function assertImportSchema(client, issues) {
       to_regclass('public.question_patterns')::text as patterns,
       to_regclass('public.approved_content_imports')::text as imports,
       to_regclass('public.question_approval_history')::text as approvals
-  `)
-  const row = result.rows[0] ?? {}
+  `);
+  const row = result.rows[0] ?? {};
   if (!row.patterns || !row.imports || !row.approvals) {
     issues.push(
       issue(
         "import_schema_missing",
         "Approved-content import schema is missing; apply all database migrations first.",
       ),
-    )
+    );
   }
 }
 
 function normalizeManifest(raw, issues) {
-  const root = objectValue(raw, "manifest", ROOT_KEYS, issues)
+  const root = objectValue(raw, "manifest", ROOT_KEYS, issues);
   const sourceFiles = arrayValue(root.sourceFiles, "sourceFiles", issues).map(
     (entry, index) => {
-      const label = `sourceFiles[${index}]`
-      const value = objectValue(entry, label, ["path", "sha256"], issues)
+      const label = `sourceFiles[${index}]`;
+      const value = objectValue(entry, label, ["path", "sha256"], issues);
       return {
         path: stringValue(value.path, `${label}.path`, issues),
         sha256: hashValue(value.sha256, `${label}.sha256`, issues),
-      }
+      };
     },
-  )
+  );
   const approvalValue = objectValue(
     root.approval,
     "approval",
     ["status", "signedByUserId", "signedAt", "changeTicket", "contentSha256"],
     issues,
-  )
+  );
   const expectedOrder = arrayValue(
     root.expectedTopicOrder,
     "expectedTopicOrder",
     issues,
   ).map((entry, index) => {
-    const label = `expectedTopicOrder[${index}]`
-    const value = objectValue(entry, label, ["id", "sortOrder"], issues)
+    const label = `expectedTopicOrder[${index}]`;
+    const value = objectValue(entry, label, ["id", "sortOrder"], issues);
     return {
       id: idValue(value.id, `${label}.id`, issues),
       sortOrder: positiveInteger(value.sortOrder, `${label}.sortOrder`, issues),
-    }
-  })
+    };
+  });
   const topics = arrayValue(root.topics, "topics", issues).map((entry, index) =>
     normalizeTopic(entry, `topics[${index}]`, issues),
-  )
+  );
   const patterns = arrayValue(root.patterns, "patterns", issues).map(
     (entry, index) => normalizePattern(entry, `patterns[${index}]`, issues),
-  )
+  );
   const questions = arrayValue(root.questions, "questions", issues).map(
     (entry, index) => normalizeQuestion(entry, `questions[${index}]`, issues),
-  )
+  );
 
   return {
     approval: {
@@ -1068,7 +1090,7 @@ function normalizeManifest(raw, issues) {
     sourceFiles,
     sourceGitSha: gitShaValue(root.sourceGitSha, "sourceGitSha", issues),
     topics,
-  }
+  };
 }
 
 function normalizeTopic(raw, label, issues) {
@@ -1085,7 +1107,7 @@ function normalizeTopic(raw, label, issues) {
       "isActive",
     ],
     issues,
-  )
+  );
   return {
     description: stringValue(value.description, `${label}.description`, issues),
     id: idValue(value.id, `${label}.id`, issues),
@@ -1098,7 +1120,7 @@ function normalizeTopic(raw, label, issues) {
       `${label}.weekNumber`,
       issues,
     ),
-  }
+  };
 }
 
 function normalizePattern(raw, label, issues) {
@@ -1115,7 +1137,7 @@ function normalizePattern(raw, label, issues) {
       "misconceptionTags",
     ],
     issues,
-  )
+  );
   return {
     conceptTags: stringArray(value.conceptTags, `${label}.conceptTags`, issues),
     description: stringValue(value.description, `${label}.description`, issues),
@@ -1133,7 +1155,7 @@ function normalizePattern(raw, label, issues) {
     ),
     title: stringValue(value.title, `${label}.title`, issues),
     topicId: idValue(value.topicId, `${label}.topicId`, issues),
-  }
+  };
 }
 
 function normalizeQuestion(raw, label, issues) {
@@ -1148,6 +1170,7 @@ function normalizeQuestion(raw, label, issues) {
       "title",
       "prompt",
       "difficulty",
+      "answer",
       "acceptedAnswers",
       "numericValue",
       "tolerance",
@@ -1158,8 +1181,19 @@ function normalizeQuestion(raw, label, issues) {
       "misconceptions",
     ],
     issues,
-  )
+    ["answer"],
+  );
   return {
+    ...(value.answer !== undefined
+      ? {
+          answer: objectValue(
+            value.answer,
+            `${label}.answer`,
+            ["spec"],
+            issues,
+          ),
+        }
+      : {}),
     acceptedAnswers: stringArray(
       value.acceptedAnswers,
       `${label}.acceptedAnswers`,
@@ -1218,18 +1252,18 @@ function normalizeQuestion(raw, label, issues) {
       issues,
     ),
     topicId: idValue(value.topicId, `${label}.topicId`, issues),
-  }
+  };
 }
 
 function normalizeOrderedBodies(raw, label, issues) {
   return arrayValue(raw, label, issues).map((entry, index) => {
-    const itemLabel = `${label}[${index}]`
-    const value = objectValue(entry, itemLabel, ["order", "body"], issues)
+    const itemLabel = `${label}[${index}]`;
+    const value = objectValue(entry, itemLabel, ["order", "body"], issues);
     return {
       body: stringValue(value.body, `${itemLabel}.body`, issues),
       order: positiveInteger(value.order, `${itemLabel}.order`, issues),
-    }
-  })
+    };
+  });
 }
 
 function normalizeMisconception(raw, label, issues) {
@@ -1238,13 +1272,13 @@ function normalizeMisconception(raw, label, issues) {
     label,
     ["id", "feedback", "matchTerms", "metadata"],
     issues,
-  )
+  );
   const metadata = objectValue(
     value.metadata,
     `${label}.metadata`,
     ["conceptTags"],
     issues,
-  )
+  );
   return {
     feedback: stringValue(value.feedback, `${label}.feedback`, issues),
     id: idValue(value.id, `${label}.id`, issues),
@@ -1256,7 +1290,7 @@ function normalizeMisconception(raw, label, issues) {
         issues,
       ),
     },
-  }
+  };
 }
 
 function normalizeExpectedCounts(raw, issues) {
@@ -1267,14 +1301,14 @@ function normalizeExpectedCounts(raw, issues) {
     "hints",
     "solutionSteps",
     "misconceptions",
-  ]
-  const value = objectValue(raw, "expectedCounts", keys, issues)
+  ];
+  const value = objectValue(raw, "expectedCounts", keys, issues);
   return Object.fromEntries(
     keys.map((key) => [
       key,
       nonnegativeInteger(value[key], `expectedCounts.${key}`, issues),
     ]),
-  )
+  );
 }
 
 function normalizeContentHashes(raw, issues) {
@@ -1283,19 +1317,19 @@ function normalizeContentHashes(raw, issues) {
     "contentHashes",
     ["topics", "patterns", "questions"],
     issues,
-  )
+  );
   return {
     patterns: hashMap(value.patterns, "contentHashes.patterns", issues),
     questions: hashMap(value.questions, "contentHashes.questions", issues),
     topics: hashMap(value.topics, "contentHashes.topics", issues),
-  }
+  };
 }
 
 function validateManifestRelationships(manifest, issues) {
   if (manifest.schemaVersion !== 1) {
     issues.push(
       issue("unsupported_schema_version", "schemaVersion must equal 1."),
-    )
+    );
   }
   if (manifest.approval.status !== "professor_approved") {
     issues.push(
@@ -1303,7 +1337,7 @@ function validateManifestRelationships(manifest, issues) {
         "manifest_not_approved",
         "approval.status must equal professor_approved.",
       ),
-    )
+    );
   }
   if (UNSAFE_SIGNER_PATTERN.test(manifest.approval.signedByUserId)) {
     issues.push(
@@ -1311,7 +1345,7 @@ function validateManifestRelationships(manifest, issues) {
         "generic_signer_forbidden",
         "approval.signedByUserId must be an immutable institutional user ID, not a role label or migration actor.",
       ),
-    )
+    );
   }
   if (manifest.sourceFiles.length === 0) {
     issues.push(
@@ -1319,7 +1353,7 @@ function validateManifestRelationships(manifest, issues) {
         "source_files_required",
         "At least one approved source-file hash is required.",
       ),
-    )
+    );
   }
   if (manifest.topics.length === 0 || manifest.questions.length === 0) {
     issues.push(
@@ -1327,54 +1361,54 @@ function validateManifestRelationships(manifest, issues) {
         "content_required",
         "The approved manifest must contain at least one topic and one question.",
       ),
-    )
+    );
   }
 
   rejectDuplicates(
     manifest.sourceFiles.map((entry) => entry.path),
     "source file path",
     issues,
-  )
+  );
   rejectDuplicates(
     manifest.topics.map((entry) => entry.id),
     "topic ID",
     issues,
-  )
+  );
   rejectDuplicates(
     manifest.topics.map((entry) => entry.sortOrder),
     "topic sort order",
     issues,
-  )
+  );
   rejectDuplicates(
     manifest.patterns.map((entry) => entry.id),
     "pattern ID",
     issues,
-  )
+  );
   rejectDuplicates(
     manifest.questions.map((entry) => entry.id),
     "question ID",
     issues,
-  )
+  );
   rejectDuplicates(
     manifest.approvedGeneratedQuestionIds,
     "approved generated question ID",
     issues,
-  )
+  );
 
   const allStableIds = [
     ...manifest.topics.map((entry) => entry.id),
     ...manifest.patterns.map((entry) => entry.id),
     ...manifest.questions.map((entry) => entry.id),
-  ]
+  ];
   rejectDuplicates(
     allStableIds,
     "stable content ID across entity types",
     issues,
-  )
+  );
 
   const sortedTopics = [...manifest.topics].sort(
     (left, right) => left.sortOrder - right.sortOrder,
-  )
+  );
   for (let index = 1; index < sortedTopics.length; index += 1) {
     if (sortedTopics[index].sortOrder <= sortedTopics[index - 1].sortOrder) {
       issues.push(
@@ -1382,8 +1416,8 @@ function validateManifestRelationships(manifest, issues) {
           "invalid_topic_order",
           "Topic sort order must be unique and strictly increasing; gaps are preserved.",
         ),
-      )
-      break
+      );
+      break;
     }
   }
   if (
@@ -1400,15 +1434,15 @@ function validateManifestRelationships(manifest, issues) {
         "topic_order_mismatch",
         "expectedTopicOrder must exactly match topics sorted by sortOrder.",
       ),
-    )
+    );
   }
 
-  const topicIds = new Set(manifest.topics.map((topic) => topic.id))
+  const topicIds = new Set(manifest.topics.map((topic) => topic.id));
   const patterns = new Map(
     manifest.patterns.map((pattern) => [pattern.id, pattern]),
-  )
-  const referencedPatterns = new Set()
-  const generatedIds = []
+  );
+  const referencedPatterns = new Set();
+  const generatedIds = [];
 
   for (const pattern of manifest.patterns) {
     if (!topicIds.has(pattern.topicId)) {
@@ -1417,7 +1451,7 @@ function validateManifestRelationships(manifest, issues) {
           "unknown_pattern_topic",
           `Pattern ${pattern.id} references unknown topic ${pattern.topicId}.`,
         ),
-      )
+      );
     }
   }
 
@@ -1428,60 +1462,68 @@ function validateManifestRelationships(manifest, issues) {
           "unknown_question_topic",
           `Question ${question.id} references unknown topic ${question.topicId}.`,
         ),
-      )
+      );
     }
-    validateOrderedChildren(question.id, "hint", question.hints, issues)
+    validateOrderedChildren(question.id, "hint", question.hints, issues);
     validateOrderedChildren(
       question.id,
       "solution step",
       question.solutionSteps,
       issues,
-    )
+    );
     rejectDuplicates(
       question.misconceptions.map((entry) => entry.id),
       `misconception ID for question ${question.id}`,
       issues,
-    )
+    );
 
     if (question.origin !== "professor_original") {
-      generatedIds.push(question.id)
+      generatedIds.push(question.id);
       if (!question.patternId) {
         issues.push(
           issue(
             "generated_pattern_required",
             `Generated question ${question.id} must reference approved pattern metadata.`,
           ),
-        )
+        );
       }
     }
 
     if (question.patternId) {
-      const pattern = patterns.get(question.patternId)
-      referencedPatterns.add(question.patternId)
+      const pattern = patterns.get(question.patternId);
+      referencedPatterns.add(question.patternId);
       if (!pattern) {
         issues.push(
           issue(
             "unknown_question_pattern",
             `Question ${question.id} references unknown pattern ${question.patternId}.`,
           ),
-        )
+        );
       } else if (pattern.topicId !== question.topicId) {
         issues.push(
           issue(
             "pattern_topic_mismatch",
             `Question ${question.id} and pattern ${pattern.id} must reference the same topic.`,
           ),
-        )
+        );
       }
     }
 
+    if (question.answer !== undefined) {
+      issues.push(
+        ...validateAnswerSpec(
+          question.answer.spec,
+          question.acceptedAnswers,
+        ).map((failure) => issue(failure.code, failure.message)),
+      );
+    }
     if ((question.numericValue === null) !== (question.tolerance === null)) {
       issues.push(
         issue(
           "numeric_tolerance_pair",
           `Question ${question.id} must provide both numericValue and tolerance or neither.`,
         ),
-      )
+      );
     }
   }
 
@@ -1492,7 +1534,7 @@ function validateManifestRelationships(manifest, issues) {
           "unused_pattern_metadata",
           `Pattern ${pattern.id} is not required by any approved question.`,
         ),
-      )
+      );
     }
   }
 
@@ -1505,7 +1547,7 @@ function validateManifestRelationships(manifest, issues) {
         "generated_approval_allowlist_mismatch",
         "approvedGeneratedQuestionIds must exactly match generated questions in the manifest.",
       ),
-    )
+    );
   }
 
   const actualCounts = {
@@ -1524,14 +1566,14 @@ function validateManifestRelationships(manifest, issues) {
       0,
     ),
     topics: manifest.topics.length,
-  }
+  };
   if (canonicalJson(actualCounts) !== canonicalJson(manifest.expectedCounts)) {
     issues.push(
       issue(
         "expected_count_mismatch",
         "expectedCounts does not match the exact manifest content.",
       ),
-    )
+    );
   }
 
   if (PRIVATE_TEXT_PATTERN.test(canonicalJson(manifest))) {
@@ -1540,24 +1582,24 @@ function validateManifestRelationships(manifest, issues) {
         "private_source_signal",
         "Manifest contains a private-source, copied-text, retrieval, or embedding signal.",
       ),
-    )
+    );
   }
 }
 
 function validateDeclaredContentHashes(manifest, issues) {
-  const calculated = computeContentHashes(manifest)
+  const calculated = computeContentHashes(manifest);
   for (const kind of ["topics", "patterns", "questions"]) {
-    const declared = manifest.contentHashes[kind]
-    const expectedIds = Object.keys(calculated[kind]).sort()
-    const declaredIds = Object.keys(declared).sort()
+    const declared = manifest.contentHashes[kind];
+    const expectedIds = Object.keys(calculated[kind]).sort();
+    const declaredIds = Object.keys(declared).sort();
     if (canonicalJson(expectedIds) !== canonicalJson(declaredIds)) {
       issues.push(
         issue(
           "content_hash_id_mismatch",
           `contentHashes.${kind} must contain exactly the approved ${kind} IDs.`,
         ),
-      )
-      continue
+      );
+      continue;
     }
     for (const id of expectedIds) {
       if (declared[id] !== calculated[kind][id]) {
@@ -1566,27 +1608,27 @@ function validateDeclaredContentHashes(manifest, issues) {
             "content_hash_mismatch",
             `contentHashes.${kind}.${id} does not match canonical content.`,
           ),
-        )
+        );
       }
     }
   }
 }
 
 async function verifySourceFiles(sourceFiles, repositoryRoot) {
-  const issues = []
-  const approvedRoot = path.resolve(repositoryRoot, PRODUCTION_SOURCE_PREFIX)
-  let repositoryRootReal
-  let approvedRootReal
+  const issues = [];
+  const approvedRoot = path.resolve(repositoryRoot, PRODUCTION_SOURCE_PREFIX);
+  let repositoryRootReal;
+  let approvedRootReal;
   try {
-    repositoryRootReal = await realpath(repositoryRoot)
-    approvedRootReal = await realpath(approvedRoot)
+    repositoryRootReal = await realpath(repositoryRoot);
+    approvedRootReal = await realpath(approvedRoot);
   } catch {
     throw new ContentImportValidationError([
       issue(
         "approved_source_root_missing",
         `${PRODUCTION_SOURCE_PREFIX} must exist before a manifest can be imported.`,
       ),
-    ])
+    ]);
   }
 
   if (!isInside(approvedRootReal, repositoryRootReal)) {
@@ -1595,7 +1637,7 @@ async function verifySourceFiles(sourceFiles, repositoryRoot) {
         "unsafe_source_root",
         `${PRODUCTION_SOURCE_PREFIX} must resolve inside the repository.`,
       ),
-    ])
+    ]);
   }
 
   for (const source of sourceFiles) {
@@ -1609,30 +1651,30 @@ async function verifySourceFiles(sourceFiles, repositoryRoot) {
           "unsafe_source_path",
           `Approved source path ${source.path} must stay under ${PRODUCTION_SOURCE_PREFIX}.`,
         ),
-      )
-      continue
+      );
+      continue;
     }
 
-    const candidate = path.resolve(repositoryRoot, source.path)
+    const candidate = path.resolve(repositoryRoot, source.path);
     try {
-      const candidateReal = await realpath(candidate)
+      const candidateReal = await realpath(candidate);
       if (!isInside(candidateReal, approvedRootReal)) {
         issues.push(
           issue(
             "unsafe_source_path",
             `Approved source path ${source.path} escapes ${PRODUCTION_SOURCE_PREFIX}.`,
           ),
-        )
-        continue
+        );
+        continue;
       }
-      const actualHash = sha256(await readFile(candidateReal))
+      const actualHash = sha256(await readFile(candidateReal));
       if (actualHash !== source.sha256) {
         issues.push(
           issue(
             "source_file_hash_mismatch",
             `Approved source file ${source.path} does not match its declared SHA-256 hash.`,
           ),
-        )
+        );
       }
     } catch (error) {
       issues.push(
@@ -1640,12 +1682,12 @@ async function verifySourceFiles(sourceFiles, repositoryRoot) {
           "source_file_read_failed",
           `Approved source file ${source.path} could not be verified: ${errorMessage(error)}.`,
         ),
-      )
+      );
     }
   }
 
   if (issues.length > 0) {
-    throw new ContentImportValidationError(issues)
+    throw new ContentImportValidationError(issues);
   }
 }
 
@@ -1661,18 +1703,18 @@ function validateExecution({
   if (!validatedManifest?.manifest || !validatedManifest?.manifestHash) {
     throw new ContentImportValidationError([
       issue("validated_manifest_required", "A validated manifest is required."),
-    ])
+    ]);
   }
-  requireNonblank(actor, "CONTENT_IMPORT_ACTOR")
-  requireNonblank(changeTicket, "CONTENT_IMPORT_CHANGE_TICKET")
-  requireNonblank(sourceGitSha, "CONTENT_IMPORT_SOURCE_GIT_SHA")
+  requireNonblank(actor, "CONTENT_IMPORT_ACTOR");
+  requireNonblank(changeTicket, "CONTENT_IMPORT_CHANGE_TICKET");
+  requireNonblank(sourceGitSha, "CONTENT_IMPORT_SOURCE_GIT_SHA");
   if (!TARGETS.has(target)) {
     throw new ContentImportValidationError([
       issue(
         "invalid_target",
         "Import target must be test, staging, or production.",
       ),
-    ])
+    ]);
   }
   if (target !== "test" && validatedManifest.sourceFilesVerified !== true) {
     throw new ContentImportValidationError([
@@ -1680,7 +1722,7 @@ function validateExecution({
         "source_file_verification_required",
         "Staging and Production require a manifest loaded with verified approved source files.",
       ),
-    ])
+    ]);
   }
   if (changeTicket !== validatedManifest.manifest.approval.changeTicket) {
     throw new ContentImportValidationError([
@@ -1688,7 +1730,7 @@ function validateExecution({
         "change_ticket_mismatch",
         "CONTENT_IMPORT_CHANGE_TICKET must match the professor-approved manifest.",
       ),
-    ])
+    ]);
   }
   if (sourceGitSha !== validatedManifest.manifest.sourceGitSha) {
     throw new ContentImportValidationError([
@@ -1696,7 +1738,7 @@ function validateExecution({
         "deployment_sha_mismatch",
         "CONTENT_IMPORT_SOURCE_GIT_SHA must match manifest.sourceGitSha.",
       ),
-    ])
+    ]);
   }
   if (target === "production" && !dryRun && !confirmProduction) {
     throw new ContentImportValidationError([
@@ -1704,7 +1746,7 @@ function validateExecution({
         "production_confirmation_required",
         "Production apply requires --confirm-production.",
       ),
-    ])
+    ]);
   }
 }
 
@@ -1717,7 +1759,7 @@ function topicFromRow(row) {
     sortOrder: Number(row.sort_order),
     title: String(row.title),
     weekNumber: Number(row.week_number),
-  }
+  };
 }
 
 function patternFromRow(row) {
@@ -1729,11 +1771,14 @@ function patternFromRow(row) {
     misconceptionTags: jsonArray(row.misconception_tags_json),
     title: String(row.title),
     topicId: String(row.topic_id),
-  }
+  };
 }
 
 function questionFromRows(row, hints, steps, misconceptions) {
   return {
+    ...(row.answer_spec_json != null
+      ? { answer: { spec: row.answer_spec_json } }
+      : {}),
     acceptedAnswers: jsonArray(row.accepted_answers_json),
     answerExplanation: String(row.answer_explanation),
     difficulty: String(row.difficulty),
@@ -1760,26 +1805,28 @@ function questionFromRows(row, hints, steps, misconceptions) {
     title: String(row.title),
     tolerance: row.tolerance === null ? null : Number(row.tolerance),
     topicId: String(row.topic_id),
-  }
+  };
 }
 
 function sourceTypeForOrigin(origin) {
-  return origin === "professor_original" ? "professor_provided" : origin
+  return origin === "professor_original" ? "professor_provided" : origin;
 }
 
 function originForSourceType(sourceType) {
-  return sourceType === "professor_provided" ? "professor_original" : sourceType
+  return sourceType === "professor_provided"
+    ? "professor_original"
+    : sourceType;
 }
 
 function groupRows(rows, key) {
-  const grouped = new Map()
+  const grouped = new Map();
   for (const row of rows) {
-    const value = String(row[key])
-    const items = grouped.get(value) ?? []
-    items.push(row)
-    grouped.set(value, items)
+    const value = String(row[key]);
+    const items = grouped.get(value) ?? [];
+    items.push(row);
+    grouped.set(value, items);
   }
-  return grouped
+  return grouped;
 }
 
 function emptySummary() {
@@ -1794,7 +1841,7 @@ function emptySummary() {
       "approvals",
       "importRecords",
     ].map((key) => [key, { inserted: 0, noOp: 0 }]),
-  )
+  );
 }
 
 function finalizeSummary(summary) {
@@ -1803,7 +1850,7 @@ function finalizeSummary(summary) {
       key,
       { ...counts, total: counts.inserted + counts.noOp },
     ]),
-  )
+  );
 }
 
 function rejectedPlan(manifest, manifestHash, issues, target) {
@@ -1822,7 +1869,7 @@ function rejectedPlan(manifest, manifestHash, issues, target) {
       target,
       validations: validationResults(issues),
     },
-  }
+  };
 }
 
 function validationResults(issues) {
@@ -1832,7 +1879,7 @@ function validationResults(issues) {
         { code: "approved_content_only", status: "passed" },
         { code: "stable_ids_and_order", status: "passed" },
       ]
-    : issues.map((entry) => ({ code: entry.code, status: "failed" }))
+    : issues.map((entry) => ({ code: entry.code, status: "failed" }));
 }
 
 function validateOrderedChildren(questionId, kind, entries, issues) {
@@ -1843,49 +1890,49 @@ function validateOrderedChildren(questionId, kind, entries, issues) {
           "invalid_child_order",
           `Question ${questionId} ${kind} orders must be unique, contiguous, and one-based.`,
         ),
-      )
-      return
+      );
+      return;
     }
   }
 }
 
 function rejectDuplicates(values, label, issues) {
-  const seen = new Set()
+  const seen = new Set();
   for (const value of values) {
     if (seen.has(value)) {
-      issues.push(issue("duplicate_id", `Duplicate ${label}: ${value}.`))
+      issues.push(issue("duplicate_id", `Duplicate ${label}: ${value}.`));
     }
-    seen.add(value)
+    seen.add(value);
   }
 }
 
-function objectValue(raw, label, allowedKeys, issues) {
+function objectValue(raw, label, allowedKeys, issues, optionalKeys = []) {
   if (!isPlainObject(raw)) {
-    issues.push(issue("invalid_type", `${label} must be an object.`))
-    return {}
+    issues.push(issue("invalid_type", `${label} must be an object.`));
+    return {};
   }
-  const keys = Object.keys(raw)
+  const keys = Object.keys(raw);
   for (const key of keys) {
     if (!allowedKeys.includes(key)) {
       issues.push(
         issue("unexpected_field", `${label} contains forbidden field ${key}.`),
-      )
+      );
     }
   }
   for (const key of allowedKeys) {
-    if (!Object.hasOwn(raw, key)) {
-      issues.push(issue("missing_field", `${label}.${key} is required.`))
+    if (!Object.hasOwn(raw, key) && !optionalKeys.includes(key)) {
+      issues.push(issue("missing_field", `${label}.${key} is required.`));
     }
   }
-  return raw
+  return raw;
 }
 
 function arrayValue(value, label, issues) {
   if (!Array.isArray(value)) {
-    issues.push(issue("invalid_type", `${label} must be an array.`))
-    return []
+    issues.push(issue("invalid_type", `${label} must be an array.`));
+    return [];
   }
-  return value
+  return value;
 }
 
 function stringValue(value, label, issues) {
@@ -1899,49 +1946,49 @@ function stringValue(value, label, issues) {
         "invalid_string",
         `${label} must be a non-empty string without outer whitespace.`,
       ),
-    )
-    return typeof value === "string" ? value.trim() : ""
+    );
+    return typeof value === "string" ? value.trim() : "";
   }
-  return value
+  return value;
 }
 
 function idValue(value, label, issues) {
-  const normalized = stringValue(value, label, issues)
+  const normalized = stringValue(value, label, issues);
   if (!ID_PATTERN.test(normalized)) {
-    issues.push(issue("invalid_id", `${label} has an invalid stable ID.`))
+    issues.push(issue("invalid_id", `${label} has an invalid stable ID.`));
   }
-  return normalized
+  return normalized;
 }
 
 function releaseValue(value, label, issues) {
-  const normalized = stringValue(value, label, issues)
+  const normalized = stringValue(value, label, issues);
   if (!RELEASE_PATTERN.test(normalized)) {
-    issues.push(issue("invalid_release_id", `${label} is invalid.`))
+    issues.push(issue("invalid_release_id", `${label} is invalid.`));
   }
-  return normalized
+  return normalized;
 }
 
 function hashValue(value, label, issues) {
-  const normalized = stringValue(value, label, issues)
+  const normalized = stringValue(value, label, issues);
   if (!SHA256_PATTERN.test(normalized)) {
-    issues.push(issue("invalid_sha256", `${label} must be a SHA-256 hash.`))
+    issues.push(issue("invalid_sha256", `${label} must be a SHA-256 hash.`));
   }
-  return normalized
+  return normalized;
 }
 
 function gitShaValue(value, label, issues) {
-  const normalized = stringValue(value, label, issues)
+  const normalized = stringValue(value, label, issues);
   if (!GIT_SHA_PATTERN.test(normalized)) {
     issues.push(
       issue("invalid_git_sha", `${label} must be a hexadecimal Git SHA.`),
-    )
+    );
   }
-  return normalized
+  return normalized;
 }
 
 function timestampValue(value, label, issues) {
-  const normalized = stringValue(value, label, issues)
-  const parsed = Date.parse(normalized)
+  const normalized = stringValue(value, label, issues);
+  const parsed = Date.parse(normalized);
   if (
     !Number.isFinite(parsed) ||
     new Date(parsed).toISOString() !== normalized
@@ -1951,73 +1998,73 @@ function timestampValue(value, label, issues) {
         "invalid_timestamp",
         `${label} must be a canonical ISO-8601 UTC timestamp.`,
       ),
-    )
+    );
   }
-  return normalized
+  return normalized;
 }
 
 function booleanValue(value, label, issues) {
   if (typeof value !== "boolean") {
-    issues.push(issue("invalid_type", `${label} must be a boolean.`))
-    return false
+    issues.push(issue("invalid_type", `${label} must be a boolean.`));
+    return false;
   }
-  return value
+  return value;
 }
 
 function integerValue(value, label, issues) {
   if (!Number.isInteger(value)) {
-    issues.push(issue("invalid_integer", `${label} must be an integer.`))
-    return 0
+    issues.push(issue("invalid_integer", `${label} must be an integer.`));
+    return 0;
   }
-  return value
+  return value;
 }
 
 function nonnegativeInteger(value, label, issues) {
-  const normalized = integerValue(value, label, issues)
+  const normalized = integerValue(value, label, issues);
   if (normalized < 0) {
-    issues.push(issue("invalid_integer", `${label} must be zero or greater.`))
+    issues.push(issue("invalid_integer", `${label} must be zero or greater.`));
   }
-  return normalized
+  return normalized;
 }
 
 function positiveInteger(value, label, issues) {
-  const normalized = integerValue(value, label, issues)
+  const normalized = integerValue(value, label, issues);
   if (normalized < 1) {
-    issues.push(issue("invalid_integer", `${label} must be positive.`))
+    issues.push(issue("invalid_integer", `${label} must be positive.`));
   }
-  return normalized
+  return normalized;
 }
 
 function nullableNumber(value, label, issues) {
-  if (value === null) return null
+  if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    issues.push(issue("invalid_number", `${label} must be null or finite.`))
-    return null
+    issues.push(issue("invalid_number", `${label} must be null or finite.`));
+    return null;
   }
-  return value
+  return value;
 }
 
 function nullableNonnegativeNumber(value, label, issues) {
-  const normalized = nullableNumber(value, label, issues)
+  const normalized = nullableNumber(value, label, issues);
   if (normalized !== null && normalized < 0) {
     issues.push(
       issue("invalid_number", `${label} must be null or nonnegative.`),
-    )
+    );
   }
-  return normalized
+  return normalized;
 }
 
 function enumValue(value, label, values, issues) {
-  const normalized = stringValue(value, label, issues)
+  const normalized = stringValue(value, label, issues);
   if (!values.has(normalized)) {
     issues.push(
       issue(
         "invalid_enum",
         `${label} must be one of: ${[...values].join(", ")}.`,
       ),
-    )
+    );
   }
-  return normalized
+  return normalized;
 }
 
 function stringArray(
@@ -2030,57 +2077,57 @@ function stringArray(
     ids
       ? idValue(entry, `${label}[${index}]`, issues)
       : stringValue(entry, `${label}[${index}]`, issues),
-  )
+  );
   if (nonempty && entries.length === 0) {
-    issues.push(issue("empty_array", `${label} must not be empty.`))
+    issues.push(issue("empty_array", `${label} must not be empty.`));
   }
-  rejectDuplicates(entries, `${label} value`, issues)
-  return entries
+  rejectDuplicates(entries, `${label} value`, issues);
+  return entries;
 }
 
 function hashMap(value, label, issues) {
   if (!isPlainObject(value)) {
-    issues.push(issue("invalid_type", `${label} must be an object.`))
-    return {}
+    issues.push(issue("invalid_type", `${label} must be an object.`));
+    return {};
   }
   return Object.fromEntries(
     Object.entries(value).map(([id, hash]) => [
       idValue(id, `${label} key`, issues),
       hashValue(hash, `${label}.${id}`, issues),
     ]),
-  )
+  );
 }
 
 function jsonArray(value) {
-  return Array.isArray(value) ? value : JSON.parse(String(value))
+  return Array.isArray(value) ? value : JSON.parse(String(value));
 }
 
 function jsonObject(value) {
-  return isPlainObject(value) ? value : JSON.parse(String(value))
+  return isPlainObject(value) ? value : JSON.parse(String(value));
 }
 
 function isoTimestamp(value) {
   return value instanceof Date
     ? value.toISOString()
-    : new Date(value).toISOString()
+    : new Date(value).toISOString();
 }
 
 function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isInside(candidate, parent) {
-  const relative = path.relative(parent, candidate)
+  const relative = path.relative(parent, candidate);
   return (
     relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
-  )
+  );
 }
 
 function requireNonblank(value, label) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ContentImportValidationError([
       issue("execution_value_required", `${label} is required.`),
-    ])
+    ]);
   }
 }
 
@@ -2091,40 +2138,40 @@ function validateTimeout(value) {
         "invalid_timeout",
         "Import timeouts must be integers between 1 and 900000 milliseconds.",
       ),
-    ])
+    ]);
   }
-  return value
+  return value;
 }
 
 async function rollbackQuietly(client) {
   try {
-    await client.query("rollback")
+    await client.query("rollback");
   } catch {
     // Preserve the original import error.
   }
 }
 
 function errorMessage(error) {
-  return error instanceof Error ? error.message : String(error)
+  return error instanceof Error ? error.message : String(error);
 }
 
 function issue(code, message) {
-  return { code, message }
+  return { code, message };
 }
 
 export class ContentImportValidationError extends Error {
   constructor(issues) {
-    super(issues.map((entry) => entry.message).join(" "))
-    this.name = "ContentImportValidationError"
-    this.issues = issues
+    super(issues.map((entry) => entry.message).join(" "));
+    this.name = "ContentImportValidationError";
+    this.issues = issues;
   }
 }
 
 export class ContentImportConflictError extends Error {
   constructor(issues, report) {
-    super(issues.map((entry) => entry.message).join(" "))
-    this.name = "ContentImportConflictError"
-    this.issues = issues
-    this.report = report
+    super(issues.map((entry) => entry.message).join(" "));
+    this.name = "ContentImportConflictError";
+    this.issues = issues;
+    this.report = report;
   }
 }

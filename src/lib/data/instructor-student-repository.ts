@@ -14,6 +14,7 @@ import {
   type DatabaseQueryExecutor,
   type DatabaseQueryValue,
 } from "@/lib/data/database-executor";
+import { MEANINGFUL_TUTOR_SESSION_SQL } from "@/lib/tutor/session-engagement";
 import { labelMisconceptions } from "@/lib/professor/student-pseudonym";
 import type {
   InstructorAttentionSignal,
@@ -52,9 +53,9 @@ async function readRows<Row>(
 }
 
 /**
- * The analytics population includes anonymous owners and authenticated owners
- * without a current effective professor role. The two ownership namespaces are
- * prefixed before hashing so they can never collide.
+ * The analytics population includes meaningful sessions from anonymous owners
+ * and authenticated owners without a current effective professor role. The two
+ * ownership namespaces are prefixed before hashing so they can never collide.
  *
  * The digest is computed in SQL and the raw owner never leaves this module, so
  * no instructor query can return a cookie value or a user id by accident.
@@ -138,6 +139,7 @@ const ATTENTION_STUDENTS_CTE = `
     from attempts a
     join student_sessions ss on ss.session_id = a.session_id
     where a.mode = 'check'
+      and a.verdict in ('correct', 'incorrect')
       and a.topic_id is not null
     group by ss.student_key, a.topic_id
     having count(*) >= ${REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS}
@@ -173,8 +175,8 @@ const SORT_CLAUSES: Record<InstructorStudentSort, string> = {
   last_active: "st.last_active_at desc, st.student_key",
   lowest_accuracy: `
     case
-      when coalesce(t.attempts, 0) >= ${REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS}
-        then coalesce(t.correct_attempts, 0)::numeric / t.attempts
+      when coalesce(t.correct_attempts, 0) + coalesce(t.incorrect_attempts, 0) >= ${REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS}
+        then coalesce(t.correct_attempts, 0)::numeric / nullif(t.correct_attempts + t.incorrect_attempts, 0)
     end asc nulls last,
     coalesce(t.attempts, 0) desc,
     st.student_key
@@ -239,6 +241,7 @@ type ActivityRow = {
 };
 
 type CohortRow = {
+  incorrect_attempts?: number | string | null;
   active_students: number | string | null;
   attempts: number | string | null;
   blocked_attempts: number | string | null;
@@ -562,15 +565,17 @@ export function deriveAttentionSignals({
 
   for (const topic of topics) {
     if (
-      topic.attempts >= REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS &&
-      topic.correctAttempts / topic.attempts <=
+      topic.correctAttempts + topic.incorrectAttempts >=
+        REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS &&
+      topic.correctAttempts /
+        (topic.correctAttempts + topic.incorrectAttempts) <=
         REPEATED_DIFFICULTY_MAXIMUM_ACCURACY
     ) {
       signals.push({
-        attempts: topic.attempts,
+        attempts: topic.correctAttempts + topic.incorrectAttempts,
         code: "repeated_topic_difficulty",
         correctAttempts: topic.correctAttempts,
-        detail: `${topic.correctAttempts} of ${topic.attempts} attempts correct`,
+        detail: `${topic.correctAttempts} of ${topic.correctAttempts + topic.incorrectAttempts} scored attempts correct`,
         topicId: topic.topicId,
         topicTitle: topic.topicTitle,
       });
@@ -623,6 +628,7 @@ async function readCohortAnalytics(
             count(*) filter (where a.mode = 'check')::int as attempts,
             count(*) filter (where a.mode = 'check' and a.verdict = 'correct')::int
               as correct_attempts,
+            count(*) filter (where a.mode = 'check' and a.verdict = 'incorrect')::int as incorrect_attempts,
             count(*) filter (where a.source = 'rule')::int as rule_attempts,
             count(*) filter (where a.source = 'retrieval')::int
               as retrieval_attempts,
@@ -637,7 +643,8 @@ async function readCohortAnalytics(
           (select count(*)::int from all_student_sessions
            where practice_context = 'reserve_practice') as extra_practice_sessions,
           (select count(*)::int from tutor_sessions s
-           where ${PROFESSOR_OWNED_SESSION_SQL}) as excluded_staff_sessions,
+           where ${PROFESSOR_OWNED_SESSION_SQL}
+             and ${MEANINGFUL_TUTOR_SESSION_SQL}) as excluded_staff_sessions,
           (select coalesce(sum(hints_used), 0)::int from session_totals)
             as hints_used,
           (select coalesce(sum(solutions_revealed), 0)::int from session_totals)
@@ -648,6 +655,7 @@ async function readCohortAnalytics(
           ) as students_needing_attention,
           source_totals.attempts,
           source_totals.correct_attempts,
+          source_totals.incorrect_attempts,
           source_totals.rule_attempts,
           source_totals.retrieval_attempts,
           source_totals.llm_attempts,
@@ -680,6 +688,7 @@ async function readCohortAnalytics(
     attempts: count(totals?.attempts),
     blockedAttempts: count(totals?.blocked_attempts),
     correctAttempts: count(totals?.correct_attempts),
+    incorrectAttempts: count(totals?.incorrect_attempts),
     excludedStaffSessions: count(totals?.excluded_staff_sessions),
     extraPracticeSessions: count(totals?.extra_practice_sessions),
     hintsUsed: count(totals?.hints_used),

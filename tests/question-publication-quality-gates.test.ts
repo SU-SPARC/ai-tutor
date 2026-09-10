@@ -15,6 +15,84 @@ describe("question publication quality gates", () => {
     mutate: (input: GateInput) => void;
   }> = [
     {
+      code: "invalid_answer_spec",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "categorical",
+          canonical: "",
+          aliases: [],
+        };
+      },
+    },
+    {
+      code: "answer_value_unparseable",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "numeric",
+          value: "1/0",
+          domain: "real",
+          percentMode: "either",
+          tolerance: { mode: "exact" },
+        };
+      },
+    },
+    {
+      code: "tolerance_out_of_bounds",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "numeric",
+          value: "0.5",
+          domain: "probability",
+          percentMode: "either",
+          tolerance: { mode: "absolute", value: -1 },
+        };
+      },
+    },
+    {
+      code: "accepted_answer_inconsistent",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "categorical",
+          canonical: "different",
+          aliases: [],
+        };
+      },
+    },
+    {
+      code: "percent_mode_missing",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "numeric",
+          value: "0.5",
+          domain: "real",
+          tolerance: { mode: "exact" },
+        } as QuestionVersionDto["answer"]["spec"];
+      },
+    },
+    {
+      code: "required_form_unsatisfiable",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "numeric",
+          value: "0.5",
+          domain: "real",
+          percentMode: "either",
+          requiredForm: "integer",
+          tolerance: { mode: "exact" },
+        };
+      },
+    },
+    {
+      code: "categorical_alias_empty",
+      mutate: (input) => {
+        input.version.answer.spec = {
+          kind: "categorical",
+          canonical: "seven",
+          aliases: [""],
+        };
+      },
+    },
+    {
       code: "invalid_syllabus_topic",
       mutate: (input) => {
         input.activeSyllabusTopic = false;

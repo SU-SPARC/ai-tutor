@@ -65,6 +65,8 @@ import generatedExamples from "../data/demo/generated-examples.json";
 import generatedReviewCandidates from "../data/demo/generated-review-candidates.json";
 import nextSyllabusReviewCandidates from "../data/demo/next-syllabus-review-candidates.json";
 import nextUncoveredSyllabusReviewCandidates from "../data/demo/next-uncovered-syllabus-review-candidates.json";
+import remediatedSyllabusReviewCandidates from "../data/demo/remediated-syllabus-review-candidates.json";
+import discreteModelsBatch2Candidates from "../data/demo/discrete-models-batch-2-review-candidates.json";
 import syllabusReviewCandidates from "../data/demo/syllabus-review-candidates.json";
 import ruleEngineExamples from "../data/eval/rule-engine-examples.json";
 import {
@@ -133,6 +135,28 @@ describe("tutor engine", () => {
     expect(response.hints).toHaveLength(1);
     expect(response.steps).toHaveLength(0);
     expect(response.progress?.state).toBe("misconception_detected");
+  });
+
+  it("returns reversed-subtraction feedback for a negative exam z-score", async () => {
+    const question = await getQuestionById("exam-z-score");
+    if (!question) throw new Error("Expected the existing exam z-score question.");
+    const sessionId = "negative-z-score-test";
+
+    const { response, state } = await decideTutorResponse({
+      answer: "-1.5",
+      mode: "check",
+      question,
+      sessionId,
+      state: getTutorSessionState(sessionId, question.id),
+    });
+
+    expect(response.source).toBe("rule");
+    expect(response.verdict).toBe("incorrect");
+    expect(response.misconceptions[0]).toBe(
+      "The sign is reversed. Since 82 is above the mean, the z-score should be positive.",
+    );
+    expect(state.state).toBe("misconception_detected");
+    expect(state.lastMisconceptionIds).toContain("reversed-subtraction");
   });
 
   it("uses the shared misconception library when no question-specific match exists", async () => {
@@ -811,6 +835,236 @@ describe("tutor engine", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("numeric check: fails closed before LLM fallback when approved retrieval is unavailable", async () => {
+    const question = await getQuestionById("dice-sum-eight");
+    if (!question) {
+      throw new Error("Expected the approved test question.");
+    }
+    const repository = contentRepositoryWithChunks([]);
+    repository.getRetrievalChunks = async () => {
+      throw new Error(
+        "select * from private_table at postgres://operator:secret@db.invalid",
+      );
+    };
+    setContentRepositoryForTests(repository);
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchImpl);
+
+    await expect(
+      decideTutorResponse({
+        allowLlmFallback: true,
+        answer: "1/5",
+        mode: "check",
+        question,
+        sessionId: "retrieval-outage-test",
+        state: {
+          ...getTutorSessionState("retrieval-outage-test", question.id),
+          hintsRevealed: question.hints.length,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "DataServiceUnavailableError",
+      subsystem: "retrieval",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("numeric check: retrieves a related question before proceeding to real LLM help", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Try listing the outcomes that satisfy the conditional probability first.",
+    );
+
+    await exhaustApprovedHelp("no-self-echo-test");
+    const retrieval = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "no-self-echo-test",
+    });
+    const response = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "no-self-echo-test",
+    });
+
+    expect(retrieval.source).toBe("retrieval");
+    expect(
+      retrieval.retrievedContext.every(
+        (chunk) => chunk.questionId !== "dice-sum-eight",
+      ),
+    ).toBe(true);
+    expect(response.source).toBe("llm");
+    expect(response.message).not.toContain(
+      "I found an approved course pattern",
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("numeric check: uses LLM fallback for low-confidence answer coaching without grading correct", async () => {
+    const fetchImpl = mockLlmResponse(
+      "Focus on identifying the conditioned sample space first, then compare your expression with that smaller denominator.",
+    );
+
+    await exhaustApprovedHelp("llm-low-confidence-test");
+    const retrieval = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    });
+    const response = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    });
+    const second = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-low-confidence-test",
+    });
+    const payload = llmRequestPayload(fetchImpl);
+    const userPrompt = payload.messages[1]?.content ?? "";
+
+    expect(retrieval.source).toBe("retrieval");
+    expect(response.source).toBe("llm");
+    expect(response.verdict).toBe("guidance");
+    expect(response.responseLabel).toBe("approved_course_content");
+    expect(response.usage.contextUsed).toBe(true);
+    expect(response.usage.fallbackUsed).toBe(true);
+    expect(response.progress?.state).toBe("llm_guidance");
+    expect(response.progress?.solved).toBe(false);
+    expect(response.steps).toHaveLength(0);
+    expect(userPrompt).toContain("low_confidence_answer_help");
+    expect(userPrompt).toContain('"confidence":0.2');
+    expect(userPrompt).not.toContain("2/5");
+    expect(second.source).toBe("llm");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(
+      getTutorAttemptSnapshotsForTests().findLast(
+        (attempt) => attempt.source === "llm",
+      ),
+    ).toMatchObject({
+      contextUsed: true,
+      fallbackUsed: true,
+      responseLabel: "approved_course_content",
+      source: "llm",
+    });
+  });
+
+  it("numeric check: preserves approved retrieval guidance when the provider request fails", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("bad request", { status: 400 }));
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchImpl);
+
+    await exhaustApprovedHelp("llm-failure-retrieval-test");
+    const retrieval = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-failure-retrieval-test",
+    });
+    const response = await createTutorResponse({
+      answer: "1/5",
+      allowLlmFallback: true,
+      mode: "check",
+      questionId: "dice-sum-eight",
+      sessionId: "llm-failure-retrieval-test",
+    });
+
+    expect(retrieval.source).toBe("retrieval");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(response.source).toBe("retrieval");
+    expect(response.usage.fallbackUsed).toBe(false);
+    expect(response.message).toContain("approved course pattern");
+    expect(response.message).not.toMatch(/provider|openrouter|billing/i);
+    expect(response.progress?.llmUsed).toBe(false);
+  });
+
+  it("numeric check: blocks the provider after the production-style session allowance is exhausted", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("AI_LLM_MAX_REQUESTS_PER_SESSION", "1");
+    vi.stubEnv("AI_LLM_BURST_MAX_REQUESTS", "10");
+    const fetchImpl = mockLlmResponse(
+      "Start by defining the conditioned event before selecting a denominator.",
+    );
+    const question = await getQuestionById("dice-sum-eight");
+    if (!question) {
+      throw new Error("Expected the approved test question.");
+    }
+    setContentRepositoryForTests(contentRepositoryWithChunks([]));
+    const state = {
+      attemptCount: 2,
+      hintsRevealed: question.hints.length,
+      lastMisconceptionIds: [],
+      llmUsed: false,
+      questionKey: question.id,
+      retrievalUsed: true,
+      sessionId: "production-limit-path",
+      solved: false,
+      state: "working" as const,
+      stepsRevealed: 0,
+      wrongAttemptCount: 2,
+    };
+    const executionContext = {
+      eventId: "event:limit-first",
+      expectedRevision: 0,
+      mode: "check" as const,
+      owner: { anonymousId: "student-limit", kind: "anonymous" as const },
+      questionId: question.id,
+      questionVersionId: 1,
+      sessionId: state.sessionId,
+      topicId: question.topicId,
+    };
+
+    const first = await decideTutorResponse({
+      aiExecutionContext: executionContext,
+      allowLlmFallback: true,
+      answer: "1/5",
+      mode: "check",
+      question,
+      sessionId: state.sessionId,
+      state,
+    });
+    if (!first.aiAccounting) {
+      throw new Error("Expected the first provider call to be accounted.");
+    }
+    await applyTutorAiAccounting(first.aiAccounting);
+    const blocked = await decideTutorResponse({
+      aiExecutionContext: {
+        ...executionContext,
+        eventId: "event:limit-second",
+        expectedRevision: 1,
+      },
+      allowLlmFallback: true,
+      answer: "1/5",
+      mode: "check",
+      question,
+      sessionId: state.sessionId,
+      state: first.state,
+    });
+
+    expect(first.response.source).toBe("llm");
+    expect(blocked.response).toMatchObject({
+      source: "blocked",
+      verdict: "blocked",
+    });
+    expect(blocked.response.message).toContain("allowance");
+    expect(blocked.response.message).not.toMatch(/token|provider|billing/i);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("records lightweight tutor attempt snapshots", async () => {
     const response = await createTutorResponse({
       answer: "1/5",
@@ -1170,6 +1424,8 @@ describe("content provenance and review metadata", () => {
     expect(queue).toHaveLength(
       generatedReviewCandidates.length +
         syllabusReviewCandidates.length +
+        remediatedSyllabusReviewCandidates.length +
+        discreteModelsBatch2Candidates.length +
         nextSyllabusReviewCandidates.length +
         followingSyllabusReviewCandidates.length +
         nextUncoveredSyllabusReviewCandidates.length,
@@ -1199,6 +1455,8 @@ describe("content provenance and review metadata", () => {
     const serialized = JSON.stringify([
       ...generatedReviewCandidates,
       ...syllabusReviewCandidates,
+      ...remediatedSyllabusReviewCandidates,
+      ...discreteModelsBatch2Candidates,
       ...nextSyllabusReviewCandidates,
       ...followingSyllabusReviewCandidates,
       ...nextUncoveredSyllabusReviewCandidates,

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { MEANINGFUL_TUTOR_SESSION_SQL } from "@/lib/tutor/session-engagement";
+
 /**
  * Instructor analytics expose only a digest of a session owner. Prefixing the
  * two ownership namespaces prevents an authenticated id from colliding with an
@@ -38,7 +40,8 @@ export const PROFESSOR_OWNED_SESSION_SQL = `
   )
 `;
 
-/** Anonymous sessions and authenticated non-professor sessions stay included. */
+/** Engaged anonymous/non-professor sessions form the learning population. */
 export const ANALYTICS_STUDENT_SESSION_FILTER_SQL = `
   not (${PROFESSOR_OWNED_SESSION_SQL})
+  and ${MEANINGFUL_TUTOR_SESSION_SQL}
 `;

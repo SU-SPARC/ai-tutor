@@ -1,4 +1,4 @@
-export const PILOT_ANALYTICS_EXPORT_SCHEMA_VERSION = 1 as const;
+export const PILOT_ANALYTICS_EXPORT_SCHEMA_VERSION = 2 as const;
 
 export type PilotAnalyticsCount = {
   count: number;
@@ -160,15 +160,16 @@ export function pilotAnalyticsMetricDefinitions(): PilotAnalyticsExport["metricD
       statement: RESEARCH_OUTCOME_STATEMENT,
     },
     usage:
-      "Participation, session, tutoring-path, hint, and solution-reveal counts exclude sessions owned by authenticated accounts with a current effective professor role. AI accounting is reported separately.",
+      "A practice session has at least one persisted tutoring interaction or durable answer, hint, solution-step, or completion evidence. Opening or resuming a question alone does not count. Participation, session, tutoring-path, hint, and solution-reveal counts exclude sessions owned by authenticated accounts with a current effective professor role. AI accounting is reported separately.",
   };
 }
 
 export function pilotAnalyticsLimitations() {
   return [
     "Participant identifiers are stable pseudonyms, not anonymous identifiers; access to exports must remain restricted.",
-    "Correctness is based only on recorded answer-check verdicts and excludes unscored or blocked checks from the numerator.",
+    "Correctness uses scored answer checks (correct + incorrect) as the denominator. Unreadable guidance and blocked checks remain unscored activity.",
     "Authenticated session activity is excluded when the owner's current database role projection has an effective professor grant; historical role-at-session-time is not stored.",
+    "Recorded blocked requests count as interaction, not successful help or learning. Legacy counters and completion can establish practice without retained interaction rows.",
     "Anonymous sessions remain included because anonymous owners have no authoritative role membership.",
     "Global AI accounting and feedback workflow counts are not session-owner populations and are not role-filtered.",
     "Misconception frequency counts the latest retained misconception codes per session, not every historical occurrence.",

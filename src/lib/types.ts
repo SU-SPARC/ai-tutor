@@ -1,3 +1,4 @@
+import type { AnswerSpec, CheckDetail } from "@/lib/tutor/answer/spec";
 export type Difficulty = "foundational" | "intermediate" | "challenge";
 
 export type Visibility = "public" | "private";
@@ -191,6 +192,13 @@ export type QuestionLifecycleBatchItem = {
 };
 
 export type QuestionPublicationGateCode =
+  | "invalid_answer_spec"
+  | "answer_value_unparseable"
+  | "tolerance_out_of_bounds"
+  | "accepted_answer_inconsistent"
+  | "percent_mode_missing"
+  | "required_form_unsatisfiable"
+  | "categorical_alias_empty"
   | "invalid_syllabus_topic"
   | "missing_question_text"
   | "missing_final_answer"
@@ -363,6 +371,7 @@ export type ReviewMetadata = {
 
 export type QuestionContent = {
   answer: {
+    spec?: AnswerSpec;
     acceptedAnswers: string[];
     explanation: string;
     numericValue?: number;
@@ -801,6 +810,7 @@ export type TutorUsage = {
 };
 
 export type TutorSessionAttempt = {
+  checkDetail?: CheckDetail;
   answerPreview?: string;
   contextUsed?: boolean;
   createdAt: string;
@@ -976,6 +986,7 @@ export type InstructorStudentDetail = {
 };
 
 export type InstructorCohortAnalytics = {
+  incorrectAttempts?: number;
   activeStudents: number;
   attempts: number;
   blockedAttempts: number;
@@ -1047,6 +1058,7 @@ export type StudentProgressDashboard = {
 };
 
 export type TutorResponse = {
+  checkDetail?: CheckDetail;
   hints: string[];
   message: string;
   misconceptions: string[];
@@ -1103,6 +1115,7 @@ export type ProfessorPracticeAnalytics = {
     totalTutorSessions: number;
   };
   topics: Array<{
+    incorrectAttempts?: number;
     attempts: number;
     correctAttempts: number;
     hintsUsed: number;
