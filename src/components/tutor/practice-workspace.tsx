@@ -32,6 +32,17 @@ import {
 } from "lucide-react";
 
 import { MathText } from "@/components/math/math-renderer";
+import {
+  AI_HELP_PENDING_LABEL,
+  AI_HELP_REPEAT_NOTE,
+  AI_HELP_REQUEST_TEXT,
+  aiHelpMessageFor,
+  aiHelpStateKey,
+  appendAiHelpReply,
+  createAiHelpGate,
+  withoutEntry,
+  type AiHelpGate,
+} from "@/components/tutor/ai-help-request";
 import { QuestionFeedbackForm } from "@/components/tutor/question-feedback-form";
 import { PracticeSimilarProblemAction } from "@/components/tutor/practice-similar-problem-action";
 import { Badge } from "@/components/ui/badge";
@@ -291,6 +302,10 @@ export function PracticeWorkspace({
   const [latestResponse, setLatestResponse] = useState<TutorResponse | null>(
     null,
   );
+  // Tutoring state the last AI-help reply answered; a repeat for the same
+  // state is a no-op (the reply is already in the transcript).
+  const [lastAiHelpKey, setLastAiHelpKey] = useState<string | null>(null);
+  const aiHelpGateRef = useRef<AiHelpGate | null>(null);
   const [session, setSession] = useState<TutorSessionDto | null>(null);
   const [sessionError, setSessionError] = useState<SessionErrorState | null>(
     null,
@@ -361,6 +376,21 @@ export function PracticeWorkspace({
     [selectedQuestion?.id, solvedQuestionIds, topicQuestions],
   );
   const isReservePractice = session?.practiceContext === "reserve_practice";
+  const aiHelpKey =
+    selectedQuestion && session
+      ? aiHelpStateKey({
+          answer,
+          attemptCount: session.attemptCount,
+          hintsRevealed: session.revealedHints,
+          questionId: selectedQuestion.id,
+          sessionId: session.id,
+          solved: session.solved,
+          stepsRevealed: session.revealedSteps,
+        })
+      : null;
+  const aiHelpAlreadyGiven = aiHelpKey !== null && aiHelpKey === lastAiHelpKey;
+  const aiHelpOffered =
+    aiHelpEnabled && Boolean(latestResponse?.usage.llmFallbackEligible);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -428,6 +458,7 @@ export function PracticeWorkspace({
     async function loadSession() {
       setAnswer("");
       setLatestResponse(null);
+      setLastAiHelpKey(null);
       setSession(null);
       setMessages([]);
       setDisclosedHints([]);
@@ -762,45 +793,74 @@ export function PracticeWorkspace({
   }
 
   async function requestLimitedAiHelp() {
-    const trimmed = answer.trim() || "I'm stuck and not sure how to proceed.";
-
-    if (!selectedQuestion || !session || activeMode) {
+    if (!selectedQuestion || !session || activeMode || aiHelpAlreadyGiven) {
       return;
     }
 
-    setActiveMode("ai");
-    setSessionError(null);
-    pushMessage({ role: "student", text: "Asked for AI help." });
+    const question = selectedQuestion;
+    const activeSession = session;
+    const helpMessage = aiHelpMessageFor(answer);
+    const gate = (aiHelpGateRef.current ??= createAiHelpGate());
 
-    try {
-      const tutorResponse = await requestTutorResponse({
-        allowLlmFallback: true,
-        answer: trimmed,
-        mode: "check",
-        questionId: selectedQuestion.id,
-        sessionId: session.id,
-        topicId: selectedQuestion.topicId,
-      });
+    // The gate closes synchronously, so a second click that lands before
+    // React re-renders the disabled button cannot start a second request.
+    await gate.run(async () => {
+      setActiveMode("ai");
+      setSessionError(null);
+      const requestId = createClientId("student");
+      setMessages((items) => [
+        ...items,
+        { id: requestId, role: "student", text: AI_HELP_REQUEST_TEXT },
+      ]);
 
-      setLatestResponse(tutorResponse);
-      setSession((current) => sessionWithProgress(current, tutorResponse));
-      const message = chatMessageForResponse(tutorResponse);
-      pushMessage({
-        ...message,
-        text:
-          tutorResponse.source === "retrieval" && tutorResponse.hints[0]
-            ? `${tutorResponse.message} ${tutorResponse.hints[0]}`
-            : message.text,
-      });
-      if (tutorResponse.verdict === "correct") {
-        setSolutionSteps(tutorResponse.steps);
-        setSolvedQuestionIds((ids) => new Set(ids).add(selectedQuestion.id));
+      try {
+        const tutorResponse = await requestTutorResponse({
+          allowLlmFallback: true,
+          answer: helpMessage,
+          mode: "check",
+          questionId: question.id,
+          sessionId: activeSession.id,
+          topicId: question.topicId,
+        });
+
+        setLatestResponse(tutorResponse);
+        setSession((current) => sessionWithProgress(current, tutorResponse));
+        setMessages((items) =>
+          appendAiHelpReply(items, requestId, {
+            ...chatMessageForResponse(tutorResponse),
+            id: createClientId("tutor"),
+          }),
+        );
+        setLastAiHelpKey(
+          aiHelpStateKey({
+            answer: helpMessage,
+            attemptCount:
+              tutorResponse.progress?.attemptCount ??
+              activeSession.attemptCount + 1,
+            hintsRevealed:
+              tutorResponse.progress?.hintsRevealed ??
+              activeSession.revealedHints,
+            questionId: question.id,
+            sessionId: activeSession.id,
+            solved: tutorResponse.progress?.solved ?? activeSession.solved,
+            stepsRevealed:
+              tutorResponse.progress?.stepsRevealed ??
+              activeSession.revealedSteps,
+          }),
+        );
+        if (tutorResponse.verdict === "correct") {
+          setSolutionSteps(tutorResponse.steps);
+          setSolvedQuestionIds((ids) => new Set(ids).add(question.id));
+        }
+      } catch (error) {
+        // Withdraw the pending request bubble so a retry never shows two
+        // "Asked for AI help." entries for one reply.
+        setMessages((items) => withoutEntry(items, requestId));
+        await handleTutorRequestFailure(error);
+      } finally {
+        setActiveMode(null);
       }
-    } catch (error) {
-      await handleTutorRequestFailure(error);
-    } finally {
-      setActiveMode(null);
-    }
+    });
   }
 
   async function restartTutorSession() {
@@ -818,6 +878,7 @@ export function PracticeWorkspace({
       storeTutorSessionId(selectedQuestion.id, nextSession.id);
       setAnswer("");
       setLatestResponse(null);
+      setLastAiHelpKey(null);
       setSession(nextSession);
       resetChat();
       focusAnswerInput();
@@ -1336,12 +1397,14 @@ export function PracticeWorkspace({
                         Show the worked solution
                       </Button>
                     ) : null}
-                    {aiHelpEnabled && latestResponse?.usage.llmFallbackEligible ? (
+                    {aiHelpOffered ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        disabled={isTutorBusy || !session}
+                        disabled={
+                          isTutorBusy || !session || aiHelpAlreadyGiven
+                        }
                         onClick={() => {
                           void requestLimitedAiHelp();
                         }}
@@ -1354,7 +1417,9 @@ export function PracticeWorkspace({
                         ) : (
                           <Sparkles className="h-4 w-4" aria-hidden="true" />
                         )}
-                        Ask AI for help
+                        {activeMode === "ai"
+                          ? AI_HELP_PENDING_LABEL
+                          : "Ask AI for help"}
                       </Button>
                     ) : null}
                     {solutionFullyRevealed ? (
@@ -1369,6 +1434,13 @@ export function PracticeWorkspace({
                         {nextQuestion ? "Next question" : "Finish topic"}
                         <ArrowRight className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                    ) : null}
+                    {aiHelpOffered &&
+                    aiHelpAlreadyGiven &&
+                    activeMode !== "ai" ? (
+                      <p className="basis-full text-xs leading-5 text-muted-foreground">
+                        {AI_HELP_REPEAT_NOTE}
+                      </p>
                     ) : null}
                   </div>
                 </div>

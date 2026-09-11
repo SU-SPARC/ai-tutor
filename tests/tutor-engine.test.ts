@@ -505,8 +505,8 @@ describe("tutor engine", () => {
     expect(privateGrounded.responseLabel).toBe(
       "private_reference_grounded_explanation",
     );
-    expect(privateGrounded.hints[0]).toContain("Use Bayes' rule");
-    expect(privateGrounded.hints[0]).not.toContain("Raw private");
+    expect(privateGrounded.message).toContain("Use Bayes' rule");
+    expect(privateGrounded.message).not.toContain("Raw private");
   });
 
   it("blocks LLM fallback unless explicit fallback is requested", async () => {
@@ -572,7 +572,7 @@ describe("tutor engine", () => {
 
     expect(response.source).toBe("retrieval");
     expect(response.verdict).toBe("guidance");
-    expect(response.hints[0]).toContain("z = (x - mean)");
+    expect(response.message).toContain("z = (x - mean)");
     expect(
       response.retrievedContext.some((chunk) => chunk.id === "z-score-formula"),
     ).toBe(true);
@@ -757,7 +757,8 @@ describe("tutor engine", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(response.source).toBe("retrieval");
     expect(response.usage.fallbackUsed).toBe(false);
-    expect(response.message).toContain("approved course pattern");
+    expect(response.message).toBe(retrieval.message);
+    expect(response.message).not.toMatch(/misconception-|approved course pattern/);
     expect(response.message).not.toMatch(/provider|openrouter|billing/i);
     expect(response.progress?.llmUsed).toBe(false);
   });
@@ -987,7 +988,8 @@ describe("tutor engine", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(response.source).toBe("retrieval");
     expect(response.usage.fallbackUsed).toBe(false);
-    expect(response.message).toContain("approved course pattern");
+    expect(response.message).toBe(retrieval.message);
+    expect(response.message).not.toMatch(/misconception-|approved course pattern/);
     expect(response.message).not.toMatch(/provider|openrouter|billing/i);
     expect(response.progress?.llmUsed).toBe(false);
   });

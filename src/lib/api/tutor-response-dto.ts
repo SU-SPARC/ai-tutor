@@ -1,5 +1,6 @@
 import "server-only";
 
+import { scrubInternalIdentifiers } from "@/lib/tutor/student-guidance";
 import type { TutorResponse } from "@/lib/types";
 
 export type TutorResponseDto = Omit<
@@ -18,6 +19,9 @@ export type TutorResponseDto = Omit<
 export function toTutorResponseDto(response: TutorResponse): TutorResponseDto {
   return {
     ...response,
+    hints: response.hints.map(scrubInternalIdentifiers),
+    message: scrubInternalIdentifiers(response.message),
+    misconceptions: response.misconceptions.map(scrubInternalIdentifiers),
     retrievedContext: [],
     usage: {
       contextUsed: response.usage.contextUsed,

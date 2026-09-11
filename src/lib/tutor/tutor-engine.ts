@@ -24,6 +24,7 @@ import {
   buildLlmGroundingContext,
   retrieveTutorContext,
 } from "@/lib/tutor/retrieval";
+import { retrievalGuidanceForStudent } from "@/lib/tutor/student-guidance";
 import {
   getTutorSessionState,
   recordTutorAttemptSnapshot,
@@ -625,10 +626,11 @@ function buildRetrievalResponseFromResult(
     response: {
       source: "retrieval",
       verdict: "guidance",
-      message:
-        "I found an approved course pattern that is close to your question.",
+      // One student-facing sentence built from the best approved chunk. The
+      // raw chunk body (with its internal prefix and ids) stays server-side.
+      message: retrievalGuidanceForStudent(retrievedContext[0]),
       responseLabel: labelForRetrievedContext(retrievedContext),
-      hints: [retrievedContext[0].body],
+      hints: [],
       steps: [],
       misconceptions: [],
       retrievedContext,

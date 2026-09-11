@@ -26,6 +26,10 @@ import {
   pilotRequestId,
 } from "@/lib/observability/pilot-operations";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+  findRepeatedAiHelpAttempt,
+  repeatedAiHelpResponse,
+} from "@/lib/tutor/ai-help-repeat";
 import { isTutorSessionIdempotencyKey } from "@/lib/tutor/session-persistence";
 import { createTutorResponseFromState } from "@/lib/tutor/tutor-engine";
 import type {
@@ -212,6 +216,18 @@ export async function POST(request: Request) {
           status: 409,
           subsystem: "tutor-session",
         });
+      }
+
+      if (
+        body.allowLlmFallback &&
+        findRepeatedAiHelpAttempt(session, { answer, mode: body.mode })
+      ) {
+        // Same tutoring state as the last AI-help reply: keep that reply,
+        // record nothing new, and never reach retrieval or the provider.
+        return tutorSuccessResponse(
+          toTutorResponseDto(repeatedAiHelpResponse(session, question)),
+          requestId,
+        );
       }
 
       const state = session.engineState ?? initialStateFor(session);
