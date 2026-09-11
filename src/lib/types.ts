@@ -1003,7 +1003,12 @@ export type InstructorStudentDetail = {
  * trail and was therefore withheld.
  */
 export type InstructorStudentIdentity =
-  | { displayName: string; email?: string; status: "identified" }
+  | {
+      displayName: string;
+      email?: string;
+      status: "identified";
+      username?: string;
+    }
   | { status: "anonymous" }
   | { status: "unavailable" }
   | { status: "unlinked" };

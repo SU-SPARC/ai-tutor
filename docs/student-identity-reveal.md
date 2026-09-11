@@ -20,10 +20,12 @@ practice included, since staff sessions are excluded from the population.
 
 `users.display_name` and `users.email` exist as an account projection that
 Clerk refreshes at every sign-in, but the reveal does not read them: Clerk is
-authoritative, so the display name and primary email address are read live from
-the Clerk Backend API at the moment the instructor asks. Nothing is written
-back. No analytics table, export, aggregate, prompt, or log gains an identity
-field.
+authoritative, so the display name, the username, and the primary email address
+are read live from the Clerk Backend API at the moment the instructor asks. The
+username is Clerk's own `username` field and is never assembled from the email
+address, the name, or the subject; the project stores no username at all.
+Nothing is written back. No analytics table, export, aggregate, prompt, or log
+gains an identity field.
 
 ## Boundary
 
@@ -33,14 +35,15 @@ student key, so an unauthorized caller is refused without learning whether the
 student exists: signed out is `401`, an ordinary student is `403`. A key that
 is not a 64-character hex digest and a key that matches nobody both answer
 `404` with the same body. The response contains at most `status`,
-`displayName`, and `email`; the Clerk subject, the internal user id, and every
-other profile field stay on the server. The URL carries only the pseudonym.
+`displayName`, `username`, and `email`; the Clerk subject, the internal user
+id, and every other profile field stay on the server. The URL carries only the
+pseudonym.
 
 Four outcomes are reported:
 
 | Status        | Meaning                                                      |
 | ------------- | ------------------------------------------------------------ |
-| `identified`  | Display name, and the primary email address when one exists. |
+| `identified`  | Display name, plus the username and primary email address when the account holds them. |
 | `anonymous`   | The student practised without signing in.                    |
 | `unlinked`    | The identity provider no longer holds the account.           |
 | `unavailable` | The provider could not be reached, or the reveal could not be audited. The analytics still load. |
@@ -52,8 +55,8 @@ nor its body is logged, because both can carry the account's own identifiers.
 
 Each reveal writes one `audit_events` row with action
 `analytics.student_identity_viewed`, the acting professor, the pseudonymous
-student key, the request id, and the outcome. The name and the email address
-that were shown are not recorded.
+student key, the request id, and the outcome. The name, username, and email
+address that were shown are not recorded.
 
 The reveal **fails closed**. The order is resolve, look up, record, and only
 then return: if the audit row cannot be written — a rejected statement, or a
@@ -67,5 +70,9 @@ is raised.
 
 The Students list stays pseudonymous, and its search box still matches only the
 student code. A reveal happens on one student's detail page, behind a
-**Reveal identity** button. Nothing about a reveal is stored in the browser, so
-leaving or reloading the page returns the record to its hidden state.
+**Reveal identity** button, and shows Name, Username, and Email as labelled
+fields. A field the account does not hold reads "Username unavailable" or
+"Email unavailable" rather than disappearing, so an instructor can tell an
+absent value from one that failed to load — a missing username never fails the
+rest of the reveal. Nothing about a reveal is stored in the browser, so leaving
+or reloading the page returns the record to its hidden state.

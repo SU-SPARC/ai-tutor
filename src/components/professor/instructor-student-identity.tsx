@@ -54,8 +54,8 @@ export function InstructorStudentIdentityPanel({
       <CardHeader>
         <CardTitle className="text-base">Account identity</CardTitle>
         <CardDescription>
-          Identity is shown only to authorized instructors. Analytics remain
-          stored under the student&rsquo;s pseudonymous code.
+          Identity is shown only to authorized instructors. Names, usernames,
+          and email addresses are not stored in practice analytics.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -87,12 +87,19 @@ export function InstructorStudentIdentityPanel({
 function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
   if (identity.status === "identified") {
     return (
-      <div className="space-y-1" aria-live="polite">
-        <p className="text-sm font-medium">{identity.displayName}</p>
-        <p className="text-sm text-muted-foreground">
-          {identity.email ?? "Email unavailable"}
-        </p>
-      </div>
+      <dl aria-live="polite" className="grid gap-3 sm:grid-cols-3">
+        <IdentityField label="Name" value={identity.displayName} />
+        <IdentityField
+          label="Username"
+          missing="Username unavailable"
+          value={identity.username}
+        />
+        <IdentityField
+          label="Email"
+          missing="Email unavailable"
+          value={identity.email}
+        />
+      </dl>
     );
   }
 
@@ -100,6 +107,36 @@ function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
     <p aria-live="polite" className="text-sm text-muted-foreground">
       {MESSAGES[identity.status]}
     </p>
+  );
+}
+
+/**
+ * A field the account does not hold is named and marked unavailable rather
+ * than dropped, so an instructor can tell an absent value from one that failed
+ * to load.
+ */
+function IdentityField({
+  label,
+  missing,
+  value,
+}: {
+  label: string;
+  missing?: string;
+  value?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={
+          value
+            ? "text-sm font-medium break-words"
+            : "text-sm text-muted-foreground"
+        }
+      >
+        {value ?? missing}
+      </dd>
+    </div>
   );
 }
 

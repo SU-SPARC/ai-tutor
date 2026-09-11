@@ -13,13 +13,13 @@ import type { StudentAccountLink } from "@/lib/data/student-identity-repository"
 import type { InstructorStudentIdentity } from "@/lib/types";
 
 /**
- * What an identity provider can say about a subject: the two fields this
+ * What an identity provider can say about a subject: the three fields this
  * feature is allowed to show, or a reason it showed nothing. A provider that
  * no longer holds the account is reported separately from one that could not
  * be reached, because only the second is worth retrying.
  */
 export type ProviderIdentity =
-  | { displayName: string; email?: string }
+  | { displayName: string; email?: string; username?: string }
   | "unavailable"
   | "unlinked";
 
@@ -100,18 +100,23 @@ export async function identityForLink(
     return { status: found };
   }
 
+  // Each optional field is omitted rather than sent as null, so a field the
+  // account does not hold is absent from the payload instead of being an empty
+  // value the interface has to interpret.
   return {
     displayName: found.displayName,
     ...(found.email ? { email: found.email } : {}),
+    ...(found.username ? { username: found.username } : {}),
     status: "identified",
   };
 }
 
 /**
- * Clerk owns the student's name and email address; this project stores a
- * projection of them for account handling, but the reveal reads the live
- * record so an instructor is never shown a stale name. Only the display name
- * and the primary email address are taken from the response.
+ * Clerk owns the student's name, username, and email address; this project
+ * stores a projection of the first and last for account handling, but the
+ * reveal reads the live record so an instructor is never shown a stale name.
+ * Only the display name, Clerk's own `username` field, and the primary email
+ * address are taken from the response.
  */
 async function lookUpClerkIdentity(link: {
   identityProvider: string;
@@ -132,17 +137,26 @@ async function lookUpClerkIdentity(link: {
     return isNotFoundError(cause) ? "unlinked" : "unavailable";
   }
 
-  if (!user) {
-    return "unlinked";
-  }
+  return user ? identityFromProviderUser(user) : "unlinked";
+}
 
+/**
+ * The whole of the mapping from a provider record to what may be shown. It
+ * reads four fields and ignores everything else the provider sent, so a future
+ * addition to the provider's user object cannot widen this payload by
+ * accident.
+ */
+export function identityFromProviderUser(user: ProviderUser): ProviderIdentity {
   const email = primaryEmailAddress(user);
   const displayName =
     user.fullName?.trim() ||
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
     email;
+  // Clerk's own `username`, never something assembled from the email address,
+  // the name, or the subject. An account without one simply has none.
+  const username = user.username?.trim() || undefined;
 
-  return displayName ? { displayName, email } : "unlinked";
+  return displayName ? { displayName, email, username } : "unlinked";
 }
 
 /**
@@ -150,14 +164,25 @@ async function lookUpClerkIdentity(link: {
  * it does hold. An account with neither reports no email rather than having one
  * guessed for it.
  */
-function primaryEmailAddress(user: {
+/**
+ * Only the fields the reveal is permitted to read. Everything else a provider
+ * returns — the subject, phone numbers, external accounts, metadata, sessions
+ * — is deliberately not part of this shape.
+ */
+export type ProviderUser = {
   emailAddresses: ReadonlyArray<{
     emailAddress: string;
     id: string;
     verification: { status: string | null } | null;
   }>;
+  firstName?: string | null;
+  fullName?: string | null;
+  lastName?: string | null;
   primaryEmailAddressId: string | null;
-}) {
+  username?: string | null;
+};
+
+function primaryEmailAddress(user: ProviderUser) {
   const addresses = user.emailAddresses ?? [];
   const primary = addresses.find(
     ({ id }) => id === user.primaryEmailAddressId,

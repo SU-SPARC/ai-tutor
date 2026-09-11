@@ -34,8 +34,10 @@ import {
 } from "@/lib/data/student-identity-repository";
 import {
   identityForLink,
+  identityFromProviderUser,
   setStudentIdentityDependenciesForTests,
   type ProviderIdentity,
+  type ProviderUser,
 } from "@/lib/professor/student-identity";
 
 const SIGNED_IN_USER_ID = "user:identity-student";
@@ -43,6 +45,7 @@ const CLERK_SUBJECT = "user_2clerkStudent";
 const ANONYMOUS_OWNER = "identity-anonymous-owner";
 const STUDENT_NAME = "Jane Smith";
 const STUDENT_EMAIL = "jane.smith@suffolk.edu";
+const STUDENT_USERNAME = "janesmith";
 
 const SIGNED_IN_KEY = studentKeyFor(`user:${SIGNED_IN_USER_ID}`);
 const ANONYMOUS_KEY = studentKeyFor(`anon:${ANONYMOUS_OWNER}`);
@@ -150,6 +153,7 @@ describe("pseudonym to account mapping", () => {
     ]);
     const serialized = JSON.stringify(events.rows);
     expect(serialized).not.toContain(STUDENT_NAME);
+    expect(serialized).not.toContain(STUDENT_USERNAME);
     expect(serialized).not.toContain(STUDENT_EMAIL);
     expect(serialized).not.toContain(CLERK_SUBJECT);
     expect(serialized).not.toContain(SIGNED_IN_USER_ID);
@@ -191,6 +195,7 @@ describe("pseudonym to account mapping", () => {
     );
     expect(detail?.summary.studentKey).toBe(SIGNED_IN_KEY);
     expect(serialized).not.toContain(STUDENT_NAME);
+    expect(serialized).not.toContain(STUDENT_USERNAME);
     expect(serialized).not.toContain(STUDENT_EMAIL);
     expect(serialized).not.toContain(CLERK_SUBJECT);
     expect(serialized).not.toContain(SIGNED_IN_USER_ID);
@@ -198,34 +203,137 @@ describe("pseudonym to account mapping", () => {
   });
 });
 
+describe("provider field mapping", () => {
+  it("takes the username from the provider's own username field", () => {
+    expect(identityFromProviderUser(providerUser())).toEqual({
+      displayName: STUDENT_NAME,
+      email: STUDENT_EMAIL,
+      username: STUDENT_USERNAME,
+    });
+  });
+
+  it("reads nothing but the four permitted fields off the provider record", () => {
+    const identity = identityFromProviderUser({
+      ...providerUser(),
+      // Everything a real provider record also carries. None of it may appear.
+      ...({
+        externalAccounts: [{ provider: "oauth_google" }],
+        id: CLERK_SUBJECT,
+        imageUrl: "https://images.example/avatar.png",
+        lastSignInAt: 1757600000000,
+        phoneNumbers: [{ phoneNumber: "+15555550123" }],
+        privateMetadata: { advisor: "Dr Private" },
+        publicMetadata: { role: "student" },
+        unsafeMetadata: { nickname: "jj" },
+      } as Partial<ProviderUser>),
+    });
+
+    expect(Object.keys(identity).sort()).toEqual([
+      "displayName",
+      "email",
+      "username",
+    ]);
+    const serialized = JSON.stringify(identity);
+    expect(serialized).not.toContain(CLERK_SUBJECT);
+    expect(serialized).not.toContain("5555550123");
+    expect(serialized).not.toContain("oauth_google");
+    expect(serialized).not.toContain("Dr Private");
+    expect(serialized).not.toContain("nickname");
+  });
+
+  it("leaves the username empty rather than deriving it from the email address", () => {
+    for (const username of [null, undefined, "   "]) {
+      const identity = identityFromProviderUser({
+        ...providerUser(),
+        username,
+      });
+
+      expect(identity).toEqual({
+        displayName: STUDENT_NAME,
+        email: STUDENT_EMAIL,
+        username: undefined,
+      });
+      // "jane.smith" is the email local part and the obvious thing a derived
+      // username would be. It must not appear as one.
+      expect((identity as { username?: string }).username).toBeUndefined();
+    }
+  });
+
+  it("keeps a name and username when the account has no email address", () => {
+    expect(
+      identityFromProviderUser({
+        ...providerUser(),
+        emailAddresses: [],
+        primaryEmailAddressId: null,
+      }),
+    ).toEqual({
+      displayName: STUDENT_NAME,
+      email: undefined,
+      username: STUDENT_USERNAME,
+    });
+  });
+
+  it("falls back to a verified address when no address is marked primary", () => {
+    expect(
+      identityFromProviderUser({
+        ...providerUser(),
+        primaryEmailAddressId: null,
+      }),
+    ).toMatchObject({ email: STUDENT_EMAIL });
+  });
+});
+
 describe("identity resolution", () => {
-  it("returns the display name and primary email and nothing else", async () => {
+  it("returns the display name, username, and primary email and nothing else", async () => {
     const identity = await identityForLink(accountLink(), async () => ({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
+      username: STUDENT_USERNAME,
     }));
 
     expect(identity).toEqual({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
       status: "identified",
+      username: STUDENT_USERNAME,
     });
     expect(Object.keys(identity).sort()).toEqual([
       "displayName",
       "email",
       "status",
+      "username",
     ]);
   });
 
   it("identifies a student whose account holds no email address", async () => {
     const identity = await identityForLink(accountLink(), async () => ({
       displayName: STUDENT_NAME,
+      username: STUDENT_USERNAME,
     }));
 
     expect(identity).toEqual({
       displayName: STUDENT_NAME,
       status: "identified",
+      username: STUDENT_USERNAME,
     });
+  });
+
+  it("omits the username rather than deriving one when the account has none", async () => {
+    const identity = await identityForLink(accountLink(), async () => ({
+      displayName: STUDENT_NAME,
+      email: STUDENT_EMAIL,
+    }));
+
+    expect(identity).toEqual({
+      displayName: STUDENT_NAME,
+      email: STUDENT_EMAIL,
+      status: "identified",
+    });
+    // Nothing may stand in for an absent username: not the email local part,
+    // not the name, not the pseudonym.
+    expect(identity).not.toHaveProperty("username");
+    expect(JSON.stringify(identity)).not.toContain(STUDENT_USERNAME);
+    expect(JSON.stringify(identity)).not.toContain(SIGNED_IN_KEY);
   });
 
   it("reports a missing provider account as unlinked", async () => {
@@ -261,9 +369,13 @@ describe("identity reveal endpoint", () => {
     setStudentIdentityDependenciesForTests({ findAccountLink });
 
     const response = await reveal(SIGNED_IN_KEY);
+    const body = await response.text();
 
     expect(response.status).toBe(401);
     expect(findAccountLink).not.toHaveBeenCalled();
+    expect(body).not.toContain(STUDENT_USERNAME);
+    expect(body).not.toContain(STUDENT_NAME);
+    expect(body).not.toContain(STUDENT_EMAIL);
   });
 
   it("denies an ordinary student the same way for a real and a made-up key", async () => {
@@ -278,8 +390,12 @@ describe("identity reveal endpoint", () => {
 
     expect(known.status).toBe(403);
     expect(unknown.status).toBe(403);
-    expect(await known.json()).toEqual(await unknown.json());
+    const body = await known.text();
+    expect(JSON.parse(body)).toEqual(await unknown.json());
     expect(findAccountLink).not.toHaveBeenCalled();
+    expect(body).not.toContain(STUDENT_USERNAME);
+    expect(body).not.toContain(STUDENT_NAME);
+    expect(body).not.toContain(STUDENT_EMAIL);
   });
 
   it("returns the identity to an authorized professor and audits the reveal", async () => {
@@ -290,6 +406,7 @@ describe("identity reveal endpoint", () => {
       lookUpIdentity: async () => ({
         displayName: STUDENT_NAME,
         email: STUDENT_EMAIL,
+        username: STUDENT_USERNAME,
       }),
       recordView,
     });
@@ -301,6 +418,7 @@ describe("identity reveal endpoint", () => {
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
       status: "identified",
+      username: STUDENT_USERNAME,
     });
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(recordView).toHaveBeenCalledWith(
@@ -312,6 +430,7 @@ describe("identity reveal endpoint", () => {
     );
     const audited = JSON.stringify(recordView.mock.calls);
     expect(audited).not.toContain(STUDENT_NAME);
+    expect(audited).not.toContain(STUDENT_USERNAME);
     expect(audited).not.toContain(STUDENT_EMAIL);
   });
 
@@ -338,6 +457,7 @@ describe("identity reveal endpoint", () => {
     expect(lookUpIdentity).toHaveBeenCalled();
     expect(JSON.parse(body)).toEqual({ status: "unavailable" });
     expect(body).not.toContain(STUDENT_NAME);
+    expect(body).not.toContain(STUDENT_USERNAME);
     expect(body).not.toContain(STUDENT_EMAIL);
     expect(body).not.toContain(CLERK_SUBJECT);
     expect(body).not.toContain("audit_events");
@@ -367,6 +487,7 @@ describe("identity reveal endpoint", () => {
       lookUpIdentity: async () => ({
         displayName: STUDENT_NAME,
         email: STUDENT_EMAIL,
+        username: STUDENT_USERNAME,
       }),
       recordView: async () => {},
     });
@@ -384,6 +505,7 @@ describe("identity reveal endpoint", () => {
       `http://test/api/professor/students/${SIGNED_IN_KEY}/identity`,
     );
     expect(seen[0]).not.toContain("@");
+    expect(seen[0]).not.toContain(STUDENT_USERNAME);
     expect(seen[0].toLowerCase()).not.toContain("jane");
   });
 
@@ -412,9 +534,13 @@ describe("identity reveal endpoint", () => {
     });
 
     const response = await reveal(SIGNED_IN_KEY);
+    const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: "unavailable" });
+    expect(JSON.parse(body)).toEqual({ status: "unavailable" });
+    expect(body).not.toContain(STUDENT_USERNAME);
+    expect(body).not.toContain(STUDENT_NAME);
+    expect(body).not.toContain(STUDENT_EMAIL);
   });
 });
 
@@ -429,7 +555,7 @@ describe("identity stays out of the analytics and tutor paths", () => {
       const source = readFileSync(path.join(process.cwd(), file), "utf8");
 
       expect(source, `${file} must not read identity columns`).not.toMatch(
-        /display_name|\bemail\b|external_subject/,
+        /display_name|\bemail\b|\busername\b|external_subject/,
       );
     }
   });
@@ -451,6 +577,23 @@ describe("identity stays out of the analytics and tutor paths", () => {
     ]);
   });
 });
+
+function providerUser(): ProviderUser {
+  return {
+    emailAddresses: [
+      {
+        emailAddress: STUDENT_EMAIL,
+        id: "idn_primary",
+        verification: { status: "verified" },
+      },
+    ],
+    firstName: "Jane",
+    fullName: STUDENT_NAME,
+    lastName: "Smith",
+    primaryEmailAddressId: "idn_primary",
+    username: STUDENT_USERNAME,
+  };
+}
 
 function accountLink(): StudentAccountLink {
   return {

@@ -537,6 +537,6 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
     case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
     case "professor-student-identity":
-      return "Pseudonymous student key in; display name and primary email out. No other profile field, and no analytics record is written.";
+      return "Pseudonymous student key in; display name, username, and primary email out. No other profile field, and no analytics record is written.";
   }
 }
