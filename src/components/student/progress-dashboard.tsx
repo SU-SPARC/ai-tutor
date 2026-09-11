@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { studentQuestionTitle } from "@/lib/labels";
 import type { StudentProgressDashboard } from "@/lib/types";
 
 type QuestionProgress = StudentProgressDashboard["questions"][number];
@@ -68,7 +69,7 @@ export function primaryPracticeAction(progress: StudentProgressDashboard) {
       ),
       kind: "continue" as const,
       label: "Continue practice",
-      questionTitle: resumable.questionTitle,
+      questionTitle: studentQuestionTitle(resumable.questionTitle),
     };
   }
 
@@ -80,7 +81,7 @@ export function primaryPracticeAction(progress: StudentProgressDashboard) {
       href: resumeHref(retry.questionId, retry.resumeSessionId),
       kind: "continue" as const,
       label: "Continue practice",
-      questionTitle: retry.questionTitle,
+      questionTitle: studentQuestionTitle(retry.questionTitle),
     };
   }
 
@@ -360,7 +361,9 @@ function RecentSessionRow({ session }: { session: RecentSession }) {
   return (
     <TableRow>
       <TableCell className="min-w-56">
-        <span className="font-medium">{session.questionTitle}</span>
+        <span className="font-medium">
+          {studentQuestionTitle(session.questionTitle)}
+        </span>
         {session.practiceContext === "reserve_practice" ? (
           <Badge variant="success" className="ml-2">
             Extra practice
@@ -468,7 +471,9 @@ function QuestionRow({ question }: { question: QuestionProgress }) {
       <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium">{question.questionTitle}</h3>
+            <h3 className="font-medium">
+              {studentQuestionTitle(question.questionTitle)}
+            </h3>
             {!question.available ? (
               <Badge variant="secondary">No longer available</Badge>
             ) : null}

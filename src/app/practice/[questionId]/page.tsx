@@ -10,6 +10,7 @@ import {
   getTopics,
 } from "@/lib/data/data-store"
 import { getServerEnv } from "@/lib/env/server"
+import { studentQuestionTitle } from "@/lib/labels"
 
 export const dynamic = "force-dynamic"
 
@@ -26,7 +27,7 @@ export async function generateMetadata({
     return { title: "Question not found" }
   }
   return {
-    title: `${question.title} · Practice`,
+    title: `${studentQuestionTitle(question.title)} · Practice`,
     description: question.prompt.slice(0, 150),
   }
 }

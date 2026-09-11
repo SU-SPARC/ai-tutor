@@ -1,6 +1,10 @@
 import "server-only"
 
-import { difficultyLabel, sourceLabel } from "@/lib/labels"
+import {
+  difficultyLabel,
+  sourceLabel,
+  studentQuestionTitle,
+} from "@/lib/labels"
 import { parseRational } from "@/lib/tutor/answer/rational"
 import {
   SOURCE_TYPES,
@@ -95,7 +99,7 @@ export function normalizeSummary(question: TutorQuestion): QuestionSummary {
   return {
     id: question.id,
     topicId: question.topicId,
-    title: question.title,
+    title: studentQuestionTitle(question.title),
     prompt: question.prompt,
     difficulty: question.difficulty,
     difficultyLabel: difficultyLabel(question.difficulty),

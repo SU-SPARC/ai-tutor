@@ -49,6 +49,12 @@ export default async function HomePage() {
           {topicsWithQuestions} topic{topicsWithQuestions === 1 ? "" : "s"}{" "}
           ready now.
         </p>
+        {topicsWithQuestions < topics.length ? (
+          <p className="text-sm text-muted-foreground">
+            This pilot currently includes practice for the first course topics.
+            More topics will be added as they are reviewed.
+          </p>
+        ) : null}
       </section>
     </main>
   )

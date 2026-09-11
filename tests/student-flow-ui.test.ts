@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getApprovedQuestions: vi.fn(),
   getQuestionCounts: vi.fn(),
   getTopics: vi.fn(),
+  listQuestionsByTopic: vi.fn(),
   redirect: vi.fn(),
 }));
 
@@ -30,11 +31,14 @@ vi.mock("@/lib/data/data-store", () => ({
   getApprovedQuestions: mocks.getApprovedQuestions,
   getQuestionCounts: mocks.getQuestionCounts,
   getTopics: mocks.getTopics,
+  listQuestionsByTopic: mocks.listQuestionsByTopic,
 }));
 
+import HomePage from "@/app/page";
 import PracticePage from "@/app/practice/page";
 import PracticeQuestionNotFound from "@/app/practice/[questionId]/not-found";
 import ApplicationError from "@/app/error";
+import TopicDetailPage from "@/app/topics/[slug]/page";
 import TopicsPage from "@/app/topics/page";
 import {
   primaryPracticeAction,
@@ -54,6 +58,7 @@ import {
   inputFormatHintFor,
   normalizeSummary,
 } from "@/lib/api/question-serialization";
+import { studentQuestionTitle } from "@/lib/labels";
 
 class RedirectSignal extends Error {
   constructor(readonly destination: string) {
@@ -124,7 +129,7 @@ const approvedQuestions: TutorQuestion[] = [
       trustLevel: "public_original",
       visibility: "public",
     },
-    title: "Spinner and Coin Condition",
+    title: "Spinner and Coin Condition Draft",
     topicId: "conditional-probability",
   },
 ];
@@ -158,6 +163,9 @@ beforeEach(() => {
     byTopic: { "conditional-probability": 2 },
     total: 2,
   });
+  mocks.listQuestionsByTopic.mockImplementation(async (topicId: string) =>
+    approvedQuestions.filter((question) => question.topicId === topicId),
+  );
 });
 
 afterEach(() => {
@@ -207,13 +215,59 @@ describe("new student reaching practice", () => {
 });
 
 describe("topic selection", () => {
-  it("lists usable topics with a clear start action", async () => {
+  it("presents available topics first and the rest of the syllabus as coming soon", async () => {
     const markup = renderToStaticMarkup(await TopicsPage());
 
-    expect(markup).toContain("Conditional Probability");
+    expect(markup).toContain("Available for this pilot");
+    expect(markup).toContain("More topics coming soon");
+    expect(markup.indexOf("Available for this pilot")).toBeLessThan(
+      markup.indexOf("More topics coming soon"),
+    );
+    expect(markup.indexOf("Conditional Probability")).toBeLessThan(
+      markup.indexOf("Central Limit Theorem"),
+    );
     expect(markup).toContain("Start practicing");
-    expect(markup).toContain("Nothing to practice yet");
+    expect(markup).toContain('href="/practice?topicId=conditional-probability"');
+    expect(markup).toContain("Coming soon");
+    expect(markup).toContain("About this topic");
+    expect(markup).toContain('href="/topics/central-limit-theorem"');
+    expect(markup).not.toContain("Nothing to practice yet");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("omits the coming-soon section once every topic has practice", async () => {
+    mocks.getQuestionCounts.mockResolvedValue({
+      byTopic: { "central-limit-theorem": 1, "conditional-probability": 2 },
+      total: 3,
+    });
+
+    const markup = renderToStaticMarkup(await TopicsPage());
+
+    expect(markup).toContain("Available for this pilot");
+    expect(markup).not.toContain("More topics coming soon");
+    expect(markup).not.toContain("Coming soon");
+  });
+
+  it("keeps the syllabus visible when no topic has practice yet", async () => {
+    mocks.getQuestionCounts.mockResolvedValue({ byTopic: {}, total: 0 });
+
+    const markup = renderToStaticMarkup(await TopicsPage());
+
+    expect(markup).toContain("Practice questions are being prepared");
+    expect(markup).toContain("More topics coming soon");
+    expect(markup).toContain("Conditional Probability");
+    expect(markup).not.toContain("Start practicing");
+  });
+
+  it("shows published question titles without the authoring Draft marker", async () => {
+    const markup = renderToStaticMarkup(
+      await TopicDetailPage({
+        params: Promise.resolve({ slug: "conditional-probability" }),
+      }),
+    );
+
+    expect(markup).toContain("Spinner and Coin Condition");
+    expect(markup).not.toMatch(/\bDraft\b/);
   });
 
   it("shows a graceful empty-topic state instead of a question from another topic", () => {
@@ -295,6 +349,8 @@ describe("question screen", () => {
     expect(markup).toContain("Your progress");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
     expect(markup).not.toMatch(/PRIVATE-/);
+    expect(markup).toContain("Spinner and Coin Condition");
+    expect(markup).not.toMatch(/\bDraft\b/);
   });
 
   it("never offers AI help unless the server enabled it", () => {
@@ -534,6 +590,64 @@ describe("answer format guidance", () => {
   });
 });
 
+describe("home page pilot scope", () => {
+  it("explains that more topics are coming while some are still empty", async () => {
+    mockPrincipal(undefined);
+
+    const markup = renderToStaticMarkup(await HomePage());
+
+    expect(markup).toContain("2 practice questions across 1 topic ready now.");
+    expect(markup).toContain(
+      "This pilot currently includes practice for the first course topics.",
+    );
+    expect(markup).toContain("More topics will be added as they are reviewed.");
+    expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("drops the pilot note once every topic has practice", async () => {
+    mockPrincipal(undefined);
+    mocks.getQuestionCounts.mockResolvedValue({
+      byTopic: { "central-limit-theorem": 1, "conditional-probability": 2 },
+      total: 3,
+    });
+
+    const markup = renderToStaticMarkup(await HomePage());
+
+    expect(markup).toContain("3 practice questions across 2 topics ready now.");
+    expect(markup).not.toContain("This pilot currently includes");
+  });
+});
+
+describe("student-facing question titles", () => {
+  it("drops a trailing authoring Draft marker only", () => {
+    expect(studentQuestionTitle("Club Membership Union Draft")).toBe(
+      "Club Membership Union",
+    );
+    expect(studentQuestionTitle("Campus badge flag draft")).toBe(
+      "Campus badge flag",
+    );
+    expect(studentQuestionTitle("Neither Newsletter (Draft)")).toBe(
+      "Neither Newsletter",
+    );
+    expect(studentQuestionTitle("Award Placements - Draft")).toBe(
+      "Award Placements",
+    );
+    expect(studentQuestionTitle("Overdraft Fee Draft")).toBe("Overdraft Fee");
+    expect(studentQuestionTitle("Draft Picks Probability")).toBe(
+      "Draft Picks Probability",
+    );
+    expect(studentQuestionTitle("Drafting Rules")).toBe("Drafting Rules");
+    expect(studentQuestionTitle("Draft")).toBe("Draft");
+  });
+
+  it("applies the cleanup to the public question summary but not the id", () => {
+    const summary = normalizeSummary(approvedQuestions[1]);
+
+    expect(summary.title).toBe("Spinner and Coin Condition");
+    expect(summary.id).toBe("spinner-coin");
+  });
+});
+
 describe("student dashboard", () => {
   const progress: StudentProgressDashboard = {
     mode: "database",
@@ -604,6 +718,30 @@ describe("student dashboard", () => {
     expect(markup).toContain("Continue practice");
     expect(markup).toContain("Up next:");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("shows dashboard question titles without the authoring Draft marker", () => {
+    const withDraft: StudentProgressDashboard = {
+      ...progress,
+      questions: [
+        { ...progress.questions[0], questionTitle: "Award Placements Draft" },
+      ],
+      recentSessions: [
+        {
+          ...progress.recentSessions[0],
+          questionTitle: "Award Placements Draft",
+        },
+      ],
+    };
+
+    expect(primaryPracticeAction(withDraft).questionTitle).toBe(
+      "Award Placements",
+    );
+    const markup = renderToStaticMarkup(
+      createElement(ProgressDashboard, { progress: withDraft }),
+    );
+    expect(markup).toContain("Award Placements");
+    expect(markup).not.toMatch(/\bDraft\b/);
   });
 
   it("tells a new student to start practicing", () => {

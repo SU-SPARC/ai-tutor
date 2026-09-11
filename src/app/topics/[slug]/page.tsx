@@ -18,6 +18,7 @@ import {
   difficultyBadgeVariant,
   difficultyLabel,
   sourceLabel,
+  studentQuestionTitle,
 } from "@/lib/labels"
 
 export const dynamic = "force-dynamic"
@@ -104,7 +105,9 @@ export default async function TopicDetailPage({ params }: TopicPageProps) {
                     <Badge variant="outline">{sourceLabel(question.source)}</Badge>
                     <Badge variant="outline">{topic.title}</Badge>
                   </div>
-                  <CardTitle className="mt-2 text-lg">{question.title}</CardTitle>
+                  <CardTitle className="mt-2 text-lg">
+                    {studentQuestionTitle(question.title)}
+                  </CardTitle>
                   <CardDescription className="line-clamp-3 leading-6">
                     <MathText>{question.prompt}</MathText>
                   </CardDescription>
