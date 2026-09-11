@@ -28,7 +28,7 @@ grant interface.
 | `/professor/upload`                | Professor            | `requireProfessor`.                                                               |
 | `/professor/analytics`             | Professor            | `requireAnalyticsAccess`.                                                         |
 | `/professor/students`              | Professor            | `requireAnalyticsAccess`; pseudonymous records only.                              |
-| `/professor/students/[studentKey]` | Professor            | `requireAnalyticsAccess`; key must be a hex digest.                               |
+| `/professor/students/[studentKey]` | Professor            | `requireAnalyticsAccess`; key must be a hex digest. Identity is hidden until the instructor reveals it. |
 
 The legacy `/admin/**` route tree does not exist.
 
@@ -62,6 +62,7 @@ The legacy `/admin/**` route tree does not exist.
 | `POST /api/professor/content-preview`            | Professor                                 | Private file parsing to an abstract needs-review preview.                                                                                                                                                                    |
 | `GET /api/professor/analytics`                   | Professor                                 | Aggregate metrics only; no student identities or raw answers.                                                                                                                                                                |
 | `GET /api/professor/analytics/export`            | Professor                                 | Versioned pseudonymous research export; no direct identifiers, student text, or private retrieval content.                                                                                                                   |
+| `POST /api/professor/students/[studentKey]/identity` | Professor                             | Explicit identity reveal for one pseudonymous key. Returns the account display name and primary email address only; no other profile field, no provider subject, and no analytics record is written.                          |
 | `POST /api/retrieval/search`                     | Professor                                 | Client-accessible `student` audience only; internal draft audience is rejected.                                                                                                                                              |
 
 ## Invariants
@@ -69,6 +70,10 @@ The legacy `/admin/**` route tree does not exist.
 - Proxy middleware performs only coarse authentication redirects. Every page,
   Route Handler, and repository boundary repeats authorization.
 - Professors may use all normal student features.
+- Student identity is never an analytics field. It is returned only by the
+  explicit reveal boundary, read live from Clerk, audited, and never written
+  back into a session, attempt, aggregate, export, or prompt. See
+  [student identity reveal](student-identity-reveal.md).
 - Students cannot access professor navigation, pages, queues, analytics,
   uploads, imports, or mutation APIs.
 - Only lifecycle transitions can change publication pointers. Client-supplied

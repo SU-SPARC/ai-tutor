@@ -991,6 +991,23 @@ export type InstructorStudentDetail = {
   topics: InstructorStudentTopicPerformance[];
 };
 
+/**
+ * The outcome of an explicit, professor-initiated identity reveal.
+ *
+ * Identity is never part of an analytics record: these fields are read from
+ * the identity provider at the moment a professor asks for them and are not
+ * written back into any session, attempt, or aggregate. `anonymous` is a
+ * student who practised without signing in, `unlinked` an account the provider
+ * no longer holds, and `unavailable` a reveal that could not be completed —
+ * an unreachable provider, or a reveal that could not be written to the audit
+ * trail and was therefore withheld.
+ */
+export type InstructorStudentIdentity =
+  | { displayName: string; email?: string; status: "identified" }
+  | { status: "anonymous" }
+  | { status: "unavailable" }
+  | { status: "unlinked" };
+
 export type InstructorCohortAnalytics = {
   incorrectAttempts?: number;
   activeStudents: number;

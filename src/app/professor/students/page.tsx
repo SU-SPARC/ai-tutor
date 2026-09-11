@@ -57,7 +57,7 @@ export default async function ProfessorStudentsPage({
   return (
     <ProfessorPageShell
       title="Students"
-      description="Everyone who has practised with the tutor, identified by a stable pseudonym. Names, email addresses, and browser identifiers are never loaded onto this page."
+      description="Everyone who has practised with the tutor, identified by a stable pseudonym. This list holds no names, email addresses, or browser identifiers; an authorized instructor can reveal one student's account identity from their detail page."
       aside={
         <Badge variant="outline" className="h-10 gap-2 px-4">
           <Users className="h-4 w-4" />

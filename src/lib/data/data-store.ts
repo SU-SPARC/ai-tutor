@@ -39,6 +39,11 @@ import {
   INSTRUCTOR_STUDENT_PAGE_SIZE,
 } from "@/lib/data/instructor-student-repository";
 import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-analytics-export-repository";
+import {
+  createDatabaseStudentIdentityRepository,
+  recordStudentIdentityView,
+  type StudentAccountLink,
+} from "@/lib/data/student-identity-repository";
 import { queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import type {
@@ -507,6 +512,58 @@ export async function getInstructorStudentDetail(
 
     throw new DataServiceUnavailableError("tutor-session", { cause });
   }
+}
+
+/**
+ * Resolves which account a pseudonym belongs to, for the explicit identity
+ * reveal only. Demo mode has no shared cohort to resolve against, so it
+ * reports nothing rather than an empty identity.
+ */
+export async function findInstructorStudentAccountLink(
+  authorization: AnalyticsAuthorization,
+  studentKey: string,
+): Promise<StudentAccountLink | undefined> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo" || !getServerEnv().DATABASE_URL) {
+    return undefined;
+  }
+
+  try {
+    return await createDatabaseStudentIdentityRepository(
+      queryPostgres,
+    ).findAccountLink(authorization, studentKey);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return undefined;
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
+/**
+ * Rejects rather than returning quietly when there is nowhere to write. A
+ * reveal that cannot be recorded must not be served, so "no audit store" is a
+ * failure here and not a permitted no-op. Demo mode never reaches this: it
+ * resolves no account link to reveal in the first place.
+ */
+export async function recordInstructorStudentIdentityView(
+  authorization: AnalyticsAuthorization,
+  input: { requestId?: string; status: string; studentKey: string },
+) {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo" || !getServerEnv().DATABASE_URL) {
+    throw new DataServiceUnavailableError("tutor-session");
+  }
+
+  await recordStudentIdentityView(queryPostgres, {
+    ...input,
+    professorUserId: authorization.principal.userId,
+  });
 }
 
 export async function getInstructorCohortAnalytics(

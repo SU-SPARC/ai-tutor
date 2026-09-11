@@ -8,6 +8,7 @@ export const SERVER_BOUNDARY_ACCESS = [
   "professor",
   "professor-review",
   "professor-analytics",
+  "professor-student-identity",
 ] as const;
 
 export type ServerBoundaryAccess = (typeof SERVER_BOUNDARY_ACCESS)[number];
@@ -331,6 +332,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireAnalyticsAccess", "getPilotAnalyticsExport"],
   ),
   route(
+    "POST",
+    "/api/professor/students/[studentKey]/identity",
+    "src/app/api/professor/students/[studentKey]/identity/route.ts",
+    "professor-student-identity",
+    ["requireAnalyticsAccess", "resolveInstructorStudentIdentity"],
+  ),
+  route(
     "GET",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
@@ -528,5 +536,7 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
       return "Professor-safe course data; private internals and student identity omitted.";
     case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
+    case "professor-student-identity":
+      return "Pseudonymous student key in; display name and primary email out. No other profile field, and no analytics record is written.";
   }
 }
