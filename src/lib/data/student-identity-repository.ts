@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/authorization";
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
+  STUDENT_ACCOUNTS_CTE,
   STUDENT_KEY_SQL,
 } from "@/lib/data/analytics-population";
 import {
@@ -31,19 +32,27 @@ type AccountLinkRow = {
 
 /**
  * A student key is `sha256('user:' || users.id)`. The digest is not reversed
- * here — it is recomputed forwards over the sessions that already form the
- * analytics population, and the owner it matches is then joined to its own
+ * here — it is recomputed forwards over the same population the Students page
+ * lists: signed-in student accounts, and the owners of the sessions that form
+ * the practice analytics. The owner it matches is then joined to its own
  * account row. A key that belongs to no student in that population resolves to
- * nothing, so this cannot be used to probe accounts the analytics never list.
+ * nothing, so this cannot be used to probe accounts the Students page never
+ * lists — professor accounts, system actors, and disabled or deleted accounts
+ * among them.
  */
 const ACCOUNT_LINK_SQL = `
-  with student_owners as (
-    select distinct
+  with
+  ${STUDENT_ACCOUNTS_CTE},
+  student_owners as (
+    select
       ${STUDENT_KEY_SQL} as student_key,
       s.user_id
     from tutor_sessions s
     where s.practice_context = 'published'
       and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+    union
+    select student_key, user_id
+    from student_accounts
   )
   select
     owners.user_id is not null as authenticated,

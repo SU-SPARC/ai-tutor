@@ -7,6 +7,7 @@ import {
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
   PROFESSOR_OWNED_SESSION_SQL,
+  STUDENT_ACCOUNTS_CTE,
   STUDENT_KEY_SQL,
 } from "@/lib/data/analytics-population";
 import {
@@ -152,12 +153,29 @@ const ATTENTION_STUDENTS_CTE = `
   )
 `;
 
+/**
+ * Who appears on the Students page: every signed-in student account, whether
+ * or not they have practised, plus every owner of meaningful published
+ * practice, which is how anonymous pilot students are known. `union` collapses
+ * a signed-in student who has practised into one row, because both branches
+ * derive the same digest from the same user id. Session and attempt totals
+ * are left-joined onto this population, so a student who has only signed in
+ * reports zeros and no activity timestamps rather than being absent.
+ */
+const STUDENT_POPULATION_CTE = `
+  student_population as (
+    select student_key from student_accounts
+    union
+    select student_key from session_totals
+  )
+`;
+
 const SUMMARY_COLUMNS = `
-  st.student_key,
-  st.sessions,
-  st.hints_used,
-  st.solutions_revealed,
-  st.solved_sessions,
+  p.student_key,
+  coalesce(st.sessions, 0) as sessions,
+  coalesce(st.hints_used, 0) as hints_used,
+  coalesce(st.solutions_revealed, 0) as solutions_revealed,
+  coalesce(st.solved_sessions, 0) as solved_sessions,
   st.first_active_at,
   st.last_active_at,
   coalesce(t.attempts, 0) as attempts,
@@ -170,18 +188,25 @@ const SUMMARY_COLUMNS = `
   coalesce(attention.needs_attention, false) as needs_attention
 `;
 
+/**
+ * Every order ends on the pseudonym, so students that nothing else separates
+ * still come back in one fixed sequence. A student with no recorded activity
+ * has no last-active time and zero counts: `nulls last` and the zero
+ * coalesces place them after every active student under every sort, in
+ * pseudonym order, instead of wherever a null happens to land.
+ */
 const SORT_CLAUSES: Record<InstructorStudentSort, string> = {
-  attempts: "coalesce(t.attempts, 0) desc, st.student_key",
-  last_active: "st.last_active_at desc, st.student_key",
+  attempts: "coalesce(t.attempts, 0) desc, p.student_key",
+  last_active: "st.last_active_at desc nulls last, p.student_key",
   lowest_accuracy: `
     case
       when coalesce(t.correct_attempts, 0) + coalesce(t.incorrect_attempts, 0) >= ${REPEATED_DIFFICULTY_MINIMUM_ATTEMPTS}
         then coalesce(t.correct_attempts, 0)::numeric / nullif(t.correct_attempts + t.incorrect_attempts, 0)
     end asc nulls last,
     coalesce(t.attempts, 0) desc,
-    st.student_key
+    p.student_key
   `,
-  sessions: "st.sessions desc, st.student_key",
+  sessions: "coalesce(st.sessions, 0) desc, p.student_key",
 };
 
 type StudentSummaryRow = {
@@ -312,16 +337,19 @@ async function readStudentList(
       ${SESSION_TOTALS_CTE},
       ${ATTEMPT_TOTALS_CTE},
       ${ATTENTION_STUDENTS_CTE},
-      ${EXTRA_PRACTICE_TOTALS_CTE}
+      ${EXTRA_PRACTICE_TOTALS_CTE},
+      ${STUDENT_ACCOUNTS_CTE},
+      ${STUDENT_POPULATION_CTE}
       select
         ${SUMMARY_COLUMNS},
         count(*) over ()::int as total_students
-      from session_totals st
-      left join attempt_totals t on t.student_key = st.student_key
+      from student_population p
+      left join session_totals st on st.student_key = p.student_key
+      left join attempt_totals t on t.student_key = p.student_key
       left join attention_students attention
-        on attention.student_key = st.student_key
-      left join extra_practice_totals extra on extra.student_key = st.student_key
-      where $3::text is null or st.student_key like $3 || '%'
+        on attention.student_key = p.student_key
+      left join extra_practice_totals extra on extra.student_key = p.student_key
+      where $3::text is null or p.student_key like $3 || '%'
       order by ${order}
       limit $1
       offset $2
@@ -350,14 +378,17 @@ async function readStudentSummary(
       ${SESSION_TOTALS_CTE},
       ${ATTEMPT_TOTALS_CTE},
       ${ATTENTION_STUDENTS_CTE},
-      ${EXTRA_PRACTICE_TOTALS_CTE}
+      ${EXTRA_PRACTICE_TOTALS_CTE},
+      ${STUDENT_ACCOUNTS_CTE},
+      ${STUDENT_POPULATION_CTE}
       select ${SUMMARY_COLUMNS}
-      from session_totals st
-      left join attempt_totals t on t.student_key = st.student_key
+      from student_population p
+      left join session_totals st on st.student_key = p.student_key
+      left join attempt_totals t on t.student_key = p.student_key
       left join attention_students attention
-        on attention.student_key = st.student_key
-      left join extra_practice_totals extra on extra.student_key = st.student_key
-      where st.student_key = $1
+        on attention.student_key = p.student_key
+      left join extra_practice_totals extra on extra.student_key = p.student_key
+      where p.student_key = $1
     `,
     [studentKey],
   );

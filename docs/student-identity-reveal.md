@@ -11,12 +11,14 @@ The reveal is a separate, explicit action rather than a column in the table.
 A student key is `sha256('user:' || users.id)` for a signed-in student and
 `sha256('anon:' || anonymous_user_id)` for the anonymous pilot, computed in SQL
 in `STUDENT_KEY_SQL`. The digest is never reversed. The reveal recomputes the
-same digest forwards over the sessions that already form the analytics
-population and joins the owner it matches to its own `users` row, reading only
-`identity_provider` and `external_subject` from it. A key that belongs to no
-student in that population resolves to nothing, so the endpoint cannot be used
-to probe accounts the analytics do not already list — a professor's own
-practice included, since staff sessions are excluded from the population.
+same digest forwards over the population the Students page lists — signed-in
+student accounts and the owners of the sessions that form the practice
+analytics — and joins the owner it matches to its own `users` row, reading
+only `identity_provider` and `external_subject` from it. A student who has
+signed in but never practised therefore resolves exactly as one who has. A
+key that belongs to no student in that population resolves to nothing, so the
+endpoint cannot be used to probe accounts the Students page does not list:
+professor accounts, system actors, and disabled or deleted accounts included.
 
 `users.display_name` and `users.email` exist as an account projection that
 Clerk refreshes at every sign-in, but the reveal does not read them: Clerk is

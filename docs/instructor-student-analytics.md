@@ -7,9 +7,22 @@ records. No model is involved, and no analytics table was added.
 
 ## Student identity
 
-A participating student owns a meaningful published practice session: either an authenticated user
-(`tutor_sessions.user_id`) or an anonymous cookie subject
-(`tutor_sessions.anonymous_user_id`). Instructor surfaces never see either.
+The Students page lists every **signed-in student account** from the moment
+of its first sign-in, before any practice, together with every owner of a
+meaningful published practice session. A signed-in student account is a human
+`users` row with `status = 'active'` and no current `professor` grant in
+`user_roles`, the database projection of the authoritative Clerk role; system
+actors, disabled and deleted accounts, and professors are not students and are
+never listed. The session branch is how anonymous pilot students
+(`tutor_sessions.anonymous_user_id`) are known. Both branches are unioned by
+student key, so a student who has signed in and practised is one row.
+Instructor surfaces never see the user id or the anonymous cookie subject.
+
+A student who has signed in but not practised shows truthful zeros, no
+first- or last-active time, and a detail page that says so; nothing about
+their progress is inferred. Their row is not a participant in the pilot
+export, and they do not count as an active student in the cohort panel: both
+of those describe recorded practice, not the roster.
 
 The repository derives a **student key** in SQL —
 `sha256('user:' || user_id)` or `sha256('anon:' || anonymous_user_id)`, hex
@@ -29,7 +42,7 @@ linked to the session; only the digest input would change, not the analytics.
 
 | Surface                            | Contents                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. |
+| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. |
 | `/professor/students/[studentKey]` | Summary metrics, per-topic performance, a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions.                |
 | `/professor/analytics`             | Cohort totals, the rule/retrieval/LLM/blocked split, most recorded misconceptions, and a count of students showing repeated difficulty.            |
 

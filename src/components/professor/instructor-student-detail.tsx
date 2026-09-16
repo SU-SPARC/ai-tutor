@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -128,9 +129,26 @@ export function InstructorStudentDetailPanel({
 }) {
   const { activity, attempts, attention, misconceptions, summary, topics } =
     detail;
+  // A student is listed from their first sign-in, so a record with nothing
+  // recorded is a real state rather than an error. Say so, and let the zero
+  // metrics below stay truthful zeros.
+  const hasActivity =
+    summary.sessions > 0 ||
+    summary.extraPracticeSessions > 0 ||
+    summary.attempts > 0;
 
   return (
     <div className="flex flex-col gap-6">
+      {hasActivity ? null : (
+        <Alert>
+          <AlertDescription>
+            No practice activity yet. This student has signed in but has not
+            practised with the tutor; their figures will appear here once they
+            do.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
         <Metric label="Practice sessions" value={summary.sessions} />
         <Metric label="Extra practice" value={summary.extraPracticeSessions} />

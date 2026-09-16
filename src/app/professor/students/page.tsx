@@ -57,7 +57,7 @@ export default async function ProfessorStudentsPage({
   return (
     <ProfessorPageShell
       title="Students"
-      description="Everyone who has practised with the tutor, identified by a stable pseudonym. This list holds no names, email addresses, or browser identifiers; an authorized instructor can reveal one student's account identity from their detail page."
+      description="Students who have signed in to the tutor, identified by a stable pseudonym; practice activity appears here as students begin using it. This list holds no names, email addresses, or browser identifiers; an authorized instructor can reveal one student's account identity from their detail page."
       aside={
         <Badge variant="outline" className="h-10 gap-2 px-4">
           <Users className="h-4 w-4" />
@@ -76,7 +76,7 @@ export default async function ProfessorStudentsPage({
       ) : list.total === 0 && !search ? (
         <Alert>
           <AlertDescription>
-            No student practice activity has been recorded yet.
+            No students have signed in or practised with the tutor yet.
           </AlertDescription>
         </Alert>
       ) : (
