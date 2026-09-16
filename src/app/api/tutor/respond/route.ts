@@ -123,6 +123,22 @@ export async function POST(request: Request) {
       400,
     );
   }
+  if (body.aiHelp !== undefined && typeof body.aiHelp !== "boolean") {
+    return malformedTutorResponse(
+      requestId,
+      "MALFORMED_TUTOR_REQUEST",
+      "aiHelp must be a boolean.",
+      400,
+    );
+  }
+  if (body.aiHelp && (body.mode !== "check" || !body.allowLlmFallback)) {
+    return malformedTutorResponse(
+      requestId,
+      "MALFORMED_TUTOR_REQUEST",
+      "aiHelp requests must use mode check with allowLlmFallback enabled.",
+      400,
+    );
+  }
   if (
     body.allowLlmFallback &&
     (typeof body.answer !== "string" || body.answer.trim().length > 500)
@@ -233,6 +249,7 @@ export async function POST(request: Request) {
       const state = session.engineState ?? initialStateFor(session);
       const transition = await createTutorResponseFromState(
         {
+          aiHelp: body.aiHelp === true,
           allowLlmFallback: body.allowLlmFallback ?? false,
           answer,
           mode: body.mode,

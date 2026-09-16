@@ -256,7 +256,10 @@ describe("student progress dashboard states", () => {
     expect(markup).toContain(
       'href="/practice?questionId=five-question-quiz&amp;sessionId=session%3Astudent-owned"',
     );
-    expect(markup).toContain("not a course grade");
+    expect(markup).toContain(
+      "Your instructor determines any course credit according to the course policy.",
+    );
+    expect(markup).toContain("Unreadable submissions and hints are not attempts.");
     expect(markup).not.toMatch(
       /leaderboard|class rank|percentile|other student/i,
     );

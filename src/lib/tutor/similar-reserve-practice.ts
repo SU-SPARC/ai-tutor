@@ -15,6 +15,7 @@ import {
   listTutorSessionsForStudent,
   ReservePracticeEligibilityChangedError,
 } from "@/lib/data/tutor-session-repository";
+import { similarProblemOriginQualifies } from "@/lib/tutor/practice-credit";
 import type { TutorQuestion } from "@/lib/types";
 
 export type SimilarReservePracticeResult =
@@ -33,9 +34,6 @@ export async function startSimilarReservePractice(
 ): Promise<SimilarReservePracticeResult> {
   const origin = await getTutorSession(authorization, originSessionId);
   if (!origin) return { outcome: "session_unavailable" };
-  if (!origin.solved && origin.status !== "completed") {
-    return { outcome: "not_completed" };
-  }
 
   const [publicQuestion, reserveOrigin, candidates, studentSessions] =
     await Promise.all([
@@ -54,6 +52,18 @@ export async function startSimilarReservePractice(
       ? reserveOrigin?.question
       : publicQuestion;
   if (!currentQuestion) return { outcome: "session_unavailable" };
+  // The same rule the database trigger applies: a solved origin, or the
+  // partial-credit route (three valid attempts and the worked solution).
+  if (
+    !similarProblemOriginQualifies({
+      origin,
+      stepCount: (origin.questionVersion ?? currentQuestion).solutionSteps
+        .length,
+      studentSessions: studentSessions.sessions,
+    })
+  ) {
+    return { outcome: "not_completed" };
+  }
 
   const practicedQuestionIds = new Set(
     studentSessions.sessions.map((session) => session.questionId),

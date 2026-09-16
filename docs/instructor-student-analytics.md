@@ -43,7 +43,7 @@ linked to the session; only the digest input would change, not the analytics.
 | Surface                            | Contents                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. |
-| `/professor/students/[studentKey]` | Summary metrics, per-topic performance, a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions.                |
+| `/professor/students/[studentKey]` | Summary metrics, per-topic performance, per-question [practice credit evidence](practice-credit.md), a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions. |
 | `/professor/analytics`             | Cohort totals, the rule/retrieval/LLM/blocked split, most recorded misconceptions, and a count of students showing repeated difficulty.            |
 
 ## What it deliberately does not return
@@ -69,8 +69,12 @@ misconception trends include only `practice_context = 'published'` sessions.
 Reserve similar-practice sessions are excluded from those metrics and reported
 separately, only after meaningful use, as `extraPracticeSessions` in student and cohort summaries.
 
-- **Attempts** are rows with `mode = 'check'`. Hint and solution requests are
-  separate interactions and never inflate the attempt count.
+- **Attempts** (labelled _Answer submissions_ on the detail page) are rows with
+  `mode = 'check'`. Hint and solution requests are separate interactions and
+  never inflate the attempt count.
+- **Valid attempts**, used only by the practice credit evidence, are check rows
+  with a `correct` or `incorrect` verdict; unreadable and blocked submissions
+  are excluded. See [practice credit evidence](practice-credit.md).
 - **Hints and solutions** are summed from `tutor_sessions.revealed_hints` and
   `revealed_steps`, matching the existing practice analytics.
 - **Misconception codes** come from `tutor_sessions.last_misconception_ids_json`

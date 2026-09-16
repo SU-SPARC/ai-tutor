@@ -129,8 +129,8 @@ export function ProgressDashboard({
               Your progress
             </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              A private record of your tutor practice. It is not a course
-              grade.
+              This dashboard tracks your tutor practice. Your instructor
+              determines any course credit according to the course policy.
             </p>
             {primaryAction.questionTitle ? (
               <p className="mt-1 text-sm text-muted-foreground">
@@ -320,6 +320,10 @@ export function ProgressDashboard({
                 Most recent 8
               </span>
             </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Attempts counts answers the tutor could read and mark correct or
+              incorrect. Unreadable submissions and hints are not attempts.
+            </p>
             {progress.recentSessions.length > 0 ? (
               <div className="overflow-x-auto rounded-md border">
                 <Table>

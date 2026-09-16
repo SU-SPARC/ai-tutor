@@ -48,6 +48,8 @@ export type RuleTutorMode = TutorMode | "full_solution";
 
 export type TutorDecisionInput = {
   aiExecutionContext?: TutorAiExecutionContext;
+  /** An explicit Ask-AI-for-help request; the answer is a draft, never graded. */
+  aiHelp?: boolean;
   allowFullSolution?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
@@ -139,6 +141,7 @@ export async function createTutorResponseFromState(
   if (question) {
     const result = await decideTutorResponse({
       aiExecutionContext,
+      aiHelp: request.aiHelp,
       allowFullSolution: request.mode === "full_solution",
       allowLlmFallback: request.allowLlmFallback,
       answer,
@@ -219,6 +222,7 @@ export async function createTutorResponseFromState(
 
 export async function decideTutorResponse({
   aiExecutionContext,
+  aiHelp,
   allowFullSolution,
   allowLlmFallback,
   answer,
@@ -227,6 +231,17 @@ export async function decideTutorResponse({
   sessionId,
   state,
 }: TutorDecisionInput): Promise<RuleResult> {
+  if (aiHelp && mode === "check") {
+    return respondToAiHelpRequest({
+      aiExecutionContext,
+      answer,
+      mode,
+      question,
+      sessionId,
+      state,
+    });
+  }
+
   if (mode === "hint") {
     if (question.hints.length === 0) {
       const retrieved = await buildRetrievalOrLlmResponse({
@@ -474,6 +489,71 @@ export async function decideTutorResponse({
       usage: usageFor(answer),
     },
     state: nextState,
+  };
+}
+
+const AI_HELP_BEFORE_HINTS_MESSAGE =
+  "Use the available hints first. AI help opens once every hint for this question has been shown.";
+const AI_HELP_UNAVAILABLE_MESSAGE =
+  "AI assistance is currently unavailable. Your saved progress is unchanged; continue with the available course guidance or try again later.";
+
+/**
+ * "Ask AI for help" is never an answer submission. The draft is context for
+ * the help, so the answer checker does not run: whatever the draft contains,
+ * the reply is guidance or blocked, the session cannot become solved, no
+ * misconception feedback is issued, and the wrong-attempt counter and hint
+ * progress stay where they are. Only the raw interaction counter advances,
+ * which keeps the persisted `attempt_count` semantics and AI-help repeat
+ * detection unchanged.
+ */
+async function respondToAiHelpRequest({
+  aiExecutionContext,
+  answer,
+  mode,
+  question,
+  sessionId,
+  state,
+}: Pick<
+  TutorDecisionInput,
+  "aiExecutionContext" | "answer" | "mode" | "question" | "sessionId" | "state"
+>): Promise<RuleResult> {
+  if (!isLlmFallbackEligible(question, state)) {
+    return {
+      response: {
+        source: "rule",
+        verdict: "guidance",
+        message: AI_HELP_BEFORE_HINTS_MESSAGE,
+        responseLabel: labelForQuestion(question),
+        hints: question.hints.slice(0, state.hintsRevealed),
+        steps: [],
+        misconceptions: [],
+        retrievedContext: [],
+        usage: usageFor(answer),
+      },
+      state: nextStateForAttempt(state, {}),
+    };
+  }
+
+  const helped = await buildRetrievalOrLlmResponse({
+    aiExecutionContext,
+    allowLlmFallback: true,
+    answer,
+    mode,
+    query: `${question.prompt} ${answer}`,
+    question,
+    sessionId,
+    state,
+    task: "low_confidence_answer_help",
+    topicId: question.topicId,
+  });
+  if (helped) {
+    return helped;
+  }
+
+  const unavailableState = nextStateForAttempt(state, { state: "blocked" });
+  return {
+    response: blockedResponse(AI_HELP_UNAVAILABLE_MESSAGE, unavailableState),
+    state: unavailableState,
   };
 }
 

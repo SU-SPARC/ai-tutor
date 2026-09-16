@@ -215,7 +215,7 @@ export function chatMessageForResponse(
   return {
     label: unreadable ? "Couldn't read that answer" : undefined,
     note: unreadable
-      ? "This was not marked wrong. Retype it in a readable form and check again."
+      ? "This was not counted as an attempt. Retype your answer using the format shown and try again."
       : undefined,
     role: "tutor",
     text: response.message,
@@ -815,6 +815,9 @@ export function PracticeWorkspace({
 
       try {
         const tutorResponse = await requestTutorResponse({
+          // The draft is context for the help, never a submission: the
+          // server does not grade an aiHelp request.
+          aiHelp: true,
           allowLlmFallback: true,
           answer: helpMessage,
           mode: "check",
@@ -1110,8 +1113,9 @@ export function PracticeWorkspace({
               {isReservePractice ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-success/5 px-4 py-2 text-sm sm:px-5">
                   <span>
-                    Extra practice. This problem does not count toward your
-                    assigned practice.
+                    Extra practice. Solving this similar problem can count
+                    toward partial practice credit under your instructor&apos;s
+                    policy.
                   </span>
                   <Button asChild size="sm" variant="ghost">
                     <Link
@@ -1443,6 +1447,19 @@ export function PracticeWorkspace({
                       </p>
                     ) : null}
                   </div>
+                  {/* The partial-credit route: once the worked solution is
+                      fully revealed, a linked similar problem can be started.
+                      The server decides whether three valid attempts exist. */}
+                  {solutionFullyRevealed && session && !isReservePractice ? (
+                    <div className="mt-3 border-t pt-3">
+                      <PracticeSimilarProblemAction
+                        key={session.id}
+                        disabled={isTutorBusy}
+                        sessionId={session.id}
+                        onMatch={openSimilarQuestion}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1746,6 +1763,7 @@ async function fetchTutorSession(sessionId: string) {
 }
 
 export async function requestTutorResponse(input: {
+  aiHelp?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
   mode: TutorMode;
@@ -1884,6 +1902,7 @@ function clearPendingSessionCreationKey(
 }
 
 function pendingTutorEventId(input: {
+  aiHelp?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
   mode: TutorMode;
@@ -1893,6 +1912,7 @@ function pendingTutorEventId(input: {
   const storageKey = `ai-tutor:pending-event:${input.sessionId}`;
   const fingerprint = clientInputFingerprint(
     JSON.stringify({
+      aiHelp: Boolean(input.aiHelp),
       allowLlmFallback: Boolean(input.allowLlmFallback),
       answer: input.answer,
       mode: input.mode,

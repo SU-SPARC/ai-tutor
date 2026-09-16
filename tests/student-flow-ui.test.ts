@@ -403,7 +403,8 @@ describe("answer feedback", () => {
       label: "Couldn't read that answer",
       tone: "guidance",
     });
-    expect(message.note).toContain("not marked wrong");
+    expect(message.note).toContain("not counted as an attempt");
+    expect(message.note).not.toMatch(/parser|verdict|guidance|database|mode/i);
     expect(message.tone).not.toBe("incorrect");
   });
 

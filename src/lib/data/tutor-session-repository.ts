@@ -705,10 +705,11 @@ export function createDatabaseTutorSessionRepository(
           input.practiceContext === "reserve_practice" &&
           ((cause instanceof DatabaseOperationError &&
             cause.sqlState === "P0001") ||
+            // Every rejection raised by app_guard_tutor_session_practice_context
+            // (eligibility, ownership, or the partial-credit origin rule from
+            // migration 025) starts with this prefix.
             (cause instanceof Error &&
-              cause.message.includes(
-                "Reserve practice requires an eligible question and an owned completed origin session",
-              )))
+              cause.message.includes("Reserve practice requires")))
         ) {
           throw new ReservePracticeEligibilityChangedError();
         }

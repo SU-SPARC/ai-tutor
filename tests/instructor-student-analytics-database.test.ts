@@ -501,6 +501,228 @@ describe("instructor student analytics", () => {
     ]);
   });
 
+  it("derives practice credit routes from the historical seed without changing existing totals", async () => {
+    const authorization = await professorAuthorization();
+    // The seed stores the full "anon:…" value as the anonymous id, and the
+    // digest prefixes the namespace again, exactly as the roster test does.
+    const strugglingKey = createHash("sha256")
+      .update(`anon:${STRUGGLING}`)
+      .digest("hex");
+    const steadyKey = createHash("sha256").update(STEADY).digest("hex");
+    const distributedKey = createHash("sha256")
+      .update(DISTRIBUTED)
+      .digest("hex");
+
+    const struggling = await repository.getStudentDetail(
+      authorization,
+      strugglingKey,
+    );
+    // Three incorrect answers, a solution reveal, then a correct answer across
+    // two sessions; the linked Reserve session was solved.
+    expect(struggling?.creditEvidence).toEqual([
+      expect.objectContaining({
+        questionId: "cp-question",
+        route: "partial_similar",
+        similarProblemAttempted: true,
+        similarProblemSolved: true,
+        solved: true,
+        startOverUsed: true,
+        validAttempts: 4,
+        validAttemptsToFirstCorrect: 4,
+        workedSolutionViewedBeforeFirstCorrect: true,
+      }),
+    ]);
+    // Raw submission totals are untouched by the derivation.
+    expect(struggling?.summary).toMatchObject({
+      attempts: 4,
+      correctAttempts: 1,
+      extraPracticeSessions: 1,
+      incorrectAttempts: 3,
+    });
+
+    const steady = await repository.getStudentDetail(authorization, steadyKey);
+    expect(
+      steady?.creditEvidence.map(({ questionId, route, validAttemptsToFirstCorrect }) => ({
+        questionId,
+        route,
+        validAttemptsToFirstCorrect,
+      })),
+    ).toEqual([
+      { questionId: "cp-question", route: "full", validAttemptsToFirstCorrect: 1 },
+      { questionId: "bm-question", route: "full", validAttemptsToFirstCorrect: 1 },
+    ]);
+
+    const distributed = await repository.getStudentDetail(
+      authorization,
+      distributedKey,
+    );
+    expect(
+      distributed?.creditEvidence.find(
+        (row) => row.questionId === "bm-question",
+      ),
+    ).toMatchObject({
+      route: "not_qualified",
+      solved: false,
+      validAttempts: 2,
+      validAttemptsToFirstCorrect: undefined,
+    });
+  });
+
+  it("counts valid attempts across Start over, links similar problems to their origin, and ignores unreadable and unrelated rows", async () => {
+    const db = await migratedDatabase();
+    await seed(db);
+    const query = pgliteQuery(db);
+    const instructor = createDatabaseInstructorStudentRepository(query);
+    const authorization = await professorAuthorization();
+    const userId = "practice-credit-student";
+    const studentKey = createHash("sha256")
+      .update(`user:${userId}`)
+      .digest("hex");
+    await db.query(
+      `insert into users (
+         id, identity_provider, external_subject, email, display_name, status
+       ) values ($1, 'test', 'credit-student', 'credit@example.edu', 'Credit Student', 'active')`,
+      [userId],
+    );
+    const versions = new Map(
+      (
+        await db.query<{ id: number; question_id: string }>(
+          `select coalesce(published_version_id, working_version_id) as id,
+                  id as question_id
+           from questions`,
+        )
+      ).rows.map((row) => [row.question_id, row.id]),
+    );
+    const publishedSession = (
+      sessionId: string,
+      questionId: string,
+      solved: boolean,
+    ) =>
+      seedSession(db, {
+        misconceptionIds: [],
+        questionId,
+        questionVersionId: versions.get(questionId),
+        revealedHints: 0,
+        revealedSteps: 0,
+        sessionId,
+        solved,
+        userId,
+      });
+    // cp-question: three wrong answers and the worked solution, Start over,
+    // then correct; the linked similar problem was solved.
+    await publishedSession("credit-cp-1", "cp-question", false);
+    await publishedSession("credit-cp-2", "cp-question", true);
+    // bm-question: unreadable, wrong, unreadable, correct.
+    await publishedSession("credit-bm", "bm-question", true);
+    // nm-question: three wrong answers and the worked solution, nothing more.
+    await publishedSession("credit-nm", "nm-question", false);
+
+    // Reserve sessions bypass the origin-completion trigger, as the shared
+    // seed does: one linked to credit-cp-1, one whose origin belongs to
+    // another student and must therefore never count for this one.
+    await db.exec(
+      "alter table tutor_sessions disable trigger tutor_sessions_guard_practice_context",
+    );
+    for (const [sessionId, questionId, originSessionId] of [
+      ["credit-cp-similar", "bm-question", "credit-cp-1"],
+      ["credit-unrelated-similar", "cp-question", "session-steady-1"],
+    ] as const) {
+      await db.query(
+        `insert into tutor_sessions (
+           id, user_id, question_id, question_version_id, practice_context,
+           origin_session_id, revealed_hints, revealed_steps, solved, status,
+           current_state, completed_at
+         ) values ($1, $2, $3, $4, 'reserve_practice', $5, 0, 0, true,
+           'completed', 'solved', now())`,
+        [sessionId, userId, questionId, versions.get(questionId), originSessionId],
+      );
+    }
+    await db.exec(
+      "alter table tutor_sessions enable trigger tutor_sessions_guard_practice_context",
+    );
+
+    const rows: Array<[string, string, string, string, string]> = [
+      // sessionId, questionId, topicId, mode, verdict — in chronological order
+      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
+      ["credit-cp-1", "cp-question", "conditional-probability", "hint", "guidance"],
+      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
+      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
+      ["credit-cp-1", "cp-question", "conditional-probability", "full_solution", "guidance"],
+      ["credit-cp-2", "cp-question", "conditional-probability", "check", "correct"],
+      ["credit-cp-similar", "bm-question", "binomial-models", "check", "correct"],
+      ["credit-bm", "bm-question", "binomial-models", "check", "guidance"],
+      ["credit-bm", "bm-question", "binomial-models", "check", "incorrect"],
+      ["credit-bm", "bm-question", "binomial-models", "check", "guidance"],
+      ["credit-bm", "bm-question", "binomial-models", "check", "correct"],
+      ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
+      ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
+      ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
+      ["credit-nm", "nm-question", "normal-models", "full_solution", "guidance"],
+      ["credit-unrelated-similar", "cp-question", "conditional-probability", "check", "correct"],
+    ];
+    for (const [index, [sessionId, questionId, topicId, mode, verdict]] of rows.entries()) {
+      await db.query(
+        `insert into attempts (
+           session_id, question_id, topic_id, question_version_id, mode, source,
+           verdict, answer_preview, misconception_feedback_json, created_at
+         ) values ($1, $2, $3, $4, $5, 'rule', $6, '7/12', '[]'::jsonb, $7)`,
+        [
+          sessionId,
+          questionId,
+          topicId,
+          versions.get(questionId),
+          mode,
+          verdict,
+          new Date(Date.UTC(2026, 8, 12, 10, index)).toISOString(),
+        ],
+      );
+    }
+
+    const detail = await instructor.getStudentDetail(authorization, studentKey);
+    expect(detail?.creditEvidence).toEqual([
+      expect.objectContaining({
+        questionId: "cp-question",
+        route: "partial_similar",
+        similarProblemAttempted: true,
+        similarProblemSolved: true,
+        solved: true,
+        solvedWithinValidAttemptLimit: false,
+        startOverUsed: true,
+        validAttempts: 4,
+        validAttemptsToFirstCorrect: 4,
+        workedSolutionViewedBeforeFirstCorrect: true,
+      }),
+      expect.objectContaining({
+        questionId: "bm-question",
+        route: "full",
+        similarProblemAttempted: false,
+        solved: true,
+        startOverUsed: false,
+        validAttempts: 2,
+        validAttemptsToFirstCorrect: 2,
+        workedSolutionViewedBeforeFirstCorrect: false,
+      }),
+      expect.objectContaining({
+        questionId: "nm-question",
+        route: "not_qualified",
+        similarProblemAttempted: false,
+        similarProblemSolved: false,
+        solved: false,
+        validAttempts: 3,
+        workedSolutionViewedBeforeFirstCorrect: true,
+      }),
+    ]);
+    // The instructor summary keeps counting raw answer submissions, so the
+    // two unreadable checks appear there but not in the valid-attempt count.
+    expect(detail?.summary).toMatchObject({
+      attempts: 11,
+      correctAttempts: 2,
+      extraPracticeSessions: 2,
+      incorrectAttempts: 7,
+    });
+    expect(JSON.stringify(detail)).not.toContain(userId);
+  });
+
   it("reports an empty cohort rather than failing when nothing is recorded", async () => {
     const empty = await migratedDatabase();
     const emptyRepository = createDatabaseInstructorStudentRepository(

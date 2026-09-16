@@ -111,6 +111,9 @@ describe("student tutor response boundary", () => {
     expect(response.status).toBe(200);
     expect(mocks.createTutorResponseFromState).toHaveBeenCalledWith(
       {
+        // The AI-help intent is part of the request contract: false here,
+        // true only for an explicit "Ask AI for help" request.
+        aiHelp: false,
         allowLlmFallback: false,
         answer: "Please explain this.",
         mode: "hint",

@@ -109,6 +109,75 @@ describe("Reserve similar-practice API", () => {
     expect(crossStudent.status).toBe(404);
   });
 
+  it("E: opens the similar problem for an unsolved origin after three valid attempts and the worked solution", async () => {
+    const current = question("current", "public");
+    setContentRepositoryForTests(contentRepository([current]));
+    setReservePracticeRepositoryForTests(
+      reserveRepository([candidate("reserve")]),
+    );
+    const origin = {
+      ...activeSession("session:partial", current.id, TEST_STUDENT.userId),
+      attempts: [
+        attempt("check", "incorrect"),
+        attempt("check", "guidance"),
+        attempt("check", "incorrect"),
+        attempt("hint", "guidance"),
+        attempt("check", "incorrect"),
+        attempt("full_solution", "guidance"),
+      ],
+      revealedHints: 1,
+      revealedSteps: current.solutionSteps.length,
+    };
+    setTutorSessionRepositoryForTests(tutorRepository([origin]));
+
+    const response = await request("session:partial");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      practice: { question: { id: "reserve" } },
+    });
+  });
+
+  it("D and F: blocks the similar problem without the worked solution, or with fewer than three valid attempts", async () => {
+    const current = question("current", "public");
+    setContentRepositoryForTests(contentRepository([current]));
+    setReservePracticeRepositoryForTests(
+      reserveRepository([candidate("reserve")]),
+    );
+    // Each case stands alone: valid attempts aggregate across a student's
+    // sessions for the question, so the two blocked sessions must not share
+    // a repository or their counts would add up to a qualifying five.
+    setTutorSessionRepositoryForTests(
+      tutorRepository([
+        {
+          ...activeSession("session:no-solution", current.id, TEST_STUDENT.userId),
+          attempts: [
+            attempt("check", "incorrect"),
+            attempt("check", "incorrect"),
+            attempt("check", "incorrect"),
+          ],
+        },
+      ]),
+    );
+    expect((await request("session:no-solution")).status).toBe(409);
+
+    setTutorSessionRepositoryForTests(
+      tutorRepository([
+        {
+          ...activeSession("session:two-attempts", current.id, TEST_STUDENT.userId),
+          attempts: [
+            attempt("check", "incorrect"),
+            attempt("check", "guidance"),
+            attempt("check", "incorrect"),
+            attempt("check", "guidance"),
+          ],
+          revealedSteps: current.solutionSteps.length,
+        },
+      ]),
+    );
+    expect((await request("session:two-attempts")).status).toBe(409);
+  });
+
   it("returns no match when Reserve eligibility is withdrawn during session creation", async () => {
     const current = question("current", "public");
     const reserve = candidate("reserve");
@@ -222,6 +291,18 @@ function completedSession(
     completedAt: "2026-09-06T12:01:00.000Z",
     solved: true,
     status: "completed" as const,
+  };
+}
+
+function attempt(
+  mode: "check" | "hint" | "full_solution",
+  verdict: "correct" | "incorrect" | "guidance",
+) {
+  return {
+    createdAt: "2026-09-06T12:00:30.000Z",
+    id: randomUUID(),
+    mode,
+    verdict,
   };
 }
 

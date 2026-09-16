@@ -18,7 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAccuracy } from "@/lib/professor/student-pseudonym";
+import {
+  FULL_CREDIT_VALID_ATTEMPT_LIMIT,
+  MANUAL_REVIEW_REASON,
+  PRACTICE_CREDIT_ROUTE_LABELS,
+} from "@/lib/tutor/practice-credit";
 import type {
+  InstructorQuestionCreditEvidence,
   InstructorStudentActivityPoint,
   InstructorStudentDetail,
 } from "@/lib/types";
@@ -122,13 +128,107 @@ function ActivityTrend({
   );
 }
 
+function validAttemptsLabel(evidence: InstructorQuestionCreditEvidence) {
+  if (evidence.validAttemptsToFirstCorrect !== undefined) {
+    return `${evidence.validAttemptsToFirstCorrect} to first correct`;
+  }
+  return evidence.validAttempts === 0
+    ? "—"
+    : `${evidence.validAttempts}, none correct`;
+}
+
+function similarProblemLabel(evidence: InstructorQuestionCreditEvidence) {
+  if (evidence.similarProblemSolved) return "Solved";
+  if (evidence.similarProblemAttempted) return "Attempted, not solved";
+  return "—";
+}
+
+/**
+ * Evidence for the course practice-credit policy, one row per assigned
+ * question. It reports what was recorded and which route that supports; the
+ * instructor decides the credit. Nothing here is called a grade.
+ */
+function CreditEvidenceTable({
+  evidence,
+}: {
+  evidence: InstructorQuestionCreditEvidence[];
+}) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="px-6">Question</TableHead>
+          <TableHead className="px-6">Status</TableHead>
+          <TableHead className="px-6">Valid attempts</TableHead>
+          <TableHead className="px-6">Worked solution before first correct</TableHead>
+          <TableHead className="px-6">Similar problem</TableHead>
+          <TableHead className="px-6">Start over</TableHead>
+          <TableHead className="px-6">Credit route</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {evidence.map((row) => (
+          <TableRow key={row.questionId}>
+            <TableCell className="px-6 py-3">
+              <div className="flex flex-col">
+                <span className="font-medium">{row.questionTitle}</span>
+                <span className="text-xs text-muted-foreground">
+                  {row.topicTitle}
+                </span>
+              </div>
+            </TableCell>
+            <TableCell className="px-6 py-3">
+              {row.solved ? "Completed" : "Not solved"}
+            </TableCell>
+            <TableCell className="px-6 py-3">{validAttemptsLabel(row)}</TableCell>
+            <TableCell className="px-6 py-3">
+              {row.workedSolutionViewedBeforeFirstCorrect ? "Yes" : "No"}
+            </TableCell>
+            <TableCell className="px-6 py-3">{similarProblemLabel(row)}</TableCell>
+            <TableCell className="px-6 py-3">
+              {row.startOverUsed ? "Yes" : "—"}
+            </TableCell>
+            <TableCell className="px-6 py-3">
+              <div className="flex flex-col gap-1">
+                <Badge
+                  variant={
+                    row.route === "full"
+                      ? "success"
+                      : row.route === "partial_similar"
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {PRACTICE_CREDIT_ROUTE_LABELS[row.route]}
+                </Badge>
+                {row.route === "manual_review" ? (
+                  <span className="max-w-xs text-xs text-muted-foreground">
+                    {MANUAL_REVIEW_REASON}
+                  </span>
+                ) : null}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function InstructorStudentDetailPanel({
   detail,
 }: {
   detail: InstructorStudentDetail;
 }) {
-  const { activity, attempts, attention, misconceptions, summary, topics } =
-    detail;
+  const {
+    activity,
+    attempts,
+    attention,
+    creditEvidence,
+    misconceptions,
+    summary,
+    topics,
+  } = detail;
   // A student is listed from their first sign-in, so a record with nothing
   // recorded is a real state rather than an error. Say so, and let the zero
   // metrics below stay truthful zeros.
@@ -152,7 +252,7 @@ export function InstructorStudentDetailPanel({
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
         <Metric label="Practice sessions" value={summary.sessions} />
         <Metric label="Extra practice" value={summary.extraPracticeSessions} />
-        <Metric label="Attempts" value={summary.attempts} />
+        <Metric label="Answer submissions" value={summary.attempts} />
         <Metric label="Correct" value={summary.correctAttempts} />
         <Metric
           label="Accuracy"
@@ -254,6 +354,36 @@ export function InstructorStudentDetailPanel({
           ) : (
             <p className="px-6 text-sm text-muted-foreground">
               No topic practice has been recorded for this student yet.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Practice credit evidence</CardTitle>
+          <CardDescription>
+            What the record supports under the course practice-credit policy,
+            per assigned question. A valid attempt is an answer the tutor could
+            read and marked correct or incorrect; unreadable submissions, hints,
+            solution reveals, and AI help are not attempts. The full-credit
+            route is a correct answer within {FULL_CREDIT_VALID_ATTEMPT_LIMIT}{" "}
+            valid attempts with the worked solution not revealed before it —
+            revealing the solution first ends that route for the question. The
+            partial route is a solved linked similar problem. Attempts are
+            counted across Start over. Manual review marks a question solved
+            after the worked solution without a solved similar problem: the
+            record cannot show whether a similar problem was available, so no
+            number is derived. This is evidence for your decision, not a grade.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0">
+          {creditEvidence.length > 0 ? (
+            <CreditEvidenceTable evidence={creditEvidence} />
+          ) : (
+            <p className="px-6 text-sm text-muted-foreground">
+              No assigned-question practice has been recorded for this student
+              yet.
             </p>
           )}
         </CardContent>

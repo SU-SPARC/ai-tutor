@@ -38,20 +38,23 @@ The only entry point is:
 
 `POST /api/tutor/session/[sessionId]/similar`
 
-The origin session must be owned by the caller and completed. The server—not
-the browser—loads and ranks eligible Reserve candidates. The request accepts no
+The origin session must be owned by the caller and either completed or on the
+partial-credit route (three valid answer attempts on the question and the
+worked solution fully revealed — see [practice credit](practice-credit.md)).
+The server—not the browser—loads and ranks eligible Reserve candidates. The request accepts no
 question ID, so a student cannot enumerate or substitute a Reserve ID.
 
 On a match, the server creates an ordinary tutor session with:
 
 - `practice_context = 'reserve_practice'`;
-- `origin_session_id` set to the completed owned session;
+- `origin_session_id` set to the qualifying owned session;
 - `question_version_id` pinned to the eligible working version;
 - a deterministic idempotency key for the origin/candidate pair.
 
-A database trigger rejects a Reserve-practice session unless the candidate is
-still eligible, the version is current, the origin is complete, the owners
-match, and the two questions differ. The normal session-creation API remains
+A database trigger (migration 025) rejects a Reserve-practice session unless
+the candidate is still eligible, the version is current, the origin qualifies
+under the same rule as the server, the owners match, and the two questions
+differ. The normal session-creation API remains
 published-only. Session reads and tutor responses re-check eligibility, so
 changing an ID or retaining a withdrawn session URL does not broaden access.
 
@@ -102,6 +105,12 @@ Student progress reports the number of extra-practice sessions separately and
 labels owned recent sessions as Extra practice. Professor cohort and student
 analytics report separate extra-practice session counts, while their existing
 assigned-work metrics remain unchanged.
+
+A Reserve session that is linked to a student's published session through
+`origin_session_id` is also read by the per-question
+[practice credit evidence](practice-credit.md): solving it supports the
+partial-credit route for the origin question. The student-facing copy says so
+rather than calling it practice that does not count.
 
 ## Verification invariants
 

@@ -6,11 +6,19 @@ import { Loader2, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SimilarPracticeSessionDto } from "@/lib/types";
 
-type SimilarProblemState = "idle" | "loading" | "none" | "error";
+type SimilarProblemState =
+  | "idle"
+  | "loading"
+  | "none"
+  | "not_qualified"
+  | "error";
 
 export function similarProblemStatusMessage(state: SimilarProblemState) {
   if (state === "none") {
     return "No similar problem is available right now. You can continue to the next question or choose another topic.";
+  }
+  if (state === "not_qualified") {
+    return "A similar problem opens once you have checked three answers and opened the worked solution, or solved the question.";
   }
   if (state === "error") {
     return "We couldn't look for a similar problem just now. You can try again or continue.";
@@ -19,7 +27,7 @@ export function similarProblemStatusMessage(state: SimilarProblemState) {
 }
 
 export const SIMILAR_PROBLEM_DESCRIPTION =
-  "Optional extra practice on a professor-approved problem like this one. It does not count toward your assigned practice.";
+  "Optional extra practice on a professor-approved problem like this one. Solving it can count toward partial practice credit under your instructor's policy.";
 
 export function PracticeSimilarProblemAction({
   disabled,
@@ -44,10 +52,15 @@ export function PracticeSimilarProblemAction({
         },
       );
       const payload = (await response.json().catch(() => ({}))) as {
+        code?: string;
         practice?: SimilarPracticeSessionDto | null;
       };
       if (!response.ok) {
-        setState("error");
+        setState(
+          response.status === 409 && payload.code === "TUTOR_SESSION_NOT_COMPLETE"
+            ? "not_qualified"
+            : "error",
+        );
         return;
       }
       if (!payload.practice) {
@@ -69,7 +82,12 @@ export function PracticeSimilarProblemAction({
         type="button"
         variant="outline"
         className="shrink-0"
-        disabled={disabled || state === "loading" || state === "none"}
+        disabled={
+          disabled ||
+          state === "loading" ||
+          state === "none" ||
+          state === "not_qualified"
+        }
         onClick={() => void findSimilarProblem()}
       >
         {state === "loading" ? (

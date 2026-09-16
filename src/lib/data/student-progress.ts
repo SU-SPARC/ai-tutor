@@ -4,6 +4,7 @@ import type { AuthenticatedStudentAuthorization } from "@/lib/auth/authorization
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
+import { isValidAnswerAttempt } from "@/lib/tutor/practice-credit";
 import { isMeaningfulTutorSession } from "@/lib/tutor/session-engagement";
 import type { StudentProgressDashboard, TutorSessionRecord } from "@/lib/types";
 
@@ -38,10 +39,16 @@ type TopicAccumulator = Pick<
 
 const EARLIER_COURSE_CONTENT = "Earlier course content";
 
+/**
+ * The Attempts a student sees are valid answer attempts under the course
+ * practice-credit policy: submissions the tutor could read and mark correct
+ * or incorrect. An unreadable submission is guidance, not an attempt, and
+ * never moves this number.
+ */
 function isAnswerAttempt(
   attempt: TutorSessionRecord["attempts"][number],
 ) {
-  return attempt.mode === "check" || attempt.mode === undefined;
+  return isValidAnswerAttempt(attempt);
 }
 
 export async function getStudentProgress(

@@ -43,7 +43,8 @@ export async function POST(
     if (result.outcome === "not_completed") {
       return safeApiErrorResponse({
         code: "TUTOR_SESSION_NOT_COMPLETE",
-        error: "Complete this question before requesting a similar problem.",
+        error:
+          "Solve this question, or check three answers and open the worked solution, before requesting a similar problem.",
         requestId,
         route: SIMILAR_QUESTION_ROUTE,
         status: 409,
