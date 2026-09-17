@@ -128,6 +128,14 @@ const SAFE_TUTOR_ERROR_CODES = new Set([
 export const SIGN_IN_REQUIRED_CODE = "SIGN_IN_REQUIRED";
 export const SIGN_IN_REQUIRED_MESSAGE =
   "Sign in to start practicing. Your progress is saved to your account.";
+
+export function shouldOfferSimilarPractice(
+  session?: Pick<TutorSessionDto, "practiceContext"> | null,
+) {
+  return Boolean(
+    session && (session.practiceContext ?? "published") === "published",
+  );
+}
 const UNREADABLE_MESSAGE_PREFIX = "I could not read";
 
 export class TutorClientRequestError extends Error {
@@ -341,9 +349,9 @@ export function PracticeWorkspace({
     : 0;
   const solutionFullyRevealed = Boolean(
     selectedQuestion &&
-      selectedQuestion.stepCount > 0 &&
-      session &&
-      session.revealedSteps >= selectedQuestion.stepCount,
+    selectedQuestion.stepCount > 0 &&
+    session &&
+    session.revealedSteps >= selectedQuestion.stepCount,
   );
   const lastVerdict = latestResponse?.verdict;
   const searchQuery = search.trim().toLowerCase();
@@ -372,7 +380,11 @@ export function PracticeWorkspace({
   ).length;
   const nextQuestion = useMemo(
     () =>
-      nextQuestionAfter(selectedQuestion?.id, topicQuestions, solvedQuestionIds),
+      nextQuestionAfter(
+        selectedQuestion?.id,
+        topicQuestions,
+        solvedQuestionIds,
+      ),
     [selectedQuestion?.id, solvedQuestionIds, topicQuestions],
   );
   const isReservePractice = session?.practiceContext === "reserve_practice";
@@ -635,7 +647,10 @@ export function PracticeWorkspace({
     setShowTopicComplete(true);
   }
 
-  async function syncHintsFromSession(sessionId: string, question: StudentPracticeQuestion) {
+  async function syncHintsFromSession(
+    sessionId: string,
+    question: StudentPracticeQuestion,
+  ) {
     try {
       const snapshot = await fetchTutorSession(sessionId);
       const revealed = Math.min(snapshot.revealedHints, question.hintCount);
@@ -659,7 +674,10 @@ export function PracticeWorkspace({
     if (revealed === 0) {
       return;
     }
-    if (response.misconceptions.length > 0 || response.hints.length < revealed) {
+    if (
+      response.misconceptions.length > 0 ||
+      response.hints.length < revealed
+    ) {
       // A misconception reply carries corrective guidance instead of the
       // question's own hints, so the hint panel is refreshed from the session
       // rather than from this reply.
@@ -1079,7 +1097,9 @@ export function PracticeWorkspace({
                       {solvedInTopic > 0 ? ` · ${solvedInTopic} solved` : ""}
                     </span>
                   ) : null}
-                  <Badge variant="outline">{selectedQuestion.difficultyLabel}</Badge>
+                  <Badge variant="outline">
+                    {selectedQuestion.difficultyLabel}
+                  </Badge>
                   <div className="ml-auto flex items-center gap-1">
                     <QuestionFeedbackForm
                       key={session?.id ?? selectedQuestion.id}
@@ -1158,7 +1178,9 @@ export function PracticeWorkspace({
                 <div ref={messagesEndRef} />
               </div>
 
-              {!session?.solved && hintCount > 0 && disclosedHints[hintViewIndex] ? (
+              {!session?.solved &&
+              hintCount > 0 &&
+              disclosedHints[hintViewIndex] ? (
                 <div className="border-t px-4 py-3 sm:px-5">
                   <div className="flex gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
                     <Lightbulb
@@ -1168,7 +1190,8 @@ export function PracticeWorkspace({
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <span className="text-xs font-medium text-muted-foreground">
-                          Hint {hintViewIndex + 1} of {selectedQuestion.hintCount}
+                          Hint {hintViewIndex + 1} of{" "}
+                          {selectedQuestion.hintCount}
                           {hintsRemaining > 0
                             ? ` · ${hintsRemaining} more available`
                             : ""}
@@ -1209,7 +1232,9 @@ export function PracticeWorkspace({
                         ) : null}
                       </div>
                       <div className="leading-6">
-                        <MathText>{disclosedHints[hintViewIndex] ?? ""}</MathText>
+                        <MathText>
+                          {disclosedHints[hintViewIndex] ?? ""}
+                        </MathText>
                       </div>
                     </div>
                   </div>
@@ -1293,14 +1318,16 @@ export function PracticeWorkspace({
                       </ol>
                     </details>
                   ) : null}
-                  <div className="mt-3 border-t pt-3">
-                    <PracticeSimilarProblemAction
-                      key={session.id}
-                      disabled={isTutorBusy}
-                      sessionId={session.id}
-                      onMatch={openSimilarQuestion}
-                    />
-                  </div>
+                  {shouldOfferSimilarPractice(session) ? (
+                    <div className="mt-3 border-t pt-3">
+                      <PracticeSimilarProblemAction
+                        key={session.id}
+                        disabled={isTutorBusy}
+                        sessionId={session.id}
+                        onMatch={openSimilarQuestion}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="border-t px-4 py-4 sm:px-5">
@@ -1380,7 +1407,8 @@ export function PracticeWorkspace({
                           </span>
                         ) : null}
                       </Button>
-                    ) : selectedQuestion.stepCount > 0 && !solutionFullyRevealed ? (
+                    ) : selectedQuestion.stepCount > 0 &&
+                      !solutionFullyRevealed ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -1406,9 +1434,7 @@ export function PracticeWorkspace({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        disabled={
-                          isTutorBusy || !session || aiHelpAlreadyGiven
-                        }
+                        disabled={isTutorBusy || !session || aiHelpAlreadyGiven}
                         onClick={() => {
                           void requestLimitedAiHelp();
                         }}
@@ -1450,7 +1476,9 @@ export function PracticeWorkspace({
                   {/* The partial-credit route: once the worked solution is
                       fully revealed, a linked similar problem can be started.
                       The server decides whether three valid attempts exist. */}
-                  {solutionFullyRevealed && session && !isReservePractice ? (
+                  {solutionFullyRevealed &&
+                  session &&
+                  shouldOfferSimilarPractice(session) ? (
                     <div className="mt-3 border-t pt-3">
                       <PracticeSimilarProblemAction
                         key={session.id}

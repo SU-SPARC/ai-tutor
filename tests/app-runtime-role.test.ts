@@ -183,14 +183,14 @@ describe("least-privilege runtime role provisioning", () => {
       where rolname = 'app_runtime'
     `);
     expect(verification.rows[0]).toEqual({
-      row_level_security_tables: 30,
+      row_level_security_tables: 31,
       ledger_insert: false,
       publication_gate_execute: true,
       role_update: false,
       reviewer_function_execute: true,
       reserve_event_insert: true,
       reserve_view_select: true,
-      runtime_policies: 30,
+      runtime_policies: 31,
       rolbypassrls: false,
       rolcanlogin: false,
       rolcreatedb: false,
@@ -246,6 +246,17 @@ describe("least-privilege runtime role provisioning", () => {
     ).resolves.toMatchObject({ rows: [{ count: 1 }] });
     await expect(
       database.exec(`
+        insert into question_similarity_links (
+          origin_question_id, similar_question_id, origin_version_id,
+          similar_version_id, relationship_type, slot, created_by_user_id
+        ) select
+          origin.id, reserve.id, origin.published_version_id,
+          reserve.working_version_id, 'similar_practice', 1,
+          'user:runtime-role-professor'
+        from questions origin
+        cross join questions reserve
+        where origin.id = 'runtime-role-origin-question'
+          and reserve.id = 'runtime-role-reserve-question';
         insert into tutor_sessions (
           id, user_id, question_id, solved, status, current_state,
           completed_at
@@ -292,7 +303,7 @@ describe("least-privilege runtime role provisioning", () => {
     await expect(readRlsEvidence(client)).resolves.toMatchObject({
       dataApiGrantCount: 0,
       status: "passed",
-      tableCount: 30,
+      tableCount: 31,
     });
     await database.exec("reset role");
   });

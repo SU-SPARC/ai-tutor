@@ -1379,6 +1379,20 @@ describe("question lifecycle database", () => {
       ).rows[0].count,
     ).toBe(1);
 
+    await database.query(
+      `insert into question_similarity_links (
+         origin_question_id, similar_question_id, origin_version_id,
+         similar_version_id, relationship_type, slot, created_by_user_id
+       ) select
+         origin.id, reserve.id, origin.published_version_id,
+         reserve.working_version_id, 'similar_practice', 1,
+         'user:lifecycle-professor'
+       from questions origin
+       cross join questions reserve
+       where origin.id = 'lifecycle-question'
+         and reserve.id = 'reserve-question'`,
+    );
+
     await database.exec(`
       insert into tutor_sessions (
         id, user_id, question_id, question_version_id,

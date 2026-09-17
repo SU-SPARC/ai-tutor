@@ -77,6 +77,7 @@ const STUDENT_SESSIONS_CTE = `
       s.revealed_steps,
       s.solved,
       s.question_id,
+      s.question_version_id,
       s.last_misconception_ids_json,
       s.created_at,
       s.last_seen_at
@@ -683,6 +684,15 @@ async function readCreditEvidence(
         join student_sessions origin on origin.session_id = r.origin_session_id
         where r.practice_context = 'reserve_practice'
           and origin.student_key = $1
+          and exists (
+            select 1
+            from question_similarity_links link
+            where link.relationship_type = 'similar_practice'
+              and link.origin_question_id = origin.question_id
+              and link.origin_version_id = origin.question_version_id
+              and link.similar_question_id = r.question_id
+              and link.similar_version_id = r.question_version_id
+          )
       `,
       [studentKey],
     ),
@@ -716,7 +726,10 @@ async function readCreditEvidence(
     group.sessionCount += 1;
     group.solved = group.solved || Boolean(row.solved);
     const lastSeenAt = timestamp(row.last_seen_at);
-    if (lastSeenAt && (!group.lastActiveAt || lastSeenAt > group.lastActiveAt)) {
+    if (
+      lastSeenAt &&
+      (!group.lastActiveAt || lastSeenAt > group.lastActiveAt)
+    ) {
       group.lastActiveAt = lastSeenAt;
     }
     groups.set(questionId, group);

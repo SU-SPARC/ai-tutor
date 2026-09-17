@@ -6,9 +6,9 @@ import { POST } from "@/app/api/tutor/session/[sessionId]/similar/route";
 import { setContentRepositoryForTests } from "@/lib/data/data-store";
 import type { ContentRepository } from "@/lib/data/repository";
 import {
-  setReservePracticeRepositoryForTests,
-  type ReservePracticeCandidate,
-} from "@/lib/data/reserve-practice-repository";
+  setQuestionSimilaritySelectionRepositoryForTests,
+  type LinkedReservePracticeCandidate,
+} from "@/lib/data/question-similarity-repository";
 import {
   resetTutorSessionsForTests,
   ReservePracticeEligibilityChangedError,
@@ -33,7 +33,7 @@ describe("Reserve similar-practice API", () => {
 
   afterEach(() => {
     setContentRepositoryForTests(undefined);
-    setReservePracticeRepositoryForTests(undefined);
+    setQuestionSimilaritySelectionRepositoryForTests(undefined);
     resetTutorSessionsForTests();
     resetAuthMocks();
     vi.unstubAllEnvs();
@@ -46,7 +46,7 @@ describe("Reserve similar-practice API", () => {
       completedSession("session:current", current.id, TEST_STUDENT.userId),
     ];
     setContentRepositoryForTests(contentRepository([current]));
-    setReservePracticeRepositoryForTests(reserveRepository([reserve]));
+    setQuestionSimilaritySelectionRepositoryForTests(linkRepository([reserve]));
     setTutorSessionRepositoryForTests(tutorRepository(sessions));
 
     const response = await request("session:current");
@@ -79,7 +79,7 @@ describe("Reserve similar-practice API", () => {
     setContentRepositoryForTests(
       contentRepository([current, question("published-fallback", "public")]),
     );
-    setReservePracticeRepositoryForTests(reserveRepository([]));
+    setQuestionSimilaritySelectionRepositoryForTests(linkRepository([]));
     setTutorSessionRepositoryForTests(
       tutorRepository([
         completedSession("session:current", current.id, TEST_STUDENT.userId),
@@ -94,8 +94,8 @@ describe("Reserve similar-practice API", () => {
   it("requires completion and conceals another student's session", async () => {
     const current = question("current", "public");
     setContentRepositoryForTests(contentRepository([current]));
-    setReservePracticeRepositoryForTests(
-      reserveRepository([candidate("reserve")]),
+    setQuestionSimilaritySelectionRepositoryForTests(
+      linkRepository([candidate("reserve")]),
     );
     setTutorSessionRepositoryForTests(
       tutorRepository([
@@ -112,8 +112,8 @@ describe("Reserve similar-practice API", () => {
   it("E: opens the similar problem for an unsolved origin after three valid attempts and the worked solution", async () => {
     const current = question("current", "public");
     setContentRepositoryForTests(contentRepository([current]));
-    setReservePracticeRepositoryForTests(
-      reserveRepository([candidate("reserve")]),
+    setQuestionSimilaritySelectionRepositoryForTests(
+      linkRepository([candidate("reserve")]),
     );
     const origin = {
       ...activeSession("session:partial", current.id, TEST_STUDENT.userId),
@@ -141,8 +141,8 @@ describe("Reserve similar-practice API", () => {
   it("D and F: blocks the similar problem without the worked solution, or with fewer than three valid attempts", async () => {
     const current = question("current", "public");
     setContentRepositoryForTests(contentRepository([current]));
-    setReservePracticeRepositoryForTests(
-      reserveRepository([candidate("reserve")]),
+    setQuestionSimilaritySelectionRepositoryForTests(
+      linkRepository([candidate("reserve")]),
     );
     // Each case stands alone: valid attempts aggregate across a student's
     // sessions for the question, so the two blocked sessions must not share
@@ -150,7 +150,11 @@ describe("Reserve similar-practice API", () => {
     setTutorSessionRepositoryForTests(
       tutorRepository([
         {
-          ...activeSession("session:no-solution", current.id, TEST_STUDENT.userId),
+          ...activeSession(
+            "session:no-solution",
+            current.id,
+            TEST_STUDENT.userId,
+          ),
           attempts: [
             attempt("check", "incorrect"),
             attempt("check", "incorrect"),
@@ -164,7 +168,11 @@ describe("Reserve similar-practice API", () => {
     setTutorSessionRepositoryForTests(
       tutorRepository([
         {
-          ...activeSession("session:two-attempts", current.id, TEST_STUDENT.userId),
+          ...activeSession(
+            "session:two-attempts",
+            current.id,
+            TEST_STUDENT.userId,
+          ),
           attempts: [
             attempt("check", "incorrect"),
             attempt("check", "guidance"),
@@ -185,7 +193,7 @@ describe("Reserve similar-practice API", () => {
       completedSession("session:current", current.id, TEST_STUDENT.userId),
     ];
     setContentRepositoryForTests(contentRepository([current]));
-    setReservePracticeRepositoryForTests(reserveRepository([reserve]));
+    setQuestionSimilaritySelectionRepositoryForTests(linkRepository([reserve]));
     const repository = tutorRepository(sessions);
     repository.createSession = async () => {
       throw new ReservePracticeEligibilityChangedError();
@@ -225,16 +233,9 @@ function contentRepository(questions: TutorQuestion[]) {
   } as ContentRepository;
 }
 
-function reserveRepository(candidates: ReservePracticeCandidate[]) {
+function linkRepository(candidates: LinkedReservePracticeCandidate[]) {
   return {
-    async getEligibleQuestion(questionId: string, versionId: number) {
-      return candidates.find(
-        (candidate) =>
-          candidate.question.id === questionId &&
-          candidate.versionId === versionId,
-      );
-    },
-    async listEligibleQuestions() {
+    async listEligibleForOrigin() {
       return candidates;
     },
   };
@@ -273,10 +274,13 @@ function ownerId(owner: StudentOwner) {
   return owner.kind === "user" ? owner.userId : owner.anonymousId;
 }
 
-function candidate(id: string): ReservePracticeCandidate {
+function candidate(id: string): LinkedReservePracticeCandidate {
   return {
+    originQuestionId: "current",
+    originVersionId: 17,
     question: question(id, "private"),
     reservedAt: "2026-09-01T00:00:00.000Z",
+    slot: 1,
     versionId: 42,
   };
 }
@@ -318,6 +322,7 @@ function activeSession(
     lastSeenAt: "2026-09-06T12:00:00.000Z",
     practiceContext: "published" as const,
     questionId,
+    questionVersionId: 17,
     revealedHints: 0,
     revealedSteps: 0,
     solved: false,

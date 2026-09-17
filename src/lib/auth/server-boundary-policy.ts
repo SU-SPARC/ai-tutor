@@ -207,6 +207,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "POST",
+    "/api/professor/questions/[id]/similarity",
+    "src/app/api/professor/questions/[id]/similarity/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "setSimilarPracticeLink"],
+  ),
+  route(
+    "POST",
     "/api/professor/questions/[id]/versions",
     "src/app/api/professor/questions/[id]/versions/route.ts",
     "professor-review",

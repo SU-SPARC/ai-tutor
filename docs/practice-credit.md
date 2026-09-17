@@ -59,8 +59,9 @@ question:
   across sessions is what stops a restart from resetting the count);
 - the number of published sessions (`startOverUsed` when more than one);
 - the linked similar problems — reserve-practice sessions whose
-  `origin_session_id` is one of those published sessions — and whether each
-  was attempted and solved;
+  `origin_session_id` is one of those published sessions **and** whose exact
+  origin question/version and Reserve question/version match a historical
+  `question_similarity_links` row — and whether each was attempted and solved;
 - whether any session is recorded as solved (covers counter-only rows).
 
 It returns `validAttempts`, `validAttemptsToFirstCorrect` (the position of the
@@ -88,8 +89,12 @@ instructor applies the fallback manually: such rows are labelled **Manual
 review** with the facts beside them. Recording the unavailable lookup would
 need a new persisted event.
 
-Unrelated reserve practice — a similar problem whose origin is a different
-question or another student's session — never reaches the derivation.
+`origin_session_id` alone does not establish approved similarity. An unlinked
+same-topic Reserve session, a different version pair, a different origin, or
+another student's session never reaches the derivation. The matching
+relationship may be active or later revoked: revocation stops future selection
+but preserves the truthful historical 0.9 evidence for sessions created while
+that exact version-pinned relationship existed.
 
 ## Where it appears
 
@@ -109,7 +114,7 @@ question or another student's session — never reaches the derivation.
 
 `similarProblemOriginQualifies` (application) and the trigger
 `app_guard_tutor_session_practice_context` as replaced by migration
-`025_reserve_practice_partial_credit_origin.sql` (database) enforce one rule:
+`026_question_similarity_links.sql` (database) enforce one rule:
 
 - the origin session is solved or completed (the existing post-solve extra
   practice), **or**
@@ -120,10 +125,12 @@ question or another student's session — never reaches the derivation.
 
 Every other guard in 023 is unchanged: no origin on published sessions, the
 published version for active sessions, same owner, different question, and a
-currently eligible Reserve candidate. The workspace shows *Try a similar
-problem* once the worked solution is fully revealed; the server answers 409
-`TUTOR_SESSION_NOT_COMPLETE` until the attempts exist, and the button explains
-the rule rather than failing.
+currently eligible Reserve candidate. New Reserve-session creation additionally
+requires an active (`revoked_at is null`) exact version-pinned relationship.
+The workspace shows *Try a similar problem* only on eligible published-origin
+sessions (never on a Reserve-practice sibling) once the worked solution is fully
+revealed; the server answers 409 `TUTOR_SESSION_NOT_COMPLETE` until the attempts
+exist, and the button explains the rule rather than failing.
 
 ## AI help is never an attempt
 

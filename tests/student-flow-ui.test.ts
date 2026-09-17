@@ -53,6 +53,7 @@ import {
   nextQuestionAfter,
   PracticeWorkspace,
   recoveryMessages,
+  shouldOfferSimilarPractice,
 } from "@/components/tutor/practice-workspace";
 import {
   inputFormatHintFor,
@@ -475,6 +476,15 @@ describe("similar practice", () => {
     expect(html).toContain("Try a similar problem");
     expect(html).toContain("professor-approved");
     expect(html).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("offers the action only for published-origin sessions", () => {
+    expect(shouldOfferSimilarPractice({ practiceContext: "published" })).toBe(
+      true,
+    );
+    expect(
+      shouldOfferSimilarPractice({ practiceContext: "reserve_practice" }),
+    ).toBe(false);
   });
 
   it("falls back gracefully when nothing similar exists", () => {

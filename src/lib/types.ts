@@ -579,6 +579,35 @@ export type QuestionReserveEventDto = {
   versionId: number;
 };
 
+export type QuestionSimilarityRelationshipType = "similar_practice";
+
+export type QuestionSimilarityLinkDto = {
+  createdAt: string;
+  createdBy: QuestionVersionAttribution;
+  eligible: boolean;
+  id: number;
+  originQuestionId: string;
+  originTitle: string;
+  originVersionId: number;
+  relationshipType: QuestionSimilarityRelationshipType;
+  revokedAt?: string;
+  revokedBy?: QuestionVersionAttribution;
+  similarQuestionId: string;
+  similarTitle: string;
+  similarVersionId: number;
+  slot: 1 | 2 | 3;
+};
+
+export type QuestionSimilarityCoverageDto = {
+  eligibleSiblingCount: number;
+  linkedSiblingCount: number;
+  originQuestionId: string;
+  originTitle: string;
+  originVersionId: number;
+  targetSiblingCount: 3;
+  topicId: string;
+};
+
 export type QuestionLifecycleDashboard = {
   inspections: QuestionVersionInspectionDto[];
   mode: "database" | "demo";

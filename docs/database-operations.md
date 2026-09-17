@@ -162,6 +162,33 @@ security-invoker view. This bounded rollout interval is not an application
 defect. Existing published practice remains available, but the change window
 is not complete until steps 3–10 pass.
 
+### Migration 026 explicit similarity links
+
+Migration 026 is a forward-only schema and controlled-backfill change. Before
+an approved rollout, verify that both known backfill records exist in the
+expected states: Event Token is active on published version 387, and Raffle
+Ticket is active on working version 464, unpublished, reserved,
+practice-enabled, and approved or unpublished. The migration deliberately
+aborts on partial presence or state/version drift and never repairs or deletes
+content.
+
+After applying the migration, immediately reapply
+`db/roles/app_runtime.sql` through the custody workflow so the runtime receives
+reviewed INSERT/UPDATE access (no DELETE) and its role-scoped RLS policy for
+`question_similarity_links`. Then run migration checks, custody verification,
+integrity audit, and a read-only verification that the one backfilled link pins
+the expected origin and sibling version IDs. This repository work does not
+perform that Production rollout.
+
+Migration 026 is unreleased and may be replaced only before any environment
+records its checksum. Before application, reversal is simply reverting the
+application changes and the unapplied migration file. After application, do
+not down-migrate or delete relationship rows: roll forward with a new migration,
+and use attributed soft revocation for relationship changes. If the controlled
+backfill or schema application fails, the migration runner transaction rolls
+back the whole migration; correct the precondition or SQL and rerun through the
+normal reviewed workflow.
+
 ## Authoring A Migration
 
 1. Synchronize the branch and inspect the highest checked-in version.

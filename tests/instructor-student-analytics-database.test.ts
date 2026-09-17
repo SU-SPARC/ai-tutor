@@ -542,14 +542,24 @@ describe("instructor student analytics", () => {
 
     const steady = await repository.getStudentDetail(authorization, steadyKey);
     expect(
-      steady?.creditEvidence.map(({ questionId, route, validAttemptsToFirstCorrect }) => ({
-        questionId,
-        route,
-        validAttemptsToFirstCorrect,
-      })),
+      steady?.creditEvidence.map(
+        ({ questionId, route, validAttemptsToFirstCorrect }) => ({
+          questionId,
+          route,
+          validAttemptsToFirstCorrect,
+        }),
+      ),
     ).toEqual([
-      { questionId: "cp-question", route: "full", validAttemptsToFirstCorrect: 1 },
-      { questionId: "bm-question", route: "full", validAttemptsToFirstCorrect: 1 },
+      {
+        questionId: "cp-question",
+        route: "full",
+        validAttemptsToFirstCorrect: 1,
+      },
+      {
+        questionId: "bm-question",
+        route: "full",
+        validAttemptsToFirstCorrect: 1,
+      },
     ]);
 
     const distributed = await repository.getStudentDetail(
@@ -634,7 +644,13 @@ describe("instructor student analytics", () => {
            current_state, completed_at
          ) values ($1, $2, $3, $4, 'reserve_practice', $5, 0, 0, true,
            'completed', 'solved', now())`,
-        [sessionId, userId, questionId, versions.get(questionId), originSessionId],
+        [
+          sessionId,
+          userId,
+          questionId,
+          versions.get(questionId),
+          originSessionId,
+        ],
       );
     }
     await db.exec(
@@ -643,13 +659,55 @@ describe("instructor student analytics", () => {
 
     const rows: Array<[string, string, string, string, string]> = [
       // sessionId, questionId, topicId, mode, verdict — in chronological order
-      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
-      ["credit-cp-1", "cp-question", "conditional-probability", "hint", "guidance"],
-      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
-      ["credit-cp-1", "cp-question", "conditional-probability", "check", "incorrect"],
-      ["credit-cp-1", "cp-question", "conditional-probability", "full_solution", "guidance"],
-      ["credit-cp-2", "cp-question", "conditional-probability", "check", "correct"],
-      ["credit-cp-similar", "bm-question", "binomial-models", "check", "correct"],
+      [
+        "credit-cp-1",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "incorrect",
+      ],
+      [
+        "credit-cp-1",
+        "cp-question",
+        "conditional-probability",
+        "hint",
+        "guidance",
+      ],
+      [
+        "credit-cp-1",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "incorrect",
+      ],
+      [
+        "credit-cp-1",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "incorrect",
+      ],
+      [
+        "credit-cp-1",
+        "cp-question",
+        "conditional-probability",
+        "full_solution",
+        "guidance",
+      ],
+      [
+        "credit-cp-2",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "correct",
+      ],
+      [
+        "credit-cp-similar",
+        "bm-question",
+        "binomial-models",
+        "check",
+        "correct",
+      ],
       ["credit-bm", "bm-question", "binomial-models", "check", "guidance"],
       ["credit-bm", "bm-question", "binomial-models", "check", "incorrect"],
       ["credit-bm", "bm-question", "binomial-models", "check", "guidance"],
@@ -657,10 +715,25 @@ describe("instructor student analytics", () => {
       ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
       ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
       ["credit-nm", "nm-question", "normal-models", "check", "incorrect"],
-      ["credit-nm", "nm-question", "normal-models", "full_solution", "guidance"],
-      ["credit-unrelated-similar", "cp-question", "conditional-probability", "check", "correct"],
+      [
+        "credit-nm",
+        "nm-question",
+        "normal-models",
+        "full_solution",
+        "guidance",
+      ],
+      [
+        "credit-unrelated-similar",
+        "cp-question",
+        "conditional-probability",
+        "check",
+        "correct",
+      ],
     ];
-    for (const [index, [sessionId, questionId, topicId, mode, verdict]] of rows.entries()) {
+    for (const [
+      index,
+      [sessionId, questionId, topicId, mode, verdict],
+    ] of rows.entries()) {
       await db.query(
         `insert into attempts (
            session_id, question_id, topic_id, question_version_id, mode, source,
@@ -677,6 +750,20 @@ describe("instructor student analytics", () => {
         ],
       );
     }
+
+    // Revocation must stop future selection without erasing the exact
+    // version-pair evidence earned by this already-created Reserve session.
+    await db.exec(
+      "select set_config('app.similarity_link_write', 'allowed', false)",
+    );
+    await db.query(
+      `update question_similarity_links
+       set revoked_at = now(), revoked_by_user_id = $1
+       where origin_question_id = 'cp-question'
+         and similar_question_id = 'bm-question'
+         and revoked_at is null`,
+      [TEST_PROFESSOR.userId],
+    );
 
     const detail = await instructor.getStudentDetail(authorization, studentKey);
     expect(detail?.creditEvidence).toEqual([
@@ -721,6 +808,15 @@ describe("instructor student analytics", () => {
       incorrectAttempts: 7,
     });
     expect(JSON.stringify(detail)).not.toContain(userId);
+    await expect(
+      db.query<{ count: number }>(
+        `select count(*)::int as count
+         from question_similarity_links
+         where origin_question_id = 'cp-question'
+           and similar_question_id = 'bm-question'
+           and revoked_at is not null`,
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: 1 }] });
   });
 
   it("reports an empty cohort rather than failing when nothing is recorded", async () => {
@@ -913,19 +1009,39 @@ async function seed(database: PGlite) {
   await database.exec(`
     alter table tutor_sessions
       disable trigger tutor_sessions_guard_practice_context;
+    -- This legacy analytics fixture predates Reserve lifecycle modeling. Keep
+    -- its exact historical evidence row without weakening the production
+    -- trigger, which is covered by the dedicated similarity database suite.
+    alter table question_similarity_links
+      disable trigger question_similarity_links_validate_insert;
   `);
+  await database.query(
+    `insert into question_similarity_links (
+       origin_question_id, similar_question_id, origin_version_id,
+       similar_version_id, relationship_type, slot, created_by_user_id
+     ) values (
+       'cp-question', 'bm-question', $1, $2, 'similar_practice', 1, $3
+     )`,
+    [
+      versionByQuestion.get("cp-question"),
+      versionByQuestion.get("bm-question"),
+      TEST_PROFESSOR.userId,
+    ],
+  );
   await database.query(
     `insert into tutor_sessions (
        id, anonymous_user_id, question_id, question_version_id,
        practice_context, origin_session_id, revealed_hints, revealed_steps,
        status, current_state
      ) values (
-       'session-struggling-extra', $1, 'cp-question', $2,
+       'session-struggling-extra', $1, 'bm-question', $2,
        'reserve_practice', 'session-struggling-1', 9, 9, 'active', 'working'
      )`,
-    [STRUGGLING, versionByQuestion.get("cp-question")],
+    [STRUGGLING, versionByQuestion.get("bm-question")],
   );
   await database.exec(`
+    alter table question_similarity_links
+      enable trigger question_similarity_links_validate_insert;
     alter table tutor_sessions
       enable trigger tutor_sessions_guard_practice_context;
   `);
@@ -1023,16 +1139,18 @@ async function seed(database: PGlite) {
       "correct",
       "[]",
     ],
-    ...Array.from({ length: 4 }, () =>
-      [
-        "session-professor-practice",
-        "cp-question",
-        "conditional-probability",
-        "check",
-        "rule",
-        "incorrect",
-        '["STAFF-ONLY-MISCONCEPTION"]',
-      ] as [string, string, string, string, string, string, string],
+    ...Array.from(
+      { length: 4 },
+      () =>
+        [
+          "session-professor-practice",
+          "cp-question",
+          "conditional-probability",
+          "check",
+          "rule",
+          "incorrect",
+          '["STAFF-ONLY-MISCONCEPTION"]',
+        ] as [string, string, string, string, string, string, string],
     ),
     [
       "session-steady-1",

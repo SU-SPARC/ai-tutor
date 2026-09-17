@@ -4,6 +4,8 @@ import { ShieldCheck } from "lucide-react";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorQuestionDetailSummary } from "@/components/professor/professor-question-detail-summary";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
+import { ProfessorQuestionSimilarityControls } from "@/components/professor/professor-question-similarity-controls";
+import { ProfessorQuestionSimilarityCoverage } from "@/components/professor/professor-question-similarity-coverage";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -17,6 +19,10 @@ import {
   requireProfessorReview,
 } from "@/lib/auth/authorization";
 import { getQuestionLifecycleDashboard } from "@/lib/data/data-store";
+import {
+  listQuestionSimilarityCoverage,
+  listQuestionSimilarityLinks,
+} from "@/lib/data/question-similarity-repository";
 import { isProfessorQuestionId } from "@/lib/professor/question-paths";
 
 /**
@@ -48,6 +54,13 @@ export default async function ProfessorQuestionPage({
   if (!question) {
     notFound();
   }
+  const [similarityLinks, similarityCoverage] = await Promise.all([
+    listQuestionSimilarityLinks(authorization, questionId),
+    listQuestionSimilarityCoverage(
+      authorization,
+      question.workingVersion.topicId,
+    ),
+  ]);
 
   const topicTitle = dashboard.topics.find(
     (topic) => topic.id === question.workingVersion.topicId,
@@ -67,6 +80,25 @@ export default async function ProfessorQuestionPage({
       <ProfessorQuestionDetailSummary
         question={question}
         topicTitle={topicTitle}
+      />
+      <ProfessorQuestionSimilarityControls
+        initialLinks={similarityLinks}
+        publishedOrigins={dashboard.questions.flatMap((candidate) =>
+          candidate.publishedVersion && candidate.recordState === "active"
+            ? [
+                {
+                  questionId: candidate.questionId,
+                  title: candidate.publishedVersion.title,
+                  versionId: candidate.publishedVersion.versionId,
+                },
+              ]
+            : [],
+        )}
+        question={question}
+      />
+      <ProfessorQuestionSimilarityCoverage
+        coverage={similarityCoverage}
+        topicTitle={topicTitle ?? question.workingVersion.topicId}
       />
       <Card>
         <CardHeader>

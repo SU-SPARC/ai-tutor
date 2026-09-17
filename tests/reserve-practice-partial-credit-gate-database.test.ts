@@ -11,7 +11,8 @@ import {
 } from "@/lib/tutor/practice-credit";
 
 /**
- * Migration 025 widens the reserve-practice origin rule. Every case below is
+ * Migration 025 widens the reserve-practice origin rule, and migration 026
+ * requires an exact professor-approved relationship. Every case below is
  * run twice over identical facts: once as a real insert through the database
  * trigger, once through the application predicate the server gate uses. The
  * two must agree on every row (scenario L), and the pre-existing guards must
@@ -50,7 +51,10 @@ function postgresDb(client: pg.Client): Db {
 }
 
 type Verdict = "correct" | "incorrect" | "guidance" | "blocked";
-type Interaction = { mode: "check" | "hint" | "full_solution"; verdict: Verdict };
+type Interaction = {
+  mode: "check" | "hint" | "full_solution";
+  verdict: Verdict;
+};
 
 type GateCase = {
   allowed: boolean;
@@ -73,13 +77,20 @@ const CASES: GateCase[] = [
   {
     allowed: true,
     name: "K: a solved origin qualifies as before",
-    origin: { interactions: [{ mode: "check", verdict: "correct" }], revealedSteps: 0, solved: true },
+    origin: {
+      interactions: [{ mode: "check", verdict: "correct" }],
+      revealedSteps: 0,
+      solved: true,
+    },
   },
   {
     allowed: true,
     name: "E: three valid attempts and the fully revealed solution",
     origin: {
-      interactions: [...incorrect(3), { mode: "full_solution", verdict: "guidance" }],
+      interactions: [
+        ...incorrect(3),
+        { mode: "full_solution", verdict: "guidance" },
+      ],
       revealedSteps: ORIGIN_STEP_COUNT,
       solved: false,
     },
@@ -92,7 +103,11 @@ const CASES: GateCase[] = [
   {
     allowed: false,
     name: "D': three valid attempts but only part of the solution revealed",
-    origin: { interactions: incorrect(3), revealedSteps: ORIGIN_STEP_COUNT - 1, solved: false },
+    origin: {
+      interactions: incorrect(3),
+      revealedSteps: ORIGIN_STEP_COUNT - 1,
+      solved: false,
+    },
   },
   {
     allowed: false,
@@ -142,7 +157,9 @@ const CASES: GateCase[] = [
       revealedSteps: ORIGIN_STEP_COUNT,
       solved: false,
     },
-    otherSessions: [{ interactions: incorrect(3), questionId: "gate-other-question" }],
+    otherSessions: [
+      { interactions: incorrect(3), questionId: "gate-other-question" },
+    ],
   },
 ];
 
@@ -262,7 +279,7 @@ describe("reserve-practice origin gate: trigger (migration 025) and application 
            'reserve_practice', $3, now() + interval '30 days')`,
         [`gate-reserve-${caseIndex}-other-owner`, reserveVersionId, originId],
       ),
-    ).rejects.toThrow(/owned origin session/);
+    ).rejects.toThrow(/owned published origin session/);
 
     // Same question as the origin is never a similar problem.
     await expect(
@@ -272,9 +289,14 @@ describe("reserve-practice origin gate: trigger (migration 025) and application 
            practice_context, origin_session_id, expires_at
          ) values ($1, $2, 'gate-origin-question', $3,
            'reserve_practice', $4, now() + interval '30 days')`,
-        [`gate-reserve-${caseIndex}-same-question`, student, originVersionId, originId],
+        [
+          `gate-reserve-${caseIndex}-same-question`,
+          student,
+          originVersionId,
+          originId,
+        ],
       ),
-    ).rejects.toThrow(/owned origin session/);
+    ).rejects.toThrow(/owned published origin session/);
 
     // A published session can never carry an origin.
     await expect(
@@ -301,7 +323,7 @@ async function openDatabase(): Promise<Db> {
     const ledger = await database.query<{ version: number | string }>(
       "select max(version) as version from schema_migrations",
     );
-    expect(Number(ledger.rows[0]?.version)).toBeGreaterThanOrEqual(25);
+    expect(Number(ledger.rows[0]?.version)).toBeGreaterThanOrEqual(26);
     return database;
   }
   const database = pgliteDb(new PGlite());
@@ -390,7 +412,12 @@ async function seedContent(database: Db) {
       $1, $2, 'unpublish', $3, $4, 'published', 'content_correction',
       null, 'gate-unpublish', 'gate-request', '{}'::jsonb
     )`,
-    ["gate-reserve-question", reserveVersionId, "user:gate-professor", "Gate Professor"],
+    [
+      "gate-reserve-question",
+      reserveVersionId,
+      "user:gate-professor",
+      "Gate Professor",
+    ],
   );
   await database.exec(
     "select set_config('app.reserve_write', 'allowed', false)",
@@ -406,6 +433,14 @@ async function seedContent(database: Db) {
      where id = 'gate-reserve-question'`,
   );
   const originVersionId = await versionOf(database, "gate-origin-question");
+  await database.query(
+    `insert into question_similarity_links (
+       origin_question_id, similar_question_id, origin_version_id,
+       similar_version_id, relationship_type, slot, created_by_user_id
+     ) values ($1, 'gate-reserve-question', $2, $3,
+       'similar_practice', 1, 'user:gate-professor')`,
+    ["gate-origin-question", originVersionId, reserveVersionId],
+  );
   const stepCount = await database.query<{ steps: number }>(
     `select jsonb_array_length(snapshot_json -> 'solutionSteps')::int as steps
      from question_versions where id = $1`,
