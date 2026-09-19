@@ -208,11 +208,13 @@ describe("provider field mapping", () => {
     expect(identityFromProviderUser(providerUser())).toEqual({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
+      familyName: "Smith",
+      givenName: "Jane",
       username: STUDENT_USERNAME,
     });
   });
 
-  it("reads nothing but the four permitted fields off the provider record", () => {
+  it("reads nothing but the five permitted fields off the provider record", () => {
     const identity = identityFromProviderUser({
       ...providerUser(),
       // Everything a real provider record also carries. None of it may appear.
@@ -231,6 +233,8 @@ describe("provider field mapping", () => {
     expect(Object.keys(identity).sort()).toEqual([
       "displayName",
       "email",
+      "familyName",
+      "givenName",
       "username",
     ]);
     const serialized = JSON.stringify(identity);
@@ -251,6 +255,8 @@ describe("provider field mapping", () => {
       expect(identity).toEqual({
         displayName: STUDENT_NAME,
         email: STUDENT_EMAIL,
+        familyName: "Smith",
+        givenName: "Jane",
         username: undefined,
       });
       // "jane.smith" is the email local part and the obvious thing a derived
@@ -269,6 +275,8 @@ describe("provider field mapping", () => {
     ).toEqual({
       displayName: STUDENT_NAME,
       email: undefined,
+      familyName: "Smith",
+      givenName: "Jane",
       username: STUDENT_USERNAME,
     });
   });
@@ -288,6 +296,10 @@ describe("identity resolution", () => {
     const identity = await identityForLink(accountLink(), async () => ({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
+      // The split name exists for the roster's ordering only; the reveal
+      // payload must not gain it.
+      familyName: "Smith",
+      givenName: "Jane",
       username: STUDENT_USERNAME,
     }));
 
@@ -560,7 +572,7 @@ describe("identity stays out of the analytics and tutor paths", () => {
     }
   });
 
-  it("is imported only by the reveal boundary itself", () => {
+  it("is imported only by the two reveal boundaries", () => {
     const importers = sourceFiles(path.join(process.cwd(), "src")).filter(
       (file) =>
         readFileSync(file, "utf8").includes("professor/student-identity"),
@@ -574,6 +586,7 @@ describe("identity stays out of the analytics and tutor paths", () => {
         .sort(),
     ).toEqual([
       "src/app/api/professor/students/[studentKey]/identity/route.ts",
+      "src/app/api/professor/students/identities/route.ts",
     ]);
   });
 });

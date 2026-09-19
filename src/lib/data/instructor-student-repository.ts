@@ -23,6 +23,7 @@ import {
 } from "@/lib/tutor/practice-credit";
 import { MEANINGFUL_TUTOR_SESSION_SQL } from "@/lib/tutor/session-engagement";
 import { labelMisconceptions } from "@/lib/professor/student-pseudonym";
+import { groupStudentsByTopic } from "@/lib/professor/student-roster";
 import type {
   InstructorAttentionSignal,
   InstructorCohortAnalytics,
@@ -35,6 +36,7 @@ import type {
   InstructorStudentSort,
   InstructorStudentSummary,
   InstructorStudentTopicPerformance,
+  InstructorStudentTopicRoster,
 } from "@/lib/types";
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -247,6 +249,12 @@ type TopicRow = {
   solutions_revealed: number | string | null;
   topic_id: string;
   topic_title: string;
+};
+
+type TopicRosterRow = {
+  student_key: string;
+  topic_id: string | null;
+  topic_title: string | null;
 };
 
 type AttemptRow = {
@@ -470,6 +478,62 @@ async function readTopicPerformance(
     topicId: String(row.topic_id),
     topicTitle: String(row.topic_title),
   }));
+}
+
+/**
+ * Which syllabus topics each student has practised, for the whole Students
+ * page population at once. A topic is associated the same two ways the
+ * per-student topic performance finds it: a published session on one of the
+ * topic's questions, or an answer submission recorded against the topic.
+ * Nothing is assigned or stored — a student appears under every topic they
+ * have practised and under none they have not — and the population is the
+ * roster's own, so a student who has only signed in is returned with no topic
+ * rather than left out. The result carries pseudonyms only; the topic titles
+ * are the only text in it.
+ */
+async function readTopicRoster(
+  query: DatabaseQueryExecutor,
+): Promise<InstructorStudentTopicRoster> {
+  const rows = await readRows<TopicRosterRow>(
+    query,
+    `
+      with
+      ${STUDENT_SESSIONS_CTE},
+      ${SESSION_TOTALS_CTE},
+      ${STUDENT_ACCOUNTS_CTE},
+      ${STUDENT_POPULATION_CTE},
+      student_topics as (
+        select ss.student_key, q.topic_id
+        from student_sessions ss
+        join questions q on q.id = ss.question_id
+        union
+        select ss.student_key, a.topic_id
+        from attempts a
+        join student_sessions ss on ss.session_id = a.session_id
+        where a.topic_id is not null
+      )
+      select
+        p.student_key,
+        t.id as topic_id,
+        t.title as topic_title
+      from student_population p
+      left join student_topics st on st.student_key = p.student_key
+      left join topics t on t.id = st.topic_id
+      order by t.sort_order nulls last, t.title, t.id, p.student_key
+    `,
+  );
+
+  return {
+    mode: "database",
+    revealed: false,
+    ...groupStudentsByTopic(
+      rows.map((row) => ({
+        studentKey: String(row.student_key),
+        topicId: row.topic_id ? String(row.topic_id) : undefined,
+        topicTitle: row.topic_title ? String(row.topic_title) : undefined,
+      })),
+    ),
+  };
 }
 
 /**
@@ -973,6 +1037,13 @@ export function createDatabaseInstructorStudentRepository(
     ): Promise<InstructorStudentList> {
       assertAuthorization(authorization, "professor");
       return readStudentList(query, filters);
+    },
+
+    async listTopicRoster(
+      authorization: AnalyticsAuthorization,
+    ): Promise<InstructorStudentTopicRoster> {
+      assertAuthorization(authorization, "professor");
+      return readTopicRoster(query);
     },
   };
 }

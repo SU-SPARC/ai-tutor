@@ -42,6 +42,7 @@ import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-a
 import {
   createDatabaseStudentIdentityRepository,
   recordStudentIdentityView,
+  recordStudentIdentityViews,
   type StudentAccountLink,
 } from "@/lib/data/student-identity-repository";
 import { queryPostgres } from "@/lib/data/postgres";
@@ -64,6 +65,7 @@ import type {
   InstructorStudentDetail,
   InstructorStudentList,
   InstructorStudentListFilters,
+  InstructorStudentTopicRoster,
   ProfessorQuestionReviewCandidateDto,
   ProfessorQuestionReviewDashboard,
   ProfessorReviewTopicSummaryDto,
@@ -434,6 +436,10 @@ function demoInstructorStudentList(
   };
 }
 
+function demoInstructorStudentTopicRoster(): InstructorStudentTopicRoster {
+  return { mode: "demo", revealed: false, topics: [], unassigned: [] };
+}
+
 function demoInstructorCohortAnalytics(): InstructorCohortAnalytics {
   return {
     activeStudents: 0,
@@ -492,6 +498,32 @@ export async function listInstructorStudents(
   }
 }
 
+/**
+ * The Students page grouped by practised topic, pseudonymous like the list.
+ * Demo mode has no cohort to group, so it reports an empty roster in demo
+ * mode rather than an error.
+ */
+export async function listInstructorStudentTopicRoster(
+  authorization: AnalyticsAuthorization,
+): Promise<InstructorStudentTopicRoster> {
+  assertAuthorization(authorization, "professor");
+  const repository = instructorStudentRepository();
+
+  if (!repository) {
+    return demoInstructorStudentTopicRoster();
+  }
+
+  try {
+    return await repository.listTopicRoster(authorization);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return demoInstructorStudentTopicRoster();
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
 export async function getInstructorStudentDetail(
   authorization: AnalyticsAuthorization,
   studentKey: string,
@@ -544,6 +576,34 @@ export async function findInstructorStudentAccountLink(
 }
 
 /**
+ * The roster reveal's account links, resolved in one read. Demo mode has no
+ * cohort, so it resolves nothing, which the reveal reports per student.
+ */
+export async function findInstructorStudentAccountLinks(
+  authorization: AnalyticsAuthorization,
+  studentKeys: string[],
+): Promise<Map<string, StudentAccountLink>> {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo" || !getServerEnv().DATABASE_URL) {
+    return new Map();
+  }
+
+  try {
+    return await createDatabaseStudentIdentityRepository(
+      queryPostgres,
+    ).findAccountLinks(authorization, studentKeys);
+  } catch (cause) {
+    if (getOperatingModePolicy().allowDemoFallback) {
+      return new Map();
+    }
+
+    throw new DataServiceUnavailableError("tutor-session", { cause });
+  }
+}
+
+/**
  * Rejects rather than returning quietly when there is nowhere to write. A
  * reveal that cannot be recorded must not be served, so "no audit store" is a
  * failure here and not a permitted no-op. Demo mode never reaches this: it
@@ -561,6 +621,30 @@ export async function recordInstructorStudentIdentityView(
   }
 
   await recordStudentIdentityView(queryPostgres, {
+    ...input,
+    professorUserId: authorization.principal.userId,
+  });
+}
+
+/**
+ * The roster reveal's audit write, with the same rule as the single reveal:
+ * nowhere to write is a failure, never a permitted no-op.
+ */
+export async function recordInstructorStudentIdentityViews(
+  authorization: AnalyticsAuthorization,
+  input: {
+    requestId?: string;
+    views: Array<{ status: string; studentKey: string }>;
+  },
+) {
+  assertAuthorization(authorization, "professor");
+  const policy = getOperatingModePolicy();
+
+  if (policy.repositorySource === "demo" || !getServerEnv().DATABASE_URL) {
+    throw new DataServiceUnavailableError("tutor-session");
+  }
+
+  await recordStudentIdentityViews(queryPostgres, {
     ...input,
     professorUserId: authorization.principal.userId,
   });

@@ -42,9 +42,22 @@ linked to the session; only the digest input would change, not the analytics.
 
 | Surface                            | Contents                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. |
+| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. A **By topic** view (`?view=topics`) lists the same population grouped by practised topic; see below. |
 | `/professor/students/[studentKey]` | Summary metrics, per-topic performance, per-question [practice credit evidence](practice-credit.md), a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions. |
 | `/professor/analytics`             | Cohort totals, the rule/retrieval/LLM/blocked split, most recorded misconceptions, and a count of students showing repeated difficulty.            |
+
+## Students by topic
+
+The Students page's **By topic** view groups the same population by the
+syllabus topics each student has practised. The association is derived, never
+assigned or stored: a student is under a topic when they have a published
+session on one of its questions or an answer submission recorded against it —
+the same two sources the per-student topic performance uses — so a student who
+has practised several topics is listed under each of them, from one `users`
+row, and a student who has practised none is listed once under "No topic
+practice yet". Topics keep their syllabus order. The view is pseudonymous
+until an instructor asks for names; the reveal, and the alphabetical order it
+produces, are described in [student identity reveal](student-identity-reveal.md).
 
 ## What it deliberately does not return
 

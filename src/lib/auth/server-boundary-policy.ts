@@ -96,7 +96,11 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "/professor/students",
     "src/app/professor/students/page.tsx",
     "professor-analytics",
-    ["requireAnalyticsAccess", "listInstructorStudents"],
+    [
+      "requireAnalyticsAccess",
+      "listInstructorStudents",
+      "listInstructorStudentTopicRoster",
+    ],
   ),
   page(
     "/professor/students/[studentKey]",
@@ -346,6 +350,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     ["requireAnalyticsAccess", "resolveInstructorStudentIdentity"],
   ),
   route(
+    "POST",
+    "/api/professor/students/identities",
+    "src/app/api/professor/students/identities/route.ts",
+    "professor-student-identity",
+    ["requireAnalyticsAccess", "resolveInstructorStudentRoster"],
+  ),
+  route(
     "GET",
     "/api/professor/review",
     "src/app/api/professor/review/route.ts",
@@ -544,6 +555,6 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
     case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
     case "professor-student-identity":
-      return "Pseudonymous student key in; display name, username, and primary email out. No other profile field, and no analytics record is written.";
+      return "Pseudonymous student key in; display name, username, and primary email out — the roster reveal returns display names only. No other profile field, and no analytics record is written.";
   }
 }

@@ -1091,6 +1091,42 @@ export type InstructorStudentIdentity =
   | { status: "unavailable" }
   | { status: "unlinked" };
 
+/**
+ * What the roster reveal shows for one student: the display name alone, or
+ * the reason none was shown. The username and email address stay behind the
+ * per-student reveal on the detail page.
+ */
+export type InstructorStudentRosterIdentity =
+  | { displayName: string; status: "identified" }
+  | { status: "anonymous" }
+  | { status: "unavailable" }
+  | { status: "unlinked" };
+
+export type InstructorRosterStudent = {
+  identity?: InstructorStudentRosterIdentity;
+  studentKey: string;
+};
+
+export type InstructorStudentTopicGroup = {
+  students: InstructorRosterStudent[];
+  topicId: string;
+  topicTitle: string;
+};
+
+/**
+ * Every student on the Students page, grouped by the syllabus topics they have
+ * practised. A student who has practised several topics is listed under each
+ * of them; one who has practised none is listed under `unassigned`. No
+ * identity is present until an instructor reveals the roster, after which
+ * `revealed` is true and every student carries an `identity`.
+ */
+export type InstructorStudentTopicRoster = {
+  mode: "database" | "demo";
+  revealed: boolean;
+  topics: InstructorStudentTopicGroup[];
+  unassigned: InstructorRosterStudent[];
+};
+
 export type InstructorCohortAnalytics = {
   incorrectAttempts?: number;
   activeStudents: number;
