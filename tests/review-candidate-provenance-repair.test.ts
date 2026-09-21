@@ -25,6 +25,21 @@ import {
 const FAILING_QUESTION_ID = "generated-syllabus-venn-clubs";
 const PATTERN_DERIVED_QUESTION_ID =
   "generated-additional-combinations-workshop-topics";
+/** Production: repaired on 2026-08-19, then approved with a difficulty change on 2026-09-18. */
+const CORRECTED_THEN_APPROVED_IDS = [
+  "generated-next-greenhouse-germination",
+  "generated-next-library-return",
+  "generated-next-maintenance-flag",
+  "generated-next-portfolio-shortlist",
+  "generated-next-repair-routing",
+  "generated-next-standard-express-tickets",
+  "generated-next-workshop-completion",
+];
+/** Production: approved with a difficulty change while still pattern-derived. */
+const UNREPAIRED_APPROVED_IDS = [
+  "generated-additional-bayes-message-routing",
+  "generated-additional-conditional-workshop-support",
+];
 
 const databases: PGlite[] = [];
 
@@ -499,6 +514,249 @@ describe("review-candidate provenance repair", () => {
     );
   });
 
+  it("treats professor-approved versions built on an earlier repair as already corrected and never reverts them", async () => {
+    const database = await migratedDatabase();
+    const client = pgliteClient(database);
+
+    await importLegacyClassifiedCandidates(database, client);
+    await seedProfessor(database);
+    const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
+
+    // First repair, then the professor approves the corrected version with a
+    // difficulty change. That creates a manual v3 whose generation metadata is
+    // copied from the repair version, repair marker included.
+    await applyProvenanceRepair({
+      client,
+      dryRun: false,
+      fixtures,
+      only: new Set(CORRECTED_THEN_APPROVED_IDS),
+      target: "test",
+    });
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const authorization = await professorAuthorization();
+    for (const questionId of CORRECTED_THEN_APPROVED_IDS) {
+      await repository.approveReviewCandidate(authorization, {
+        difficulty: "foundational",
+        expectedState: "needs_review",
+        questionId,
+        versionId: await workingVersionId(database, questionId),
+      });
+    }
+    const before = await correctedQuestionState(
+      database,
+      CORRECTED_THEN_APPROVED_IDS,
+    );
+    expect(before).toHaveLength(CORRECTED_THEN_APPROVED_IDS.length);
+    for (const row of before) {
+      expect(row).toMatchObject({
+        creation_method: "manual",
+        difficulty: "foundational",
+        repair_kind: "provenance_reclassification",
+        source_type: "generated_original",
+        state: "approved",
+        version_count: 3,
+        version_number: 3,
+      });
+    }
+
+    const plan = await buildProvenanceRepairPlan(client, fixtures);
+    const alreadyCorrectIds = plan.alreadyCorrect.map((entry) => entry.id);
+    const repairableIds = plan.repairable.map((entry) => entry.id);
+    for (const questionId of CORRECTED_THEN_APPROVED_IDS) {
+      expect(alreadyCorrectIds).toContain(questionId);
+      expect(repairableIds).not.toContain(questionId);
+    }
+    expect(plan.blocked).toEqual([]);
+
+    // An unrestricted apply repairs everything else and leaves these alone.
+    const result = await applyProvenanceRepair({
+      client,
+      dryRun: false,
+      fixtures,
+      target: "test",
+    });
+    expect(result.committed).toBe(true);
+    for (const questionId of CORRECTED_THEN_APPROVED_IDS) {
+      expect(result.repaired.map((entry) => entry.id)).not.toContain(
+        questionId,
+      );
+      expect(result.selected).not.toContain(questionId);
+    }
+    expect(
+      await correctedQuestionState(database, CORRECTED_THEN_APPROVED_IDS),
+    ).toEqual(before);
+  });
+
+  it("repairs approved pattern-derived drafts from their current working content, enforces --only, and stays idempotent", async () => {
+    const database = await migratedDatabase();
+    const client = pgliteClient(database);
+
+    await importLegacyClassifiedCandidates(database, client);
+    await seedProfessor(database);
+    const fixtures = await loadPublicReviewCandidateFixtures(process.cwd());
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const authorization = await professorAuthorization();
+
+    // Approve the imported pattern-derived drafts with a difficulty change, as
+    // happened in Production: v2 is manual, approved, and still unrepaired.
+    const approvedVersionIds = new Map<string, number>();
+    for (const questionId of UNREPAIRED_APPROVED_IDS) {
+      await repository.approveReviewCandidate(authorization, {
+        difficulty: "foundational",
+        expectedState: "needs_review",
+        questionId,
+        versionId: await workingVersionId(database, questionId),
+      });
+      approvedVersionIds.set(
+        questionId,
+        await workingVersionId(database, questionId),
+      );
+    }
+
+    const plan = await buildProvenanceRepairPlan(client, fixtures);
+    for (const questionId of UNREPAIRED_APPROVED_IDS) {
+      const entry = plan.repairable.find((item) => item.id === questionId);
+      expect(entry).toBeDefined();
+      expect(Number(entry!.workingVersionId)).toBe(
+        approvedVersionIds.get(questionId),
+      );
+      expect(entry!.lifecycleState).toBe("approved");
+      expect(entry!.targetSnapshot).toMatchObject({
+        difficulty: "foundational",
+        patternId: null,
+        sourceType: "generated_original",
+      });
+    }
+
+    // --only with an ID that is not repairable writes nothing.
+    await expect(
+      applyProvenanceRepair({
+        client,
+        dryRun: false,
+        fixtures,
+        only: new Set([...UNREPAIRED_APPROVED_IDS, FAILING_QUESTION_ID]).add(
+          "not-a-review-candidate",
+        ),
+        target: "test",
+      }),
+    ).rejects.toMatchObject({ name: "ProvenanceRepairError" });
+    expect(await totalVersionCount(database)).toBe(264 + 2);
+
+    const applied = await applyProvenanceRepair({
+      client,
+      dryRun: false,
+      fixtures,
+      only: new Set(UNREPAIRED_APPROVED_IDS),
+      target: "test",
+    });
+    expect(applied.committed).toBe(true);
+    expect(applied.repaired.map((entry) => entry.id).sort()).toEqual(
+      [...UNREPAIRED_APPROVED_IDS].sort(),
+    );
+    expect(await totalVersionCount(database)).toBe(264 + 2 + 2);
+
+    for (const questionId of UNREPAIRED_APPROVED_IDS) {
+      const previousVersionId = approvedVersionIds.get(questionId)!;
+      const corrected = await database.query<{
+        approval_versions: number[];
+        content_identical: boolean;
+        difficulty: string;
+        parent_version_id: number;
+        pattern_id: string | null;
+        projection_source_type: string;
+        repair_events: string[];
+        source_type: string;
+        state: string;
+        validation_status: string;
+        version_number: number;
+      }>(
+        `select
+           v.version_number,
+           v.parent_version_id,
+           qvl.state,
+           qvl.validation_status,
+           v.snapshot_json ->> 'sourceType' as source_type,
+           v.snapshot_json ->> 'patternId' as pattern_id,
+           v.snapshot_json ->> 'difficulty' as difficulty,
+           q.source_type as projection_source_type,
+           ((v.snapshot_json - 'sourceType') = (p.snapshot_json - 'sourceType'))
+             as content_identical,
+           (select array_agg(e.question_version_id order by e.id)
+              from question_lifecycle_events e
+              where e.question_id = q.id and e.action = 'approve') as approval_versions,
+           (select array_agg(e.action order by e.id)
+              from question_lifecycle_events e
+              where e.question_id = q.id and e.question_version_id = v.id) as repair_events
+         from questions q
+         join question_versions v on v.id = q.working_version_id
+         join question_versions p on p.id = v.parent_version_id
+         join question_version_lifecycle qvl on qvl.question_version_id = v.id
+         where q.id = $1`,
+        [questionId],
+      );
+      expect(corrected.rows[0]).toEqual({
+        approval_versions: [previousVersionId],
+        content_identical: true,
+        difficulty: "foundational",
+        parent_version_id: previousVersionId,
+        pattern_id: null,
+        projection_source_type: "generated_original",
+        repair_events: ["create_version", "submit"],
+        source_type: "generated_original",
+        state: "needs_review",
+        validation_status: "valid",
+        version_number: 3,
+      });
+      const remaining = await database.query<{ code: string }>(
+        `select code from app_question_publication_gate_failures(
+           $1::text,
+           (select working_version_id from questions where id = $1::text),
+           'approved'
+         )`,
+        [questionId],
+      );
+      // Evaluated as if approved, the only gate left is the missing approval
+      // itself: provenance, content, schema, and hash all pass.
+      expect(remaining.rows.map((row) => row.code)).toEqual([
+        "professor_approval_missing",
+      ]);
+    }
+
+    // Repeated runs: the corrected drafts are already correct, --only on them
+    // is refused, and nothing is appended.
+    const second = await buildProvenanceRepairPlan(client, fixtures);
+    for (const questionId of UNREPAIRED_APPROVED_IDS) {
+      expect(second.alreadyCorrect.map((entry) => entry.id)).toContain(
+        questionId,
+      );
+    }
+    await expect(
+      applyProvenanceRepair({
+        client,
+        dryRun: false,
+        fixtures,
+        only: new Set(UNREPAIRED_APPROVED_IDS),
+        target: "test",
+      }),
+    ).rejects.toMatchObject({ name: "ProvenanceRepairError" });
+    const unrestricted = await applyProvenanceRepair({
+      client,
+      dryRun: false,
+      fixtures,
+      target: "test",
+    });
+    for (const questionId of UNREPAIRED_APPROVED_IDS) {
+      expect(unrestricted.repaired.map((entry) => entry.id)).not.toContain(
+        questionId,
+      );
+    }
+    expect(await totalVersionCount(database)).toBe(264 + 2 + 2 + 262);
+  });
+
   it("keeps an unapproved corrected version unpublishable at the database gate", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
@@ -647,6 +905,46 @@ async function professorAuthorization() {
     userId: "user:lifecycle-professor",
   });
   return requireProfessorReview();
+}
+
+async function correctedQuestionState(database: PGlite, ids: string[]) {
+  const result = await database.query<{
+    creation_method: string;
+    difficulty: string;
+    id: string;
+    repair_kind: string | null;
+    source_type: string;
+    state: string;
+    version_count: number;
+    version_number: number;
+    working_version_id: number;
+  }>(
+    `select
+       q.id,
+       q.working_version_id,
+       v.version_number,
+       v.creation_method,
+       v.generation_metadata_json ->> 'repairKind' as repair_kind,
+       v.snapshot_json ->> 'sourceType' as source_type,
+       v.snapshot_json ->> 'difficulty' as difficulty,
+       qvl.state,
+       (select count(*)::int from question_versions x where x.question_id = q.id)
+         as version_count
+     from questions q
+     join question_versions v on v.id = q.working_version_id
+     join question_version_lifecycle qvl on qvl.question_version_id = v.id
+     where q.id = any($1::text[])
+     order by q.id`,
+    [ids],
+  );
+  return result.rows;
+}
+
+async function totalVersionCount(database: PGlite) {
+  const result = await database.query<{ count: number }>(
+    "select count(*)::int as count from question_versions",
+  );
+  return result.rows[0].count;
 }
 
 async function workingVersionId(database: PGlite, questionId: string) {

@@ -103,10 +103,18 @@ Safety model:
 - Only IDs whose committed fixture says `generated_original` are considered.
   All 264 current review-candidate fixtures use that classification because
   this importer does not invent or approve catalogued pattern relationships.
-- A draft is repaired only when the question row and its working version both
-  still claim `pattern_derived_original` and no pattern ID is linked anywhere.
-  A record with a real linked pattern is reported as blocked and left untouched;
-  no pattern ID is ever invented.
+- A draft is repaired only when its current working version still claims
+  `pattern_derived_original` and no pattern ID is linked anywhere. The
+  corrected content is that working version's own snapshot with only the
+  source type changed, so professor revisions and difficulty changes are
+  preserved. A working version that already claims `generated_original` is
+  reported as already correct and never touched, even when older versions in
+  its history still carry the legacy classification or a repair marker
+  inherited by a later professor edit. A record with a real linked pattern is
+  reported as blocked and left untouched; no pattern ID is ever invented. A
+  question whose lifecycle history already holds a repair submission while its
+  working version still claims pattern-derived provenance is reported as
+  blocked for manual review; the repair never runs twice for one question.
 - `questions.source_type` is corrected on the mutable projection only. The
   stored snapshot of every existing version is left byte-for-byte unchanged.
 - A new immutable version is appended with parent lineage, `imported` creation
