@@ -7,6 +7,7 @@ import type {
   Difficulty,
   QuestionCreationMethod,
   QuestionLifecycleAction,
+  QuestionLifecycleBatchAction,
   QuestionRevisionContentInput,
   QuestionVersionState,
   SourceType,
@@ -105,6 +106,26 @@ export function lifecycleApiErrorResponse(error: unknown) {
     { error: "Question lifecycle storage is unavailable." },
     { status: 503 },
   );
+}
+
+/**
+ * Plain-language summary for a batch that changed nothing because at least one
+ * selected question failed preflight. The itemized per-question report travels
+ * alongside it in `result.failures`.
+ */
+export function batchPreflightFailureMessage(
+  action: QuestionLifecycleBatchAction,
+  failureCount: number,
+  itemCount: number,
+) {
+  const outcome =
+    action === "publish"
+      ? "published"
+      : action === "reject"
+        ? "rejected"
+        : "sent back for revision";
+  const check = action === "publish" ? "publication check" : "batch check";
+  return `Nothing was ${outcome}. ${failureCount} of ${itemCount} selected questions did not pass the ${check}, so no question was changed. Fix or remove them, then try again.`;
 }
 
 export function parseQuestionVersionContent(

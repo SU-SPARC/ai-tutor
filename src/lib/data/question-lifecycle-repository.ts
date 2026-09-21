@@ -42,6 +42,7 @@ import type {
   QuestionValidationStatus,
   QuestionVersionDto,
   QuestionVersionInspectionDto,
+  QuestionVersionReviewEvidence,
   QuestionVersionState,
   SourceMetadata,
   SourceType,
@@ -1376,13 +1377,13 @@ export function createDatabaseQuestionLifecycleRepository(
 
           const failures: QuestionLifecycleBatchFailure[] = [];
           for (const item of input.items) {
-            const failure = await preflightBatchItem(
+            const preflight = await preflightBatchItem(
               transactionQuery,
               reviewer.userId,
               input.action,
               item,
             );
-            if (failure) failures.push(failure);
+            if (preflight.failure) failures.push(preflight.failure);
           }
           if (failures.length > 0) {
             return {
@@ -1452,16 +1453,20 @@ export function createDatabaseQuestionLifecycleRepository(
       const reviewer = reviewerAttribution(authorization);
       const items: QuestionLifecycleBatchPreviewResult["items"] = [];
       for (const item of input.items) {
-        const failure = await preflightBatchItem(
+        const preflight = await preflightBatchItem(
           query,
           reviewer.userId,
           input.action,
           item,
         );
         items.push(
-          failure
-            ? { ...failure, status: "blocked" }
-            : { ...item, status: "ready" },
+          preflight.failure
+            ? { ...preflight.failure, status: "blocked" }
+            : {
+                ...item,
+                reviewEvidence: preflight.reviewEvidence,
+                status: "ready",
+              },
         );
       }
       const blockedCount = items.filter(
@@ -1910,15 +1915,21 @@ function batchItemIdempotencyKey(batchKey: string, versionId: number) {
   return `batch:${batchKey}:${versionId}`;
 }
 
+type BatchItemPreflight =
+  | { failure: QuestionLifecycleBatchFailure; reviewEvidence?: undefined }
+  | { failure?: undefined; reviewEvidence: QuestionVersionReviewEvidence };
+
 async function preflightBatchItem(
   query: DatabaseQueryExecutor,
   professorUserId: string,
   action: QuestionLifecycleBatchAction,
   item: QuestionLifecycleBatchItem,
-): Promise<QuestionLifecycleBatchFailure | undefined> {
+): Promise<BatchItemPreflight> {
   const lifecycle = await selectQuestionLifecycle(query, item.questionId);
   if (!lifecycle) {
-    return batchFailure(item, "not_found", "Question was not found.");
+    return {
+      failure: batchFailure(item, "not_found", "Question was not found."),
+    };
   }
   const selectedVersion = lifecycle.versions.find(
     (version) => version.versionId === item.versionId,
@@ -1928,61 +1939,68 @@ async function preflightBatchItem(
     topicId: lifecycle.workingVersion.topicId,
   };
   if (lifecycle.recordState !== "active") {
-    return batchFailure(
-      item,
-      "archived",
-      "Archived questions cannot participate in batch review.",
-      detail,
-    );
+    return {
+      failure: batchFailure(
+        item,
+        "archived",
+        "Archived questions cannot participate in batch review.",
+        detail,
+      ),
+    };
   }
   if (!selectedVersion) {
-    return batchFailure(
-      item,
-      "not_found",
-      "The selected version was not found on this question.",
-      detail,
-    );
+    return {
+      failure: batchFailure(
+        item,
+        "not_found",
+        "The selected version was not found on this question.",
+        detail,
+      ),
+    };
   }
   if (lifecycle.workingVersion.versionId !== item.versionId) {
-    return batchFailure(
-      item,
-      "stale_version",
-      "The selected version is no longer the working version.",
-      {
-        ...detail,
-        actualState: selectedVersion.state,
-      },
-    );
+    return {
+      failure: batchFailure(
+        item,
+        "stale_version",
+        "The selected version is no longer the working version.",
+        {
+          ...detail,
+          actualState: selectedVersion.state,
+        },
+      ),
+    };
   }
   if (selectedVersion.state !== item.expectedState) {
-    return batchFailure(
-      item,
-      "stale_state",
-      `Expected ${item.expectedState}, but the version is ${selectedVersion.state}.`,
-      {
-        ...detail,
-        actualState: selectedVersion.state,
-      },
-    );
+    return {
+      failure: batchFailure(
+        item,
+        "stale_state",
+        selectedVersion.state === "published"
+          ? "This version is already published."
+          : `Expected ${item.expectedState}, but the version is ${selectedVersion.state}.`,
+        {
+          ...detail,
+          actualState: selectedVersion.state,
+        },
+      ),
+    };
   }
 
-  const inspections = await readDatabaseRows(
+  const reviewEvidence = await professorReviewEvidence(
     query,
-    `select inspected_at
-     from question_version_inspections
-     where question_version_id = $1
-       and question_id = $2
-       and professor_user_id = $3
-     limit 1`,
-    [item.versionId, item.questionId, professorUserId],
+    professorUserId,
+    item,
   );
-  if (!inspections[0]) {
-    return batchFailure(
-      item,
-      "not_inspected",
-      "The signed-in professor has not inspected this exact version.",
-      detail,
-    );
+  if (!reviewEvidence) {
+    return {
+      failure: batchFailure(
+        item,
+        "not_inspected",
+        "You have not reviewed this exact version yourself (no approval or inspection by you). Open it in the question table and choose Mark this version inspected, or handle it on its own from its row.",
+        detail,
+      ),
+    };
   }
   if (action === "publish") {
     const publicationBlockers = await publicationQualityGateBlockers(
@@ -1991,27 +2009,81 @@ async function preflightBatchItem(
       selectedVersion,
     );
     if (publicationBlockers.length > 0) {
-      return batchFailure(
-        item,
-        "validation_failed",
-        `Publication blocked: ${publicationBlockers
-          .map((blocker) => blocker.message)
-          .join(" ")}`,
-        { ...detail, publicationBlockers },
-      );
+      return {
+        failure: batchFailure(
+          item,
+          "validation_failed",
+          `Publication blocked: ${publicationBlockers
+            .map((blocker) => blocker.message)
+            .join(" ")}`,
+          { ...detail, publicationBlockers },
+        ),
+      };
     }
   }
   if (!selectedVersion.allowedActions.includes(action)) {
-    return batchFailure(
-      item,
-      "invalid_state",
-      `The version cannot ${action} from ${selectedVersion.state}.`,
-      {
-        ...detail,
-        actualState: selectedVersion.state,
-      },
-    );
+    return {
+      failure: batchFailure(
+        item,
+        "invalid_state",
+        `The version cannot ${action} from ${selectedVersion.state}.`,
+        {
+          ...detail,
+          actualState: selectedVersion.state,
+        },
+      ),
+    };
   }
+  return { reviewEvidence };
+}
+
+/**
+ * Batch actions require the acting professor to have personally reviewed the
+ * exact immutable version. An explicit inspection record satisfies that, and
+ * so does the professor's own attributed approval of the same version: the
+ * Review Queue shows the complete public-safe aggregate before approval, so a
+ * second "inspected" click would only duplicate evidence that already exists.
+ */
+async function professorReviewEvidence(
+  query: DatabaseQueryExecutor,
+  professorUserId: string,
+  item: QuestionLifecycleBatchItem,
+): Promise<QuestionVersionReviewEvidence | undefined> {
+  const rows = await readDatabaseRows(
+    query,
+    `select kind, reviewed_at
+     from (
+       select 'inspection' as kind, qvi.inspected_at as reviewed_at
+       from question_version_inspections qvi
+       where qvi.question_version_id = $1
+         and qvi.question_id = $2
+         and qvi.professor_user_id = $3
+       union all
+       select 'approval' as kind, approval.occurred_at as reviewed_at
+       from question_lifecycle_events approval
+       where approval.question_version_id = $1
+         and approval.question_id = $2
+         and approval.actor_user_id = $3
+         and approval.action = 'approve'
+         and approval.actor_role = 'professor'
+       union all
+       select 'approval' as kind, legacy_approval.decided_at as reviewed_at
+       from question_approval_history legacy_approval
+       where legacy_approval.question_version_id = $1
+         and legacy_approval.question_id = $2
+         and legacy_approval.reviewer_user_id = $3
+         and legacy_approval.decision = 'approved'
+     ) evidence
+     order by case when kind = 'inspection' then 0 else 1 end, reviewed_at desc
+     limit 1`,
+    [item.versionId, item.questionId, professorUserId],
+  );
+  const evidence = rows[0];
+  if (!evidence) return undefined;
+  return {
+    kind: evidence.kind === "inspection" ? "inspection" : "approval",
+    reviewedAt: toIsoString(evidence.reviewed_at as Date | string)!,
+  };
 }
 
 function batchFailure(

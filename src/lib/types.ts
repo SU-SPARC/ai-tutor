@@ -237,8 +237,19 @@ export type QuestionLifecycleBatchFailure = QuestionLifecycleBatchItem & {
   topicId?: string;
 };
 
+/**
+ * Why the signed-in professor is considered to have personally reviewed an
+ * exact immutable version: an explicit inspection record, or their own
+ * attributed approval of that same version.
+ */
+export type QuestionVersionReviewEvidence = {
+  kind: "approval" | "inspection";
+  reviewedAt: string;
+};
+
 export type QuestionLifecycleBatchPreviewItem =
   | (QuestionLifecycleBatchItem & {
+      reviewEvidence?: QuestionVersionReviewEvidence;
       status: "ready";
     })
   | (QuestionLifecycleBatchFailure & {
@@ -611,6 +622,8 @@ export type QuestionSimilarityCoverageDto = {
 export type QuestionLifecycleDashboard = {
   inspections: QuestionVersionInspectionDto[];
   mode: "database" | "demo";
+  /** The signed-in professor, so the UI can tell which approvals are theirs. */
+  professorUserId?: string;
   questions: QuestionLifecycleDto[];
   readOnly: boolean;
   readOnlyReason?: string;

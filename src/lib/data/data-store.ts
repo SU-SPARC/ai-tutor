@@ -367,6 +367,7 @@ export async function getQuestionLifecycleDashboard(
     const dashboard = await getAdminQuestionDashboard(authorization);
     return {
       mode: "demo",
+      professorUserId: authorization.principal.userId,
       questions: dashboard.questions.map((question, index) =>
         demoQuestionLifecycle(question, index + 1),
       ),
@@ -385,6 +386,7 @@ export async function getQuestionLifecycleDashboard(
   return {
     inspections,
     mode: "database",
+    professorUserId: authorization.principal.userId,
     questions,
     readOnly: false,
     topics: safeTopicOptions(topics),

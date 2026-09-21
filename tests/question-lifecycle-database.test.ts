@@ -887,7 +887,14 @@ describe("question lifecycle database", () => {
       action: "publish",
       blockedCount: 1,
       items: [
-        { ...items[0], status: "ready" },
+        {
+          ...items[0],
+          reviewEvidence: {
+            kind: "inspection",
+            reviewedAt: expect.any(String),
+          },
+          status: "ready",
+        },
         expect.objectContaining({
           ...items[1],
           code: "not_inspected",
@@ -978,6 +985,201 @@ describe("question lifecycle database", () => {
       code: "stale_version",
       message: expect.stringMatching(/no longer the working version/i),
       status: "blocked",
+    });
+  });
+
+  it("publishes a batch the signed-in professor approved without a separate inspection and reports already-published items", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(
+      database,
+      () => "user:lifecycle-professor",
+    );
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const items = versions.map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+    expect(
+      (
+        await database.query<{ count: number }>(
+          "select count(*)::int as count from question_version_inspections",
+        )
+      ).rows[0].count,
+    ).toBe(0);
+
+    const before = await batchPreviewMutationState(database, items);
+    const preview = await repository.previewBatchTransition(authorization, {
+      action: "publish",
+      items,
+    });
+    expect(preview).toMatchObject({ blockedCount: 0, readyCount: 4 });
+    expect(
+      preview.items.map((item) =>
+        item.status === "ready" ? item.reviewEvidence?.kind : item.code,
+      ),
+    ).toEqual(["approval", "approval", "approval", "approval"]);
+    expect(
+      preview.items.every(
+        (item) =>
+          item.status === "ready" &&
+          !Number.isNaN(Date.parse(item.reviewEvidence?.reviewedAt ?? "")),
+      ),
+    ).toBe(true);
+    expect(await batchPreviewMutationState(database, items)).toEqual(before);
+
+    const published = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-own-approval",
+      items,
+      requestId: "batch-request-own-approval",
+    });
+    expect(published).toMatchObject({
+      action: "publish",
+      applied: true,
+      failures: [],
+      idempotent: false,
+    });
+    expect(
+      published.questions.map((question) => question.workingVersion.state),
+    ).toEqual(["published", "published", "published", "published"]);
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 4,
+      publishedPointerCount: 4,
+    });
+
+    // Selecting already-published questions again is reported plainly and
+    // changes nothing, in preview and in commit mode.
+    const republishItems = items.slice(0, 2);
+    const republishPreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items: republishItems },
+    );
+    expect(republishPreview).toMatchObject({
+      blockedCount: 2,
+      items: [
+        expect.objectContaining({
+          actualState: "published",
+          code: "stale_state",
+          message: "This version is already published.",
+          status: "blocked",
+          title: "Batch question 1",
+        }),
+        expect.objectContaining({
+          actualState: "published",
+          code: "stale_state",
+          status: "blocked",
+        }),
+      ],
+      readyCount: 0,
+    });
+    const republish = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-already-published",
+      items: republishItems,
+      requestId: "batch-request-already-published",
+    });
+    expect(republish).toMatchObject({ applied: false, questions: [] });
+    expect(republish.failures.map((failure) => failure.code)).toEqual([
+      "stale_state",
+      "stale_state",
+    ]);
+    expect(
+      (
+        await database.query<{ count: number }>(
+          "select count(*)::int as count from question_lifecycle_events where action = 'publish' and question_id like 'batch-question-%'",
+        )
+      ).rows[0].count,
+    ).toBe(4);
+  });
+
+  it("requires the signed-in professor's own review for versions another professor approved, and publishes nothing until every item passes", async () => {
+    const database = await migratedDatabase();
+    await seedLifecycleActorsAndQuestion(database);
+    const versions = await seedBatchReviewQuestions(database, (item) =>
+      item === 1 ? "user:lifecycle-professor" : "user:other-professor",
+    );
+    const authorization = await professorAuthorization();
+    const repository = createDatabaseQuestionLifecycleRepository(
+      pgliteQuery(database),
+    );
+    const items = versions.slice(0, 2).map((version) => ({
+      expectedState: "approved" as const,
+      questionId: version.questionId,
+      versionId: version.versionId,
+    }));
+
+    const mixedPreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items },
+    );
+    expect(mixedPreview).toMatchObject({
+      blockedCount: 1,
+      items: [
+        expect.objectContaining({
+          reviewEvidence: expect.objectContaining({ kind: "approval" }),
+          status: "ready",
+        }),
+        expect.objectContaining({
+          code: "not_inspected",
+          message: expect.stringMatching(
+            /not reviewed this exact version yourself.*Mark this version inspected/i,
+          ),
+          status: "blocked",
+          title: "Batch question 2",
+          topicId: "batch-topic-two",
+        }),
+      ],
+      readyCount: 1,
+    });
+
+    // The ready item is not published on its own: the batch is all or nothing.
+    const partial = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-mixed-evidence",
+      items,
+      requestId: "batch-request-mixed-evidence",
+    });
+    expect(partial).toMatchObject({
+      applied: false,
+      failures: [
+        expect.objectContaining({
+          code: "not_inspected",
+          questionId: items[1].questionId,
+        }),
+      ],
+      questions: [],
+    });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 0,
+      publishedPointerCount: 0,
+    });
+
+    // An explicit inspection by the signed-in professor is still accepted.
+    await repository.recordInspection(authorization, items[1]);
+    const readyPreview = await repository.previewBatchTransition(
+      authorization,
+      { action: "publish", items },
+    );
+    expect(
+      readyPreview.items.map((item) =>
+        item.status === "ready" ? item.reviewEvidence?.kind : item.code,
+      ),
+    ).toEqual(["approval", "inspection"]);
+    const published = await repository.batchTransition(authorization, {
+      action: "publish",
+      idempotencyKey: "batch-publish-mixed-evidence-ready",
+      items,
+      requestId: "batch-request-mixed-evidence-ready",
+    });
+    expect(published).toMatchObject({ applied: true, failures: [] });
+    expect(await batchPublicationState(database, items)).toEqual({
+      publicCount: 2,
+      publishedPointerCount: 2,
     });
   });
 
@@ -1685,11 +1887,16 @@ async function seedLifecycleActorsAndQuestion(database: PGlite) {
       (
         'user:lifecycle-student', 'test', 'student-subject',
         'student@lifecycle.invalid', 'Lifecycle Student', 'active'
+      ),
+      (
+        'user:other-professor', 'test', 'other-professor-subject',
+        'other@lifecycle.invalid', 'Other Professor', 'active'
       );
 
     insert into user_roles (user_id, role_id) values
       ('user:lifecycle-professor', 'professor'),
-      ('user:lifecycle-student', 'student');
+      ('user:lifecycle-student', 'student'),
+      ('user:other-professor', 'professor');
 
     insert into topics (
       id, title, description, sort_order, week_number, module_ref, is_active
@@ -1847,7 +2054,20 @@ async function seedGeneratedWorkingDraft(database: PGlite) {
   return { draftVersionId, publishedVersionId };
 }
 
-async function seedBatchReviewQuestions(database: PGlite) {
+/**
+ * Seeds four approved batch questions. By default a different professor
+ * approves them, so the signed-in professor holds no review evidence until
+ * they inspect; pass a resolver to approve some or all items themselves.
+ */
+async function seedBatchReviewQuestions(
+  database: PGlite,
+  approvedBy: (item: number) => string = () => "user:other-professor",
+) {
+  const approvers = JSON.stringify(
+    Object.fromEntries(
+      [1, 2, 3, 4].map((item) => [`batch-question-${item}`, approvedBy(item)]),
+    ),
+  );
   await database.exec(`
     insert into topics (
       id, title, description, sort_order, week_number, module_ref, is_active
@@ -1911,6 +2131,8 @@ async function seedBatchReviewQuestions(database: PGlite) {
     do $$
     declare
       candidate record;
+      approvers jsonb := '${approvers}'::jsonb;
+      approver text;
     begin
       for candidate in
         select qv.question_id, qv.id
@@ -1918,6 +2140,7 @@ async function seedBatchReviewQuestions(database: PGlite) {
         where qv.question_id like 'batch-question-%'
         order by qv.question_id
       loop
+        approver := approvers ->> candidate.question_id;
         perform app_transition_question_version(
           candidate.question_id,
           candidate.id,
@@ -1930,8 +2153,8 @@ async function seedBatchReviewQuestions(database: PGlite) {
           candidate.question_id,
           candidate.id,
           'approve',
-          'user:lifecycle-professor',
-          'Lifecycle Professor',
+          approver,
+          (select display_name from users where id = approver),
           'needs_review'
         );
       end loop;
