@@ -9,8 +9,8 @@ type SectionItem = {
   href: string;
   label: string;
   /**
-   * Rendering the Students page names students and records each display, so
-   * that page is fetched only when the professor actually opens it.
+   * Rendering the Students page shows student usernames and records each
+   * display, so that page is fetched only when the professor actually opens it.
    */
   prefetch?: false;
 };

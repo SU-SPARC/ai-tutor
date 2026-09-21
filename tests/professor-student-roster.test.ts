@@ -27,7 +27,6 @@ import {
   groupStudentsByTopic,
   rosterStudentKeys,
   sortRosterStudents,
-  type RosterSortName,
 } from "@/lib/professor/student-roster";
 import type {
   InstructorRosterStudent,
@@ -42,12 +41,15 @@ vi.mock("@/lib/data/data-store", async (importOriginal) => {
   return { ...actual, listInstructorStudents: vi.fn() };
 });
 
-/** Pseudonyms whose lexical order is the reverse of their owners' surnames. */
-const KEY_ANDERS = "f1".padEnd(64, "0"); // Zoe Anders
-const KEY_BROWN = "e2".padEnd(64, "0"); // Adam Brown
-const KEY_CLARK_LIAM = "d3".padEnd(64, "0"); // Liam Clark
-const KEY_CLARK_MIA = "c4".padEnd(64, "0"); // Mia Clark
-const KEY_EMAIL_ONLY = "b5".padEnd(64, "0"); // no split name
+/**
+ * Pseudonyms whose lexical order is the reverse of their owners' usernames,
+ * and usernames whose order differs from the owners' names.
+ */
+const KEY_ANDERS = "f1".padEnd(64, "0"); // zanders (Zoe Anders)
+const KEY_BROWN = "e2".padEnd(64, "0"); // abrown (Adam Brown)
+const KEY_CLARK_LIAM = "d3".padEnd(64, "0"); // mclark2 (Liam Clark)
+const KEY_CLARK_MIA = "c4".padEnd(64, "0"); // mclark (Mia Clark)
+const KEY_NO_USERNAME = "b5".padEnd(64, "0"); // account without a username
 const KEY_ANONYMOUS = "a6".padEnd(64, "0");
 const KEY_UNLINKED = "97".padEnd(64, "0");
 
@@ -56,7 +58,7 @@ const SUBJECTS: Record<string, string> = {
   [KEY_BROWN]: "user_brown",
   [KEY_CLARK_LIAM]: "user_clark_liam",
   [KEY_CLARK_MIA]: "user_clark_mia",
-  [KEY_EMAIL_ONLY]: "user_email_only",
+  [KEY_NO_USERNAME]: "user_no_username",
   [KEY_UNLINKED]: "user_gone",
 };
 
@@ -64,39 +66,36 @@ const PROVIDER: Record<string, ProviderIdentity> = {
   user_anders: {
     displayName: "Zoe Anders",
     email: "zoe.anders@suffolk.edu",
-    familyName: "Anders",
-    givenName: "Zoe",
     username: "zanders",
   },
   user_brown: {
     displayName: "Adam Brown",
     email: "adam.brown@suffolk.edu",
-    familyName: "Brown",
-    givenName: "Adam",
+    username: "abrown",
   },
-  user_clark_liam: {
-    displayName: "Liam Clark",
-    familyName: "Clark",
-    givenName: "Liam",
-  },
-  user_clark_mia: {
-    displayName: "Mia Clark",
-    familyName: "Clark",
-    givenName: "Mia",
-  },
-  user_email_only: { displayName: "bea@suffolk.edu", email: "bea@suffolk.edu" },
+  user_clark_liam: { displayName: "Liam Clark", username: "mclark2" },
+  user_clark_mia: { displayName: "Mia Clark", username: "mclark" },
+  user_no_username: { displayName: "Bea Noname", email: "bea@suffolk.edu" },
   user_gone: "unlinked",
 };
 
 /** Strings that may never appear in a page, a payload, or an audit row. */
 const PRIVATE_STRINGS = [
+  "Zoe Anders",
+  "Adam Brown",
+  "Liam Clark",
+  "Mia Clark",
+  "Bea Noname",
   "zoe.anders@suffolk.edu",
-  "zanders",
   "adam.brown@suffolk.edu",
+  "bea@suffolk.edu",
   "user_anders",
   "user_brown",
   "user_clark_liam",
 ];
+
+/** Usernames that may appear on the page but never in an audit row. */
+const USERNAMES = ["zanders", "abrown", "mclark2", "mclark"];
 
 type RecordedViews = {
   requestId?: string;
@@ -166,122 +165,109 @@ describe("grouping students by practised topic", () => {
 });
 
 describe("alphabetical order within a topic", () => {
-  const names = new Map<string, RosterSortName>(
-    Object.entries(SUBJECTS).flatMap(([studentKey, subject]) => {
-      const identity = PROVIDER[subject];
-      return typeof identity === "string" ? [] : [[studentKey, identity]];
-    }),
-  );
-
   function identified(studentKey: string): InstructorRosterStudent {
     const identity = PROVIDER[SUBJECTS[studentKey]];
     return typeof identity === "string"
       ? { identity: { status: identity }, studentKey }
       : {
-          identity: { displayName: identity.displayName, status: "identified" },
+          identity: {
+            status: "identified",
+            ...(identity.username ? { username: identity.username } : {}),
+          },
           studentKey,
         };
   }
 
-  it("sorts by last name and then first name, not by pseudonym or display name", () => {
-    const sorted = sortRosterStudents(
-      [
-        identified(KEY_CLARK_MIA),
-        identified(KEY_BROWN),
-        identified(KEY_CLARK_LIAM),
-        identified(KEY_ANDERS),
-      ],
-      names,
-    );
+  it("sorts by username, not by name, pseudonym, or provider order", () => {
+    const sorted = sortRosterStudents([
+      identified(KEY_CLARK_LIAM),
+      identified(KEY_ANDERS),
+      identified(KEY_CLARK_MIA),
+      identified(KEY_BROWN),
+    ]);
 
-    // "Zoe Anders" leads although her first name and pseudonym both sort
-    // last; the two Clarks are separated by first name.
-    expect(sorted.map((student) => student.studentKey)).toEqual([
-      KEY_ANDERS,
-      KEY_BROWN,
-      KEY_CLARK_LIAM,
-      KEY_CLARK_MIA,
+    // abrown leads although Anders's name and pseudonym both sort first;
+    // mclark precedes mclark2 as a shorter prefix.
+    expect(sorted.map((student) => student.identity)).toEqual([
+      { status: "identified", username: "abrown" },
+      { status: "identified", username: "mclark" },
+      { status: "identified", username: "mclark2" },
+      { status: "identified", username: "zanders" },
     ]);
   });
 
   it("ignores letter case when ordering", () => {
-    const sorted = sortRosterStudents(
-      [
-        { identity: { displayName: "amy zed", status: "identified" }, studentKey: "1".repeat(64) },
-        { identity: { displayName: "Bo Young", status: "identified" }, studentKey: "2".repeat(64) },
-      ],
-      new Map([
-        ["1".repeat(64), { displayName: "amy zed", familyName: "zed", givenName: "amy" }],
-        ["2".repeat(64), { displayName: "Bo Young", familyName: "Young", givenName: "Bo" }],
-      ]),
-    );
+    const sorted = sortRosterStudents([
+      { identity: { status: "identified", username: "zed" }, studentKey: "1".repeat(64) },
+      { identity: { status: "identified", username: "Young" }, studentKey: "2".repeat(64) },
+      { identity: { status: "identified", username: "alpha" }, studentKey: "3".repeat(64) },
+    ]);
 
     expect(sorted.map((student) => student.identity)).toEqual([
-      { displayName: "Bo Young", status: "identified" },
-      { displayName: "amy zed", status: "identified" },
+      { status: "identified", username: "alpha" },
+      { status: "identified", username: "Young" },
+      { status: "identified", username: "zed" },
     ]);
   });
 
-  it("places a name the provider did not split by its display name", () => {
-    const sorted = sortRosterStudents(
-      [identified(KEY_CLARK_MIA), identified(KEY_EMAIL_ONLY), identified(KEY_ANDERS)],
-      names,
-    );
-
-    // "bea@suffolk.edu" has no last name; it sorts as a whole, between
-    // Anders and Clark, rather than falling to the end.
-    expect(sorted.map((student) => student.studentKey)).toEqual([
-      KEY_ANDERS,
-      KEY_EMAIL_ONLY,
-      KEY_CLARK_MIA,
+  it("places an account without a username after every account with one", () => {
+    const sorted = sortRosterStudents([
+      identified(KEY_NO_USERNAME),
+      identified(KEY_ANDERS),
+      identified(KEY_BROWN),
     ]);
-  });
-
-  it("puts students with no name to show after every named student, in pseudonym order", () => {
-    const sorted = sortRosterStudents(
-      [
-        { identity: { status: "unavailable" }, studentKey: KEY_UNLINKED },
-        identified(KEY_BROWN),
-        { identity: { status: "anonymous" }, studentKey: KEY_ANONYMOUS },
-        identified(KEY_ANDERS),
-      ],
-      names,
-    );
 
     expect(sorted.map((student) => student.studentKey)).toEqual([
-      KEY_ANDERS,
       KEY_BROWN,
+      KEY_ANDERS,
+      KEY_NO_USERNAME,
+    ]);
+  });
+
+  it("puts students with no account to show last, in pseudonym order", () => {
+    const sorted = sortRosterStudents([
+      { identity: { status: "unavailable" }, studentKey: KEY_UNLINKED },
+      identified(KEY_ANDERS),
+      { identity: { status: "anonymous" }, studentKey: KEY_ANONYMOUS },
+      identified(KEY_NO_USERNAME),
+      identified(KEY_BROWN),
+    ]);
+
+    expect(sorted.map((student) => student.studentKey)).toEqual([
+      KEY_BROWN,
+      KEY_ANDERS,
+      KEY_NO_USERNAME,
       KEY_UNLINKED,
       KEY_ANONYMOUS,
     ]);
   });
 
   it("does not reorder its input and orders the same input the same way twice", () => {
-    const input = [identified(KEY_BROWN), identified(KEY_ANDERS)];
-    const first = sortRosterStudents(input, names);
-    const second = sortRosterStudents([...input].reverse(), names);
+    const input = [identified(KEY_ANDERS), identified(KEY_BROWN)];
+    const first = sortRosterStudents(input);
+    const second = sortRosterStudents([...input].reverse());
 
     expect(input.map((student) => student.studentKey)).toEqual([
-      KEY_BROWN,
       KEY_ANDERS,
+      KEY_BROWN,
     ]);
     expect(first).toEqual(second);
   });
 });
 
-describe("resolving names for the by-topic view", () => {
+describe("resolving usernames for the by-topic view", () => {
   it("looks up account holders together and never sends anonymous students to the provider", async () => {
     const lookUpIdentities = vi.fn(async (links: Array<{ subject: string }>) =>
       new Map(links.map(({ subject }) => [subject, PROVIDER[subject]])),
     );
 
     const resolved = await rosterIdentitiesForLinks(
-      [KEY_ANDERS, KEY_ANONYMOUS, KEY_UNLINKED, KEY_BROWN, "0".repeat(64)],
+      [KEY_ANDERS, KEY_ANONYMOUS, KEY_UNLINKED, KEY_NO_USERNAME, "0".repeat(64)],
       new Map<string, StudentAccountLink>([
         [KEY_ANDERS, accountLink(KEY_ANDERS)],
         [KEY_ANONYMOUS, { kind: "anonymous" }],
         [KEY_UNLINKED, accountLink(KEY_UNLINKED)],
-        [KEY_BROWN, accountLink(KEY_BROWN)],
+        [KEY_NO_USERNAME, accountLink(KEY_NO_USERNAME)],
       ]),
       lookUpIdentities,
     );
@@ -289,18 +275,25 @@ describe("resolving names for the by-topic view", () => {
     expect(lookUpIdentities).toHaveBeenCalledTimes(1);
     expect(
       lookUpIdentities.mock.calls[0][0].map(({ subject }) => subject).sort(),
-    ).toEqual(["user_anders", "user_brown", "user_gone"]);
+    ).toEqual(["user_anders", "user_gone", "user_no_username"]);
     expect(resolved.get(KEY_ANDERS)).toEqual({
-      identity: { displayName: "Zoe Anders", status: "identified" },
-      name: { displayName: "Zoe Anders", familyName: "Anders", givenName: "Zoe" },
+      status: "identified",
+      username: "zanders",
     });
-    expect(resolved.get(KEY_ANONYMOUS)).toEqual({ identity: { status: "anonymous" } });
-    expect(resolved.get(KEY_UNLINKED)).toEqual({ identity: { status: "unlinked" } });
+    // An account without a username is identified, with no username field.
+    expect(resolved.get(KEY_NO_USERNAME)).toEqual({ status: "identified" });
+    expect(resolved.get(KEY_ANONYMOUS)).toEqual({ status: "anonymous" });
+    expect(resolved.get(KEY_UNLINKED)).toEqual({ status: "unlinked" });
     // A key the population no longer holds is reported, not invented.
-    expect(resolved.get("0".repeat(64))).toEqual({ identity: { status: "unlinked" } });
+    expect(resolved.get("0".repeat(64))).toEqual({ status: "unlinked" });
+    // The display name and email the provider also holds are not read.
+    expect(JSON.stringify([...resolved])).not.toContain("displayName");
+    for (const value of PRIVATE_STRINGS) {
+      expect(JSON.stringify([...resolved])).not.toContain(value);
+    }
   });
 
-  it("returns display names only, grouped and ordered, after one audit write for everyone", async () => {
+  it("returns usernames only, grouped and ordered, after one audit write for everyone", async () => {
     const recordViews = recordViewsMock();
     setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
 
@@ -315,21 +308,21 @@ describe("resolving names for the by-topic view", () => {
       "Binomial Models",
     ]);
     expect(roster.topics[0].students).toEqual([
-      { identity: { displayName: "Zoe Anders", status: "identified" }, studentKey: KEY_ANDERS },
-      { identity: { displayName: "Adam Brown", status: "identified" }, studentKey: KEY_BROWN },
+      { identity: { status: "identified", username: "abrown" }, studentKey: KEY_BROWN },
+      { identity: { status: "identified", username: "zanders" }, studentKey: KEY_ANDERS },
       { identity: { status: "anonymous" }, studentKey: KEY_ANONYMOUS },
     ]);
     expect(roster.topics[1].students).toEqual([
-      { identity: { displayName: "Zoe Anders", status: "identified" }, studentKey: KEY_ANDERS },
+      { identity: { status: "identified", username: "zanders" }, studentKey: KEY_ANDERS },
       { identity: { status: "unlinked" }, studentKey: KEY_UNLINKED },
     ]);
     expect(roster.unassigned).toEqual([
-      { identity: { displayName: "Liam Clark", status: "identified" }, studentKey: KEY_CLARK_LIAM },
-      { identity: { displayName: "Mia Clark", status: "identified" }, studentKey: KEY_CLARK_MIA },
+      { identity: { status: "identified", username: "mclark" }, studentKey: KEY_CLARK_MIA },
+      { identity: { status: "identified", username: "mclark2" }, studentKey: KEY_CLARK_LIAM },
     ]);
 
     // One audit call, one row per student in the order the roster lists
-    // them, marked as the by-topic view, with no name in it.
+    // them, marked as the by-topic view, with no username or name in it.
     expect(recordViews).toHaveBeenCalledTimes(1);
     expect(recordViews.mock.calls[0][1]).toEqual({
       requestId: "request-roster-1",
@@ -339,36 +332,33 @@ describe("resolving names for the by-topic view", () => {
         { status: "identified", studentKey: KEY_BROWN },
         { status: "identified", studentKey: KEY_ANDERS },
         { status: "unlinked", studentKey: KEY_UNLINKED },
-        { status: "identified", studentKey: KEY_CLARK_MIA },
         { status: "identified", studentKey: KEY_CLARK_LIAM },
+        { status: "identified", studentKey: KEY_CLARK_MIA },
       ],
     });
     const audited = JSON.stringify(recordViews.mock.calls);
-    expect(audited).not.toContain("Anders");
-    expect(audited).not.toContain("Clark");
-    for (const value of PRIVATE_STRINGS) {
+    for (const value of [...PRIVATE_STRINGS, ...USERNAMES]) {
       expect(audited).not.toContain(value);
     }
 
-    // Each student carries the display name and status and nothing else: no
-    // email, username, split name, subject, or id.
+    // Each student carries the username and status and nothing else: no
+    // name, email, subject, or id.
     const serialized = JSON.stringify(roster);
     for (const value of PRIVATE_STRINGS) {
       expect(serialized).not.toContain(value);
     }
-    expect(serialized).not.toContain("familyName");
-    expect(serialized).not.toContain("givenName");
+    expect(serialized).not.toContain("displayName");
     for (const student of everyStudent(roster)) {
       expect(Object.keys(student).sort()).toEqual(["identity", "studentKey"]);
       expect(Object.keys(student.identity ?? {}).sort()).toEqual(
         student.identity?.status === "identified"
-          ? ["displayName", "status"]
+          ? ["status", "username"]
           : ["status"],
       );
     }
   });
 
-  it("withholds every name when the display cannot be audited", async () => {
+  it("withholds every username when the display cannot be audited", async () => {
     const lookUpIdentities = vi.fn(rosterDependencies().lookUpIdentities);
     setStudentIdentityDependenciesForTests({
       ...rosterDependencies(),
@@ -383,19 +373,16 @@ describe("resolving names for the by-topic view", () => {
     );
     const serialized = JSON.stringify(roster);
 
-    // The names were resolved and then discarded.
+    // The usernames were resolved and then discarded.
     expect(lookUpIdentities).toHaveBeenCalled();
     for (const student of everyStudent(roster)) {
       expect(student.identity).toEqual({ status: "unavailable" });
     }
-    expect(serialized).not.toContain("Anders");
-    expect(serialized).not.toContain("Brown");
-    expect(serialized).not.toContain("Clark");
-    expect(serialized).not.toContain("audit_events");
-    for (const value of PRIVATE_STRINGS) {
+    for (const value of [...PRIVATE_STRINGS, ...USERNAMES]) {
       expect(serialized).not.toContain(value);
     }
-    // With no names, students keep their pseudonymous order.
+    expect(serialized).not.toContain("audit_events");
+    // With no usernames, students keep their pseudonymous order.
     expect(roster.topics[0].students.map((s) => s.studentKey)).toEqual(
       [KEY_ANDERS, KEY_BROWN, KEY_ANONYMOUS].sort(),
     );
@@ -412,21 +399,22 @@ describe("resolving names for the by-topic view", () => {
   });
 });
 
-describe("resolving names for the activity table", () => {
-  it("names the students on the page after one audit write marked as the activity view", async () => {
+describe("resolving usernames for the activity table", () => {
+  it("resolves the students on the page after one audit write marked as the activity view", async () => {
     const recordViews = recordViewsMock();
     setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
 
     const identities = await resolveInstructorStudentIdentities(
       await professorAuthorization(),
-      [KEY_BROWN, KEY_ANONYMOUS, KEY_BROWN, KEY_ANDERS],
+      [KEY_BROWN, KEY_ANONYMOUS, KEY_BROWN, KEY_ANDERS, KEY_NO_USERNAME],
       { requestId: "request-activity-1" },
     );
 
     expect(identities).toEqual({
-      [KEY_BROWN]: { displayName: "Adam Brown", status: "identified" },
+      [KEY_BROWN]: { status: "identified", username: "abrown" },
       [KEY_ANONYMOUS]: { status: "anonymous" },
-      [KEY_ANDERS]: { displayName: "Zoe Anders", status: "identified" },
+      [KEY_ANDERS]: { status: "identified", username: "zanders" },
+      [KEY_NO_USERNAME]: { status: "identified" },
     });
     expect(recordViews).toHaveBeenCalledTimes(1);
     expect(recordViews.mock.calls[0][1]).toEqual({
@@ -436,6 +424,7 @@ describe("resolving names for the activity table", () => {
         { status: "identified", studentKey: KEY_BROWN },
         { status: "anonymous", studentKey: KEY_ANONYMOUS },
         { status: "identified", studentKey: KEY_ANDERS },
+        { status: "identified", studentKey: KEY_NO_USERNAME },
       ],
     });
     const serialized = JSON.stringify(identities);
@@ -456,7 +445,7 @@ describe("resolving names for the activity table", () => {
     expect(recordViews).not.toHaveBeenCalled();
   });
 
-  it("withholds every name on the page when the display cannot be audited", async () => {
+  it("withholds every username on the page when the display cannot be audited", async () => {
     setStudentIdentityDependenciesForTests({
       ...rosterDependencies(),
       recordViews: async () => {
@@ -493,7 +482,7 @@ describe("Students page", () => {
     vi.stubEnv("APP_DEMO_MODE", "true");
   });
 
-  it("shows every name in the by-topic view on load, ordered by last name, with nothing to click", async () => {
+  it("shows every username in the by-topic view on load, ordered by username, with nothing to click", async () => {
     mockPrincipal(TEST_PROFESSOR);
     const recordViews = recordViewsMock();
     setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
@@ -507,18 +496,19 @@ describe("Students page", () => {
     expect(markup).toContain("Conditional Probability");
     expect(markup).toContain("Binomial Models");
     expect(markup).toContain("No topic practice yet");
+    expect(markup).toContain(">Username<");
     expect(markup).toContain(`href="/professor/students/${KEY_ANDERS}"`);
     expect(markup).toContain(studentLabel(KEY_ANDERS));
-    // Anders before Brown before the anonymous student, within the first group.
-    expect(markup.indexOf("Zoe Anders")).toBeLessThan(markup.indexOf("Adam Brown"));
-    expect(markup.indexOf("Adam Brown")).toBeLessThan(
+    // abrown before zanders before the anonymous student, within the first
+    // group; mclark before mclark2 in the unassigned group.
+    expect(markup.indexOf("abrown")).toBeLessThan(markup.indexOf("zanders"));
+    expect(markup.indexOf("zanders")).toBeLessThan(
       markup.indexOf("practised without signing in"),
     );
-    // The two Clarks are ordered by first name in the unassigned group.
-    expect(markup.indexOf("Liam Clark")).toBeLessThan(markup.indexOf("Mia Clark"));
+    expect(markup.indexOf(">mclark<")).toBeLessThan(markup.indexOf(">mclark2<"));
     expect(markup).not.toContain("Reveal all names");
     expect(markup).not.toContain("Hide names");
-    expect(markup).not.toContain("Name hidden");
+    expect(markup).not.toContain("Username hidden");
     for (const value of PRIVATE_STRINGS) {
       expect(markup).not.toContain(value);
     }
@@ -527,12 +517,12 @@ describe("Students page", () => {
     expect(listInstructorStudents).not.toHaveBeenCalled();
   });
 
-  it("shows names beside the codes in the activity view and records the display", async () => {
+  it("shows usernames beside the codes in the activity view and records the display", async () => {
     mockPrincipal(TEST_PROFESSOR);
     const recordViews = recordViewsMock();
     setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
     vi.mocked(listInstructorStudents).mockResolvedValue(
-      activityList([KEY_BROWN, KEY_ANONYMOUS, KEY_ANDERS]),
+      activityList([KEY_ANDERS, KEY_ANONYMOUS, KEY_BROWN, KEY_NO_USERNAME]),
     );
 
     const markup = renderToStaticMarkup(
@@ -541,12 +531,13 @@ describe("Students page", () => {
 
     expect(markup).toContain("Practice sessions");
     expect(markup).toContain("Search by student code");
-    expect(markup).toContain("Adam Brown");
-    expect(markup).toContain("Zoe Anders");
+    expect(markup).toContain("zanders");
+    expect(markup).toContain("abrown");
     expect(markup).toContain("practised without signing in");
+    expect(markup).toContain("Username unavailable");
     expect(markup).toContain(studentLabel(KEY_BROWN));
     // The activity view keeps its own order: the list's, not the alphabet's.
-    expect(markup.indexOf("Adam Brown")).toBeLessThan(markup.indexOf("Zoe Anders"));
+    expect(markup.indexOf("zanders")).toBeLessThan(markup.indexOf("abrown"));
     expect(markup).toContain('href="/professor/students?view=topics"');
     expect(markup).not.toContain("Reveal all names");
     for (const value of PRIVATE_STRINGS) {
@@ -556,9 +547,10 @@ describe("Students page", () => {
     expect(recordViews.mock.calls[0][1]).toMatchObject({
       scope: "activity",
       views: [
-        { status: "identified", studentKey: KEY_BROWN },
-        { status: "anonymous", studentKey: KEY_ANONYMOUS },
         { status: "identified", studentKey: KEY_ANDERS },
+        { status: "anonymous", studentKey: KEY_ANONYMOUS },
+        { status: "identified", studentKey: KEY_BROWN },
+        { status: "identified", studentKey: KEY_NO_USERNAME },
       ],
     });
   });
@@ -574,15 +566,15 @@ describe("Students page", () => {
       await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
     );
 
-    // Rendering names is an audited event, so no link into the page may be
-    // prefetched on hover. Next renders prefetch={false} links without the
+    // Rendering usernames is an audited event, so no link into the page may
+    // be prefetched on hover. Next renders prefetch={false} links without the
     // prefetch attribute, and the pagination link must exist to be checked.
     expect(markup).toContain("Next");
     expect(markup).toContain('href="/professor/students?page=2');
     expect(markup).not.toContain("prefetch");
   });
 
-  it("shows unavailable names rather than the page failing when the audit write fails", async () => {
+  it("shows unavailable usernames rather than the page failing when the audit write fails", async () => {
     mockPrincipal(TEST_PROFESSOR);
     setStudentIdentityDependenciesForTests({
       ...rosterDependencies(),
@@ -597,10 +589,11 @@ describe("Students page", () => {
       }),
     );
 
-    expect(markup).toContain("Name temporarily unavailable");
+    expect(markup).toContain("Username temporarily unavailable");
     expect(markup).toContain(studentLabel(KEY_ANDERS));
-    expect(markup).not.toContain("Anders");
-    expect(markup).not.toContain("Clark");
+    for (const value of [...PRIVATE_STRINGS, ...USERNAMES]) {
+      expect(markup).not.toContain(value);
+    }
     expect(markup).not.toContain("audit store");
   });
 
@@ -620,7 +613,7 @@ describe("Students page", () => {
     expect(listTopicRoster).not.toHaveBeenCalled();
   });
 
-  it("refuses both views to a student and to a signed-out visitor before any name is read", async () => {
+  it("refuses both views to a student and to a signed-out visitor before any username is read", async () => {
     const findAccountLinks = vi.fn();
     const listTopicRoster = vi.fn();
     setStudentIdentityDependenciesForTests({ findAccountLinks, listTopicRoster });
@@ -675,7 +668,7 @@ describe("Students page", () => {
 });
 
 describe("roster and table markup", () => {
-  it("renders resolved names in the order given", () => {
+  it("renders resolved usernames in the order given", () => {
     const markup = renderToStaticMarkup(
       createElement(InstructorStudentTopicRoster, {
         roster: {
@@ -684,8 +677,9 @@ describe("roster and table markup", () => {
           topics: [
             {
               students: [
-                { identity: { displayName: "Zoe Anders", status: "identified" }, studentKey: KEY_ANDERS },
-                { identity: { displayName: "Adam Brown", status: "identified" }, studentKey: KEY_BROWN },
+                { identity: { status: "identified", username: "abrown" }, studentKey: KEY_BROWN },
+                { identity: { status: "identified", username: "zanders" }, studentKey: KEY_ANDERS },
+                { identity: { status: "identified" }, studentKey: KEY_NO_USERNAME },
                 { identity: { status: "anonymous" }, studentKey: KEY_ANONYMOUS },
                 { identity: { status: "unlinked" }, studentKey: KEY_UNLINKED },
               ],
@@ -698,12 +692,16 @@ describe("roster and table markup", () => {
       }),
     );
 
-    expect(markup.indexOf("Zoe Anders")).toBeLessThan(markup.indexOf("Adam Brown"));
-    expect(markup.indexOf("Adam Brown")).toBeLessThan(
+    expect(markup.indexOf("abrown")).toBeLessThan(markup.indexOf("zanders"));
+    expect(markup.indexOf("zanders")).toBeLessThan(
+      markup.indexOf("Username unavailable"),
+    );
+    expect(markup.indexOf("Username unavailable")).toBeLessThan(
       markup.indexOf("practised without signing in"),
     );
     expect(markup).toContain("No longer has an account");
-    expect(markup).toContain("4 students");
+    expect(markup).toContain("5 students");
+    expect(markup).toContain(">Username<");
     expect(markup).not.toContain("No topic practice yet");
     expect(markup).not.toContain("<button");
   });
@@ -713,16 +711,16 @@ describe("roster and table markup", () => {
       createElement(InstructorStudentTopicRoster, { roster: pseudonymousRoster() }),
     );
 
-    expect(markup).toContain("Name hidden");
+    expect(markup).toContain("Username hidden");
     expect(markup).toContain(studentLabel(KEY_ANDERS));
-    expect(markup).not.toContain("Anders");
+    expect(markup).not.toContain("zanders");
   });
 
-  it("names table rows only when identities are supplied", () => {
+  it("shows usernames in table rows only when identities are supplied", () => {
     const list = activityList([KEY_ANDERS]);
     const named = renderToStaticMarkup(
       createElement(InstructorStudentTable, {
-        identities: { [KEY_ANDERS]: { displayName: "Zoe Anders", status: "identified" } },
+        identities: { [KEY_ANDERS]: { status: "identified", username: "zanders" } },
         list,
       }),
     );
@@ -730,11 +728,11 @@ describe("roster and table markup", () => {
       createElement(InstructorStudentTable, { list }),
     );
 
-    expect(named).toContain("Zoe Anders");
+    expect(named).toContain("zanders");
     expect(named).toContain(studentLabel(KEY_ANDERS));
     expect(pseudonymous).toContain(studentLabel(KEY_ANDERS));
-    expect(pseudonymous).not.toContain("Anders");
-    expect(pseudonymous).not.toContain("Name hidden");
+    expect(pseudonymous).not.toContain("zanders");
+    expect(pseudonymous).not.toContain("Username hidden");
   });
 });
 
@@ -802,7 +800,7 @@ function pseudonymousRoster(): TopicRoster {
         topicTitle: "Binomial Models",
       },
     ],
-    unassigned: [KEY_CLARK_MIA, KEY_CLARK_LIAM].map((studentKey) => ({ studentKey })),
+    unassigned: [KEY_CLARK_LIAM, KEY_CLARK_MIA].map((studentKey) => ({ studentKey })),
   };
 }
 

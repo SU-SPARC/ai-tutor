@@ -30,7 +30,7 @@ const SORTS: InstructorStudentSort[] = [
 /**
  * Two readings of the same class: the activity table, sortable and searchable
  * by student code, and the roster grouped by practised topic. Both show the
- * students' names, resolved on the server for the signed-in professor and
+ * students' usernames, resolved on the server for the signed-in professor and
  * recorded before they are rendered; see `resolveInstructorStudentRoster`.
  */
 const VIEWS = ["activity", "topics"] as const;
@@ -104,8 +104,8 @@ export default async function ProfessorStudentsPage({
     search,
     sort,
   });
-  // Only the students on this page are named, and only when there are any:
-  // an empty page or the demo store records nothing.
+  // Only the students on this page get usernames, and only when there are
+  // any: an empty page or the demo store records nothing.
   const identities =
     list.mode === "database" && list.students.length > 0
       ? await resolveInstructorStudentIdentities(
@@ -200,11 +200,11 @@ function StudentsPageShell({ children }: { children: ReactNode }) {
   return (
     <ProfessorPageShell
       title="Students"
-      description="Students who have signed in to the tutor, with the practice activity they have recorded. Names are read from the account provider for each visit by an authorized instructor and every display is recorded; the practice analytics themselves hold no names, email addresses, or browser identifiers. A student's username and email address are available from their detail page."
+      description="Students who have signed in to the tutor, with the practice activity they have recorded. Usernames are read from the account provider for each visit by an authorized instructor and every display is recorded; the practice analytics themselves hold no usernames, names, email addresses, or browser identifiers. A student's name and email address are available from their detail page."
       aside={
         <Badge variant="outline" className="h-10 gap-2 px-4">
           <Users className="h-4 w-4" />
-          names audited
+          usernames audited
         </Badge>
       }
     >
@@ -263,7 +263,7 @@ function ViewSwitch({ view }: { view: StudentsView }) {
                 ? "/professor/students"
                 : `/professor/students?view=${candidate}`
             }
-            // Rendering either view names students and records it, so a
+            // Rendering either view shows usernames and records it, so a
             // hover must not do it on the professor's behalf.
             prefetch={false}
           >

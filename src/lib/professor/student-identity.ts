@@ -16,7 +16,6 @@ import type { StudentAccountLink } from "@/lib/data/student-identity-repository"
 import {
   rosterStudentKeys,
   sortRosterStudents,
-  type RosterSortName,
 } from "@/lib/professor/student-roster";
 import type {
   InstructorIdentityViewScope,
@@ -29,20 +28,13 @@ import type {
 
 /**
  * What an identity provider can say about a subject: the three fields this
- * feature is allowed to show, the split name the roster orders by, or a
- * reason it showed nothing. A provider that no longer holds the account is
- * reported separately from one that could not be reached, because only the
- * second is worth retrying. The family and given names never leave the
- * server: the single reveal omits them and the by-topic view sorts by them.
+ * feature is allowed to show, or a reason it showed nothing. A provider that
+ * no longer holds the account is reported separately from one that could not
+ * be reached, because only the second is worth retrying. The Students page
+ * takes the username alone from this; the single reveal takes all three.
  */
 export type ProviderIdentity =
-  | {
-      displayName: string;
-      email?: string;
-      familyName?: string;
-      givenName?: string;
-      username?: string;
-    }
+  | { displayName: string; email?: string; username?: string }
   | "unavailable"
   | "unlinked";
 
@@ -125,14 +117,14 @@ export async function resolveInstructorStudentIdentity(
 }
 
 /**
- * Names for the Students page's by-topic view: every student on the page,
- * grouped by practised topic and ordered by last name within each group. The
+ * Usernames for the Students page's by-topic view: every student on the page,
+ * grouped by practised topic and ordered by username within each group. The
  * rules are the single reveal's, applied to the whole page on every visit:
- * the population is the page's own, the names are read live from the
- * provider, only the display name is returned, and the disclosure is recorded
+ * the population is the page's own, the usernames are read live from the
+ * provider, only the username is returned, and the disclosure is recorded
  * before it is served. The audit is one row per student in one statement, so
- * a page's names are either fully recorded or — if that write fails — every
- * name is withheld as `unavailable`, with nothing left to order by.
+ * a page's usernames are either fully recorded or — if that write fails —
+ * every one is withheld as `unavailable`, with nothing left to order by.
  */
 export async function resolveInstructorStudentRoster(
   authorization: AnalyticsAuthorization,
@@ -152,10 +144,10 @@ export async function resolveInstructorStudentRoster(
 }
 
 /**
- * Names for the Students page's activity table: the display identity of each
- * pseudonym on the current page, under the same rules as the by-topic view.
- * A key outside the page's population — which the table never lists — comes
- * back `unlinked` rather than being looked up.
+ * Usernames for the Students page's activity table: the username identity of
+ * each pseudonym on the current page, under the same rules as the by-topic
+ * view. A key outside the page's population — which the table never lists —
+ * comes back `unlinked` rather than being looked up.
  */
 export async function resolveInstructorStudentIdentities(
   authorization: AnalyticsAuthorization,
@@ -174,7 +166,7 @@ export async function resolveInstructorStudentIdentities(
   return Object.fromEntries(
     keys.map((studentKey) => [
       studentKey,
-      resolved.get(studentKey)?.identity ?? { status: "unavailable" },
+      resolved.get(studentKey) ?? { status: "unavailable" },
     ]),
   );
 }
@@ -183,15 +175,15 @@ export async function resolveInstructorStudentIdentities(
  * Resolve, look up, record, and only then return — for a whole page of
  * students at once. Nothing is recorded, and nothing is looked up, for an
  * empty page. If the audit statement rejects, every identity resolved here is
- * discarded in favour of `unavailable`: the names are in scope only in this
- * function, and go no further. Nothing is logged or re-raised.
+ * discarded in favour of `unavailable`: the usernames are in scope only in
+ * this function, and go no further. Nothing is logged or re-raised.
  */
 async function auditedIdentities(
   authorization: AnalyticsAuthorization,
   dependencies: StudentIdentityDependencies,
   studentKeys: string[],
   options: { requestId?: string; scope: InstructorIdentityViewScope },
-): Promise<Map<string, ResolvedRosterIdentity>> {
+): Promise<Map<string, InstructorStudentRosterIdentity>> {
   if (studentKeys.length === 0) {
     return new Map();
   }
@@ -208,7 +200,7 @@ async function auditedIdentities(
       requestId: options.requestId,
       scope: options.scope,
       views: studentKeys.map((studentKey) => ({
-        status: resolved.get(studentKey)?.identity.status ?? "unavailable",
+        status: resolved.get(studentKey)?.status ?? "unavailable",
         studentKey,
       })),
     });
@@ -216,7 +208,7 @@ async function auditedIdentities(
     return new Map(
       studentKeys.map((studentKey) => [
         studentKey,
-        { identity: { status: "unavailable" as const } },
+        { status: "unavailable" as const },
       ]),
     );
   }
@@ -224,22 +216,19 @@ async function auditedIdentities(
   return resolved;
 }
 
-type ResolvedRosterIdentity = {
-  identity: InstructorStudentRosterIdentity;
-  name?: RosterSortName;
-};
-
 /**
- * Resolves each pseudonym's display identity. Students who never signed in
+ * Resolves each pseudonym's username identity. Students who never signed in
  * are never sent to the provider; account holders are looked up together.
  * A key the population no longer holds — an account disabled between the
- * page's own read and this one — is reported as unlinked.
+ * page's own read and this one — is reported as unlinked. Only the username
+ * is taken from what the provider returned: the display name and email
+ * address it also holds are not read here.
  */
 export async function rosterIdentitiesForLinks(
   studentKeys: string[],
   links: ReadonlyMap<string, StudentAccountLink>,
   lookUpIdentities: StudentIdentityDependencies["lookUpIdentities"],
-): Promise<Map<string, ResolvedRosterIdentity>> {
+): Promise<Map<string, InstructorStudentRosterIdentity>> {
   const providerLinks = new Map<string, ProviderLink>();
   for (const link of links.values()) {
     if (link.kind === "account" && !providerLinks.has(link.subject)) {
@@ -254,32 +243,28 @@ export async function rosterIdentitiesForLinks(
     providerLinks.size > 0
       ? await lookUpIdentities([...providerLinks.values()])
       : new Map<string, ProviderIdentity>();
-  const resolved = new Map<string, ResolvedRosterIdentity>();
+  const resolved = new Map<string, InstructorStudentRosterIdentity>();
 
   for (const studentKey of studentKeys) {
     const link = links.get(studentKey) ?? { kind: "unlinked" as const };
 
     if (link.kind !== "account") {
-      resolved.set(studentKey, { identity: { status: link.kind } });
+      resolved.set(studentKey, { status: link.kind });
       continue;
     }
 
     const identity = found.get(link.subject) ?? "unavailable";
 
     if (identity === "unavailable" || identity === "unlinked") {
-      resolved.set(studentKey, { identity: { status: identity } });
+      resolved.set(studentKey, { status: identity });
       continue;
     }
 
-    // Only the display name is built into the payload. The split name stays
-    // beside it, for ordering, and is discarded with this map.
+    // The username is omitted rather than sent empty when the account holds
+    // none, so an absent value is absent from the payload.
     resolved.set(studentKey, {
-      identity: { displayName: identity.displayName, status: "identified" },
-      name: {
-        displayName: identity.displayName,
-        familyName: identity.familyName,
-        givenName: identity.givenName,
-      },
+      status: "identified",
+      ...(identity.username ? { username: identity.username } : {}),
     });
   }
 
@@ -288,24 +273,16 @@ export async function rosterIdentitiesForLinks(
 
 function withRosterIdentities(
   roster: InstructorStudentTopicRoster,
-  resolved: ReadonlyMap<string, ResolvedRosterIdentity>,
+  resolved: ReadonlyMap<string, InstructorStudentRosterIdentity>,
 ): InstructorStudentTopicRoster {
-  const names = new Map<string, RosterSortName>();
-  for (const [studentKey, { name }] of resolved) {
-    if (name) {
-      names.set(studentKey, name);
-    }
-  }
-
   const attach = (students: InstructorRosterStudent[]) =>
     sortRosterStudents(
       students.map((student) => ({
-        identity: resolved.get(student.studentKey)?.identity ?? {
+        identity: resolved.get(student.studentKey) ?? {
           status: "unavailable",
         },
         studentKey: student.studentKey,
       })),
-      names,
     );
 
   return {
@@ -380,8 +357,8 @@ async function lookUpClerkIdentity(link: {
 const PROVIDER_LOOKUP_BATCH_SIZE = 100;
 
 /**
- * The Students page's provider read: the same fields as `lookUpClerkIdentity`,
- * for up to a hundred accounts per request. An id the listing does not return
+ * The Students page's provider read: the same mapping as `lookUpClerkIdentity`,
+ * for up to a hundred accounts per request; the page keeps the username only. An id the listing does not return
  * belongs to a deleted account and is unlinked; a request that fails leaves
  * every account in it unavailable, and the others unaffected. As with the
  * single lookup, neither the error nor its body is logged.
@@ -432,27 +409,22 @@ async function lookUpClerkIdentities(
 }
 
 /**
- * The whole of the mapping from a provider record to what may be shown or
- * ordered by. It reads five fields and ignores everything else the provider
- * sent, so a future addition to the provider's user object cannot widen this
- * payload by accident. The family and given names are read only so the
- * by-topic view can order students by last name; no response includes them.
+ * The whole of the mapping from a provider record to what may be shown. It
+ * reads four fields and ignores everything else the provider sent, so a future
+ * addition to the provider's user object cannot widen this payload by
+ * accident.
  */
 export function identityFromProviderUser(user: ProviderUser): ProviderIdentity {
   const email = primaryEmailAddress(user);
-  const givenName = user.firstName?.trim() || undefined;
-  const familyName = user.lastName?.trim() || undefined;
   const displayName =
     user.fullName?.trim() ||
-    [givenName, familyName].filter(Boolean).join(" ").trim() ||
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
     email;
   // Clerk's own `username`, never something assembled from the email address,
   // the name, or the subject. An account without one simply has none.
   const username = user.username?.trim() || undefined;
 
-  return displayName
-    ? { displayName, email, familyName, givenName, username }
-    : "unlinked";
+  return displayName ? { displayName, email, username } : "unlinked";
 }
 
 /**

@@ -29,40 +29,37 @@ import {
 } from "@/lib/professor/student-identity";
 
 /**
- * Five students whose surnames sort in the opposite order to their user ids
- * and pseudonyms, so an alphabetical result cannot be an accident of either.
+ * Four students whose usernames sort in the opposite order to their names,
+ * user ids, and pseudonyms, so an alphabetical result cannot be an accident
+ * of any of those.
  */
 const ANDERS = {
   email: "zoe.anders@suffolk.edu",
-  familyName: "Anders",
-  givenName: "Zoe",
   name: "Zoe Anders",
   subject: "user_2topicAnders",
   userId: "user:topic-roster-e-anders",
+  username: "zanders",
 };
 const BROWN = {
   email: "adam.brown@suffolk.edu",
-  familyName: "Brown",
-  givenName: "Adam",
   name: "Adam Brown",
   subject: "user_2topicBrown",
   userId: "user:topic-roster-d-brown",
+  username: "abrown",
 };
 const CLARK_LIAM = {
   email: "liam.clark@suffolk.edu",
-  familyName: "Clark",
-  givenName: "Liam",
   name: "Liam Clark",
   subject: "user_2topicClarkLiam",
   userId: "user:topic-roster-c-clark-liam",
+  username: "zclark",
 };
 const CLARK_MIA = {
   email: "mia.clark@suffolk.edu",
-  familyName: "Clark",
-  givenName: "Mia",
   name: "Mia Clark",
   subject: "user_2topicClarkMia",
   userId: "user:topic-roster-b-clark-mia",
+  username: "aclark",
 };
 const ANONYMOUS_OWNER = "topic-roster-anonymous-owner";
 
@@ -79,14 +76,15 @@ const UNKNOWN_KEY = "f".repeat(64);
 const IDENTIFIERS = STUDENTS.flatMap((student) => [
   student.email,
   student.name,
-  student.familyName,
   student.subject,
   student.userId,
+  student.username,
 ]).concat(ANONYMOUS_OWNER);
 
-/** Strings that must not appear even after a reveal has shown the names. */
+/** Strings that must not appear even where the usernames are shown. */
 const PRIVATE_IDENTIFIERS = STUDENTS.flatMap((student) => [
   student.email,
+  student.name,
   student.subject,
   student.userId,
 ]).concat(ANONYMOUS_OWNER);
@@ -280,7 +278,7 @@ describe("students grouped by practised topic", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("names the roster end to end, alphabetical by last name within each topic, and audits it", async () => {
+  it("resolves the roster end to end, alphabetical by username within each topic, and audits it", async () => {
     vi.stubEnv("APP_DEMO_MODE", "true");
     const providerRecords = new Map<string, ProviderIdentity>(
       STUDENTS.map((student) => [
@@ -288,8 +286,7 @@ describe("students grouped by practised topic", () => {
         {
           displayName: student.name,
           email: student.email,
-          familyName: student.familyName,
-          givenName: student.givenName,
+          username: student.username,
         },
       ]),
     );
@@ -319,35 +316,36 @@ describe("students grouped by practised topic", () => {
     );
 
     expect(roster.revealed).toBe(true);
-    // Conditional Probability: Anders before Brown, by surname, although
-    // Brown's pseudonym and user id both sort first.
+    // Conditional Probability: abrown before zanders, by username, although
+    // Anders's surname sorts first.
     expect(roster.topics[0].students).toEqual([
-      { identity: { displayName: ANDERS.name, status: "identified" }, studentKey: ANDERS_KEY },
-      { identity: { displayName: BROWN.name, status: "identified" }, studentKey: BROWN_KEY },
+      { identity: { status: "identified", username: BROWN.username }, studentKey: BROWN_KEY },
+      { identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
     ]);
-    // Binomial Models: the anonymous student follows the named one.
+    // Binomial Models: the anonymous student follows the identified one.
     expect(roster.topics[1].students).toEqual([
-      { identity: { displayName: ANDERS.name, status: "identified" }, studentKey: ANDERS_KEY },
+      { identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
       { identity: { status: "anonymous" }, studentKey: ANONYMOUS_KEY },
     ]);
-    // Unassigned: the two Clarks are separated by first name.
+    // Unassigned: aclark (Mia) before zclark (Liam), the reverse of their
+    // first names.
     expect(roster.unassigned).toEqual([
-      { identity: { displayName: CLARK_LIAM.name, status: "identified" }, studentKey: CLARK_LIAM_KEY },
-      { identity: { displayName: CLARK_MIA.name, status: "identified" }, studentKey: CLARK_MIA_KEY },
+      { identity: { status: "identified", username: CLARK_MIA.username }, studentKey: CLARK_MIA_KEY },
+      { identity: { status: "identified", username: CLARK_LIAM.username }, studentKey: CLARK_LIAM_KEY },
     ]);
     // The anonymous student was never sent to the provider.
     expect(lookUpIdentities).toHaveBeenCalledTimes(1);
     expect(lookUpIdentities.mock.calls[0][0]).toHaveLength(4);
 
-    // Display names are the one thing a reveal shows; nothing else about the
-    // account — address, subject, id, anonymous owner — may travel with them.
+    // Usernames are the one thing the page shows; nothing else about the
+    // account — name, address, subject, id, anonymous owner — may travel
+    // with them.
     const body = JSON.stringify(roster);
     for (const identifier of PRIVATE_IDENTIFIERS) {
       expect(body).not.toContain(identifier);
     }
     expect(body).not.toContain("@");
-    expect(body).not.toContain("familyName");
-    expect(body).not.toContain("givenName");
+    expect(body).not.toContain("displayName");
 
     const audited = await database.query<{ entity_id: string; metadata_json: unknown }>(
       `select entity_id, metadata_json

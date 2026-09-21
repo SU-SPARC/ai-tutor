@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { StudentName } from "@/components/professor/instructor-student-name";
+import { StudentUsername } from "@/components/professor/instructor-student-username";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -25,9 +25,9 @@ const NO_TOPIC_TITLE = "No topic practice yet";
 
 /**
  * The Students page grouped by practised topic, rendered on the server with
- * the names already resolved and recorded: nothing here fetches, stores, or
- * toggles anything in the browser. Students arrive in the order the server
- * put them in — last name A–Z, then first name, within each topic.
+ * the usernames already resolved and recorded: nothing here fetches, stores,
+ * or toggles anything in the browser. Students arrive in the order the server
+ * put them in — username A–Z within each topic.
  */
 export function InstructorStudentTopicRoster({
   roster,
@@ -59,9 +59,9 @@ export function InstructorStudentTopicRoster({
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
         {labels.size} {labels.size === 1 ? "student" : "students"}, listed
-        under every topic they have practised and sorted by last name, then
-        first name. Names are read from the account provider for this visit and
-        each display is recorded; they are not stored in practice analytics.
+        under every topic they have practised and sorted by username. Usernames
+        are read from the account provider for this visit and each display is
+        recorded; they are not stored in practice analytics.
       </p>
 
       {groups.map((group) => (
@@ -80,7 +80,7 @@ export function InstructorStudentTopicRoster({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="px-6">Name</TableHead>
+                  <TableHead className="px-6">Username</TableHead>
                   <TableHead className="px-6">Student</TableHead>
                 </TableRow>
               </TableHeader>
@@ -88,7 +88,7 @@ export function InstructorStudentTopicRoster({
                 {group.students.map((student) => (
                   <TableRow key={student.studentKey}>
                     <TableCell className="px-6 py-3">
-                      <StudentName
+                      <StudentUsername
                         identity={roster.revealed ? student.identity : undefined}
                       />
                     </TableCell>

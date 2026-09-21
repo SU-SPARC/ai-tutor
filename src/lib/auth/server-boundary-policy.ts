@@ -549,6 +549,6 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
     case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
     case "professor-student-identity":
-      return "Student names for the signed-in professor only: the Students page shows display names, the single reveal returns display name, username, and primary email for one pseudonymous key. Every display is audited. No other profile field, and no analytics record is written.";
+      return "Student identity for the signed-in professor only: the Students page shows usernames, the single reveal returns display name, username, and primary email for one pseudonymous key. Every display is audited. No other profile field, and no analytics record is written.";
   }
 }

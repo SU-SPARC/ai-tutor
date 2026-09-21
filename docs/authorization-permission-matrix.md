@@ -27,7 +27,7 @@ grant interface.
 | `/professor/feedback`              | Professor            | `requireProfessorReview`; reporter identity is omitted.                           |
 | `/professor/upload`                | Professor            | `requireProfessor`.                                                               |
 | `/professor/analytics`             | Professor            | `requireAnalyticsAccess`.                                                         |
-| `/professor/students`              | Professor            | `requireAnalyticsAccess`; pseudonymous analytics plus each student's display name, resolved live from Clerk on the server and audited per render, in both the activity and the by-topic view. Links into the page do not prefetch. |
+| `/professor/students`              | Professor            | `requireAnalyticsAccess`; pseudonymous analytics plus each student's Clerk username, resolved live on the server and audited per render, in both the activity and the by-topic view. Links into the page do not prefetch. |
 | `/professor/students/[studentKey]` | Professor            | `requireAnalyticsAccess`; key must be a hex digest. Identity is hidden until the instructor reveals it. |
 
 The legacy `/admin/**` route tree does not exist.
@@ -70,10 +70,10 @@ The legacy `/admin/**` route tree does not exist.
 - Proxy middleware performs only coarse authentication redirects. Every page,
   Route Handler, and repository boundary repeats authorization.
 - Professors may use all normal student features.
-- Student identity is never an analytics field. Names are shown only on the
-  professor's Students page and by the explicit reveal boundary, read live
-  from Clerk, audited, and never written back into a session, attempt,
-  aggregate, export, or prompt. See
+- Student identity is never an analytics field. Usernames are shown only on
+  the professor's Students page, and names and email addresses only by the
+  explicit reveal boundary; all are read live from Clerk, audited, and never
+  written back into a session, attempt, aggregate, export, or prompt. See
   [student identity reveal](student-identity-reveal.md).
 - Students cannot access professor navigation, pages, queues, analytics,
   uploads, imports, or mutation APIs.

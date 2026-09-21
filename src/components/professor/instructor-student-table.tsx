@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { StudentName } from "@/components/professor/instructor-student-name";
+import { StudentUsername } from "@/components/professor/instructor-student-username";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -30,8 +30,8 @@ function formatDate(value: string | undefined) {
 }
 
 /**
- * The activity table. When the page has resolved and recorded display
- * identities, each row shows the student's name above their code; without
+ * The activity table. When the page has resolved and recorded username
+ * identities, each row shows the student's username above their code; without
  * them the row stays pseudonymous, as it is wherever the table is rendered
  * without an audited lookup.
  */
@@ -68,7 +68,9 @@ export function InstructorStudentTable({
               <TableCell className="px-4 py-3">
                 <div className="flex flex-col gap-1">
                   {identities ? (
-                    <StudentName identity={identities[student.studentKey]} />
+                    <StudentUsername
+                      identity={identities[student.studentKey]}
+                    />
                   ) : null}
                   <Link
                     className="font-medium text-primary hover:underline"

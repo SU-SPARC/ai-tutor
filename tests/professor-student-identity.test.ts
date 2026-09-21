@@ -208,13 +208,11 @@ describe("provider field mapping", () => {
     expect(identityFromProviderUser(providerUser())).toEqual({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
-      familyName: "Smith",
-      givenName: "Jane",
       username: STUDENT_USERNAME,
     });
   });
 
-  it("reads nothing but the five permitted fields off the provider record", () => {
+  it("reads nothing but the four permitted fields off the provider record", () => {
     const identity = identityFromProviderUser({
       ...providerUser(),
       // Everything a real provider record also carries. None of it may appear.
@@ -233,8 +231,6 @@ describe("provider field mapping", () => {
     expect(Object.keys(identity).sort()).toEqual([
       "displayName",
       "email",
-      "familyName",
-      "givenName",
       "username",
     ]);
     const serialized = JSON.stringify(identity);
@@ -255,8 +251,6 @@ describe("provider field mapping", () => {
       expect(identity).toEqual({
         displayName: STUDENT_NAME,
         email: STUDENT_EMAIL,
-        familyName: "Smith",
-        givenName: "Jane",
         username: undefined,
       });
       // "jane.smith" is the email local part and the obvious thing a derived
@@ -275,8 +269,6 @@ describe("provider field mapping", () => {
     ).toEqual({
       displayName: STUDENT_NAME,
       email: undefined,
-      familyName: "Smith",
-      givenName: "Jane",
       username: STUDENT_USERNAME,
     });
   });
@@ -296,10 +288,6 @@ describe("identity resolution", () => {
     const identity = await identityForLink(accountLink(), async () => ({
       displayName: STUDENT_NAME,
       email: STUDENT_EMAIL,
-      // The split name exists for the roster's ordering only; the reveal
-      // payload must not gain it.
-      familyName: "Smith",
-      givenName: "Jane",
       username: STUDENT_USERNAME,
     }));
 
