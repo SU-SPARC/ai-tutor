@@ -62,6 +62,7 @@ import type {
   AdminQuestion,
   AdminQuestionDashboard,
   InstructorCohortAnalytics,
+  InstructorIdentityViewScope,
   InstructorStudentDetail,
   InstructorStudentList,
   InstructorStudentListFilters,
@@ -576,8 +577,8 @@ export async function findInstructorStudentAccountLink(
 }
 
 /**
- * The roster reveal's account links, resolved in one read. Demo mode has no
- * cohort, so it resolves nothing, which the reveal reports per student.
+ * The Students page's account links, resolved in one read. Demo mode has no
+ * cohort, so it resolves nothing, which is reported per student.
  */
 export async function findInstructorStudentAccountLinks(
   authorization: AnalyticsAuthorization,
@@ -627,13 +628,14 @@ export async function recordInstructorStudentIdentityView(
 }
 
 /**
- * The roster reveal's audit write, with the same rule as the single reveal:
+ * The Students page's audit write, with the same rule as the single reveal:
  * nowhere to write is a failure, never a permitted no-op.
  */
 export async function recordInstructorStudentIdentityViews(
   authorization: AnalyticsAuthorization,
   input: {
     requestId?: string;
+    scope: InstructorIdentityViewScope;
     views: Array<{ status: string; studentKey: string }>;
   },
 ) {

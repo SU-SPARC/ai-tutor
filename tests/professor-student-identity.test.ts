@@ -572,7 +572,7 @@ describe("identity stays out of the analytics and tutor paths", () => {
     }
   });
 
-  it("is imported only by the two reveal boundaries", () => {
+  it("is imported only by the reveal route and the Students page", () => {
     const importers = sourceFiles(path.join(process.cwd(), "src")).filter(
       (file) =>
         readFileSync(file, "utf8").includes("professor/student-identity"),
@@ -586,7 +586,7 @@ describe("identity stays out of the analytics and tutor paths", () => {
         .sort(),
     ).toEqual([
       "src/app/api/professor/students/[studentKey]/identity/route.ts",
-      "src/app/api/professor/students/identities/route.ts",
+      "src/app/professor/students/page.tsx",
     ]);
   });
 });

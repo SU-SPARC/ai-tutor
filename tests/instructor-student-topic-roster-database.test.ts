@@ -11,7 +11,6 @@ import {
   TEST_STUDENT,
 } from "./auth-test-helpers";
 
-import { POST as revealRoster } from "@/app/api/professor/students/identities/route";
 import {
   requireAnalyticsAccess,
   requireStudent,
@@ -24,10 +23,10 @@ import {
   recordStudentIdentityViews,
 } from "@/lib/data/student-identity-repository";
 import {
+  resolveInstructorStudentRoster,
   setStudentIdentityDependenciesForTests,
   type ProviderIdentity,
 } from "@/lib/professor/student-identity";
-import type { InstructorStudentTopicRoster } from "@/lib/types";
 
 /**
  * Five students whose surnames sort in the opposite order to their user ids
@@ -207,10 +206,11 @@ describe("students grouped by practised topic", () => {
     ).resolves.toEqual(new Map());
   });
 
-  it("records one audit row per revealed student, marked as a roster reveal", async () => {
+  it("records one audit row per named student, marked with the view that showed it", async () => {
     await recordStudentIdentityViews(query, {
       professorUserId: TEST_PROFESSOR.userId,
       requestId: "request-roster-audit",
+      scope: "roster",
       views: [
         { status: "identified", studentKey: ANDERS_KEY },
         { status: "anonymous", studentKey: ANONYMOUS_KEY },
@@ -260,26 +260,27 @@ describe("students grouped by practised topic", () => {
         async () => {
           throw new Error('relation "audit_events" does not exist');
         },
-        { professorUserId: TEST_PROFESSOR.userId, views },
+        { professorUserId: TEST_PROFESSOR.userId, scope: "activity", views },
       ),
     ).rejects.toThrow();
     await expect(
       recordStudentIdentityViews(async () => [], {
         professorUserId: TEST_PROFESSOR.userId,
+        scope: "activity",
         views,
       }),
     ).rejects.toThrow();
-    // Nothing to reveal is nothing to record, not a failure.
+    // Nothing to show is nothing to record, not a failure.
     await expect(
       recordStudentIdentityViews(async () => [], {
         professorUserId: TEST_PROFESSOR.userId,
+        scope: "activity",
         views: [],
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("reveals the roster end to end, alphabetical by last name within each topic, and audits it", async () => {
-    mockPrincipal(TEST_PROFESSOR);
+  it("names the roster end to end, alphabetical by last name within each topic, and audits it", async () => {
     vi.stubEnv("APP_DEMO_MODE", "true");
     const providerRecords = new Map<string, ProviderIdentity>(
       STUDENTS.map((student) => [
@@ -312,14 +313,11 @@ describe("students grouped by practised topic", () => {
         }),
     });
 
-    const response = await revealRoster(
-      new Request("http://test/api/professor/students/identities", {
-        method: "POST",
-      }),
+    const roster = await resolveInstructorStudentRoster(
+      await professorAuthorization(),
+      { requestId: "request-roster-page" },
     );
-    const roster = (await response.json()) as InstructorStudentTopicRoster;
 
-    expect(response.status).toBe(200);
     expect(roster.revealed).toBe(true);
     // Conditional Probability: Anders before Brown, by surname, although
     // Brown's pseudonym and user id both sort first.
@@ -355,8 +353,7 @@ describe("students grouped by practised topic", () => {
       `select entity_id, metadata_json
        from audit_events
        where action = 'analytics.student_identity_viewed'
-         and metadata_json ->> 'scope' = 'roster'
-         and request_id <> 'request-roster-audit'
+         and request_id = 'request-roster-page'
        order by entity_id`,
     );
     expect(audited.rows.map((row) => row.entity_id)).toEqual(

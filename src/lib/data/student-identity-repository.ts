@@ -13,6 +13,7 @@ import {
   readDatabaseRows,
   type DatabaseQueryExecutor,
 } from "@/lib/data/database-executor";
+import type { InstructorIdentityViewScope } from "@/lib/types";
 
 /**
  * What the analytics population knows about who a pseudonym belongs to. The
@@ -178,19 +179,21 @@ export async function recordStudentIdentityView(
 }
 
 /**
- * The roster reveal's audit record: one `analytics.student_identity_viewed`
- * row per student, written in a single statement so a roster is either
- * recorded in full or not at all. Each row carries the same fields as a
- * single reveal plus `scope: "roster"`, so an auditor can tell a reveal of
- * everyone from a reveal of one. As with the single reveal, a statement that
- * inserts fewer rows than it was given is a failure, and the caller is
- * expected to withhold every identity when this rejects.
+ * The Students page's audit record: one `analytics.student_identity_viewed`
+ * row per student shown, written in a single statement so a page's names are
+ * either recorded in full or not at all. Each row carries the same fields as
+ * a single reveal plus `scope` — `"roster"` for the by-topic view, `"activity"`
+ * for the table — so an auditor can tell which view showed a name from a
+ * deliberate reveal of one student. As with the single reveal, a statement
+ * that inserts fewer rows than it was given is a failure, and the caller is
+ * expected to withhold every name when this rejects.
  */
 export async function recordStudentIdentityViews(
   query: DatabaseQueryExecutor,
   input: {
     professorUserId: string;
     requestId?: string;
+    scope: InstructorIdentityViewScope;
     views: Array<{ status: string; studentKey: string }>;
   },
 ) {
@@ -206,7 +209,7 @@ export async function recordStudentIdentityViews(
        case when exists (select 1 from users where id = $1) then $1 else null end,
        $1, 'analytics.student_identity_viewed', 'student_analytics',
        view.student_key, 'success', $2,
-       jsonb_build_object('result', view.status, 'scope', 'roster')
+       jsonb_build_object('result', view.status, 'scope', $5::text)
      from unnest($3::text[], $4::text[]) as view(student_key, status)
      returning id`,
     [
@@ -214,6 +217,7 @@ export async function recordStudentIdentityViews(
       input.requestId ?? null,
       input.views.map((view) => view.studentKey),
       input.views.map((view) => view.status),
+      input.scope,
     ],
   );
 

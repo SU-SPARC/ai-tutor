@@ -19,7 +19,9 @@ import {
   type RosterSortName,
 } from "@/lib/professor/student-roster";
 import type {
+  InstructorIdentityViewScope,
   InstructorRosterStudent,
+  InstructorStudentIdentities,
   InstructorStudentIdentity,
   InstructorStudentRosterIdentity,
   InstructorStudentTopicRoster,
@@ -31,7 +33,7 @@ import type {
  * reason it showed nothing. A provider that no longer holds the account is
  * reported separately from one that could not be reached, because only the
  * second is worth retrying. The family and given names never leave the
- * server: the single reveal omits them and the roster sorts by them.
+ * server: the single reveal omits them and the by-topic view sorts by them.
  */
 export type ProviderIdentity =
   | {
@@ -71,6 +73,7 @@ type StudentIdentityDependencies = {
     authorization: AnalyticsAuthorization,
     input: {
       requestId?: string;
+      scope: InstructorIdentityViewScope;
       views: Array<{ status: string; studentKey: string }>;
     },
   ) => Promise<void>;
@@ -122,14 +125,14 @@ export async function resolveInstructorStudentIdentity(
 }
 
 /**
- * Reveals every student on the Students page at once, grouped by practised
- * topic and ordered by last name within each group. The rules are the single
- * reveal's, applied to the whole roster: the population is the page's own,
- * the names are read live from the provider, only the display name is
- * returned, and the reveal is recorded before it is served. The audit is one
- * row per student in one statement, so a roster is either fully recorded or
- * — if that write fails — served with every identity withheld as
- * `unavailable`, and with no name in it to order by.
+ * Names for the Students page's by-topic view: every student on the page,
+ * grouped by practised topic and ordered by last name within each group. The
+ * rules are the single reveal's, applied to the whole page on every visit:
+ * the population is the page's own, the names are read live from the
+ * provider, only the display name is returned, and the disclosure is recorded
+ * before it is served. The audit is one row per student in one statement, so
+ * a page's names are either fully recorded or — if that write fails — every
+ * name is withheld as `unavailable`, with nothing left to order by.
  */
 export async function resolveInstructorStudentRoster(
   authorization: AnalyticsAuthorization,
@@ -138,7 +141,61 @@ export async function resolveInstructorStudentRoster(
   assertAuthorization(authorization, "professor");
   const dependencies = resolveDependencies();
   const roster = await dependencies.listTopicRoster(authorization);
-  const studentKeys = rosterStudentKeys(roster);
+  const resolved = await auditedIdentities(
+    authorization,
+    dependencies,
+    rosterStudentKeys(roster),
+    { requestId: options.requestId, scope: "roster" },
+  );
+
+  return withRosterIdentities(roster, resolved);
+}
+
+/**
+ * Names for the Students page's activity table: the display identity of each
+ * pseudonym on the current page, under the same rules as the by-topic view.
+ * A key outside the page's population — which the table never lists — comes
+ * back `unlinked` rather than being looked up.
+ */
+export async function resolveInstructorStudentIdentities(
+  authorization: AnalyticsAuthorization,
+  studentKeys: string[],
+  options: { requestId?: string } = {},
+): Promise<InstructorStudentIdentities> {
+  assertAuthorization(authorization, "professor");
+  const keys = [...new Set(studentKeys)];
+  const resolved = await auditedIdentities(
+    authorization,
+    resolveDependencies(),
+    keys,
+    { requestId: options.requestId, scope: "activity" },
+  );
+
+  return Object.fromEntries(
+    keys.map((studentKey) => [
+      studentKey,
+      resolved.get(studentKey)?.identity ?? { status: "unavailable" },
+    ]),
+  );
+}
+
+/**
+ * Resolve, look up, record, and only then return — for a whole page of
+ * students at once. Nothing is recorded, and nothing is looked up, for an
+ * empty page. If the audit statement rejects, every identity resolved here is
+ * discarded in favour of `unavailable`: the names are in scope only in this
+ * function, and go no further. Nothing is logged or re-raised.
+ */
+async function auditedIdentities(
+  authorization: AnalyticsAuthorization,
+  dependencies: StudentIdentityDependencies,
+  studentKeys: string[],
+  options: { requestId?: string; scope: InstructorIdentityViewScope },
+): Promise<Map<string, ResolvedRosterIdentity>> {
+  if (studentKeys.length === 0) {
+    return new Map();
+  }
+
   const links = await dependencies.findAccountLinks(authorization, studentKeys);
   const resolved = await rosterIdentitiesForLinks(
     studentKeys,
@@ -149,18 +206,22 @@ export async function resolveInstructorStudentRoster(
   try {
     await dependencies.recordViews(authorization, {
       requestId: options.requestId,
+      scope: options.scope,
       views: studentKeys.map((studentKey) => ({
         status: resolved.get(studentKey)?.identity.status ?? "unavailable",
         studentKey,
       })),
     });
   } catch {
-    // Fail closed, exactly as the single reveal does: the names are in scope
-    // here and go no further. Nothing is logged or re-raised.
-    return withRosterIdentities(roster, new Map());
+    return new Map(
+      studentKeys.map((studentKey) => [
+        studentKey,
+        { identity: { status: "unavailable" as const } },
+      ]),
+    );
   }
 
-  return withRosterIdentities(roster, resolved);
+  return resolved;
 }
 
 type ResolvedRosterIdentity = {
@@ -169,10 +230,10 @@ type ResolvedRosterIdentity = {
 };
 
 /**
- * Resolves each pseudonym's roster identity. Students who never signed in
+ * Resolves each pseudonym's display identity. Students who never signed in
  * are never sent to the provider; account holders are looked up together.
  * A key the population no longer holds — an account disabled between the
- * roster read and this one — is reported as unlinked.
+ * page's own read and this one — is reported as unlinked.
  */
 export async function rosterIdentitiesForLinks(
   studentKeys: string[],
@@ -319,8 +380,8 @@ async function lookUpClerkIdentity(link: {
 const PROVIDER_LOOKUP_BATCH_SIZE = 100;
 
 /**
- * The roster's provider read: the same fields as `lookUpClerkIdentity`, for
- * up to a hundred accounts per request. An id the listing does not return
+ * The Students page's provider read: the same fields as `lookUpClerkIdentity`,
+ * for up to a hundred accounts per request. An id the listing does not return
  * belongs to a deleted account and is unlinked; a request that fails leaves
  * every account in it unavailable, and the others unaffected. As with the
  * single lookup, neither the error nor its body is logged.
@@ -375,7 +436,7 @@ async function lookUpClerkIdentities(
  * ordered by. It reads five fields and ignores everything else the provider
  * sent, so a future addition to the provider's user object cannot widen this
  * payload by accident. The family and given names are read only so the
- * roster can order students by last name; no response includes them.
+ * by-topic view can order students by last name; no response includes them.
  */
 export function identityFromProviderUser(user: ProviderUser): ProviderIdentity {
   const email = primaryEmailAddress(user);

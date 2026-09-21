@@ -2,10 +2,12 @@
 
 Professor practice analytics are keyed by a pseudonym — `Student 50DB` — and
 nothing in an analytics row carries a name, an email address, or a browser
-identifier. An authorized instructor can nevertheless ask who one pseudonym
-belongs to, because a course sometimes requires reaching a particular student,
-or who everyone is, because a class roster is easier to read by name. Both
-reveals are separate, explicit actions rather than a column in the table.
+identifier. An authorized instructor nevertheless sees the students' names on the
+Students page, because a class list is read by name, and can ask for one
+student's username and email address from the detail page when a course
+requires reaching them. Names are resolved for the signed-in professor at
+each visit and every display is recorded; they are never written into the
+analytics.
 
 ## How the pseudonym maps back
 
@@ -32,7 +34,7 @@ gains an identity field.
 
 ## Boundary
 
-Two surfaces return an identity, and nothing else does.
+Two surfaces disclose an identity, and nothing else does.
 
 `POST /api/professor/students/[studentKey]/identity` reveals one student. It
 calls `requireAnalyticsAccess` before it reads the student key, so an
@@ -43,15 +45,19 @@ the same body. The response contains at most `status`, `displayName`,
 `username`, and `email`; the Clerk subject, the internal user id, and every
 other profile field stay on the server. The URL carries only the pseudonym.
 
-`POST /api/professor/students/identities` reveals the whole roster. It takes
-no input — the population is the Students page's own, never the caller's to
-choose — and is gated the same way, so an unauthorized caller learns nothing,
-not even how many students there are. Each student in the response carries
-`status` and, when identified, `displayName` only: the username and email
-address stay behind the single reveal. Clerk is read in batches of at most a
-hundred accounts through the user listing, filtered by id; an id the listing
-does not return is `unlinked`, and a batch that fails leaves its accounts
-`unavailable` without affecting the others.
+The Students page (`/professor/students`, both views) shows display names.
+They are resolved on the server while the page renders, after
+`requireAnalyticsAccess`, so a signed-out visitor is redirected and a student
+is refused before any name is read; the population is the page's own, never
+the caller's to choose. Each student carries `status` and, when identified,
+`displayName` only: the username and email address stay behind the single
+reveal. Clerk is read in batches of at most a hundred accounts through the
+user listing, filtered by id; an id the listing does not return is
+`unlinked`, and a batch that fails leaves its accounts `unavailable` without
+affecting the others. Nothing is fetched or stored by the browser: the names
+arrive as part of the rendered page, and every link into the page has
+prefetching disabled so a hover never renders, and records, a page the
+professor did not open.
 
 Four outcomes are reported:
 
@@ -67,42 +73,46 @@ nor its body is logged, because both can carry the account's own identifiers.
 
 ## Audit
 
-Each reveal writes one `audit_events` row per student with action
+Every disclosure writes one `audit_events` row per student with action
 `analytics.student_identity_viewed`, the acting professor, the pseudonymous
-student key, the request id, and the outcome. A roster reveal writes its rows
-in one statement and marks each with `scope: "roster"`, so an auditor can tell
-a reveal of everyone from a reveal of one. The name, username, and email
-address that were shown are not recorded.
+student key, the request id, and the outcome. A Students page render writes
+its rows in one statement, one per student shown, and marks each with
+`scope: "roster"` (the by-topic view) or `scope: "activity"` (the table), so an
+auditor can tell which page view showed a name from a deliberate reveal of one
+student; every render of the page, including a reload, is recorded. The name,
+username, and email address that were shown are not recorded.
 
-Both reveals **fail closed**. The order is resolve, look up, record, and only
+Both surfaces **fail closed**. The order is resolve, look up, record, and only
 then return: if the audit row cannot be written — a rejected statement, or a
 statement that inserts fewer rows than it was given — the resolved identity is
-discarded and the instructor is shown `unavailable` instead; for the roster,
-every student is shown `unavailable`, and with no name to order by the groups
-keep their pseudonymous order. An unauditable reveal is therefore
-indistinguishable from one that found no identity, and the underlying database
-error is neither returned nor logged, because the identity is in scope where it
-is raised.
+discarded and the instructor is shown `unavailable` instead; on the Students
+page every student is shown "Name temporarily unavailable", and with no name
+to order by the by-topic groups keep their pseudonymous order. An unauditable
+disclosure is therefore indistinguishable from one that found no identity, and
+the underlying database error is neither returned nor logged, because the
+identity is in scope where it is raised.
 
 ## Interface
 
-The Students activity table stays pseudonymous, and its search box still
-matches only the student code. A single reveal happens on one student's detail
-page, behind a **Reveal identity** button, and shows Name, Username, and Email
-as labelled fields. A field the account does not hold reads "Username
-unavailable" or "Email unavailable" rather than disappearing, so an instructor
-can tell an absent value from one that failed to load — a missing username
-never fails the rest of the reveal.
+The Students page names its students in both views, with no action required.
+In the **Activity** view each row shows the student's name above their code,
+in the table's own order (last active, accuracy, attempts, or sessions); the
+search box still matches only the student code. In the **By topic** view
+every student is listed under each syllabus topic they have practised, in
+syllabus order, and students with no practised topic under "No topic practice
+yet"; within each group students are ordered by last name A–Z and then first
+name. The order is decided on the server from Clerk's own first and last name
+fields, which never reach the browser; a name Clerk holds unsplit sorts by
+its display name as a whole, and students with no name to show — anonymous,
+unlinked, or unavailable — follow every named student in pseudonym order. A
+student whose account no longer exists reads "No longer has an account"; one
+who practised without signing in reads "No account: practised without
+signing in".
 
-The roster reveal lives in the Students page's **By topic** view. The view
-arrives pseudonymous: every student is listed by code under each syllabus
-topic they have practised, and students with no practised topic under "No
-topic practice yet". **Reveal all names** fetches the roster reveal and shows
-each student's display name beside their code, with the students in each
-group ordered by last name A–Z and then first name. The order is decided on
-the server from Clerk's own first and last name fields, which never reach the
-browser; a name Clerk holds unsplit sorts by its display name as a whole, and
-students with no name to show — anonymous, unlinked, or unavailable — follow
-every named student in pseudonym order. **Hide names** returns to the
-pseudonymous roster. Nothing about either reveal is stored in the browser, so
-leaving or reloading the page returns the records to their hidden state.
+A single reveal happens on one student's detail page, behind a **Reveal
+identity** button, and shows Name, Username, and Email as labelled fields. A
+field the account does not hold reads "Username unavailable" or "Email
+unavailable" rather than disappearing, so an instructor can tell an absent
+value from one that failed to load — a missing username never fails the rest
+of the reveal. Nothing about it is stored in the browser, so leaving or
+reloading the page returns the record to its hidden state.

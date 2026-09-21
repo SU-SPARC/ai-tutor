@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { StudentName } from "@/components/professor/instructor-student-name";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -13,7 +14,10 @@ import {
   assignStudentLabels,
   formatAccuracy,
 } from "@/lib/professor/student-pseudonym";
-import type { InstructorStudentList } from "@/lib/types";
+import type {
+  InstructorStudentIdentities,
+  InstructorStudentList,
+} from "@/lib/types";
 
 function formatDate(value: string | undefined) {
   if (!value) return "—";
@@ -25,9 +29,17 @@ function formatDate(value: string | undefined) {
   }).format(date);
 }
 
+/**
+ * The activity table. When the page has resolved and recorded display
+ * identities, each row shows the student's name above their code; without
+ * them the row stays pseudonymous, as it is wherever the table is rendered
+ * without an audited lookup.
+ */
 export function InstructorStudentTable({
+  identities,
   list,
 }: {
+  identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
 }) {
   const labels = assignStudentLabels(
@@ -55,6 +67,9 @@ export function InstructorStudentTable({
             <TableRow key={student.studentKey}>
               <TableCell className="px-4 py-3">
                 <div className="flex flex-col gap-1">
+                  {identities ? (
+                    <StudentName identity={identities[student.studentKey]} />
+                  ) : null}
                   <Link
                     className="font-medium text-primary hover:underline"
                     href={`/professor/students/${student.studentKey}`}

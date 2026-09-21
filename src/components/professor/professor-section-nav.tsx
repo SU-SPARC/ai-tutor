@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 type SectionItem = {
   href: string;
   label: string;
+  /**
+   * Rendering the Students page names students and records each display, so
+   * that page is fetched only when the professor actually opens it.
+   */
+  prefetch?: false;
 };
 
 /**
@@ -22,7 +27,7 @@ const SECTIONS: SectionItem[] = [
   { href: "/professor/feedback", label: "Student reports" },
   { href: "/professor/questions", label: "Question lifecycle" },
   { href: "/professor/availability", label: "Student availability" },
-  { href: "/professor/students", label: "Students" },
+  { href: "/professor/students", label: "Students", prefetch: false },
   { href: "/professor/upload", label: "Uploads" },
   { href: "/professor/analytics", label: "Analytics" },
 ];
@@ -48,6 +53,7 @@ export function ProfessorSectionNav() {
           <Link
             key={section.href}
             href={section.href}
+            prefetch={section.prefetch}
             aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-md px-3 py-1.5 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",

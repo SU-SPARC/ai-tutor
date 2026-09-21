@@ -9,15 +9,14 @@ import {
   TEST_STUDENT,
 } from "./auth-test-helpers";
 
-import { POST as revealRoster } from "@/app/api/professor/students/identities/route";
 import ProfessorStudentsPage from "@/app/professor/students/page";
+import { InstructorStudentTable } from "@/components/professor/instructor-student-table";
 import { InstructorStudentTopicRoster } from "@/components/professor/instructor-student-topic-roster";
-import {
-  listInstructorStudents,
-  listInstructorStudentTopicRoster,
-} from "@/lib/data/data-store";
+import { requireAnalyticsAccess } from "@/lib/auth/authorization";
+import { listInstructorStudents } from "@/lib/data/data-store";
 import type { StudentAccountLink } from "@/lib/data/student-identity-repository";
 import {
+  resolveInstructorStudentIdentities,
   resolveInstructorStudentRoster,
   rosterIdentitiesForLinks,
   setStudentIdentityDependenciesForTests,
@@ -32,17 +31,15 @@ import {
 } from "@/lib/professor/student-roster";
 import type {
   InstructorRosterStudent,
+  InstructorStudentList,
+  InstructorStudentSummary,
   InstructorStudentTopicRoster as TopicRoster,
 } from "@/lib/types";
 
 vi.mock("@/lib/data/data-store", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/data/data-store")>();
-  return {
-    ...actual,
-    listInstructorStudents: vi.fn(),
-    listInstructorStudentTopicRoster: vi.fn(),
-  };
+  return { ...actual, listInstructorStudents: vi.fn() };
 });
 
 /** Pseudonyms whose lexical order is the reverse of their owners' surnames. */
@@ -91,7 +88,7 @@ const PROVIDER: Record<string, ProviderIdentity> = {
   user_gone: "unlinked",
 };
 
-/** Strings that may appear only after an audited reveal, and never in a URL. */
+/** Strings that may never appear in a page, a payload, or an audit row. */
 const PRIVATE_STRINGS = [
   "zoe.anders@suffolk.edu",
   "zanders",
@@ -101,11 +98,16 @@ const PRIVATE_STRINGS = [
   "user_clark_liam",
 ];
 
+type RecordedViews = {
+  requestId?: string;
+  scope: "activity" | "roster";
+  views: Array<{ status: string; studentKey: string }>;
+};
+
 afterEach(() => {
   resetAuthMocks();
   setStudentIdentityDependenciesForTests(undefined);
   vi.mocked(listInstructorStudents).mockReset();
-  vi.mocked(listInstructorStudentTopicRoster).mockReset();
   vi.unstubAllEnvs();
 });
 
@@ -267,7 +269,7 @@ describe("alphabetical order within a topic", () => {
   });
 });
 
-describe("roster identity resolution", () => {
+describe("resolving names for the by-topic view", () => {
   it("looks up account holders together and never sends anonymous students to the provider", async () => {
     const lookUpIdentities = vi.fn(async (links: Array<{ subject: string }>) =>
       new Map(links.map(({ subject }) => [subject, PROVIDER[subject]])),
@@ -299,14 +301,8 @@ describe("roster identity resolution", () => {
   });
 
   it("returns display names only, grouped and ordered, after one audit write for everyone", async () => {
-    mockPrincipal(TEST_PROFESSOR);
-    const recordViews = vi.fn<
-      (authorization: unknown, input: RecordedViews) => Promise<void>
-    >(async () => {});
-    setStudentIdentityDependenciesForTests({
-      ...rosterDependencies(),
-      recordViews,
-    });
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
 
     const roster = await resolveInstructorStudentRoster(
       await professorAuthorization(),
@@ -333,10 +329,11 @@ describe("roster identity resolution", () => {
     ]);
 
     // One audit call, one row per student in the order the roster lists
-    // them, no name in it.
+    // them, marked as the by-topic view, with no name in it.
     expect(recordViews).toHaveBeenCalledTimes(1);
     expect(recordViews.mock.calls[0][1]).toEqual({
       requestId: "request-roster-1",
+      scope: "roster",
       views: [
         { status: "anonymous", studentKey: KEY_ANONYMOUS },
         { status: "identified", studentKey: KEY_BROWN },
@@ -353,15 +350,15 @@ describe("roster identity resolution", () => {
       expect(audited).not.toContain(value);
     }
 
-    // The payload holds the display name and status of each student and
-    // nothing else: no email, username, split name, subject, or id.
+    // Each student carries the display name and status and nothing else: no
+    // email, username, split name, subject, or id.
     const serialized = JSON.stringify(roster);
     for (const value of PRIVATE_STRINGS) {
       expect(serialized).not.toContain(value);
     }
     expect(serialized).not.toContain("familyName");
     expect(serialized).not.toContain("givenName");
-    for (const student of [...roster.topics.flatMap((g) => g.students), ...roster.unassigned]) {
+    for (const student of everyStudent(roster)) {
       expect(Object.keys(student).sort()).toEqual(["identity", "studentKey"]);
       expect(Object.keys(student.identity ?? {}).sort()).toEqual(
         student.identity?.status === "identified"
@@ -371,8 +368,7 @@ describe("roster identity resolution", () => {
     }
   });
 
-  it("withholds every name when the roster reveal cannot be audited", async () => {
-    mockPrincipal(TEST_PROFESSOR);
+  it("withholds every name when the display cannot be audited", async () => {
     const lookUpIdentities = vi.fn(rosterDependencies().lookUpIdentities);
     setStudentIdentityDependenciesForTests({
       ...rosterDependencies(),
@@ -389,8 +385,7 @@ describe("roster identity resolution", () => {
 
     // The names were resolved and then discarded.
     expect(lookUpIdentities).toHaveBeenCalled();
-    expect(roster.revealed).toBe(true);
-    for (const student of [...roster.topics.flatMap((g) => g.students), ...roster.unassigned]) {
+    for (const student of everyStudent(roster)) {
       expect(student.identity).toEqual({ status: "unavailable" });
     }
     expect(serialized).not.toContain("Anders");
@@ -417,72 +412,51 @@ describe("roster identity resolution", () => {
   });
 });
 
-describe("roster reveal endpoint", () => {
-  beforeEach(() => {
-    vi.stubEnv("APP_DEMO_MODE", "true");
-  });
+describe("resolving names for the activity table", () => {
+  it("names the students on the page after one audit write marked as the activity view", async () => {
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
 
-  it("denies a signed-out request before the roster is read", async () => {
-    mockPrincipal(undefined);
-    const listTopicRoster = vi.fn();
-    setStudentIdentityDependenciesForTests({ listTopicRoster });
+    const identities = await resolveInstructorStudentIdentities(
+      await professorAuthorization(),
+      [KEY_BROWN, KEY_ANONYMOUS, KEY_BROWN, KEY_ANDERS],
+      { requestId: "request-activity-1" },
+    );
 
-    const response = await reveal();
-    const body = await response.text();
-
-    expect(response.status).toBe(401);
-    expect(listTopicRoster).not.toHaveBeenCalled();
-    expect(body).not.toContain("Anders");
+    expect(identities).toEqual({
+      [KEY_BROWN]: { displayName: "Adam Brown", status: "identified" },
+      [KEY_ANONYMOUS]: { status: "anonymous" },
+      [KEY_ANDERS]: { displayName: "Zoe Anders", status: "identified" },
+    });
+    expect(recordViews).toHaveBeenCalledTimes(1);
+    expect(recordViews.mock.calls[0][1]).toEqual({
+      requestId: "request-activity-1",
+      scope: "activity",
+      views: [
+        { status: "identified", studentKey: KEY_BROWN },
+        { status: "anonymous", studentKey: KEY_ANONYMOUS },
+        { status: "identified", studentKey: KEY_ANDERS },
+      ],
+    });
+    const serialized = JSON.stringify(identities);
     for (const value of PRIVATE_STRINGS) {
-      expect(body).not.toContain(value);
+      expect(serialized).not.toContain(value);
     }
   });
 
-  it("denies an ordinary student without reading the roster", async () => {
-    mockPrincipal(TEST_STUDENT);
-    const listTopicRoster = vi.fn();
-    setStudentIdentityDependenciesForTests({ listTopicRoster });
+  it("looks up and records nothing for an empty page", async () => {
+    const findAccountLinks = vi.fn();
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({ findAccountLinks, recordViews });
 
-    const response = await reveal();
-    const body = await response.text();
-
-    expect(response.status).toBe(403);
-    expect(listTopicRoster).not.toHaveBeenCalled();
-    expect(body).not.toContain("Anders");
-    expect(body).not.toContain("Conditional");
+    await expect(
+      resolveInstructorStudentIdentities(await professorAuthorization(), []),
+    ).resolves.toEqual({});
+    expect(findAccountLinks).not.toHaveBeenCalled();
+    expect(recordViews).not.toHaveBeenCalled();
   });
 
-  it("returns the named roster to an authorized professor with no caching", async () => {
-    mockPrincipal(TEST_PROFESSOR);
-    const recordViews = vi.fn(async () => {});
-    setStudentIdentityDependenciesForTests({
-      ...rosterDependencies(),
-      recordViews,
-    });
-
-    const request = new Request("http://test/api/professor/students/identities", {
-      method: "POST",
-    });
-    const response = await revealRoster(request);
-    const roster = (await response.json()) as TopicRoster;
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(roster.revealed).toBe(true);
-    expect(
-      roster.topics[0].students.map((student) =>
-        student.identity?.status === "identified"
-          ? student.identity.displayName
-          : student.identity?.status,
-      ),
-    ).toEqual(["Zoe Anders", "Adam Brown", "anonymous"]);
-    expect(recordViews).toHaveBeenCalledTimes(1);
-    // The URL names no student and carries no identity.
-    expect(request.url).toBe("http://test/api/professor/students/identities");
-  });
-
-  it("reports the roster unavailable rather than failing when it cannot be audited", async () => {
-    mockPrincipal(TEST_PROFESSOR);
+  it("withholds every name on the page when the display cannot be audited", async () => {
     setStudentIdentityDependenciesForTests({
       ...rosterDependencies(),
       recordViews: async () => {
@@ -490,27 +464,39 @@ describe("roster reveal endpoint", () => {
       },
     });
 
-    const response = await reveal();
-    const body = await response.text();
+    const identities = await resolveInstructorStudentIdentities(
+      await professorAuthorization(),
+      [KEY_ANDERS, KEY_ANONYMOUS],
+    );
 
-    expect(response.status).toBe(200);
-    expect(body).toContain('"status":"unavailable"');
-    expect(body).not.toContain("identified");
-    expect(body).not.toContain("Anders");
-    expect(body).not.toContain("audit store");
+    expect(identities).toEqual({
+      [KEY_ANDERS]: { status: "unavailable" },
+      [KEY_ANONYMOUS]: { status: "unavailable" },
+    });
+  });
+
+  it("refuses a principal without professor permission", async () => {
+    const findAccountLinks = vi.fn();
+    setStudentIdentityDependenciesForTests({ findAccountLinks });
+
+    await expect(
+      resolveInstructorStudentIdentities({ permission: "student" } as never, [
+        KEY_ANDERS,
+      ]),
+    ).rejects.toThrow();
+    expect(findAccountLinks).not.toHaveBeenCalled();
   });
 });
 
-describe("Students page topic view", () => {
+describe("Students page", () => {
   beforeEach(() => {
     vi.stubEnv("APP_DEMO_MODE", "true");
   });
 
-  it("renders the pseudonymous roster grouped by topic with names hidden", async () => {
+  it("shows every name in the by-topic view on load, ordered by last name, with nothing to click", async () => {
     mockPrincipal(TEST_PROFESSOR);
-    vi.mocked(listInstructorStudentTopicRoster).mockResolvedValue(
-      pseudonymousRoster(),
-    );
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
 
     const markup = renderToStaticMarkup(
       await ProfessorStudentsPage({
@@ -521,46 +507,33 @@ describe("Students page topic view", () => {
     expect(markup).toContain("Conditional Probability");
     expect(markup).toContain("Binomial Models");
     expect(markup).toContain("No topic practice yet");
-    expect(markup).toContain("Reveal all names");
-    expect(markup).toContain("Names hidden");
-    expect(markup).toContain(studentLabel(KEY_ANDERS));
     expect(markup).toContain(`href="/professor/students/${KEY_ANDERS}"`);
-    expect(markup).toContain('href="/professor/students"');
-    expect(markup).toContain('href="/professor/students?view=topics"');
-    // Nothing identifying is rendered before a reveal.
-    expect(markup).not.toContain("Anders");
-    expect(markup).not.toContain("Clark");
+    expect(markup).toContain(studentLabel(KEY_ANDERS));
+    // Anders before Brown before the anonymous student, within the first group.
+    expect(markup.indexOf("Zoe Anders")).toBeLessThan(markup.indexOf("Adam Brown"));
+    expect(markup.indexOf("Adam Brown")).toBeLessThan(
+      markup.indexOf("practised without signing in"),
+    );
+    // The two Clarks are ordered by first name in the unassigned group.
+    expect(markup.indexOf("Liam Clark")).toBeLessThan(markup.indexOf("Mia Clark"));
+    expect(markup).not.toContain("Reveal all names");
+    expect(markup).not.toContain("Hide names");
+    expect(markup).not.toContain("Name hidden");
     for (const value of PRIVATE_STRINGS) {
       expect(markup).not.toContain(value);
     }
+    expect(recordViews).toHaveBeenCalledTimes(1);
+    expect(recordViews.mock.calls[0][1].scope).toBe("roster");
     expect(listInstructorStudents).not.toHaveBeenCalled();
   });
 
-  it("keeps the activity table as the default view, with a link to the topic view", async () => {
+  it("shows names beside the codes in the activity view and records the display", async () => {
     mockPrincipal(TEST_PROFESSOR);
-    vi.mocked(listInstructorStudents).mockResolvedValue({
-      limit: 25,
-      mode: "database",
-      offset: 0,
-      students: [
-        {
-          attempts: 2,
-          correctAttempts: 1,
-          extraPracticeSessions: 0,
-          hintsUsed: 0,
-          incorrectAttempts: 1,
-          llmAttempts: 0,
-          misconceptionAttempts: 0,
-          needsAttention: false,
-          sessions: 1,
-          solutionsRevealed: 0,
-          solvedSessions: 0,
-          studentKey: KEY_ANDERS,
-          topicsPracticed: 1,
-        },
-      ],
-      total: 1,
-    });
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({ ...rosterDependencies(), recordViews });
+    vi.mocked(listInstructorStudents).mockResolvedValue(
+      activityList([KEY_BROWN, KEY_ANONYMOUS, KEY_ANDERS]),
+    );
 
     const markup = renderToStaticMarkup(
       await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
@@ -568,51 +541,54 @@ describe("Students page topic view", () => {
 
     expect(markup).toContain("Practice sessions");
     expect(markup).toContain("Search by student code");
+    expect(markup).toContain("Adam Brown");
+    expect(markup).toContain("Zoe Anders");
+    expect(markup).toContain("practised without signing in");
+    expect(markup).toContain(studentLabel(KEY_BROWN));
+    // The activity view keeps its own order: the list's, not the alphabet's.
+    expect(markup.indexOf("Adam Brown")).toBeLessThan(markup.indexOf("Zoe Anders"));
     expect(markup).toContain('href="/professor/students?view=topics"');
     expect(markup).not.toContain("Reveal all names");
-    expect(listInstructorStudentTopicRoster).not.toHaveBeenCalled();
+    for (const value of PRIVATE_STRINGS) {
+      expect(markup).not.toContain(value);
+    }
+    expect(recordViews).toHaveBeenCalledTimes(1);
+    expect(recordViews.mock.calls[0][1]).toMatchObject({
+      scope: "activity",
+      views: [
+        { status: "identified", studentKey: KEY_BROWN },
+        { status: "anonymous", studentKey: KEY_ANONYMOUS },
+        { status: "identified", studentKey: KEY_ANDERS },
+      ],
+    });
   });
 
-  it("falls back to the activity view for an unknown view parameter", async () => {
+  it("does not prefetch either view from its links", async () => {
     mockPrincipal(TEST_PROFESSOR);
-    vi.mocked(listInstructorStudents).mockResolvedValue({
-      limit: 25,
-      mode: "database",
-      offset: 0,
-      students: [],
-      total: 0,
-    });
-
-    const markup = renderToStaticMarkup(
-      await ProfessorStudentsPage({
-        searchParams: Promise.resolve({ view: "names" }),
-      }),
+    setStudentIdentityDependenciesForTests(rosterDependencies());
+    vi.mocked(listInstructorStudents).mockResolvedValue(
+      activityList([KEY_BROWN], { limit: 1, total: 2 }),
     );
 
-    expect(markup).toContain("No students have signed in");
-    expect(listInstructorStudentTopicRoster).not.toHaveBeenCalled();
+    const markup = renderToStaticMarkup(
+      await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    // Rendering names is an audited event, so no link into the page may be
+    // prefetched on hover. Next renders prefetch={false} links without the
+    // prefetch attribute, and the pagination link must exist to be checked.
+    expect(markup).toContain("Next");
+    expect(markup).toContain('href="/professor/students?page=2');
+    expect(markup).not.toContain("prefetch");
   });
 
-  it("refuses the topic view to a student and to a signed-out visitor", async () => {
-    mockPrincipal(TEST_STUDENT);
-    await expect(
-      ProfessorStudentsPage({ searchParams: Promise.resolve({ view: "topics" }) }),
-    ).rejects.toThrow();
-
-    mockPrincipal(undefined);
-    await expect(
-      ProfessorStudentsPage({ searchParams: Promise.resolve({ view: "topics" }) }),
-    ).rejects.toThrow();
-    expect(listInstructorStudentTopicRoster).not.toHaveBeenCalled();
-  });
-
-  it("shows the demo notice in the topic view rather than an empty roster", async () => {
+  it("shows unavailable names rather than the page failing when the audit write fails", async () => {
     mockPrincipal(TEST_PROFESSOR);
-    vi.mocked(listInstructorStudentTopicRoster).mockResolvedValue({
-      mode: "demo",
-      revealed: false,
-      topics: [],
-      unassigned: [],
+    setStudentIdentityDependenciesForTests({
+      ...rosterDependencies(),
+      recordViews: async () => {
+        throw new Error("audit store unavailable");
+      },
     });
 
     const markup = renderToStaticMarkup(
@@ -621,13 +597,85 @@ describe("Students page topic view", () => {
       }),
     );
 
-    expect(markup).toContain("there is no class to list here");
-    expect(markup).not.toContain("Reveal all names");
+    expect(markup).toContain("Name temporarily unavailable");
+    expect(markup).toContain(studentLabel(KEY_ANDERS));
+    expect(markup).not.toContain("Anders");
+    expect(markup).not.toContain("Clark");
+    expect(markup).not.toContain("audit store");
+  });
+
+  it("falls back to the activity view for an unknown view parameter", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const listTopicRoster = vi.fn();
+    setStudentIdentityDependenciesForTests({ listTopicRoster });
+    vi.mocked(listInstructorStudents).mockResolvedValue(activityList([]));
+
+    const markup = renderToStaticMarkup(
+      await ProfessorStudentsPage({
+        searchParams: Promise.resolve({ view: "names" }),
+      }),
+    );
+
+    expect(markup).toContain("No students have signed in");
+    expect(listTopicRoster).not.toHaveBeenCalled();
+  });
+
+  it("refuses both views to a student and to a signed-out visitor before any name is read", async () => {
+    const findAccountLinks = vi.fn();
+    const listTopicRoster = vi.fn();
+    setStudentIdentityDependenciesForTests({ findAccountLinks, listTopicRoster });
+
+    for (const principal of [TEST_STUDENT, undefined]) {
+      mockPrincipal(principal);
+      await expect(
+        ProfessorStudentsPage({ searchParams: Promise.resolve({ view: "topics" }) }),
+      ).rejects.toThrow();
+      await expect(
+        ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
+      ).rejects.toThrow();
+    }
+    expect(findAccountLinks).not.toHaveBeenCalled();
+    expect(listTopicRoster).not.toHaveBeenCalled();
+    expect(listInstructorStudents).not.toHaveBeenCalled();
+  });
+
+  it("shows the demo notice in both views and records nothing", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const recordViews = recordViewsMock();
+    setStudentIdentityDependenciesForTests({
+      listTopicRoster: async () => ({
+        mode: "demo",
+        revealed: false,
+        topics: [],
+        unassigned: [],
+      }),
+      recordViews,
+    });
+    vi.mocked(listInstructorStudents).mockResolvedValue({
+      limit: 25,
+      mode: "demo",
+      offset: 0,
+      students: [],
+      total: 0,
+    });
+
+    const topics = renderToStaticMarkup(
+      await ProfessorStudentsPage({
+        searchParams: Promise.resolve({ view: "topics" }),
+      }),
+    );
+    const activity = renderToStaticMarkup(
+      await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(topics).toContain("there is no class to list here");
+    expect(activity).toContain("there is no class to list here");
+    expect(recordViews).not.toHaveBeenCalled();
   });
 });
 
-describe("roster panel", () => {
-  it("renders revealed names in the order given, with a way to hide them again", () => {
+describe("roster and table markup", () => {
+  it("renders resolved names in the order given", () => {
     const markup = renderToStaticMarkup(
       createElement(InstructorStudentTopicRoster, {
         roster: {
@@ -650,8 +698,6 @@ describe("roster panel", () => {
       }),
     );
 
-    expect(markup).toContain("Names revealed");
-    expect(markup).toContain("Hide names");
     expect(markup.indexOf("Zoe Anders")).toBeLessThan(markup.indexOf("Adam Brown"));
     expect(markup.indexOf("Adam Brown")).toBeLessThan(
       markup.indexOf("practised without signing in"),
@@ -659,41 +705,86 @@ describe("roster panel", () => {
     expect(markup).toContain("No longer has an account");
     expect(markup).toContain("4 students");
     expect(markup).not.toContain("No topic practice yet");
+    expect(markup).not.toContain("<button");
   });
 
-  it("shows only pseudonyms until the instructor asks", () => {
+  it("stays pseudonymous when handed an unresolved roster", () => {
     const markup = renderToStaticMarkup(
       createElement(InstructorStudentTopicRoster, { roster: pseudonymousRoster() }),
     );
 
-    expect(markup).toContain("Names hidden");
-    expect(markup).toContain("Reveal all names");
-    expect(markup).toContain("6 students are listed by pseudonym");
-    expect(markup).toContain(">Hidden<");
+    expect(markup).toContain("Name hidden");
+    expect(markup).toContain(studentLabel(KEY_ANDERS));
     expect(markup).not.toContain("Anders");
   });
+
+  it("names table rows only when identities are supplied", () => {
+    const list = activityList([KEY_ANDERS]);
+    const named = renderToStaticMarkup(
+      createElement(InstructorStudentTable, {
+        identities: { [KEY_ANDERS]: { displayName: "Zoe Anders", status: "identified" } },
+        list,
+      }),
+    );
+    const pseudonymous = renderToStaticMarkup(
+      createElement(InstructorStudentTable, { list }),
+    );
+
+    expect(named).toContain("Zoe Anders");
+    expect(named).toContain(studentLabel(KEY_ANDERS));
+    expect(pseudonymous).toContain(studentLabel(KEY_ANDERS));
+    expect(pseudonymous).not.toContain("Anders");
+    expect(pseudonymous).not.toContain("Name hidden");
+  });
 });
-
-type RecordedViews = {
-  requestId?: string;
-  views: Array<{ status: string; studentKey: string }>;
-};
-
-function reveal() {
-  return revealRoster(
-    new Request("http://test/api/professor/students/identities", {
-      method: "POST",
-    }),
-  );
-}
 
 function accountLink(studentKey: string): StudentAccountLink {
   return { identityProvider: "clerk", kind: "account", subject: SUBJECTS[studentKey] };
 }
 
+function everyStudent(roster: TopicRoster) {
+  return [...roster.topics.flatMap((group) => group.students), ...roster.unassigned];
+}
+
+function recordViewsMock() {
+  return vi.fn<(authorization: unknown, input: RecordedViews) => Promise<void>>(
+    async () => {},
+  );
+}
+
+function activityList(
+  studentKeys: string[],
+  overrides: Partial<InstructorStudentList> = {},
+): InstructorStudentList {
+  return {
+    limit: 25,
+    mode: "database",
+    offset: 0,
+    students: studentKeys.map(
+      (studentKey): InstructorStudentSummary => ({
+        attempts: 0,
+        correctAttempts: 0,
+        extraPracticeSessions: 0,
+        hintsUsed: 0,
+        incorrectAttempts: 0,
+        llmAttempts: 0,
+        misconceptionAttempts: 0,
+        needsAttention: false,
+        sessions: 0,
+        solutionsRevealed: 0,
+        solvedSessions: 0,
+        studentKey,
+        topicsPracticed: 0,
+      }),
+    ),
+    total: studentKeys.length,
+    ...overrides,
+  };
+}
+
 /**
  * Two topics and an unassigned pair. Every group is in pseudonym order, which
- * is the reverse of the alphabetical order the reveal must produce.
+ * is the reverse of the alphabetical order the page must produce.
  */
 function pseudonymousRoster(): TopicRoster {
   return {
@@ -734,7 +825,6 @@ function rosterDependencies() {
 }
 
 async function professorAuthorization() {
-  const { requireAnalyticsAccess } = await import("@/lib/auth/authorization");
   mockPrincipal(TEST_PROFESSOR);
   return requireAnalyticsAccess();
 }

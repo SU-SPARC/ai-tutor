@@ -1091,8 +1091,11 @@ export type InstructorStudentIdentity =
   | { status: "unavailable" }
   | { status: "unlinked" };
 
+/** Which Students page view showed a name, recorded with each audit row. */
+export type InstructorIdentityViewScope = "activity" | "roster";
+
 /**
- * What the roster reveal shows for one student: the display name alone, or
+ * What the Students page shows for one student: the display name alone, or
  * the reason none was shown. The username and email address stay behind the
  * per-student reveal on the detail page.
  */
@@ -1101,6 +1104,12 @@ export type InstructorStudentRosterIdentity =
   | { status: "anonymous" }
   | { status: "unavailable" }
   | { status: "unlinked" };
+
+/** Display identities keyed by pseudonym, for the activity table. */
+export type InstructorStudentIdentities = Record<
+  string,
+  InstructorStudentRosterIdentity
+>;
 
 export type InstructorRosterStudent = {
   identity?: InstructorStudentRosterIdentity;
@@ -1116,9 +1125,10 @@ export type InstructorStudentTopicGroup = {
 /**
  * Every student on the Students page, grouped by the syllabus topics they have
  * practised. A student who has practised several topics is listed under each
- * of them; one who has practised none is listed under `unassigned`. No
- * identity is present until an instructor reveals the roster, after which
- * `revealed` is true and every student carries an `identity`.
+ * of them; one who has practised none is listed under `unassigned`. The
+ * repository returns it pseudonymous; once the names have been resolved and
+ * the disclosure recorded, `revealed` is true and every student carries an
+ * `identity`.
  */
 export type InstructorStudentTopicRoster = {
   mode: "database" | "demo";

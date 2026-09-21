@@ -42,7 +42,7 @@ linked to the session; only the digest input would change, not the analytics.
 
 | Surface                            | Contents                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. A **By topic** view (`?view=topics`) lists the same population grouped by practised topic; see below. |
+| `/professor/students`              | One row per student: name, sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. A **By topic** view (`?view=topics`) lists the same population grouped by practised topic; see below. Names are read live from Clerk for the signed-in professor and audited; see [student identity reveal](student-identity-reveal.md). |
 | `/professor/students/[studentKey]` | Summary metrics, per-topic performance, per-question [practice credit evidence](practice-credit.md), a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions. |
 | `/professor/analytics`             | Cohort totals, the rule/retrieval/LLM/blocked split, most recorded misconceptions, and a count of students showing repeated difficulty.            |
 
@@ -55,16 +55,20 @@ session on one of its questions or an answer submission recorded against it —
 the same two sources the per-student topic performance uses — so a student who
 has practised several topics is listed under each of them, from one `users`
 row, and a student who has practised none is listed once under "No topic
-practice yet". Topics keep their syllabus order. The view is pseudonymous
-until an instructor asks for names; the reveal, and the alphabetical order it
-produces, are described in [student identity reveal](student-identity-reveal.md).
+practice yet". Topics keep their syllabus order, and within each topic
+students are ordered by last name and then first name. The names, where they
+come from, and how each display is recorded are described in
+[student identity reveal](student-identity-reveal.md); the analytics queries
+themselves remain pseudonymous.
 
 ## What it deliberately does not return
 
 - The submitted answer, and the stored misconception feedback text. An attempt
   row reports only _that_ a misconception was matched.
 - Retrieval chunks, prompts, and provider payloads — none are read.
-- The student's name, email address, user id, or anonymous cookie value.
+- The student's email address, user id, or anonymous cookie value. Names are
+  not analytics fields either: the Students page resolves them separately,
+  from Clerk, for the signed-in professor.
 
 ## Counting rules
 

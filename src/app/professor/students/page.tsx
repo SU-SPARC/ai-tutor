@@ -11,10 +11,12 @@ import {
   requireAnalyticsAccess,
   requirePageAccess,
 } from "@/lib/auth/authorization";
+import { listInstructorStudents } from "@/lib/data/data-store";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
 import {
-  listInstructorStudents,
-  listInstructorStudentTopicRoster,
-} from "@/lib/data/data-store";
+  resolveInstructorStudentIdentities,
+  resolveInstructorStudentRoster,
+} from "@/lib/professor/student-identity";
 import type { InstructorStudentSort } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +29,9 @@ const SORTS: InstructorStudentSort[] = [
 
 /**
  * Two readings of the same class: the activity table, sortable and searchable
- * by student code, and the roster grouped by practised topic, where names can
- * be revealed for everyone at once.
+ * by student code, and the roster grouped by practised topic. Both show the
+ * students' names, resolved on the server for the signed-in professor and
+ * recorded before they are rendered; see `resolveInstructorStudentRoster`.
  */
 const VIEWS = ["activity", "topics"] as const;
 
@@ -63,8 +66,13 @@ export default async function ProfessorStudentsPage({
     typeof params.view === "string" ? params.view : undefined,
   );
 
+  // One correlation id per render, shared by every audit row it writes.
+  const requestId = pilotRequestId();
+
   if (view === "topics") {
-    const roster = await listInstructorStudentTopicRoster(authorization);
+    const roster = await resolveInstructorStudentRoster(authorization, {
+      requestId,
+    });
     const empty = roster.topics.length === 0 && roster.unassigned.length === 0;
 
     return (
@@ -96,6 +104,16 @@ export default async function ProfessorStudentsPage({
     search,
     sort,
   });
+  // Only the students on this page are named, and only when there are any:
+  // an empty page or the demo store records nothing.
+  const identities =
+    list.mode === "database" && list.students.length > 0
+      ? await resolveInstructorStudentIdentities(
+          authorization,
+          list.students.map((student) => student.studentKey),
+          { requestId },
+        )
+      : undefined;
 
   return (
     <StudentsPageShell>
@@ -143,7 +161,7 @@ export default async function ProfessorStudentsPage({
             </button>
           </form>
 
-          <InstructorStudentTable list={list} />
+          <InstructorStudentTable identities={identities} list={list} />
 
           <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
             <span>
@@ -156,6 +174,7 @@ export default async function ProfessorStudentsPage({
                 <Link
                   className="font-medium text-primary hover:underline"
                   href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                  prefetch={false}
                 >
                   Previous
                 </Link>
@@ -164,6 +183,7 @@ export default async function ProfessorStudentsPage({
                 <Link
                   className="font-medium text-primary hover:underline"
                   href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                  prefetch={false}
                 >
                   Next
                 </Link>
@@ -180,11 +200,11 @@ function StudentsPageShell({ children }: { children: ReactNode }) {
   return (
     <ProfessorPageShell
       title="Students"
-      description="Students who have signed in to the tutor, identified by a stable pseudonym; practice activity appears here as students begin using it. This list holds no names, email addresses, or browser identifiers. An authorized instructor can reveal one student's account identity from their detail page, or every student's name at once from the topic view."
+      description="Students who have signed in to the tutor, with the practice activity they have recorded. Names are read from the account provider for each visit by an authorized instructor and every display is recorded; the practice analytics themselves hold no names, email addresses, or browser identifiers. A student's username and email address are available from their detail page."
       aside={
         <Badge variant="outline" className="h-10 gap-2 px-4">
           <Users className="h-4 w-4" />
-          pseudonymous
+          names audited
         </Badge>
       }
     >
@@ -243,6 +263,9 @@ function ViewSwitch({ view }: { view: StudentsView }) {
                 ? "/professor/students"
                 : `/professor/students?view=${candidate}`
             }
+            // Rendering either view names students and records it, so a
+            // hover must not do it on the professor's behalf.
+            prefetch={false}
           >
             {VIEW_LABELS[candidate]}
           </Link>
