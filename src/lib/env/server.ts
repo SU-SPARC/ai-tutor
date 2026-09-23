@@ -30,6 +30,7 @@ type ServerEnvBase = {
   CLERK_SECRET_KEY?: string;
   DATABASE_URL?: string;
   ERROR_TRACKING_DSN?: string;
+  GHOST_LOGIN_ENABLED: boolean;
   IS_DEPLOYED_ENVIRONMENT: boolean;
   IS_PRODUCTION: boolean;
   LEGACY_ANONYMOUS_MIGRATION_ENABLED: boolean;
@@ -221,6 +222,16 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       required: strict,
     },
   );
+  // Ghost login mints a session from a cookie alone, with no credential and
+  // no account record. It exists only so the application can be demonstrated
+  // on a laptop with neither Clerk nor a database, and is refused everywhere
+  // that a real identity is expected.
+  const GHOST_LOGIN_ENABLED = parseBoolean(
+    "GHOST_LOGIN_ENABLED",
+    input.GHOST_LOGIN_ENABLED,
+    issues,
+    { defaultValue: false },
+  );
   const OPENROUTER_API_KEY = optionalString(input.OPENROUTER_API_KEY);
   const AI_ENABLED = parseBoolean("AI_ENABLED", input.AI_ENABLED, issues, {
     defaultValue: !strict && Boolean(OPENROUTER_API_KEY),
@@ -377,6 +388,18 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     issues.push("APP_DEMO_MODE must be false in staging and production.");
   }
 
+  if (GHOST_LOGIN_ENABLED && (strict || deployed)) {
+    issues.push(
+      "GHOST_LOGIN_ENABLED must be false in deployed environments because it grants a session without any credential check.",
+    );
+  }
+
+  if (GHOST_LOGIN_ENABLED && CLERK_ENABLED) {
+    issues.push(
+      "GHOST_LOGIN_ENABLED cannot be combined with configured Clerk keys; remove the ghost flag and sign in through Clerk.",
+    );
+  }
+
   if (AI_ENABLED && !OPENROUTER_API_KEY) {
     issues.push(
       "OPENROUTER_API_KEY is required when AI_ENABLED is true and AI_PROVIDER is openrouter.",
@@ -405,6 +428,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     CLERK_SECRET_KEY,
     DATABASE_URL,
     ERROR_TRACKING_DSN,
+    GHOST_LOGIN_ENABLED,
     IS_DEPLOYED_ENVIRONMENT: deployed,
     IS_PRODUCTION: production,
     LEGACY_ANONYMOUS_MIGRATION_ENABLED,

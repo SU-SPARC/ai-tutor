@@ -8,12 +8,18 @@ import type {
   StudentProgressDashboard,
   TutorQuestion,
 } from "@/lib/types";
-import { mockPrincipal, resetAuthMocks, TEST_STUDENT } from "./auth-test-helpers";
+import {
+  mockPrincipal,
+  mockStudentOwner,
+  resetAuthMocks,
+  TEST_STUDENT,
+} from "./auth-test-helpers";
 
 const mocks = vi.hoisted(() => ({
   getApprovedQuestionById: vi.fn(),
   getApprovedQuestions: vi.fn(),
   getQuestionCounts: vi.fn(),
+  getStudentProgress: vi.fn(),
   getTopics: vi.fn(),
   listQuestionsByTopic: vi.fn(),
   redirect: vi.fn(),
@@ -26,6 +32,10 @@ vi.mock("next/navigation", () => ({
   redirect: mocks.redirect,
 }));
 
+vi.mock("@/lib/data/student-progress", () => ({
+  getStudentProgress: mocks.getStudentProgress,
+}));
+
 vi.mock("@/lib/data/data-store", () => ({
   getApprovedQuestionById: mocks.getApprovedQuestionById,
   getApprovedQuestions: mocks.getApprovedQuestions,
@@ -34,12 +44,12 @@ vi.mock("@/lib/data/data-store", () => ({
   listQuestionsByTopic: mocks.listQuestionsByTopic,
 }));
 
-import HomePage from "@/app/page";
+import HomePage, { heroQuestionFor } from "@/app/page";
 import PracticePage from "@/app/practice/page";
 import PracticeQuestionNotFound from "@/app/practice/[questionId]/not-found";
 import ApplicationError from "@/app/error";
-import TopicDetailPage from "@/app/topics/[slug]/page";
-import TopicsPage from "@/app/topics/page";
+import LearnPage from "@/app/learn/page";
+import TopicPage from "@/app/learn/[topic]/page";
 import {
   primaryPracticeAction,
   ProgressDashboard,
@@ -101,7 +111,8 @@ const approvedQuestions: TutorQuestion[] = [
     hints: ["PRIVATE-HINT-1", "PRIVATE-HINT-2", "PRIVATE-HINT-3"],
     id: "dice-sum-eight",
     misconceptions: [],
-    prompt: "Two fair dice are rolled. Given that the sum is 8, what is $P(A)$?",
+    prompt:
+      "Two fair dice are rolled. Given that the sum is 8, what is $P(A)$?",
     review: { status: "approved" },
     solutionSteps: ["PRIVATE-STEP"],
     source: {
@@ -215,59 +226,111 @@ describe("new student reaching practice", () => {
 });
 
 describe("topic selection", () => {
-  it("presents available topics first and the rest of the syllabus as coming soon", async () => {
-    const markup = renderToStaticMarkup(await TopicsPage());
+  /**
+   * `/learn` is reached here as a true guest: no session and no anonymous
+   * cookie, which is the state a visitor arrives in. The syllabus is public,
+   * so the page renders it and never reads anyone's progress.
+   */
+  function asGuest() {
+    mockPrincipal(undefined);
+    mockStudentOwner(undefined);
+  }
 
-    expect(markup).toContain("Available for this pilot");
-    expect(markup).toContain("More topics coming soon");
-    expect(markup.indexOf("Available for this pilot")).toBeLessThan(
-      markup.indexOf("More topics coming soon"),
-    );
+  it("lists the whole syllabus in order and keeps a topic without questions visible but unlinked", async () => {
+    asGuest();
+
+    const markup = renderToStaticMarkup(await LearnPage());
+
     expect(markup.indexOf("Conditional Probability")).toBeLessThan(
       markup.indexOf("Central Limit Theorem"),
     );
-    expect(markup).toContain("Start practicing");
-    expect(markup).toContain('href="/practice?topicId=conditional-probability"');
-    expect(markup).toContain("Coming soon");
-    expect(markup).toContain("About this topic");
-    expect(markup).toContain('href="/topics/central-limit-theorem"');
-    expect(markup).not.toContain("Nothing to practice yet");
+    expect(markup).toContain('href="/learn/conditional-probability"');
+    expect(markup).toContain("0/2");
+    expect(markup).toContain("no questions yet");
+    expect(markup).not.toContain('href="/learn/central-limit-theorem"');
+    expect(mocks.getStudentProgress).not.toHaveBeenCalled();
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
   });
 
-  it("omits the coming-soon section once every topic has practice", async () => {
-    mocks.getQuestionCounts.mockResolvedValue({
-      byTopic: { "central-limit-theorem": 1, "conditional-probability": 2 },
-      total: 3,
-    });
+  it("drops the no-questions-yet marker once every topic has practice", async () => {
+    asGuest();
+    mocks.getApprovedQuestions.mockResolvedValue([
+      ...approvedQuestions,
+      {
+        ...approvedQuestions[0],
+        id: "sample-mean-width",
+        title: "Sample Mean Width",
+        topicId: "central-limit-theorem",
+      },
+    ]);
 
-    const markup = renderToStaticMarkup(await TopicsPage());
+    const markup = renderToStaticMarkup(await LearnPage());
 
-    expect(markup).toContain("Available for this pilot");
-    expect(markup).not.toContain("More topics coming soon");
-    expect(markup).not.toContain("Coming soon");
+    expect(markup).toContain('href="/learn/central-limit-theorem"');
+    expect(markup).not.toContain("no questions yet");
   });
 
-  it("keeps the syllabus visible when no topic has practice yet", async () => {
-    mocks.getQuestionCounts.mockResolvedValue({ byTopic: {}, total: 0 });
+  it("keeps every syllabus row when nothing is published yet", async () => {
+    asGuest();
+    mocks.getApprovedQuestions.mockResolvedValue([]);
 
-    const markup = renderToStaticMarkup(await TopicsPage());
+    const markup = renderToStaticMarkup(await LearnPage());
 
-    expect(markup).toContain("Practice questions are being prepared");
-    expect(markup).toContain("More topics coming soon");
     expect(markup).toContain("Conditional Probability");
-    expect(markup).not.toContain("Start practicing");
+    expect(markup).toContain("Central Limit Theorem");
+    expect(markup).toContain("no questions yet");
+    expect(markup).toContain("No practice questions are available yet");
+    expect(markup).not.toContain('href="/learn/conditional-probability"');
+  });
+
+  it("invites a guest to keep their progress without blocking the page", async () => {
+    asGuest();
+
+    const markup = renderToStaticMarkup(await LearnPage());
+
+    expect(markup).toContain("practising as a guest");
+    expect(markup).toContain('href="/join"');
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("shows published question titles without the authoring Draft marker", async () => {
+    asGuest();
+
     const markup = renderToStaticMarkup(
-      await TopicDetailPage({
-        params: Promise.resolve({ slug: "conditional-probability" }),
+      await TopicPage({
+        params: Promise.resolve({ topic: "conditional-probability" }),
       }),
     );
 
     expect(markup).toContain("Spinner and Coin Condition");
+    expect(markup).toContain('href="/practice/spinner-coin"');
     expect(markup).not.toMatch(/\bDraft\b/);
+    expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("shows an empty topic as a topic with nothing in it yet", async () => {
+    asGuest();
+
+    const markup = renderToStaticMarkup(
+      await TopicPage({
+        params: Promise.resolve({ topic: "central-limit-theorem" }),
+      }),
+    );
+
+    expect(markup).toContain("Nothing to practice here yet");
+    expect(markup).toContain("Central Limit Theorem");
+    expect(markup).not.toContain("Dice Sum Condition");
+  });
+
+  it("404s a topic that is not part of the course", async () => {
+    asGuest();
+
+    await expect(
+      TopicPage({ params: Promise.resolve({ topic: "not-a-topic" }) }),
+    ).rejects.toThrow("notFound");
+    await expect(
+      TopicPage({ params: Promise.resolve({ topic: "../secrets" }) }),
+    ).rejects.toThrow("notFound");
   });
 
   it("shows a graceful empty-topic state instead of a question from another topic", () => {
@@ -277,7 +340,7 @@ describe("topic selection", () => {
       "No practice questions are available for this topic yet.",
     );
     expect(markup).toContain("Choose another topic");
-    expect(markup).toContain('href="/topics"');
+    expect(markup).toContain('href="/learn"');
     expect(markup).not.toContain("Dice Sum Condition");
     expect(markup).not.toContain("Check answer");
   });
@@ -293,11 +356,13 @@ describe("topic selection", () => {
     // position label renders and the sidebar expands that topic.
     expect(markup).toContain("Question 1 of 2");
     expect(markup).toContain('aria-current="true"');
+    // The rail's topic switcher replaced the expandable tree: it sits on the
+    // topic that owns the displayed question and still lists the syllabus.
     expect(markup).toMatch(
-      /aria-expanded="true"(?:(?!<\/button>)[\s\S])*?Conditional Probability/,
+      /<option value="conditional-probability" selected="">Conditional Probability<\/option>/,
     );
-    expect(markup).toMatch(
-      /aria-expanded="false"(?:(?!<\/button>)[\s\S])*?Central Limit Theorem/,
+    expect(markup).toContain(
+      '<option value="central-limit-theorem">Central Limit Theorem</option>',
     );
     expect(markup).not.toContain("No practice questions yet.");
     expect(markup).not.toContain(
@@ -336,17 +401,18 @@ describe("question screen", () => {
     expect(markup).toContain("Dice Sum Condition");
     expect(markup).toContain("Two fair dice are rolled.");
     expect(markup).toContain("Question 1 of 2");
-    expect(markup).toContain("Foundational");
+    // Course words, not the professor's difficulty vocabulary.
+    expect(markup).toContain("Intro");
     expect(markup).not.toContain(">foundational<");
     expect(markup).toContain("Your answer");
     expect(markup).toContain(
       "Enter a decimal, fraction, or percentage, for example 0.25, 1/4, or 25%.",
     );
     expect(markup).toContain("Check answer");
-    expect(markup).toContain("Get a hint");
-    expect(markup).toContain("(3 left)");
-    expect(markup).toContain("All topics");
-    expect(markup).toContain("Your progress");
+    expect(markup).toContain("Reveal hint 1 of 3");
+    // The way back out of practice: the shell header owns the app nav, and the
+    // question screen keeps a link to the topic it belongs to.
+    expect(markup).toContain('href="/learn/conditional-probability"');
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
     expect(markup).not.toMatch(/PRIVATE-/);
     expect(markup).toContain("Spinner and Coin Condition");
@@ -354,9 +420,9 @@ describe("question screen", () => {
   });
 
   it("never offers AI help unless the server enabled it", () => {
-    expect(renderWorkspace({ initialQuestionId: "dice-sum-eight" })).not.toContain(
-      "Ask AI for help",
-    );
+    expect(
+      renderWorkspace({ initialQuestionId: "dice-sum-eight" }),
+    ).not.toContain("Ask AI for help");
   });
 });
 
@@ -394,7 +460,8 @@ describe("answer feedback", () => {
   it("treats unreadable input as format guidance, not a wrong attempt", () => {
     const message = chatMessageForResponse({
       ...base,
-      message: "I could not read that as a number. Try forms like 0.25, 1/4, or 25%.",
+      message:
+        "I could not read that as a number. Try forms like 0.25, 1/4, or 25%.",
       misconceptions: [],
       verdict: "guidance",
     });
@@ -426,7 +493,15 @@ describe("answer feedback", () => {
     const question = studentQuestions[0];
     const solved = recoveryMessages(
       {
-        attempts: [{ createdAt: "", fallbackUsed: false, misconceptionFeedback: [], submittedAnswer: "2/5", verdict: "correct" }],
+        attempts: [
+          {
+            createdAt: "",
+            fallbackUsed: false,
+            misconceptionFeedback: [],
+            submittedAnswer: "2/5",
+            verdict: "correct",
+          },
+        ],
         disclosedAnswerExplanation: "Five outcomes have sum 8.",
         disclosedSolutionSteps: [],
       },
@@ -434,14 +509,30 @@ describe("answer feedback", () => {
     );
     const incorrect = recoveryMessages(
       {
-        attempts: [{ createdAt: "", fallbackUsed: false, misconceptionFeedback: ["Restrict the sample space."], submittedAnswer: "5/36", verdict: "incorrect" }],
+        attempts: [
+          {
+            createdAt: "",
+            fallbackUsed: false,
+            misconceptionFeedback: ["Restrict the sample space."],
+            submittedAnswer: "5/36",
+            verdict: "incorrect",
+          },
+        ],
         disclosedSolutionSteps: [],
       },
       question,
     );
 
-    expect(solved.at(-1)).toMatchObject({ label: "Correct", text: "Five outcomes have sum 8.", tone: "correct" });
-    expect(incorrect.at(-1)).toMatchObject({ label: "Not quite", note: "Restrict the sample space.", tone: "incorrect" });
+    expect(solved.at(-1)).toMatchObject({
+      label: "Correct",
+      text: "Five outcomes have sum 8.",
+      tone: "correct",
+    });
+    expect(incorrect.at(-1)).toMatchObject({
+      label: "Not quite",
+      note: "Restrict the sample space.",
+      tone: "incorrect",
+    });
   });
 });
 
@@ -590,21 +681,44 @@ describe("answer format guidance", () => {
   });
 });
 
-describe("home page pilot scope", () => {
-  it("explains that more topics are coming while some are still empty", async () => {
+describe("landing page", () => {
+  it("puts a live question above the words and keeps empty weeks in the syllabus", async () => {
     mockPrincipal(undefined);
 
     const markup = renderToStaticMarkup(await HomePage());
 
-    expect(markup).toContain("2 practice questions across 1 topic ready now.");
+    // The product first: a real approved question in the sheet, checkable by
+    // a visitor with no account.
+    expect(markup).toContain("Two fair dice are rolled.");
+    expect(markup).toContain("Check answer");
+    expect(markup).toContain("Reveal hint 1 of 3");
+    expect(markup).toContain("Available after 2 checks or from the tutor.");
+    expect(markup).toContain("Sign in to chat with the tutor");
+
+    // The syllabus keeps every week, so the numbers never skip.
+    expect(markup).toContain("Wk3 · Conditional Probability");
+    expect(markup).toContain("Wk13 · Central Limit Theorem");
+    expect(markup).toContain("no questions yet");
+    expect(markup).toContain("2 questions · 2 topics");
+    expect(markup).toContain('href="/learn/conditional-probability"');
+
+    // The words, below the product.
+    expect(markup).toContain("Practice MATH-255,");
+    expect(markup).toContain("one hint at a time");
     expect(markup).toContain(
-      "This pilot currently includes practice for the first course topics.",
+      "Real course problems, reviewed by your professor. Hints before answers, always.",
     );
-    expect(markup).toContain("More topics will be added as they are reviewed.");
+    expect(markup).toContain("Start practicing →");
+    expect(markup).toContain("Continue as guest");
+    expect(markup).toContain('href="/join"');
+    expect(markup).toContain("How it works: Try → Hint → Step → Check");
+    expect(markup).toContain("Your professor approves every problem");
+    expect(markup).toContain("Guest practice is anonymous; sign in to keep it");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+    expect(markup).not.toMatch(/PRIVATE-/);
   });
 
-  it("drops the pilot note once every topic has practice", async () => {
+  it("counts the whole syllabus once every topic has practice", async () => {
     mockPrincipal(undefined);
     mocks.getQuestionCounts.mockResolvedValue({
       byTopic: { "central-limit-theorem": 1, "conditional-probability": 2 },
@@ -613,8 +727,40 @@ describe("home page pilot scope", () => {
 
     const markup = renderToStaticMarkup(await HomePage());
 
-    expect(markup).toContain("3 practice questions across 2 topics ready now.");
-    expect(markup).not.toContain("This pilot currently includes");
+    expect(markup).toContain("3 questions · 2 topics");
+    expect(markup).not.toContain("no questions yet");
+  });
+
+  it("sends a signed-in visitor back to the syllabus instead of starting over", async () => {
+    mockPrincipal(TEST_STUDENT);
+
+    const markup = renderToStaticMarkup(await HomePage());
+
+    expect(markup).toContain("Continue practicing →");
+    expect(markup).toContain('href="/learn"');
+    expect(markup).not.toContain("Start practicing →");
+  });
+
+  it("prefers the third topic with questions as the hero, and falls back to the first question", () => {
+    const withQuestions = (ids: string[]) =>
+      Object.fromEntries(ids.map((id) => [id, 1]));
+    const syllabus = [
+      { ...topics[0], id: "one", order: 1 },
+      { ...topics[0], id: "two", order: 2 },
+      { ...topics[0], id: "three", order: 3 },
+    ];
+    const pool = [
+      { ...studentQuestions[0], id: "q1", topicId: "one" },
+      { ...studentQuestions[0], id: "q3", topicId: "three" },
+    ];
+
+    expect(
+      heroQuestionFor(syllabus, pool, withQuestions(["one", "two", "three"]))
+        ?.id,
+    ).toBe("q3");
+    expect(heroQuestionFor(syllabus, pool, withQuestions(["one"]))?.id).toBe(
+      "q1",
+    );
   });
 });
 
@@ -749,7 +895,13 @@ describe("student dashboard", () => {
       ...progress,
       questions: [],
       recentSessions: [],
-      summary: { ...progress.summary, hintsUsed: 0, inProgressQuestions: 0, needsAnotherAttempt: 0, topicsStarted: 0 },
+      summary: {
+        ...progress.summary,
+        hintsUsed: 0,
+        inProgressQuestions: 0,
+        needsAnotherAttempt: 0,
+        topicsStarted: 0,
+      },
     };
 
     expect(primaryPracticeAction(empty)).toMatchObject({
@@ -766,7 +918,9 @@ describe("student dashboard", () => {
 
 describe("student-facing error states", () => {
   it("keeps error and not-found pages free of technical wording and with a next action", () => {
-    const notFound = renderToStaticMarkup(createElement(PracticeQuestionNotFound));
+    const notFound = renderToStaticMarkup(
+      createElement(PracticeQuestionNotFound),
+    );
     const failure = renderToStaticMarkup(
       createElement(ApplicationError, {
         error: new Error("ECONNREFUSED postgres"),
@@ -777,6 +931,8 @@ describe("student-facing error states", () => {
     expect(notFound).toContain("Browse topics");
     expect(failure).toContain("Try again");
     expect(failure).not.toContain("ECONNREFUSED");
-    expect(`${notFound}${failure}`).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+    expect(`${notFound}${failure}`).not.toMatch(
+      STUDENT_VISIBLE_TECHNICAL_TERMS,
+    );
   });
 });

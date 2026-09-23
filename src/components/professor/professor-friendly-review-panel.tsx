@@ -7,11 +7,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
+import { QuestionSheet } from "@/components/sheet/question-sheet";
 import { nativeSelectClassName } from "@/components/ui/native-select";
+import { questionCode, studentDifficultyLabel } from "@/lib/labels";
 import { professorReviewQueuePath } from "@/lib/tutor/professor-review-mode";
 import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
 import type {
   Difficulty,
+  ProfessorQuestionReviewCandidateDto,
   ProfessorQuestionReviewDashboard,
   QuestionRevisionMethod,
 } from "@/lib/types";
@@ -21,6 +24,23 @@ type ReviewAction =
   | "reject"
   | "request_edit"
   | "request_regeneration";
+
+/**
+ * How the answer is checked, as one header word. The spec is optional on older
+ * records, and "short answer" is what an unspecified one behaves like.
+ */
+function answerTypeLabel(candidate: ProfessorQuestionReviewCandidateDto) {
+  switch (candidate.answer.spec?.kind) {
+    case "numeric":
+      return "numeric";
+    case "categorical":
+      return "categorical";
+    case "number_list":
+      return "number list";
+    default:
+      return "short answer";
+  }
+}
 
 const DIFFICULTIES = [
   "foundational",
@@ -376,16 +396,32 @@ export function ProfessorFriendlyReviewPanel({
             </p>
           </div>
 
-          <ReviewBlock title="Question" values={[current.prompt]} />
-          <ReviewBlock
-            title="Final answer"
-            values={[
-              current.answer.acceptedAnswers.join(", "),
-              current.answer.explanation,
-            ]}
+          {/* The candidate as a student would meet it, with the whole hint and
+              step ladder already down and the accepted answer in the field:
+              what is being approved is the page, not a list of fields. */}
+          <QuestionSheet
+            answer={{
+              value: current.answer.acceptedAnswers.join(", "),
+              onChange: () => {},
+              onCheck: () => {},
+              disabled: true,
+              helper:
+                "Students see an empty field; this is the accepted answer",
+            }}
+            header={{
+              topicLabel: selectedTopic?.title ?? "",
+              questionCode: questionCode(current.questionId),
+              answerType: answerTypeLabel(current),
+              difficultyLabel: studentDifficultyLabel(selectedDifficulty),
+            }}
+            hints={{ total: current.hints.length, revealed: current.hints }}
+            prompt={current.prompt}
+            steps={{ revealed: current.solutionSteps }}
           />
-          <ReviewBlock title="Solution steps" values={current.solutionSteps} />
-          <ReviewBlock title="Hints" values={current.hints} />
+          <ReviewBlock
+            title="Answer explanation"
+            values={[current.answer.explanation]}
+          />
           <ReviewBlock
             title="Misconceptions"
             values={current.misconceptions.map((item) => item.feedback)}

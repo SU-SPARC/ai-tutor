@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudentProgressDashboard } from "@/lib/types";
 import {
   mockPrincipal,
+  mockStudentOwner,
   resetAuthMocks,
   TEST_STUDENT,
 } from "./auth-test-helpers";
@@ -44,6 +45,7 @@ vi.mock("@/components/tutor/practice-workspace", async () => {
 import DashboardError from "@/app/dashboard/error";
 import DashboardLoading from "@/app/dashboard/loading";
 import DashboardPage from "@/app/dashboard/page";
+import LearnPage from "@/app/learn/page";
 import PracticePage from "@/app/practice/page";
 import { ProgressDashboard } from "@/components/student/progress-dashboard";
 
@@ -168,8 +170,13 @@ beforeEach(() => {
   mocks.getStudentProgress.mockResolvedValue(progress);
   mocks.getTopics.mockResolvedValue([
     {
+      active: true,
+      description: "Restrict the sample space.",
       id: "conditional-probability",
+      moduleRef: "Week 3",
+      order: 3,
       title: "Conditional Probability",
+      weekNumber: 3,
     },
   ]);
   mocks.getApprovedQuestions.mockResolvedValue([
@@ -206,26 +213,37 @@ afterEach(() => {
   resetAuthMocks();
 });
 
-describe("authenticated student dashboard page", () => {
-  it("redirects an unauthenticated visitor before reading progress", async () => {
-    mockPrincipal(undefined);
+describe("the learn page and the dashboard redirect", () => {
+  it("sends the retired dashboard URL to /learn without reading progress", () => {
+    mockPrincipal(TEST_STUDENT);
 
-    await expect(DashboardPage()).rejects.toMatchObject({
-      destination: "/sign-in?callbackUrl=%2Fdashboard",
-    });
+    expect(() => DashboardPage()).toThrow("Redirected to /learn");
+    expect(mocks.redirect).toHaveBeenCalledWith("/learn");
     expect(mocks.getStudentProgress).not.toHaveBeenCalled();
   });
 
   it("passes only the server-authorized student's progress to the UI", async () => {
     mockPrincipal(TEST_STUDENT);
 
-    const element = await DashboardPage();
+    const element = await LearnPage();
     const markup = renderToStaticMarkup(element);
 
     expect(mocks.getStudentProgress).toHaveBeenCalledOnce();
-    expect(markup).toContain("Your progress");
+    expect(markup).toContain("Continue");
     expect(markup).toContain("Five-question quiz");
+    expect(markup).not.toContain("practising as a guest");
     expect(markup).not.toMatch(/leaderboard|class rank|percentile/i);
+  });
+
+  it("renders the guest view instead of reading a stranger's progress", async () => {
+    mockPrincipal(undefined);
+    mockStudentOwner(undefined);
+
+    const markup = renderToStaticMarkup(await LearnPage());
+
+    expect(mocks.getStudentProgress).not.toHaveBeenCalled();
+    expect(markup).toContain("practising as a guest");
+    expect(markup).not.toContain("Five-question quiz");
   });
 });
 

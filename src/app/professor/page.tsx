@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Upload } from "lucide-react";
 
+import { CoursesHubCard } from "@/components/courses/courses-hub-card";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorWorkspaceOverviewPanel } from "@/components/professor/professor-workspace-overview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -67,6 +68,7 @@ export default async function ProfessorPage() {
         </>
       }
     >
+      <CoursesHubCard />
       {overview ? (
         <ProfessorWorkspaceOverviewPanel overview={overview} />
       ) : (

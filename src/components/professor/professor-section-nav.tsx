@@ -18,6 +18,7 @@ type SectionItem = {
  */
 const SECTIONS: SectionItem[] = [
   { href: "/professor", label: "Overview" },
+  { href: "/professor/courses", label: "Courses" },
   { href: "/professor/review", label: "Review queue" },
   { href: "/professor/feedback", label: "Student reports" },
   { href: "/professor/questions", label: "Question lifecycle" },
@@ -34,6 +35,15 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * The narrow-screen fallback for `ProfessorRail`. Above `lg` the workspace
+ * navigation is the vertical rail beside the page; below it the rail is hidden
+ * and this horizontal strip carries the same destinations.
+ *
+ * The active course switcher deliberately does NOT live here any more: the
+ * app header renders one for professors on every page, and two switchers on
+ * the same screen would be two sources of truth.
+ */
 export function ProfessorSectionNav() {
   const pathname = usePathname() ?? "/professor";
 

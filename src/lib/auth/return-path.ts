@@ -1,4 +1,4 @@
-export const DEFAULT_STUDENT_RETURN_PATH = "/dashboard";
+export const DEFAULT_STUDENT_RETURN_PATH = "/learn";
 
 const LOCAL_ORIGIN = "https://student-flow.invalid";
 const UNSAFE_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
@@ -92,4 +92,15 @@ export function isInstructorReturnPath(value?: string | null) {
 export function postSignInPath(returnTo?: string | null) {
   const safePath = safeReturnPath(returnTo);
   return isInstructorReturnPath(safePath) ? safePath : onboardingPath(safePath);
+}
+
+/**
+ * The demo sign-in screen. The callback travels raw, not normalised: `/join`
+ * re-validates it with a student-appropriate fallback, and sanitising it here
+ * would only move the same decision one page earlier.
+ */
+export function joinPath(callbackUrl?: string | null) {
+  return callbackUrl
+    ? `/join?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : "/join";
 }

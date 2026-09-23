@@ -13,6 +13,7 @@ vi.mock("@clerk/nextjs", async () => {
 });
 
 import ForbiddenPage from "@/app/forbidden/page";
+import { CoursesStoreProvider } from "@/components/courses/courses-store";
 import ProfessorLayout from "@/app/professor/layout";
 import ProfessorPage from "@/app/professor/page";
 import { GET as getReviewQueue } from "@/app/api/professor/review/route";
@@ -62,7 +63,7 @@ describe("professor page authorization", () => {
     expect(markup).toContain("does not have access to instructor tools");
     expect(markup).toContain("reload this page");
     expect(markup).not.toContain("sign out and sign in again");
-    expect(markup).toContain('href="/dashboard"');
+    expect(markup).toContain('href="/learn"');
     expect(markup).toContain('href="/account"');
     expect(markup).not.toContain("required application role");
   });
@@ -71,9 +72,11 @@ describe("professor page authorization", () => {
     mockPrincipal(TEST_PROFESSOR);
     const protectedChild = createElement("p", null, "protected");
 
-    await expect(ProfessorLayout({ children: protectedChild })).resolves.toBe(
-      protectedChild,
-    );
+    // The workspace is wrapped in the courses store so every professor page
+    // and the section nav's course switcher read the same client state.
+    const layout = await ProfessorLayout({ children: protectedChild });
+    expect(layout.type).toBe(CoursesStoreProvider);
+    expect(layout.props.children).toBe(protectedChild);
 
     const markup = renderToStaticMarkup(await ProfessorPage());
     expect(markup).toContain("Professor workspace");

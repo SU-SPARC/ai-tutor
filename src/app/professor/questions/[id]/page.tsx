@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 
+import { QuestionReleaseRail } from "@/components/courses/question-release-rail";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorQuestionDetailSummary } from "@/components/professor/professor-question-detail-summary";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
@@ -64,26 +65,35 @@ export default async function ProfessorQuestionPage({
         </Badge>
       }
     >
-      <ProfessorQuestionDetailSummary
-        question={question}
-        topicTitle={topicTitle}
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>Question content and lifecycle actions</CardTitle>
-          <CardDescription>
-            The working version is opened below with every field, the revision
-            editor, and the attributed version history.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProfessorQuestionLifecyclePanel
-            focusQuestionId={question.questionId}
-            hideBulkControls
-            initialDashboard={{ ...dashboard, questions: [question] }}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-6 lg:col-span-2">
+          <ProfessorQuestionDetailSummary
+            question={question}
+            topicTitle={topicTitle}
           />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Question content and lifecycle actions</CardTitle>
+              <CardDescription>
+                The working version is opened below with every field, the
+                revision editor, and the attributed version history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProfessorQuestionLifecyclePanel
+                focusQuestionId={question.questionId}
+                hideBulkControls
+                initialDashboard={{ ...dashboard, questions: [question] }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+        {/* Publishing a version does not move a section to it; the rail is
+            where that gap becomes visible. */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <QuestionReleaseRail questionId={question.questionId} />
+        </div>
+      </div>
     </ProfessorPageShell>
   );
 }

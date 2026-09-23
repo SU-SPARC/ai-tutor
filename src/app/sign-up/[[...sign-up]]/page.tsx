@@ -8,6 +8,7 @@ import {
   postSignInPath,
   safeReturnPath,
   signInPath,
+  joinPath,
 } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -25,6 +26,13 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const env = getServerEnv();
 
   if (!env.CLERK_ENABLED) {
+    // A demo session is chosen, not registered, so there is nothing to sign up
+    // for; keep the requested destination and send the student to the one
+    // screen that has the doors on it.
+    if (env.GHOST_LOGIN_ENABLED) {
+      redirect(joinPath(callbackUrl));
+    }
+
     return (
       <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg items-center justify-center px-6 py-12">
         <AuthenticationUnavailable />

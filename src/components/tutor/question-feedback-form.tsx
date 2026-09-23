@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { Flag, Loader2, Send } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,9 @@ import {
   type QuestionFeedbackCategory,
   type QuestionFeedbackReceipt,
 } from "@/lib/types";
+
+/** The link under the Sheet. The flag glyph is supplied by the caller. */
+export const REPORT_A_PROBLEM_LABEL = "Report a problem with this question";
 
 export const QUESTION_FEEDBACK_CATEGORY_LABELS: Record<
   QuestionFeedbackCategory,
@@ -43,9 +46,14 @@ export function QuestionFeedbackForm({
 
   if (!sessionId) {
     return (
-      <Button type="button" variant="ghost" size="sm" disabled>
-        <Flag className="h-4 w-4" aria-hidden="true" />
-        Report
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto px-0 text-muted-foreground"
+        disabled
+      >
+        {REPORT_A_PROBLEM_LABEL}
       </Button>
     );
   }
@@ -93,11 +101,10 @@ export function QuestionFeedbackForm({
 
   return (
     <details className="group relative">
-      <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-        <Flag className="h-4 w-4" aria-hidden="true" />
-        Report
+      <summary className="inline-flex cursor-pointer list-none items-center rounded-sm text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+        {REPORT_A_PROBLEM_LABEL}
       </summary>
-      <div className="absolute top-10 right-0 z-30 w-[min(24rem,calc(100vw-3rem))] rounded-lg border bg-popover p-4 text-popover-foreground shadow-lg">
+      <div className="absolute top-7 left-0 z-30 w-[min(24rem,calc(100vw-3rem))] rounded-lg border bg-popover p-4 text-popover-foreground shadow-lg">
         <div>
           <h2 className="font-semibold">Report a problem</h2>
           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">

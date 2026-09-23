@@ -8,6 +8,7 @@ import {
   postSignInPath,
   safeReturnPath,
   signUpPath,
+  joinPath,
 } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -25,7 +26,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const env = getServerEnv();
 
   if (!env.CLERK_ENABLED) {
-    return <AuthenticationPageShell body={<AuthenticationUnavailable />} />;
+    if (!env.GHOST_LOGIN_ENABLED) {
+      return <AuthenticationPageShell body={<AuthenticationUnavailable />} />;
+    }
+
+    // Demo environments have one way in, and it is `/join`: the doors, the
+    // section code, and the data notice are one screen there. The raw
+    // callbackUrl travels unvalidated on purpose — `/join` normalises it with
+    // a student-appropriate fallback, the same way the ghost action does.
+    redirect(joinPath(callbackUrl));
   }
 
   const principal = await currentAuthenticatedUser();

@@ -1,14 +1,14 @@
-import Link from "next/link"
-import { SearchX } from "lucide-react"
+import Link from "next/link";
+import { SearchX } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 
 export default function PracticeQuestionNotFound() {
   return (
@@ -27,7 +27,7 @@ export default function PracticeQuestionNotFound() {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/topics">Browse topics</Link>
+              <Link href="/learn">Browse topics</Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/practice">Open practice</Link>
@@ -36,5 +36,5 @@ export default function PracticeQuestionNotFound() {
         </Card>
       </section>
     </main>
-  )
+  );
 }

@@ -9,7 +9,7 @@
  * -> cyan #008CBB -> azure #0048D0. Azure covers the most pixels, so it
  * is the primary; the spring green becomes the CTA accent.
  *
- * Two rules to keep the palette accessible:
+ * Three rules to keep the palette accessible:
  *
  * 1. --cta is a BACKGROUND-only token in light mode. Green on white is
  *    1.6:1 as text. When you need green *text* on a light surface, use
@@ -18,14 +18,26 @@
  *    boundary that identifies a control and must stay >= 3:1 against both
  *    --background and --card (WCAG 1.4.11). Do not collapse them into one
  *    value.
+ * 3. The indigo / green / amber ramps are surface-and-ink pairs, not a free
+ *    palette. The 100 step is BACKGROUND-only (tint bands, the correct-answer
+ *    wash, hint cards); the 500 and 700 steps are the ink that goes on it.
+ *    Each ramp keeps its hue and chroma across themes and flips lightness
+ *    only, so `text-primary on bg-indigo-100` and `border-l-amber-500 on
+ *    bg-amber-100` clear 4.5:1 in both light and dark.
  *
  * Every text pair below clears 4.5:1 and every interactive boundary clears
  * 3:1 in both themes.
+ *
+ * Surface ladder: --surface-tint (the desk) < --background < --card <
+ * --sheet. The problem sheet is the lightest surface in BOTH themes, which
+ * is why it needs no border.
  */
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -51,6 +63,19 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-surface-tint: var(--surface-tint);
+  --color-sheet: var(--sheet);
+  --color-sheet-foreground: var(--sheet-foreground);
+  --color-indigo-100: var(--indigo-100);
+  --color-indigo-300: var(--indigo-300);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-700: var(--indigo-700);
+  --color-green-100: var(--green-100);
+  --color-green-300: var(--green-300);
+  --color-green-500: var(--green-500);
+  --color-green-700: var(--green-700);
+  --color-amber-100: var(--amber-100);
+  --color-amber-500: var(--amber-500);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -101,6 +126,28 @@
   --input: oklch(0.65 0.03 252);
   --ring: oklch(0.465 0.218 262);
 
+  /* The desk the rails and bands sit on (same value as --secondary). */
+  --surface-tint: oklch(0.966 0.008 250);
+  /* The problem sheet — the lightest surface, so it carries no border. */
+  --sheet: oklch(1 0 0);
+  --sheet-foreground: oklch(0.185 0.022 264);
+
+  /* INDIGO — "the course": links, active nav, selected rows. */
+  --indigo-100: oklch(0.95 0.03 262);
+  --indigo-300: oklch(0.8 0.1 262);
+  --indigo-500: oklch(0.465 0.218 262);
+  --indigo-700: oklch(0.35 0.16 262);
+
+  /* GREEN — "go" / correct. */
+  --green-100: oklch(0.95 0.06 163);
+  --green-300: oklch(0.88 0.13 163);
+  --green-500: oklch(0.815 0.177 163);
+  --green-700: oklch(0.52 0.14 158);
+
+  /* AMBER — hints, and nothing else. */
+  --amber-100: oklch(0.97 0.04 80);
+  --amber-500: oklch(0.52 0.12 68);
+
   /* Sampled along the logo gradient, green -> azure. */
   --chart-1: oklch(0.815 0.177 163);
   --chart-2: oklch(0.724 0.132 179);
@@ -115,18 +162,18 @@
     oklch(0.465 0.218 262)
   );
 
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: oklch(0.165 0.014 258);
-  --foreground: oklch(0.962 0.006 250);
-  --card: oklch(0.212 0.016 258);
-  --card-foreground: oklch(0.962 0.006 250);
-  --popover: oklch(0.212 0.016 258);
-  --popover-foreground: oklch(0.962 0.006 250);
+  --background: oklch(0.17 0.012 262);
+  --foreground: oklch(0.94 0.01 250);
+  --card: oklch(0.21 0.014 262);
+  --card-foreground: oklch(0.94 0.01 250);
+  --popover: oklch(0.21 0.014 262);
+  --popover-foreground: oklch(0.94 0.01 250);
 
   /* The logo azure is too dark on a dark ground; lift it in the same hue
    * family to #5999F8 for 6.8:1 against --background. */
@@ -154,6 +201,24 @@
   --border: oklch(0.32 0.02 258);
   --input: oklch(0.505 0.03 258);
   --ring: oklch(0.685 0.155 258);
+
+  /* The ladder inverts but keeps its order: tint < background < card < sheet. */
+  --surface-tint: oklch(0.14 0.01 262);
+  --sheet: oklch(0.24 0.016 262);
+  --sheet-foreground: oklch(0.94 0.01 250);
+
+  --indigo-100: oklch(0.28 0.06 262);
+  --indigo-300: oklch(0.45 0.14 262);
+  --indigo-500: oklch(0.685 0.155 258);
+  --indigo-700: oklch(0.8 0.1 262);
+
+  --green-100: oklch(0.26 0.05 163);
+  --green-300: oklch(0.4 0.1 163);
+  --green-500: oklch(0.815 0.177 163);
+  --green-700: oklch(0.52 0.14 158);
+
+  --amber-100: oklch(0.27 0.04 80);
+  --amber-500: oklch(0.82 0.15 78);
 
   --chart-1: oklch(0.815 0.177 163);
   --chart-2: oklch(0.724 0.132 179);
@@ -187,6 +252,19 @@
   h2,
   h3 {
     @apply tracking-tight;
+  }
+
+  /* Only state changes are allowed to move (design plan, MOTION). Someone who
+   * asked the OS for less motion gets the end state immediately. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 

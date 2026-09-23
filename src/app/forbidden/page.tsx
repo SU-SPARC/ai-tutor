@@ -30,7 +30,7 @@ export default function ForbiddenPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href="/dashboard">Return to your dashboard</Link>
+            <Link href="/learn">Return to Learn</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/account">View account</Link>
