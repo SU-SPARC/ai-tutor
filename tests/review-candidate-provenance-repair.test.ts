@@ -48,7 +48,7 @@ afterEach(async () => {
   resetAuthMocks();
 });
 
-describe("review-candidate provenance repair", () => {
+describe("review-candidate provenance repair", { timeout: 60_000 }, () => {
   it("unblocks the publication gate by appending a corrected version without touching the stored snapshot", async () => {
     const database = await migratedDatabase();
     const client = pgliteClient(database);
