@@ -4,7 +4,10 @@ import path from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { requireAnalyticsAccess, requireStudent } from "@/lib/auth/authorization";
+import {
+  requireAnalyticsAccess,
+  requireStudent,
+} from "@/lib/auth/authorization";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
 import { createDatabasePilotAnalyticsExportRepository } from "@/lib/data/pilot-analytics-export-repository";
@@ -13,9 +16,9 @@ import { setContentRepositoryForTests } from "@/lib/data/data-store";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import {
-  createDatabaseReservePracticeRepository,
-  setReservePracticeRepositoryForTests,
-} from "@/lib/data/reserve-practice-repository";
+  createDatabaseQuestionSimilaritySelectionRepository,
+  setQuestionSimilaritySelectionRepositoryForTests,
+} from "@/lib/data/question-similarity-repository";
 import {
   createDatabaseTutorSessionRepository,
   resetTutorSessionsForTests,
@@ -37,7 +40,7 @@ const databases: PGlite[] = [];
 afterEach(async () => {
   resetAuthMocks();
   setContentRepositoryForTests(undefined);
-  setReservePracticeRepositoryForTests(undefined);
+  setQuestionSimilaritySelectionRepositoryForTests(undefined);
   resetTutorSessionsForTests();
   await Promise.all(databases.splice(0).map((database) => database.close()));
 });
@@ -383,8 +386,8 @@ describe("Reserve-practice anonymous claims on the migrated schema", () => {
     const database = await migratedDatabase();
     await seedQuestionsAndActors(database);
     const query = pgliteQuery(database);
-    const databaseReserveRepository =
-      createDatabaseReservePracticeRepository(query);
+    const databaseSimilarityRepository =
+      createDatabaseQuestionSimilaritySelectionRepository(query);
     let eligibleCandidatesSeen = 0;
 
     await database.exec(`
@@ -407,11 +410,13 @@ describe("Reserve-practice anonymous claims on the migrated schema", () => {
         query,
       ),
     );
-    setReservePracticeRepositoryForTests({
-      getEligibleQuestion: databaseReserveRepository.getEligibleQuestion,
-      async listEligibleQuestions() {
+    setQuestionSimilaritySelectionRepositoryForTests({
+      async listEligibleForOrigin(originQuestionId, originVersionId) {
         const candidates =
-          await databaseReserveRepository.listEligibleQuestions();
+          await databaseSimilarityRepository.listEligibleForOrigin(
+            originQuestionId,
+            originVersionId,
+          );
         eligibleCandidatesSeen = candidates.length;
         await setReserveState(database, {
           isReserved: true,
@@ -542,6 +547,19 @@ async function seedQuestionsAndActors(database: PGlite) {
     isReserved: true,
     practiceAllowed: true,
   });
+  await database.query(
+    `insert into question_similarity_links (
+       origin_question_id, similar_question_id, origin_version_id,
+       similar_version_id, relationship_type, slot, created_by_user_id
+     ) select
+       origin.id, reserve.id, origin.published_version_id,
+       reserve.working_version_id, 'similar_practice', 1,
+       'user:claim-professor'
+     from questions origin
+     cross join questions reserve
+     where origin.id = 'claim-origin-question'
+       and reserve.id = 'claim-reserve-question'`,
+  );
   return reserveVersionId;
 }
 

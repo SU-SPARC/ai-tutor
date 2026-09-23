@@ -79,7 +79,8 @@ export default async function OnboardingPage({
             <NoticeItem icon={BookOpenCheck} title="Learning support">
               Work through available practice questions and use feedback to
               check your reasoning. The tutor does not submit work or assign
-              grades.
+              grades. It records your practice activity; your instructor, not
+              the tutor, determines any course credit.
             </NoticeItem>
             <NoticeItem icon={Database} title="Activity that is saved">
               Your account profile and practice activity are stored: questions

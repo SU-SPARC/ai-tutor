@@ -46,7 +46,9 @@ export function InstructorCohortPanel({
           </CardDescription>
         </div>
         <Button asChild variant="outline">
-          <Link href="/professor/students">View students</Link>
+          <Link href="/professor/students" prefetch={false}>
+            View students
+          </Link>
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -155,6 +157,7 @@ export function InstructorCohortPanel({
                 <Link
                   className="font-medium text-primary hover:underline"
                   href="/professor/students?sort=lowest_accuracy"
+                  prefetch={false}
                 >
                   Review them
                 </Link>

@@ -35,16 +35,24 @@ export type DatabaseErrorCategory =
 export class DatabaseOperationError extends Error {
   readonly category: DatabaseErrorCategory
   readonly code = "DATABASE_OPERATION_FAILED"
+  /**
+   * The message of a `raise exception` authored by this project's own
+   * database functions (SQLSTATE P0001), such as a publication gate or a
+   * stale-state check. Driver, permission, and constraint messages are never
+   * copied here, so callers may show it to the professor.
+   */
+  readonly reason?: string
   readonly retryable: boolean
   readonly sqlState?: string
 
   constructor(
     category: DatabaseErrorCategory,
-    options: { retryable: boolean; sqlState?: string },
+    options: { reason?: string; retryable: boolean; sqlState?: string },
   ) {
     super(databaseMessage(category))
     this.name = "DatabaseOperationError"
     this.category = category
+    this.reason = options.reason
     this.retryable = options.retryable
     this.sqlState = options.sqlState
   }
@@ -326,6 +334,10 @@ export function classifyPostgresError(cause: unknown) {
   }
 
   return new DatabaseOperationError("unknown", {
+    reason:
+      sqlState === "P0001" && typeof error.message === "string"
+        ? error.message
+        : undefined,
     retryable: false,
     sqlState,
   })

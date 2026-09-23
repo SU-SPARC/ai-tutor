@@ -84,24 +84,38 @@ the error class, question ID, and user ID.
 ## Safe batch review
 
 Batch operations are intentionally limited to `request_revision`, `reject`,
-and `publish`; there is no batch approval action. Before selection, the acting
-professor must open the complete public-safe working aggregate and record an
-inspection of that exact immutable version. Inspections are professor- and
-version-specific, timestamped, and append-only.
+and `publish`; there is no batch approval action. Every item requires evidence
+that the acting professor personally reviewed that exact immutable version.
+Two things count: the professor's own attributed `approve` event on the
+version (the Review Queue shows the complete public-safe aggregate before
+approval), or an explicit inspection record made from the question table
+("Mark this version inspected"). Inspections are professor- and
+version-specific, timestamped, and append-only. A version approved by a
+different professor still needs the acting professor's own inspection before
+it can join a batch, matching the single-question path where the publishing
+professor sees the full version in the change summary first.
 
 Batch requests contain 2–25 distinct working versions, expected states, a
 request id, and an idempotency key. The server locks questions in a stable
 order and preflights every item for current version/state, active record,
-current-professor inspection, permitted action, and—when publishing—schema,
-content, validation status, and active topic. Any failure returns an itemized
-report and changes nothing. Only a fully valid batch executes its attributed
-lifecycle transitions and publication pointer changes in one transaction.
+current-professor review evidence, permitted action, and—when
+publishing—schema, content, validation status, and active topic. Any failure
+returns an itemized report and changes nothing. Only a fully valid batch
+executes its attributed lifecycle transitions and publication pointer changes
+in one transaction. The API's error message states how many of the selected
+questions failed and that nothing changed; `result.failures` carries the
+per-question reasons.
 
 Publication preview uses the same item preflight without a transaction or any
 write. Items are checked sequentially so one 25-item preview cannot exhaust the
-four-connection runtime pool. It reports each version as ready or blocked; the
-professor may remove blocked selections and preview the remaining set before
-submitting the normal atomic commit.
+four-connection runtime pool. It reports each version as ready (with the
+review evidence that satisfied the check: `approval` or `inspection`) or
+blocked with its reasons. The question table runs this "Publication check"
+automatically when the professor chooses Publish selected, shows one outcome
+row per question in plain language, and enables the publish button only when
+every selected question is ready; blocked questions can be removed from the
+selection or fixed, then re-checked. A failed commit shows the blocked
+questions with their reasons and marks the rest "Not changed".
 
 ## Save for later
 
@@ -215,8 +229,9 @@ labels.
 - `POST /api/professor/questions/inspections` records deliberate inspection of
   the current immutable review version for the signed-in professor.
 - `POST /api/professor/questions/batch` atomically requests revision, rejects,
-  or publishes 2–25 already-inspected versions. `mode: preview` runs the
-  publication preflight without mutation. It never accepts `approve`.
+  or publishes 2–25 versions the signed-in professor approved or inspected.
+  `mode: preview` runs the publication preflight without mutation. It never
+  accepts `approve`.
 - `GET|POST /api/professor/content-transfer` provides professor-only sanitized
   JSON exports and dry-run-first transactional imports. See
   [Protected question content transfer](./content-transfer.md).

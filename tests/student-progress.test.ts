@@ -122,6 +122,39 @@ describe("student progress dashboard", () => {
     },
   );
 
+  it("records an unreadable submission without counting it as an attempt", async () => {
+    const session = await createTutorSession(
+      studentSessionAuthorization,
+      "dice-sum-eight",
+    );
+    await recordTutorSessionAttemptOutcome(studentSessionAuthorization, {
+      sessionId: session.id,
+      source: "rule",
+      verdict: "guidance",
+      estimatedTokens: 0,
+    });
+    await recordTutorSessionAttemptOutcome(studentSessionAuthorization, {
+      sessionId: session.id,
+      source: "rule",
+      verdict: "incorrect",
+      estimatedTokens: 0,
+    });
+
+    const progress = await getStudentProgress(await requireStudent());
+    expect(progress.questions[0]).toMatchObject({
+      attemptCount: 1,
+      needsAnotherAttempt: true,
+      status: "in_progress",
+    });
+    expect(progress.recentSessions[0]).toMatchObject({ attemptCount: 1 });
+    // The unreadable submission stays recorded as an interaction; it is
+    // only excluded from the attempt count.
+    expect(
+      (await getTutorSession(studentSessionAuthorization, session.id))
+        ?.attempts,
+    ).toHaveLength(2);
+  });
+
   it("builds canonical topic, question, retry, help, and recent-session progress", async () => {
     const firstSession = await createTutorSession(
       studentSessionAuthorization,

@@ -85,6 +85,7 @@ grant insert on
   question_approval_history,
   question_lifecycle_events,
   question_reserve_events,
+  question_similarity_links,
   question_student_availability,
   question_version_inspections,
   question_version_lifecycle,
@@ -104,6 +105,7 @@ grant update on
   ai_usage,
   attempts,
   feedback_reports,
+  question_similarity_links,
   question_student_availability,
   question_version_lifecycle,
   questions,
@@ -122,6 +124,15 @@ grant execute on function app_publication_numeric_answer_matches(
   double precision
 ) to app_runtime;
 grant execute on function app_question_publication_gate_failures(
+  text,
+  bigint,
+  text
+) to app_runtime;
+-- Migration 015's publication triggers PERFORM this assertion as the invoking
+-- role while publishing, rolling back, or replacing a published version. The
+-- runtime never calls it directly, but without EXECUTE every publish fails
+-- inside the trigger with SQLSTATE 42501.
+grant execute on function app_assert_question_publication_quality(
   text,
   bigint,
   text
@@ -198,12 +209,30 @@ revoke insert, update, delete, truncate, references, trigger
      retrieval_chunks, student_progress, topics
   from app_runtime;
 
+-- Fail closed if the publish path would still be denied inside the trigger.
+do $$
+begin
+  if not has_function_privilege(
+    'app_runtime',
+    'app_assert_question_publication_quality(text,bigint,text)',
+    'EXECUTE'
+  ) then
+    raise exception 'app_runtime cannot execute app_assert_question_publication_quality; publishing would fail with SQLSTATE 42501';
+  end if;
+end;
+$$;
+
 -- Verification (read-only): expect nosuperuser, nocreaterole, nocreatedb,
--- nobypassrls, no schema CREATE, and one app_runtime_full_access policy per
--- public table.
+-- nobypassrls, no schema CREATE, one app_runtime_full_access policy per
+-- public table, and EXECUTE on the publication assertion.
 select
   rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, rolcanlogin,
   has_schema_privilege('app_runtime', 'public', 'CREATE') as schema_create,
+  has_function_privilege(
+    'app_runtime',
+    'app_assert_question_publication_quality(text,bigint,text)',
+    'EXECUTE'
+  ) as publication_assert_execute,
   (select count(*) from pg_policies where policyname = 'app_runtime_full_access') as runtime_policies,
   (select count(*) from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r' and relrowsecurity) as row_level_security_tables
 from pg_roles

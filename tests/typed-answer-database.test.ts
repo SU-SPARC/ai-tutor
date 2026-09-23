@@ -299,6 +299,18 @@ describe("024 snapshot authority and publication", () => {
       "update tutor_sessions set solved=true,status='completed',current_state='solved',completed_at=now() where id=$1",
       [origin.id],
     );
+    await db.query(
+      `insert into question_similarity_links (
+         origin_question_id, similar_question_id, origin_version_id,
+         similar_version_id, relationship_type, slot, created_by_user_id
+       ) select
+         origin.id, reserve.id, origin.published_version_id,
+         reserve.working_version_id, 'similar_practice', 1, $1
+       from questions origin
+       cross join questions reserve
+       where origin.id = 'typed-legacy' and reserve.id = $2`,
+      [TEST_PROFESSOR.userId, q.questionId],
+    );
     const practice = await tutor.createSession({
       owner,
       questionId: q.questionId,

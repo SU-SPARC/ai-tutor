@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Search, Users } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { InstructorStudentTable } from "@/components/professor/instructor-student-table";
+import { InstructorStudentTopicRoster } from "@/components/professor/instructor-student-topic-roster";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,7 +12,13 @@ import {
   requirePageAccess,
 } from "@/lib/auth/authorization";
 import { listInstructorStudents } from "@/lib/data/data-store";
+import { pilotRequestId } from "@/lib/observability/pilot-operations";
+import {
+  resolveInstructorStudentIdentities,
+  resolveInstructorStudentRoster,
+} from "@/lib/professor/student-identity";
 import type { InstructorStudentSort } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const SORTS: InstructorStudentSort[] = [
   "last_active",
@@ -19,10 +27,24 @@ const SORTS: InstructorStudentSort[] = [
   "sessions",
 ];
 
+/**
+ * Two readings of the same class: the activity table, sortable and searchable
+ * by student code, and the roster grouped by practised topic. Both show the
+ * students' usernames, resolved on the server for the signed-in professor and
+ * recorded before they are rendered; see `resolveInstructorStudentRoster`.
+ */
+const VIEWS = ["activity", "topics"] as const;
+
+type StudentsView = (typeof VIEWS)[number];
+
 const PAGE_SIZE = 25;
 
 function parseSort(value: string | undefined): InstructorStudentSort {
   return SORTS.find((sort) => sort === value) ?? "last_active";
+}
+
+function parseView(value: string | undefined): StudentsView {
+  return VIEWS.find((view) => view === value) ?? "activity";
 }
 
 function parsePage(value: string | undefined) {
@@ -40,6 +62,35 @@ export default async function ProfessorStudentsPage({
     "/professor/students",
   );
   const params = await searchParams;
+  const view = parseView(
+    typeof params.view === "string" ? params.view : undefined,
+  );
+
+  // One correlation id per render, shared by every audit row it writes.
+  const requestId = pilotRequestId();
+
+  if (view === "topics") {
+    const roster = await resolveInstructorStudentRoster(authorization, {
+      requestId,
+    });
+    const empty = roster.topics.length === 0 && roster.unassigned.length === 0;
+
+    return (
+      <StudentsPageShell>
+        {roster.mode === "demo" ? (
+          <DemoModeNotice />
+        ) : empty ? (
+          <NoStudentsNotice />
+        ) : (
+          <>
+            <ViewSwitch view={view} />
+            <InstructorStudentTopicRoster roster={roster} />
+          </>
+        )}
+      </StudentsPageShell>
+    );
+  }
+
   const sort = parseSort(
     typeof params.sort === "string" ? params.sort : undefined,
   );
@@ -53,34 +104,26 @@ export default async function ProfessorStudentsPage({
     search,
     sort,
   });
+  // Only the students on this page get usernames, and only when there are
+  // any: an empty page or the demo store records nothing.
+  const identities =
+    list.mode === "database" && list.students.length > 0
+      ? await resolveInstructorStudentIdentities(
+          authorization,
+          list.students.map((student) => student.studentKey),
+          { requestId },
+        )
+      : undefined;
 
   return (
-    <ProfessorPageShell
-      title="Students"
-      description="Everyone who has practised with the tutor, identified by a stable pseudonym. This list holds no names, email addresses, or browser identifiers; an authorized instructor can reveal one student's account identity from their detail page."
-      aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <Users className="h-4 w-4" />
-          pseudonymous
-        </Badge>
-      }
-    >
+    <StudentsPageShell>
       {list.mode === "demo" ? (
-        <Alert>
-          <AlertDescription>
-            Demo mode keeps tutor sessions in memory for the current visitor
-            only, so there is no class to list here. Connect the database to see
-            recorded practice activity.
-          </AlertDescription>
-        </Alert>
+        <DemoModeNotice />
       ) : list.total === 0 && !search ? (
-        <Alert>
-          <AlertDescription>
-            No student practice activity has been recorded yet.
-          </AlertDescription>
-        </Alert>
+        <NoStudentsNotice />
       ) : (
         <>
+          <ViewSwitch view={view} />
           <form className="flex flex-wrap items-center gap-3" action="">
             <div className="flex h-10 min-w-60 items-center gap-2 rounded-md border border-input bg-background px-3 shadow-sm">
               <Search
@@ -118,7 +161,7 @@ export default async function ProfessorStudentsPage({
             </button>
           </form>
 
-          <InstructorStudentTable list={list} />
+          <InstructorStudentTable identities={identities} list={list} />
 
           <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
             <span>
@@ -131,6 +174,7 @@ export default async function ProfessorStudentsPage({
                 <Link
                   className="font-medium text-primary hover:underline"
                   href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                  prefetch={false}
                 >
                   Previous
                 </Link>
@@ -139,6 +183,7 @@ export default async function ProfessorStudentsPage({
                 <Link
                   className="font-medium text-primary hover:underline"
                   href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                  prefetch={false}
                 >
                   Next
                 </Link>
@@ -147,6 +192,85 @@ export default async function ProfessorStudentsPage({
           </div>
         </>
       )}
+    </StudentsPageShell>
+  );
+}
+
+function StudentsPageShell({ children }: { children: ReactNode }) {
+  return (
+    <ProfessorPageShell
+      title="Students"
+      description="Students who have signed in to the tutor, with the practice activity they have recorded. Usernames are read from the account provider for each visit by an authorized instructor and every display is recorded; the practice analytics themselves hold no usernames, names, email addresses, or browser identifiers. A student's name and email address are available from their detail page."
+      aside={
+        <Badge variant="outline" className="h-10 gap-2 px-4">
+          <Users className="h-4 w-4" />
+          usernames audited
+        </Badge>
+      }
+    >
+      {children}
     </ProfessorPageShell>
+  );
+}
+
+function DemoModeNotice() {
+  return (
+    <Alert>
+      <AlertDescription>
+        Demo mode keeps tutor sessions in memory for the current visitor only,
+        so there is no class to list here. Connect the database to see recorded
+        practice activity.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function NoStudentsNotice() {
+  return (
+    <Alert>
+      <AlertDescription>
+        No students have signed in or practised with the tutor yet.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+const VIEW_LABELS: Record<StudentsView, string> = {
+  activity: "Activity",
+  topics: "By topic",
+};
+
+function ViewSwitch({ view }: { view: StudentsView }) {
+  return (
+    <nav
+      aria-label="Students view"
+      className="flex w-fit items-center gap-1 rounded-md border border-border bg-card p-1 text-sm shadow-xs"
+    >
+      {VIEWS.map((candidate) => {
+        const active = candidate === view;
+        return (
+          <Link
+            key={candidate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "rounded-sm px-3 py-1.5 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+            href={
+              candidate === "activity"
+                ? "/professor/students"
+                : `/professor/students?view=${candidate}`
+            }
+            // Rendering either view shows usernames and records it, so a
+            // hover must not do it on the professor's behalf.
+            prefetch={false}
+          >
+            {VIEW_LABELS[candidate]}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

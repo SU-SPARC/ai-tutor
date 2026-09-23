@@ -69,6 +69,18 @@ export const SAFE_TUTOR_ERROR_CODES = new Set([
 export const SIGN_IN_REQUIRED_CODE = "SIGN_IN_REQUIRED";
 export const SIGN_IN_REQUIRED_MESSAGE =
   "Sign in to start practicing. Your progress is saved to your account.";
+
+/**
+ * A linked "similar problem" is only offered from a published question's
+ * session; a reserve-practice session already is the similar problem.
+ */
+export function shouldOfferSimilarPractice(
+  session?: Pick<TutorSessionDto, "practiceContext"> | null,
+) {
+  return Boolean(
+    session && (session.practiceContext ?? "published") === "published",
+  );
+}
 export const UNREADABLE_MESSAGE_PREFIX = "I could not read";
 
 export class TutorClientRequestError extends Error {
@@ -156,7 +168,7 @@ export function chatMessageForResponse(
   return {
     label: unreadable ? "Couldn't read that answer" : undefined,
     note: unreadable
-      ? "This was not marked wrong. Retype it in a readable form and check again."
+      ? "This was not counted as an attempt. Retype your answer using the format shown and try again."
       : undefined,
     role: "tutor",
     text: response.message,
@@ -275,6 +287,8 @@ export async function fetchTutorSession(sessionId: string) {
 }
 
 export async function requestTutorResponse(input: {
+  /** Context for help only: the server never grades an aiHelp request. */
+  aiHelp?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
   mode: TutorMode;
@@ -420,6 +434,7 @@ export function clearPendingSessionCreationKey(
 }
 
 export function pendingTutorEventId(input: {
+  aiHelp?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
   mode: TutorMode;
@@ -429,6 +444,7 @@ export function pendingTutorEventId(input: {
   const storageKey = `ai-tutor:pending-event:${input.sessionId}`;
   const fingerprint = clientInputFingerprint(
     JSON.stringify({
+      aiHelp: Boolean(input.aiHelp),
       allowLlmFallback: Boolean(input.allowLlmFallback),
       answer: input.answer,
       mode: input.mode,

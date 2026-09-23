@@ -19,6 +19,8 @@ describe("PracticeSimilarProblemAction", () => {
 
     expect(html).toContain("Try a similar problem");
     expect(html).toContain("professor-approved problem");
+    expect(html).toContain("partial practice credit");
+    expect(html).not.toMatch(/does not count/i);
     expect(html).not.toMatch(/Reserve|candidate|generated/);
   });
 

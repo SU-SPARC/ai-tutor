@@ -44,6 +44,7 @@ import {
   requestTutorResponse,
   sessionErrorFor,
   sessionWithProgress,
+  shouldOfferSimilarPractice,
   storeTutorSessionId,
   TutorClientRequestError,
   type ChatMessage,
@@ -89,6 +90,7 @@ export {
   recoveryMessages,
   requestTutorResponse,
   responseUsageStatusText,
+  shouldOfferSimilarPractice,
   shouldShowRetrievedContext,
   SIGN_IN_REQUIRED_CODE,
   SIGN_IN_REQUIRED_MESSAGE,
@@ -750,6 +752,9 @@ export function PracticeWorkspace({
 
       try {
         const tutorResponse = await requestTutorResponse({
+          // The draft is context for the help, never a submission: the
+          // server does not grade an aiHelp request.
+          aiHelp: true,
           allowLlmFallback: true,
           answer: helpMessage,
           mode: "check",
@@ -1051,8 +1056,8 @@ export function PracticeWorkspace({
           {isReservePractice ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-sheet px-4 py-3 text-sm text-sheet-foreground">
               <span>
-                Extra practice. This problem does not count toward your assigned
-                practice.
+                Extra practice. Solving this similar problem can count toward
+                partial practice credit under your instructor&apos;s policy.
               </span>
               <Button
                 asChild
@@ -1094,7 +1099,7 @@ export function PracticeWorkspace({
               )}
               disclosedHints={disclosedHints}
               extraPractice={
-                session ? (
+                session && shouldOfferSimilarPractice(session) ? (
                   <PracticeSimilarProblemAction
                     key={session.id}
                     disabled={isTutorBusy}

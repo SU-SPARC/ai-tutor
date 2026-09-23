@@ -42,6 +42,55 @@ export class QuestionLifecycleNotFoundError extends Error {
   }
 }
 
+/**
+ * The database refused or could not complete a lifecycle write for a reason
+ * that is not the professor's to fix: a missing runtime permission, a
+ * timeout, or an unavailable server. The message says that nothing changed
+ * and what to do next; the SQLSTATE is kept for the operator without any
+ * driver text.
+ */
+export class QuestionLifecycleStorageError extends Error {
+  readonly sqlState?: string;
+
+  constructor(message: string, sqlState?: string) {
+    super(message);
+    this.name = "QuestionLifecycleStorageError";
+    this.sqlState = sqlState;
+  }
+}
+
+const DATABASE_RAISED_VALIDATION =
+  /publication blocked|requires a reason|valid question/i;
+
+/**
+ * Turns a classified database failure from a lifecycle transition into the
+ * error the professor should see. A `raise exception` authored by our own
+ * database functions keeps its wording; everything else becomes an actionable
+ * storage error instead of the bare "could not be completed" text.
+ */
+export function lifecycleErrorFromDatabaseFailure(failure: {
+  message: string;
+  reason?: string;
+  sqlState?: string;
+}): Error {
+  if (failure.reason) {
+    return DATABASE_RAISED_VALIDATION.test(failure.reason)
+      ? new QuestionLifecycleValidationError(failure.reason)
+      : new QuestionLifecycleConflictError(failure.reason);
+  }
+  const code = failure.sqlState ? ` (database error ${failure.sqlState})` : "";
+  if (failure.sqlState === "42501") {
+    return new QuestionLifecycleStorageError(
+      `Publishing is blocked by a database permission problem, not by this question${code}. Nothing was changed. Ask the site operator to restore the application's database permissions, then try again.`,
+      failure.sqlState,
+    );
+  }
+  return new QuestionLifecycleStorageError(
+    `${failure.message} Nothing was changed${code}. Try again in a moment; if it keeps failing, contact the site operator.`,
+    failure.sqlState,
+  );
+}
+
 const VERSION_TRANSITIONS: Readonly<
   Partial<Record<QuestionLifecycleAction, readonly QuestionVersionState[]>>
 > = {
@@ -153,6 +202,7 @@ export function lifecycleActionRequiresReason(action: QuestionLifecycleAction) {
 const LIFECYCLE_DOMAIN_ERROR_NAMES = new Set([
   "QuestionLifecycleConflictError",
   "QuestionLifecycleNotFoundError",
+  "QuestionLifecycleStorageError",
   "QuestionLifecycleValidationError",
   "QuestionPublicationBlockedError",
 ]);
@@ -166,6 +216,7 @@ export function isQuestionLifecycleDomainError(error: unknown): boolean {
   return (
     error instanceof QuestionLifecycleConflictError ||
     error instanceof QuestionLifecycleNotFoundError ||
+    error instanceof QuestionLifecycleStorageError ||
     error instanceof QuestionLifecycleValidationError ||
     (error instanceof Error && LIFECYCLE_DOMAIN_ERROR_NAMES.has(error.name))
   );

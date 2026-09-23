@@ -6,12 +6,14 @@ import {
 } from "@/lib/auth/authorization";
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
+  STUDENT_ACCOUNTS_CTE,
   STUDENT_KEY_SQL,
 } from "@/lib/data/analytics-population";
 import {
   readDatabaseRows,
   type DatabaseQueryExecutor,
 } from "@/lib/data/database-executor";
+import type { InstructorIdentityViewScope } from "@/lib/types";
 
 /**
  * What the analytics population knows about who a pseudonym belongs to. The
@@ -27,25 +29,36 @@ type AccountLinkRow = {
   authenticated: boolean | null;
   external_subject: string | null;
   identity_provider: string | null;
+  student_key: string;
 };
 
 /**
  * A student key is `sha256('user:' || users.id)`. The digest is not reversed
- * here — it is recomputed forwards over the sessions that already form the
- * analytics population, and the owner it matches is then joined to its own
+ * here — it is recomputed forwards over the same population the Students page
+ * lists: signed-in student accounts, and the owners of the sessions that form
+ * the practice analytics. The owner it matches is then joined to its own
  * account row. A key that belongs to no student in that population resolves to
- * nothing, so this cannot be used to probe accounts the analytics never list.
+ * nothing, so this cannot be used to probe accounts the Students page never
+ * lists — professor accounts, system actors, and disabled or deleted accounts
+ * among them. One statement serves both the single reveal and the roster
+ * reveal: the keys arrive as an array, and each matched owner comes back once.
  */
-const ACCOUNT_LINK_SQL = `
-  with student_owners as (
-    select distinct
+const ACCOUNT_LINKS_SQL = `
+  with
+  ${STUDENT_ACCOUNTS_CTE},
+  student_owners as (
+    select
       ${STUDENT_KEY_SQL} as student_key,
       s.user_id
     from tutor_sessions s
     where s.practice_context = 'published'
       and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+    union
+    select student_key, user_id
+    from student_accounts
   )
   select
+    owners.student_key,
     owners.user_id is not null as authenticated,
     account.identity_provider,
     account.external_subject
@@ -53,9 +66,47 @@ const ACCOUNT_LINK_SQL = `
   left join users account
     on account.id = owners.user_id
     and account.user_type = 'human'
-  where owners.student_key = $1
-  limit 1
+  where owners.student_key = any($1::text[])
 `;
+
+function toAccountLink(row: AccountLinkRow): StudentAccountLink {
+  if (!row.authenticated) {
+    return { kind: "anonymous" };
+  }
+
+  if (!row.identity_provider || !row.external_subject) {
+    return { kind: "unlinked" };
+  }
+
+  return {
+    identityProvider: row.identity_provider,
+    kind: "account",
+    subject: row.external_subject,
+  };
+}
+
+async function readAccountLinks(
+  query: DatabaseQueryExecutor,
+  studentKeys: string[],
+) {
+  const links = new Map<string, StudentAccountLink>();
+
+  if (studentKeys.length === 0) {
+    return links;
+  }
+
+  const rows = (await readDatabaseRows(query, ACCOUNT_LINKS_SQL, [
+    studentKeys,
+  ])) as AccountLinkRow[];
+
+  for (const row of rows) {
+    if (!links.has(row.student_key)) {
+      links.set(row.student_key, toAccountLink(row));
+    }
+  }
+
+  return links;
+}
 
 export function createDatabaseStudentIdentityRepository(
   query: DatabaseQueryExecutor,
@@ -66,28 +117,20 @@ export function createDatabaseStudentIdentityRepository(
       studentKey: string,
     ): Promise<StudentAccountLink | undefined> {
       assertAuthorization(authorization, "professor");
-      const rows = (await readDatabaseRows(query, ACCOUNT_LINK_SQL, [
-        studentKey,
-      ])) as AccountLinkRow[];
-      const row = rows[0];
+      return (await readAccountLinks(query, [studentKey])).get(studentKey);
+    },
 
-      if (!row) {
-        return undefined;
-      }
-
-      if (!row.authenticated) {
-        return { kind: "anonymous" };
-      }
-
-      if (!row.identity_provider || !row.external_subject) {
-        return { kind: "unlinked" };
-      }
-
-      return {
-        identityProvider: row.identity_provider,
-        kind: "account",
-        subject: row.external_subject,
-      };
+    /**
+     * The roster's counterpart to `findAccountLink`: one read for every key
+     * on the page. A key outside the population is simply absent from the
+     * result, exactly as the single lookup resolves it to nothing.
+     */
+    async findAccountLinks(
+      authorization: AnalyticsAuthorization,
+      studentKeys: string[],
+    ): Promise<Map<string, StudentAccountLink>> {
+      assertAuthorization(authorization, "professor");
+      return readAccountLinks(query, [...new Set(studentKeys)]);
     },
   };
 }
@@ -132,5 +175,53 @@ export async function recordStudentIdentityView(
   // as much a failure here as a rejected query.
   if (!rows[0]) {
     throw new Error("The student identity view could not be recorded.");
+  }
+}
+
+/**
+ * The Students page's audit record: one `analytics.student_identity_viewed`
+ * row per student shown, written in a single statement so a page's names are
+ * either recorded in full or not at all. Each row carries the same fields as
+ * a single reveal plus `scope` — `"roster"` for the by-topic view, `"activity"`
+ * for the table — so an auditor can tell which view showed a name from a
+ * deliberate reveal of one student. As with the single reveal, a statement
+ * that inserts fewer rows than it was given is a failure, and the caller is
+ * expected to withhold every name when this rejects.
+ */
+export async function recordStudentIdentityViews(
+  query: DatabaseQueryExecutor,
+  input: {
+    professorUserId: string;
+    requestId?: string;
+    scope: InstructorIdentityViewScope;
+    views: Array<{ status: string; studentKey: string }>;
+  },
+) {
+  if (input.views.length === 0) {
+    return;
+  }
+
+  const rows = await query(
+    `insert into audit_events (
+       actor_user_id, actor_subject, action, entity_type, entity_id,
+       outcome, request_id, metadata_json
+     ) select
+       case when exists (select 1 from users where id = $1) then $1 else null end,
+       $1, 'analytics.student_identity_viewed', 'student_analytics',
+       view.student_key, 'success', $2,
+       jsonb_build_object('result', view.status, 'scope', $5::text)
+     from unnest($3::text[], $4::text[]) as view(student_key, status)
+     returning id`,
+    [
+      input.professorUserId,
+      input.requestId ?? null,
+      input.views.map((view) => view.studentKey),
+      input.views.map((view) => view.status),
+      input.scope,
+    ],
+  );
+
+  if (rows.length !== input.views.length) {
+    throw new Error("The student identity views could not be recorded.");
   }
 }

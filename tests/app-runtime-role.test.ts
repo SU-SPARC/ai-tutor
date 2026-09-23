@@ -174,6 +174,7 @@ describe("least-privilege runtime role provisioning", () => {
         has_sequence_privilege('app_runtime', 'attempts_id_seq', 'USAGE') as sequence_usage,
         has_function_privilege('app_runtime', 'app_set_updated_at()', 'EXECUTE') as trigger_execute,
         has_function_privilege('app_runtime', 'app_question_publication_gate_failures(text,bigint,text)', 'EXECUTE') as publication_gate_execute,
+        has_function_privilege('app_runtime', 'app_assert_question_publication_quality(text,bigint,text)', 'EXECUTE') as publication_assert_execute,
         has_function_privilege('app_runtime', 'app_question_snapshot(text)', 'EXECUTE') as snapshot_execute,
         has_function_privilege('app_runtime', 'app_record_question_version(text)', 'EXECUTE') as version_function_execute,
         has_function_privilege('app_runtime', 'app_user_can_review(text)', 'EXECUTE') as reviewer_function_execute,
@@ -183,14 +184,15 @@ describe("least-privilege runtime role provisioning", () => {
       where rolname = 'app_runtime'
     `);
     expect(verification.rows[0]).toEqual({
-      row_level_security_tables: 30,
+      row_level_security_tables: 31,
       ledger_insert: false,
+      publication_assert_execute: true,
       publication_gate_execute: true,
       role_update: false,
       reviewer_function_execute: true,
       reserve_event_insert: true,
       reserve_view_select: true,
-      runtime_policies: 30,
+      runtime_policies: 31,
       rolbypassrls: false,
       rolcanlogin: false,
       rolcreatedb: false,
@@ -246,6 +248,17 @@ describe("least-privilege runtime role provisioning", () => {
     ).resolves.toMatchObject({ rows: [{ count: 1 }] });
     await expect(
       database.exec(`
+        insert into question_similarity_links (
+          origin_question_id, similar_question_id, origin_version_id,
+          similar_version_id, relationship_type, slot, created_by_user_id
+        ) select
+          origin.id, reserve.id, origin.published_version_id,
+          reserve.working_version_id, 'similar_practice', 1,
+          'user:runtime-role-professor'
+        from questions origin
+        cross join questions reserve
+        where origin.id = 'runtime-role-origin-question'
+          and reserve.id = 'runtime-role-reserve-question';
         insert into tutor_sessions (
           id, user_id, question_id, solved, status, current_state,
           completed_at
@@ -280,7 +293,7 @@ describe("least-privilege runtime role provisioning", () => {
     ).rejects.toThrow(/permission denied/);
     await expect(readRoleAttestation(client)).resolves.toMatchObject({
       bypassRls: false,
-      executableRoutineCount: 11,
+      executableRoutineCount: 12,
       missingRuntimeFunctionCount: 0,
       missingRuntimeWriteCount: 0,
       protectedWriteCount: 0,
@@ -292,7 +305,7 @@ describe("least-privilege runtime role provisioning", () => {
     await expect(readRlsEvidence(client)).resolves.toMatchObject({
       dataApiGrantCount: 0,
       status: "passed",
-      tableCount: 30,
+      tableCount: 31,
     });
     await database.exec("reset role");
   });

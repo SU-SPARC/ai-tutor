@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
+  batchPreflightFailureMessage,
   boundedNote,
   enumValue,
   isRecord,
@@ -175,8 +176,11 @@ export async function POST(request: Request) {
       );
       return NextResponse.json(
         {
-          error:
-            "No questions were changed because one or more selected versions failed batch preflight.",
+          error: batchPreflightFailureMessage(
+            action,
+            result.failures.length,
+            items.length,
+          ),
           result,
         },
         { status: validationOnly ? 422 : 409 },

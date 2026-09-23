@@ -136,8 +136,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page(
     "/professor/students",
     "src/app/professor/students/page.tsx",
-    "professor-analytics",
-    ["requireAnalyticsAccess", "listInstructorStudents"],
+    "professor-student-identity",
+    [
+      "requireAnalyticsAccess",
+      "listInstructorStudents",
+      "resolveInstructorStudentRoster",
+      "resolveInstructorStudentIdentities",
+    ],
   ),
   page(
     "/professor/students/[studentKey]",
@@ -269,6 +274,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/api/professor/questions/[id]/reserve/route.ts",
     "professor-review",
     ["requireProfessorReview", "setQuestionReserveDisposition"],
+  ),
+  route(
+    "POST",
+    "/api/professor/questions/[id]/similarity",
+    "src/app/api/professor/questions/[id]/similarity/route.ts",
+    "professor-review",
+    ["requireProfessorReview", "setSimilarPracticeLink"],
   ),
   route(
     "POST",
@@ -602,6 +614,6 @@ function dataPolicyFor(access: ServerBoundaryAccess) {
     case "professor-analytics":
       return "Aggregate course analytics only; no student-level export.";
     case "professor-student-identity":
-      return "Pseudonymous student key in; display name, username, and primary email out. No other profile field, and no analytics record is written.";
+      return "Student identity for the signed-in professor only: the Students page shows usernames, the single reveal returns display name, username, and primary email for one pseudonymous key. Every display is audited. No other profile field, and no analytics record is written.";
   }
 }

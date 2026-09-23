@@ -270,3 +270,27 @@ structural typed publication gates. Three helper functions receive explicit
 unchanged; no `questions` spec column or version bump is introduced. Apply through
 the existing checksummed migration runner. See
 [answer-checker.md](answer-checker.md) for the application/SQL validation boundary.
+
+## Explicit similar-practice relationships (026)
+
+Migration `026_question_similarity_links.sql` adds the professor-owned,
+version-pinned mapping from one published origin to at most three dedicated
+Reserve siblings. Each row has a stable bigint primary key. Composite foreign
+keys prove each pinned version belongs to the named question; active-only
+partial unique indexes prevent duplicate slots, pairs, and sibling reuse while
+retaining revoked history. Insert validation requires exact current eligible
+versions in the same topic. Update validation permits only a one-way,
+actor-attributed soft revocation through the audited workflow; hard deletion
+and every content-field edit are rejected.
+
+The Reserve-session guard now requires the exact active mapping in addition to
+all migration-025 ownership, eligibility, and completion checks. Historical
+credit evidence deliberately accepts an exact active or revoked version-pair
+row, so a later revocation or reviewed re-pin cannot erase earned evidence.
+The controlled
+backfill creates only the reviewed Event Token v387 → Raffle Ticket v464 pair
+and fails closed if only one record exists, either version pointer has drifted,
+or either record is in an unexpected state.
+Fresh empty databases skip the backfill. See
+[Reserve-first similar practice](practice-variants.md) for selection and
+version-change behavior.

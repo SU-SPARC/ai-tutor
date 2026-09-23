@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST as batchReview } from "@/app/api/professor/questions/batch/route";
+import { batchPreflightFailureMessage } from "@/lib/api/question-lifecycle";
 import {
   mockPrincipal,
   resetAuthMocks,
@@ -90,6 +91,18 @@ describe("professor question batch API", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: expect.stringMatching(/publication only/i),
     });
+  });
+
+  it("explains a failed batch in plain language with counts and no partial change", () => {
+    expect(batchPreflightFailureMessage("publish", 2, 11)).toBe(
+      "Nothing was published. 2 of 11 selected questions did not pass the publication check, so no question was changed. Fix or remove them, then try again.",
+    );
+    expect(batchPreflightFailureMessage("reject", 1, 3)).toMatch(
+      /^Nothing was rejected\. 1 of 3 selected questions did not pass the batch check/,
+    );
+    expect(batchPreflightFailureMessage("request_revision", 3, 3)).toMatch(
+      /^Nothing was sent back for revision\. 3 of 3/,
+    );
   });
 
   it("requires a note when a reject or revision batch selects Other", async () => {

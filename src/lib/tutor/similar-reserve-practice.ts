@@ -5,21 +5,19 @@ import { createHash } from "node:crypto";
 import type { StudentAuthorization } from "@/lib/auth/authorization";
 import { getApprovedQuestionById } from "@/lib/data/data-store";
 import {
-  getEligibleReservePracticeQuestion,
-  listEligibleReservePracticeQuestions,
-  type ReservePracticeCandidate,
-} from "@/lib/data/reserve-practice-repository";
+  listEligibleSimilarQuestionsForOrigin,
+  type LinkedReservePracticeCandidate,
+} from "@/lib/data/question-similarity-repository";
 import {
   createReservePracticeTutorSession,
   getTutorSession,
   listTutorSessionsForStudent,
   ReservePracticeEligibilityChangedError,
 } from "@/lib/data/tutor-session-repository";
-import type { TutorQuestion } from "@/lib/types";
-
+import { similarProblemOriginQualifies } from "@/lib/tutor/practice-credit";
 export type SimilarReservePracticeResult =
   | {
-      candidate: ReservePracticeCandidate;
+      candidate: LinkedReservePracticeCandidate;
       outcome: "match";
       sessionId: string;
     }
@@ -33,34 +31,43 @@ export async function startSimilarReservePractice(
 ): Promise<SimilarReservePracticeResult> {
   const origin = await getTutorSession(authorization, originSessionId);
   if (!origin) return { outcome: "session_unavailable" };
-  if (!origin.solved && origin.status !== "completed") {
-    return { outcome: "not_completed" };
+
+  // Dedicated similar practice is defined only from an assigned, published
+  // origin. Reserve-to-Reserve chaining is intentionally unsupported.
+  if (
+    (origin.practiceContext ?? "published") !== "published" ||
+    !origin.questionVersionId
+  ) {
+    return { outcome: "session_unavailable" };
   }
 
-  const [publicQuestion, reserveOrigin, candidates, studentSessions] =
-    await Promise.all([
-      getApprovedQuestionById(origin.questionId),
-      origin.practiceContext === "reserve_practice" && origin.questionVersionId
-        ? getEligibleReservePracticeQuestion(
-            origin.questionId,
-            origin.questionVersionId,
-          )
-        : Promise.resolve(undefined),
-      listEligibleReservePracticeQuestions(),
-      listTutorSessionsForStudent(authorization),
-    ]);
-  const currentQuestion =
-    origin.practiceContext === "reserve_practice"
-      ? reserveOrigin?.question
-      : publicQuestion;
+  const [currentQuestion, candidates, studentSessions] = await Promise.all([
+    getApprovedQuestionById(origin.questionId),
+    listEligibleSimilarQuestionsForOrigin(
+      origin.questionId,
+      origin.questionVersionId,
+    ),
+    listTutorSessionsForStudent(authorization),
+  ]);
   if (!currentQuestion) return { outcome: "session_unavailable" };
+  // The same rule the database trigger applies: a solved origin, or the
+  // partial-credit route (three valid attempts and the worked solution).
+  if (
+    !similarProblemOriginQualifies({
+      origin,
+      stepCount: (origin.questionVersion ?? currentQuestion).solutionSteps
+        .length,
+      studentSessions: studentSessions.sessions,
+    })
+  ) {
+    return { outcome: "not_completed" };
+  }
 
   const practicedQuestionIds = new Set(
     studentSessions.sessions.map((session) => session.questionId),
   );
-  const candidate = rankSimilarReservePracticeQuestions({
+  const candidate = rankLinkedSimilarPracticeQuestions({
     candidates,
-    currentQuestion,
     practicedQuestionIds,
   })[0];
   if (!candidate) return { outcome: "none" };
@@ -86,68 +93,19 @@ export async function startSimilarReservePractice(
   return { candidate, outcome: "match", sessionId: session.id };
 }
 
-export function rankSimilarReservePracticeQuestions({
+export function rankLinkedSimilarPracticeQuestions({
   candidates,
-  currentQuestion,
   practicedQuestionIds,
 }: {
-  candidates: ReservePracticeCandidate[];
-  currentQuestion: TutorQuestion;
+  candidates: LinkedReservePracticeCandidate[];
   practicedQuestionIds: ReadonlySet<string>;
 }) {
-  return candidates
-    .filter(
-      (candidate) =>
-        candidate.question.id !== currentQuestion.id &&
-        candidate.question.topicId === currentQuestion.topicId,
-    )
-    .map((candidate) => ({
-      candidate,
-      score: similarityScore(
-        currentQuestion,
-        candidate.question,
-        practicedQuestionIds,
-      ),
-    }))
-    .sort(
-      (left, right) =>
-        compareScore(right.score, left.score) ||
-        left.candidate.reservedAt.localeCompare(right.candidate.reservedAt) ||
-        left.candidate.question.id.localeCompare(right.candidate.question.id),
-    )
-    .map(({ candidate }) => candidate);
-}
-
-function similarityScore(
-  current: TutorQuestion,
-  candidate: TutorQuestion,
-  practicedQuestionIds: ReadonlySet<string>,
-) {
-  return [
-    Number(candidate.difficulty === current.difficulty),
-    Number(hasSharedPattern(current, candidate)),
-    sharedMisconceptionCount(current, candidate),
-    Number(!practicedQuestionIds.has(candidate.id)),
-  ] as const;
-}
-
-function compareScore(left: readonly number[], right: readonly number[]) {
-  for (let index = 0; index < left.length; index += 1) {
-    const difference = left[index] - right[index];
-    if (difference !== 0) return difference;
-  }
-  return 0;
-}
-
-function hasSharedPattern(left: TutorQuestion, right: TutorQuestion) {
-  const leftIds = new Set(left.source.patternIds ?? []);
-  return (right.source.patternIds ?? []).some((id) => leftIds.has(id));
-}
-
-function sharedMisconceptionCount(left: TutorQuestion, right: TutorQuestion) {
-  const leftIds = new Set(left.misconceptions.map(({ id }) => id));
-  return right.misconceptions.reduce(
-    (count, misconception) => count + Number(leftIds.has(misconception.id)),
-    0,
+  return [...candidates].sort(
+    (left, right) =>
+      Number(practicedQuestionIds.has(left.question.id)) -
+        Number(practicedQuestionIds.has(right.question.id)) ||
+      left.slot - right.slot ||
+      left.reservedAt.localeCompare(right.reservedAt) ||
+      left.question.id.localeCompare(right.question.id),
   );
 }

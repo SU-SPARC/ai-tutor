@@ -63,6 +63,7 @@ import {
   nextQuestionAfter,
   PracticeWorkspace,
   recoveryMessages,
+  shouldOfferSimilarPractice,
 } from "@/components/tutor/practice-workspace";
 import {
   inputFormatHintFor,
@@ -470,7 +471,8 @@ describe("answer feedback", () => {
       label: "Couldn't read that answer",
       tone: "guidance",
     });
-    expect(message.note).toContain("not marked wrong");
+    expect(message.note).toContain("not counted as an attempt");
+    expect(message.note).not.toMatch(/parser|verdict|guidance|database|mode/i);
     expect(message.tone).not.toBe("incorrect");
   });
 
@@ -565,6 +567,15 @@ describe("similar practice", () => {
     expect(html).toContain("Try a similar problem");
     expect(html).toContain("professor-approved");
     expect(html).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
+  });
+
+  it("offers the action only for published-origin sessions", () => {
+    expect(shouldOfferSimilarPractice({ practiceContext: "published" })).toBe(
+      true,
+    );
+    expect(
+      shouldOfferSimilarPractice({ practiceContext: "reserve_practice" }),
+    ).toBe(false);
   });
 
   it("falls back gracefully when nothing similar exists", () => {

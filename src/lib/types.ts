@@ -237,8 +237,19 @@ export type QuestionLifecycleBatchFailure = QuestionLifecycleBatchItem & {
   topicId?: string;
 };
 
+/**
+ * Why the signed-in professor is considered to have personally reviewed an
+ * exact immutable version: an explicit inspection record, or their own
+ * attributed approval of that same version.
+ */
+export type QuestionVersionReviewEvidence = {
+  kind: "approval" | "inspection";
+  reviewedAt: string;
+};
+
 export type QuestionLifecycleBatchPreviewItem =
   | (QuestionLifecycleBatchItem & {
+      reviewEvidence?: QuestionVersionReviewEvidence;
       status: "ready";
     })
   | (QuestionLifecycleBatchFailure & {
@@ -579,9 +590,40 @@ export type QuestionReserveEventDto = {
   versionId: number;
 };
 
+export type QuestionSimilarityRelationshipType = "similar_practice";
+
+export type QuestionSimilarityLinkDto = {
+  createdAt: string;
+  createdBy: QuestionVersionAttribution;
+  eligible: boolean;
+  id: number;
+  originQuestionId: string;
+  originTitle: string;
+  originVersionId: number;
+  relationshipType: QuestionSimilarityRelationshipType;
+  revokedAt?: string;
+  revokedBy?: QuestionVersionAttribution;
+  similarQuestionId: string;
+  similarTitle: string;
+  similarVersionId: number;
+  slot: 1 | 2 | 3;
+};
+
+export type QuestionSimilarityCoverageDto = {
+  eligibleSiblingCount: number;
+  linkedSiblingCount: number;
+  originQuestionId: string;
+  originTitle: string;
+  originVersionId: number;
+  targetSiblingCount: 3;
+  topicId: string;
+};
+
 export type QuestionLifecycleDashboard = {
   inspections: QuestionVersionInspectionDto[];
   mode: "database" | "demo";
+  /** The signed-in professor, so the UI can tell which approvals are theirs. */
+  professorUserId?: string;
   questions: QuestionLifecycleDto[];
   readOnly: boolean;
   readOnlyReason?: string;
@@ -799,6 +841,12 @@ export function hasGeneratedQuestionDefaults(question: TutorQuestion) {
 }
 
 export type TutorRequest = {
+  /**
+   * An explicit "Ask AI for help" request. The draft in `answer` is context
+   * for the help, never a submission: the engine does not grade it, so it can
+   * never become a correct/incorrect verdict or a valid answer attempt.
+   */
+  aiHelp?: boolean;
   allowLlmFallback?: boolean;
   answer: string;
   eventId?: string;
@@ -981,10 +1029,53 @@ export type InstructorAttentionSignal = {
   topicTitle?: string;
 };
 
+/**
+ * Which route of the course practice-credit policy the recorded evidence
+ * supports. Derived, never stored, and never a grade: the instructor applies
+ * the policy. See `@/lib/tutor/practice-credit`.
+ */
+export type PracticeCreditRoute =
+  | "full"
+  | "partial_similar"
+  | "manual_review"
+  | "not_qualified";
+
+export type PracticeCreditEvidence = {
+  route: PracticeCreditRoute;
+  similarProblemAttempted: boolean;
+  similarProblemSolved: boolean;
+  solved: boolean;
+  solvedWithinValidAttemptLimit: boolean;
+  /** More than one published session: the student used Start over. */
+  startOverUsed: boolean;
+  /** Valid answer attempts across every published session. */
+  validAttempts: number;
+  /**
+   * The 1-based position of the first correct valid attempt, counting
+   * incorrect ones before it. Absent when no valid attempt was correct.
+   */
+  validAttemptsToFirstCorrect?: number;
+  /**
+   * Whether a worked-solution reveal was recorded before the first correct
+   * valid attempt, or at all when the question was never answered correctly.
+   */
+  workedSolutionViewedBeforeFirstCorrect: boolean;
+};
+
+/** One assigned question's credit evidence for one pseudonymous student. */
+export type InstructorQuestionCreditEvidence = PracticeCreditEvidence & {
+  lastActiveAt?: string;
+  questionId: string;
+  questionTitle: string;
+  topicId: string;
+  topicTitle: string;
+};
+
 export type InstructorStudentDetail = {
   activity: InstructorStudentActivityPoint[];
   attention: InstructorAttentionSignal[];
   attempts: InstructorStudentAttempt[];
+  creditEvidence: InstructorQuestionCreditEvidence[];
   misconceptions: InstructorMisconceptionCount[];
   mode: "database" | "demo";
   summary: InstructorStudentSummary;
@@ -1012,6 +1103,54 @@ export type InstructorStudentIdentity =
   | { status: "anonymous" }
   | { status: "unavailable" }
   | { status: "unlinked" };
+
+/** Which Students page view showed a name, recorded with each audit row. */
+export type InstructorIdentityViewScope = "activity" | "roster";
+
+/**
+ * What the Students page shows for one student: the account's username
+ * alone, or the reason none was shown. An identified account without a
+ * username is still identified; it simply has no username to show. The
+ * display name and email address stay behind the per-student reveal on the
+ * detail page.
+ */
+export type InstructorStudentRosterIdentity =
+  | { status: "identified"; username?: string }
+  | { status: "anonymous" }
+  | { status: "unavailable" }
+  | { status: "unlinked" };
+
+/** Username identities keyed by pseudonym, for the activity table. */
+export type InstructorStudentIdentities = Record<
+  string,
+  InstructorStudentRosterIdentity
+>;
+
+export type InstructorRosterStudent = {
+  identity?: InstructorStudentRosterIdentity;
+  studentKey: string;
+};
+
+export type InstructorStudentTopicGroup = {
+  students: InstructorRosterStudent[];
+  topicId: string;
+  topicTitle: string;
+};
+
+/**
+ * Every student on the Students page, grouped by the syllabus topics they have
+ * practised. A student who has practised several topics is listed under each
+ * of them; one who has practised none is listed under `unassigned`. The
+ * repository returns it pseudonymous; once the usernames have been resolved
+ * and the disclosure recorded, `revealed` is true and every student carries
+ * an `identity`.
+ */
+export type InstructorStudentTopicRoster = {
+  mode: "database" | "demo";
+  revealed: boolean;
+  topics: InstructorStudentTopicGroup[];
+  unassigned: InstructorRosterStudent[];
+};
 
 export type InstructorCohortAnalytics = {
   incorrectAttempts?: number;

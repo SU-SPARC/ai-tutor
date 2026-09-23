@@ -10,7 +10,7 @@
  * types anything.
  */
 
-import { CheckCircle2, Info, Send, X, XCircle } from "lucide-react";
+import { CheckCircle2, Info, Pencil, Send, X, XCircle } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 
 import { MathText } from "@/components/math/math-renderer";
@@ -31,6 +31,9 @@ export const TUTOR_PRIVACY_NOTE =
 
 export const TUTOR_RULE_BASED_ONLY_PLACEHOLDER =
   "Rule-based help only right now.";
+
+/** External scratch whiteboard for working a problem by hand. */
+export const SKETCHPAD_URL = "https://interactive-sketchpad.onrender.com/";
 
 export const TUTOR_EMPTY_TRANSCRIPT =
   "Work out your answer on the sheet. You can ask for a hint at any time.";
@@ -180,6 +183,12 @@ export function TutorDrawer({
             onClick={onCheck}
           >
             {activeMode === "check" ? "Checking…" : "Check my work"}
+          </Button>
+          <Button asChild variant="outline" size="sm" className="rounded-[6px]">
+            <a href={SKETCHPAD_URL} target="_blank" rel="noopener noreferrer">
+              <Pencil className="size-4" aria-hidden="true" />
+              Sketchpad
+            </a>
           </Button>
           {aiHelpOffered ? (
             <Button

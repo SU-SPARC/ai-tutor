@@ -16,6 +16,7 @@ import {
 } from "@/app/api/professor/questions/[id]/route";
 import { POST as regenerateAdminQuestion } from "@/app/api/professor/questions/[id]/regenerate/route";
 import { POST as reserveAdminQuestion } from "@/app/api/professor/questions/[id]/reserve/route";
+import { POST as assignAdminQuestionSimilarity } from "@/app/api/professor/questions/[id]/similarity/route";
 import { POST as transitionAdminQuestion } from "@/app/api/professor/questions/[id]/transitions/route";
 import { POST as createAdminQuestionVersion } from "@/app/api/professor/questions/[id]/versions/route";
 import { POST as batchAdminQuestions } from "@/app/api/professor/questions/batch/route";
@@ -306,6 +307,23 @@ describe("direct professor content API authorization", () => {
               action: "reserve",
               expectedWorkingVersionId: 1,
               reasonCode: "save_for_later",
+            },
+          ),
+          routeContext("question:test", "id"),
+        ),
+    ],
+    [
+      "POST /api/professor/questions/[id]/similarity",
+      () =>
+        assignAdminQuestionSimilarity(
+          jsonRequest(
+            "http://test/api/professor/questions/question:test/similarity",
+            {
+              action: "assign",
+              expectedSimilarVersionId: 2,
+              originQuestionId: "question:origin",
+              originVersionId: 1,
+              slot: 1,
             },
           ),
           routeContext("question:test", "id"),

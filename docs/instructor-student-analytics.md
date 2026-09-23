@@ -7,9 +7,22 @@ records. No model is involved, and no analytics table was added.
 
 ## Student identity
 
-A participating student owns a meaningful published practice session: either an authenticated user
-(`tutor_sessions.user_id`) or an anonymous cookie subject
-(`tutor_sessions.anonymous_user_id`). Instructor surfaces never see either.
+The Students page lists every **signed-in student account** from the moment
+of its first sign-in, before any practice, together with every owner of a
+meaningful published practice session. A signed-in student account is a human
+`users` row with `status = 'active'` and no current `professor` grant in
+`user_roles`, the database projection of the authoritative Clerk role; system
+actors, disabled and deleted accounts, and professors are not students and are
+never listed. The session branch is how anonymous pilot students
+(`tutor_sessions.anonymous_user_id`) are known. Both branches are unioned by
+student key, so a student who has signed in and practised is one row.
+Instructor surfaces never see the user id or the anonymous cookie subject.
+
+A student who has signed in but not practised shows truthful zeros, no
+first- or last-active time, and a detail page that says so; nothing about
+their progress is inferred. Their row is not a participant in the pilot
+export, and they do not count as an active student in the cohort panel: both
+of those describe recorded practice, not the roster.
 
 The repository derives a **student key** in SQL —
 `sha256('user:' || user_id)` or `sha256('anon:' || anonymous_user_id)`, hex
@@ -29,9 +42,24 @@ linked to the session; only the digest input would change, not the analytics.
 
 | Surface                            | Contents                                                                                                                                           |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/professor/students`              | One row per student: sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. |
-| `/professor/students/[studentKey]` | Summary metrics, per-topic performance, a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions.                |
+| `/professor/students`              | One row per student: username, sessions, attempts, correct, topics, hints, solutions, last active. Sortable and searchable by student code, paginated at 25. Under every sort, students with no recorded activity follow every active student, in student-key order. A **By topic** view (`?view=topics`) lists the same population grouped by practised topic; see below. Usernames are read live from Clerk for the signed-in professor and audited; see [student identity reveal](student-identity-reveal.md). |
+| `/professor/students/[studentKey]` | Summary metrics, per-topic performance, per-question [practice credit evidence](practice-credit.md), a 30-day activity trend, recorded misconception codes, and the most recent 30 interactions. |
 | `/professor/analytics`             | Cohort totals, the rule/retrieval/LLM/blocked split, most recorded misconceptions, and a count of students showing repeated difficulty.            |
+
+## Students by topic
+
+The Students page's **By topic** view groups the same population by the
+syllabus topics each student has practised. The association is derived, never
+assigned or stored: a student is under a topic when they have a published
+session on one of its questions or an answer submission recorded against it —
+the same two sources the per-student topic performance uses — so a student who
+has practised several topics is listed under each of them, from one `users`
+row, and a student who has practised none is listed once under "No topic
+practice yet". Topics keep their syllabus order, and within each topic
+students are ordered by username. The usernames, where they come from, and
+how each display is recorded are described in
+[student identity reveal](student-identity-reveal.md); the analytics queries
+themselves remain pseudonymous.
 
 ## What it deliberately does not return
 
@@ -39,6 +67,8 @@ linked to the session; only the digest input would change, not the analytics.
   row reports only _that_ a misconception was matched.
 - Retrieval chunks, prompts, and provider payloads — none are read.
 - The student's name, email address, user id, or anonymous cookie value.
+  Usernames are not analytics fields either: the Students page resolves them
+  separately, from Clerk, for the signed-in professor.
 
 ## Counting rules
 
@@ -56,8 +86,12 @@ misconception trends include only `practice_context = 'published'` sessions.
 Reserve similar-practice sessions are excluded from those metrics and reported
 separately, only after meaningful use, as `extraPracticeSessions` in student and cohort summaries.
 
-- **Attempts** are rows with `mode = 'check'`. Hint and solution requests are
-  separate interactions and never inflate the attempt count.
+- **Attempts** (labelled _Answer submissions_ on the detail page) are rows with
+  `mode = 'check'`. Hint and solution requests are separate interactions and
+  never inflate the attempt count.
+- **Valid attempts**, used only by the practice credit evidence, are check rows
+  with a `correct` or `incorrect` verdict; unreadable and blocked submissions
+  are excluded. See [practice credit evidence](practice-credit.md).
 - **Hints and solutions** are summed from `tutor_sessions.revealed_hints` and
   `revealed_steps`, matching the existing practice analytics.
 - **Misconception codes** come from `tutor_sessions.last_misconception_ids_json`

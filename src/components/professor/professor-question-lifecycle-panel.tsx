@@ -472,8 +472,11 @@ export function ProfessorQuestionLifecyclePanel({
     setSelectedVersionIds([]);
     setNote("");
     setReasonCode("");
+    const titles = result.questions
+      .map((question) => question.workingVersion.title)
+      .join(", ");
     setMessage(
-      `${ACTION_LABELS[result.action]} completed for ${result.questions.length} questions${result.reviewedBy ? ` by ${result.reviewedBy.displayName} at ${result.reviewedBy.occurredAt}` : ""}.`,
+      `${ACTION_LABELS[result.action]} completed for ${result.questions.length} questions${result.reviewedBy ? ` by ${result.reviewedBy.displayName} at ${result.reviewedBy.occurredAt}` : ""}: ${titles}.`,
     );
   }
 
@@ -560,8 +563,8 @@ export function ProfessorQuestionLifecyclePanel({
               </p>
               <p className="text-xs text-muted-foreground">
                 {filter === "approved"
-                  ? "Select approved questions, then use Publish selected to preview every live publication gate before confirming."
-                  : "Choose the Approved view for bulk publication. Exact-version inspection is checked in the readiness preview and again at publication."}{" "}
+                  ? "Select approved questions, then choose Publish selected. Each question is checked against the publication requirements before anything changes, and all of them publish together or none do."
+                  : "Choose the Approved view for bulk publication. Questions you approved or inspected yourself can be published together."}{" "}
                 Batch approval is intentionally not available.
               </p>
             </div>
@@ -624,9 +627,6 @@ export function ProfessorQuestionLifecyclePanel({
         <ProfessorQuestionBatchConfirmation
           action={batchAction}
           disabled={dashboard.readOnly || Boolean(activeKey)}
-          inspections={dashboard.inspections.filter((inspection) =>
-            selectedVersionIds.includes(inspection.versionId),
-          )}
           note={note}
           questions={selectedQuestions}
           reasonCode={reasonCode}
@@ -680,6 +680,10 @@ export function ProfessorQuestionLifecyclePanel({
             questions.map((question) => {
               const working = question.workingVersion;
               const inspection = inspectionByVersionId.get(working.versionId);
+              const approvedByYouAt = ownApprovalTimestamp(
+                question,
+                dashboard.professorUserId,
+              );
               const canSelect = isBatchSelectableQuestion(question);
               const focused = question.questionId === focusQuestionId;
               const intake = questionIntakeProvenance(question);
@@ -702,7 +706,7 @@ export function ProfessorQuestionLifecyclePanel({
                         }
                         title={
                           canSelect
-                            ? "Select this immutable working version for batch readiness checks"
+                            ? "Select this working version to publish, request revision, or reject it together with others"
                             : "This working version is not eligible for batch review"
                         }
                         onChange={(event) =>
@@ -913,6 +917,7 @@ export function ProfessorQuestionLifecyclePanel({
                             Boolean(batchAction) ||
                             !isBatchSelectableQuestion(question)
                           }
+                          approvedByYouAt={approvedByYouAt}
                           inspection={inspection}
                           question={question}
                           topicTitle={
@@ -1016,6 +1021,7 @@ export function ProfessorQuestionLifecyclePanel({
 
 function WorkingVersionInspection({
   active,
+  approvedByYouAt,
   disabled,
   inspection,
   onInspect,
@@ -1023,6 +1029,8 @@ function WorkingVersionInspection({
   topicTitle,
 }: {
   active: boolean;
+  /** When the signed-in professor approved this exact version themselves. */
+  approvedByYouAt?: string;
   disabled: boolean;
   inspection?: QuestionLifecycleDashboard["inspections"][number];
   onInspect: () => void;
@@ -1039,9 +1047,9 @@ function WorkingVersionInspection({
         <div>
           <h3 className="font-medium">Working-version inspection</h3>
           <p className="text-sm text-muted-foreground">
-            Review this complete public-safe aggregate before recording
-            inspection. The record applies only to immutable version{" "}
-            {version.versionNumber}.
+            Batch actions require that you personally reviewed this exact
+            immutable version {version.versionNumber}: either you approved it,
+            or you record an inspection here after reading it in full.
           </p>
         </div>
         {inspection ? (
@@ -1049,8 +1057,13 @@ function WorkingVersionInspection({
             <CheckCircle2 className="h-4 w-4" />
             Inspected
           </Badge>
+        ) : approvedByYouAt ? (
+          <Badge variant="success">
+            <CheckCircle2 className="h-4 w-4" />
+            Approved by you
+          </Badge>
         ) : (
-          <Badge variant="outline">Not inspected</Badge>
+          <Badge variant="outline">Not reviewed by you</Badge>
         )}
       </div>
       <dl className="grid gap-2 text-sm md:grid-cols-[10rem_1fr]">
@@ -1085,6 +1098,12 @@ function WorkingVersionInspection({
           Recorded for {inspection.professorDisplayName} at{" "}
           {inspection.inspectedAt}.
         </p>
+      ) : approvedByYouAt ? (
+        <p className="text-sm text-muted-foreground">
+          You approved this exact version on {approvedByYouAt.slice(0, 10)}.
+          That counts as your review, so it can be published together with other
+          questions without a separate inspection.
+        </p>
       ) : isBatchSelectableQuestion(question) ? (
         <Button
           type="button"
@@ -1103,6 +1122,21 @@ function WorkingVersionInspection({
       )}
     </section>
   );
+}
+
+/** The signed-in professor's own approval of the current working version. */
+function ownApprovalTimestamp(
+  question: QuestionLifecycleDto,
+  professorUserId?: string,
+) {
+  if (!professorUserId) return undefined;
+  return question.events.find(
+    (event) =>
+      event.action === "approve" &&
+      event.actorRole === "professor" &&
+      event.versionId === question.workingVersion.versionId &&
+      event.actor.userId === professorUserId,
+  )?.actor.occurredAt;
 }
 
 function isBatchSelectableQuestion(question: QuestionLifecycleDto) {
