@@ -24,6 +24,7 @@ import {
   Lightbulb,
   Loader2,
   PartyPopper,
+  Pencil,
   RotateCcw,
   Search,
   Sparkles,
@@ -1452,6 +1453,16 @@ export function PracticeWorkspace({
                           : "Ask AI for help"}
                       </Button>
                     ) : null}
+                    <Button asChild size="sm" variant="outline">
+                      <a
+                        href="https://interactive-sketchpad.onrender.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                        Sketchpad
+                      </a>
+                    </Button>
                     {solutionFullyRevealed ? (
                       <Button
                         type="button"
