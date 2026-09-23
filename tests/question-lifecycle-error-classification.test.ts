@@ -124,6 +124,37 @@ describe("database transaction error preservation", () => {
       }),
     ).rejects.toBeInstanceOf(DatabaseOperationError);
   });
+
+  it("keeps only our own database-raised wording as a reason", async () => {
+    stubTransactionPool();
+
+    const raised = await queryPostgres.transaction!(async () => {
+      throw Object.assign(
+        new Error(
+          "Publication blocked: Only valid question versions can be published",
+        ),
+        { code: "P0001" },
+      );
+    }).catch((error: unknown) => error as DatabaseOperationError);
+    expect(raised).toBeInstanceOf(DatabaseOperationError);
+    expect(raised.sqlState).toBe("P0001");
+    expect(raised.reason).toMatch(/^Publication blocked/);
+
+    const denied = await queryPostgres.transaction!(async () => {
+      throw Object.assign(
+        new Error(
+          "permission denied for function app_assert_question_publication_quality",
+        ),
+        { code: "42501" },
+      );
+    }).catch((error: unknown) => error as DatabaseOperationError);
+    expect(denied).toBeInstanceOf(DatabaseOperationError);
+    expect(denied.sqlState).toBe("42501");
+    expect(denied.reason).toBeUndefined();
+    expect(denied.message).toBe(
+      "The database operation could not be completed.",
+    );
+  });
 });
 
 function stubTransactionPool() {

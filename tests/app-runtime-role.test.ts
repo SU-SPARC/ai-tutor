@@ -174,6 +174,7 @@ describe("least-privilege runtime role provisioning", () => {
         has_sequence_privilege('app_runtime', 'attempts_id_seq', 'USAGE') as sequence_usage,
         has_function_privilege('app_runtime', 'app_set_updated_at()', 'EXECUTE') as trigger_execute,
         has_function_privilege('app_runtime', 'app_question_publication_gate_failures(text,bigint,text)', 'EXECUTE') as publication_gate_execute,
+        has_function_privilege('app_runtime', 'app_assert_question_publication_quality(text,bigint,text)', 'EXECUTE') as publication_assert_execute,
         has_function_privilege('app_runtime', 'app_question_snapshot(text)', 'EXECUTE') as snapshot_execute,
         has_function_privilege('app_runtime', 'app_record_question_version(text)', 'EXECUTE') as version_function_execute,
         has_function_privilege('app_runtime', 'app_user_can_review(text)', 'EXECUTE') as reviewer_function_execute,
@@ -185,6 +186,7 @@ describe("least-privilege runtime role provisioning", () => {
     expect(verification.rows[0]).toEqual({
       row_level_security_tables: 31,
       ledger_insert: false,
+      publication_assert_execute: true,
       publication_gate_execute: true,
       role_update: false,
       reviewer_function_execute: true,
@@ -291,7 +293,7 @@ describe("least-privilege runtime role provisioning", () => {
     ).rejects.toThrow(/permission denied/);
     await expect(readRoleAttestation(client)).resolves.toMatchObject({
       bypassRls: false,
-      executableRoutineCount: 11,
+      executableRoutineCount: 12,
       missingRuntimeFunctionCount: 0,
       missingRuntimeWriteCount: 0,
       protectedWriteCount: 0,

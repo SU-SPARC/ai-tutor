@@ -56,6 +56,7 @@ import {
   QuestionLifecycleNotFoundError,
   QuestionLifecycleValidationError,
   QuestionPublicationBlockedError,
+  lifecycleErrorFromDatabaseFailure,
 } from "@/lib/tutor/question-lifecycle";
 import { evaluateQuestionPublicationQualityGates } from "@/lib/tutor/question-publication-quality-gates";
 import type {
@@ -2346,13 +2347,31 @@ async function applyTransition(
       ],
     );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Lifecycle change failed.";
-    if (/publication blocked|requires a reason|valid question/i.test(message)) {
-      throw new QuestionLifecycleValidationError(message);
-    }
-    throw new QuestionLifecycleConflictError(message);
+    throw lifecycleTransitionFailure(error);
   }
+}
+
+/**
+ * Inside the runtime transaction every driver error is classified into a
+ * `DatabaseOperationError` whose message is generic; only a `raise exception`
+ * from our own database functions keeps its wording in `reason`. Test
+ * executors hand back the raw error instead, so both shapes are handled.
+ */
+function lifecycleTransitionFailure(error: unknown): Error {
+  if (error instanceof Error && error.name === "DatabaseOperationError") {
+    const classified = error as Error & { reason?: string; sqlState?: string };
+    return lifecycleErrorFromDatabaseFailure({
+      message: classified.message,
+      reason: classified.reason,
+      sqlState: classified.sqlState,
+    });
+  }
+  const message =
+    error instanceof Error ? error.message : "Lifecycle change failed.";
+  if (/publication blocked|requires a reason|valid question/i.test(message)) {
+    return new QuestionLifecycleValidationError(message);
+  }
+  return new QuestionLifecycleConflictError(message);
 }
 
 async function insertQuestionVersion(

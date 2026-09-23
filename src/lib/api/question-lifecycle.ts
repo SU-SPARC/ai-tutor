@@ -15,6 +15,7 @@ import type {
 import {
   QuestionLifecycleConflictError,
   QuestionLifecycleNotFoundError,
+  QuestionLifecycleStorageError,
   QuestionLifecycleValidationError,
   QuestionPublicationBlockedError,
 } from "@/lib/tutor/question-lifecycle";
@@ -101,6 +102,12 @@ export function lifecycleApiErrorResponse(error: unknown) {
   }
   if (error instanceof QuestionLifecycleConflictError) {
     return NextResponse.json({ error: error.message }, { status: 409 });
+  }
+  if (error instanceof QuestionLifecycleStorageError) {
+    return NextResponse.json(
+      { error: error.message, sqlState: error.sqlState },
+      { status: 503 },
+    );
   }
   return NextResponse.json(
     { error: "Question lifecycle storage is unavailable." },
