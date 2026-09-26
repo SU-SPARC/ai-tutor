@@ -1,42 +1,36 @@
 import Link from "next/link";
-import { SearchX } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function ProfessorQuestionNotFound() {
   return (
     <ProfessorPageShell
       title="Question not found"
-      description="No question with this ID exists in the lifecycle. It may have been typed incorrectly or never saved."
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Questions", href: "/professor/questions" },
+        { label: "Not found" },
+      ]}
+      description="No question with this ID exists; it may have been mistyped or never saved."
     >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <SearchX className="h-5 w-5 text-primary" />
-            Nothing to show here
-          </CardTitle>
-          <CardDescription>
-            Saved drafts always appear in the question lifecycle table and, once
-            submitted, in the Review Queue under their topic.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/professor/questions">Open question lifecycle</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/professor/review">Open Review Queue</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <EmptyState
+        className="rounded-panel bg-sheet px-5"
+        action={
+          <>
+            <Button asChild>
+              <Link href="/professor/questions">Open the question bank</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/professor/review">Open the review queue</Link>
+            </Button>
+          </>
+        }
+      >
+        Saved drafts always appear in the question bank and, once submitted,
+        in the review queue under their topic.
+      </EmptyState>
     </ProfessorPageShell>
   );
 }

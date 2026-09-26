@@ -1,6 +1,13 @@
-import { LandingHeadline } from "@/components/landing/landing-headline";
+import {
+  LANDING_COLUMN,
+  LandingFooter,
+  LandingHeadline,
+  LandingStatements,
+} from "@/components/landing/landing-headline";
 import { LandingScreen } from "@/components/landing/landing-screen";
 import type { SyllabusRailTopic } from "@/components/shell/app-rail";
+import { MAIN_CONTENT_ID } from "@/components/shell/skip-link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { normalizeSummary } from "@/lib/api/question-serialization";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
@@ -91,17 +98,34 @@ export default async function HomePage() {
     counts.total === 1 ? "" : "s"
   } · ${orderedTopics.length} topic${orderedTopics.length === 1 ? "" : "s"}`;
 
+  // The landing page does not use ThreeColumn, so it renders the one <main>
+  // itself (the skip link's target). Headline first, then the live sheet,
+  // then the three statements; the footer sits outside <main>.
   return (
-    <main className="min-h-svh bg-background">
-      {heroQuestion ? (
-        <LandingScreen
-          question={heroQuestion}
-          weekNumber={heroTopic?.weekNumber ?? 1}
-          railTopics={railTopics}
-          railFooter={railFooter}
-        />
-      ) : null}
-      <LandingHeadline signedIn={isSignedIn} />
-    </main>
+    <>
+      <main
+        id={MAIN_CONTENT_ID}
+        tabIndex={-1}
+        className="bg-surface outline-none"
+      >
+        <LandingHeadline signedIn={isSignedIn} />
+        {heroQuestion ? (
+          <LandingScreen
+            question={heroQuestion}
+            weekNumber={heroTopic?.weekNumber ?? 1}
+            railTopics={railTopics}
+            railFooter={railFooter}
+          />
+        ) : (
+          <div className={LANDING_COLUMN}>
+            <EmptyState>
+              Your professor has not published any practice questions yet.
+            </EmptyState>
+          </div>
+        )}
+        <LandingStatements />
+      </main>
+      <LandingFooter />
+    </>
   );
 }

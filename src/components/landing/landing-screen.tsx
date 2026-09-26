@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
+import { LANDING_COLUMN } from "@/components/landing/landing-headline";
 import { LandingSheet } from "@/components/landing/landing-sheet";
 import {
   LandingTutorPanel,
@@ -12,8 +13,8 @@ import {
   SyllabusRail,
   type SyllabusRailTopic,
 } from "@/components/shell/app-rail";
-import { ThreeColumn } from "@/components/shell/three-column";
 import { useSheetSession } from "@/components/tutor/use-sheet-session";
+import { cn } from "@/lib/utils";
 import type { StudentPracticeQuestion } from "@/lib/types";
 
 export type LandingScreenProps = {
@@ -26,12 +27,17 @@ export type LandingScreenProps = {
 };
 
 /**
- * The landing page's product frame: the same three columns the practice screen
- * uses, with a real question in the middle.
+ * The live product under the headline: the practice screen's own three
+ * columns (syllabus, the Sheet, the tutor) drawn as one framed window, with a
+ * real question in the middle.
  *
- * The tutor session lives here rather than in the sheet because the drawer's
- * "Give me a hint" chip and the sheet's hint ladder are the *same* session —
- * two components reading one hook is what makes the hero feel like the app
+ * The columns leave right to left exactly as they do in the app: the tutor
+ * below 1280, the syllabus below 1024. On a phone the frame disappears and
+ * the Sheet sits straight on the desk, second after the headline.
+ *
+ * The tutor session lives here rather than in the sheet because the tutor's
+ * "Give me a hint" and the sheet's hint ladder are the *same* session — two
+ * components reading one hook is what makes the hero behave like the app
  * instead of two widgets side by side.
  */
 export function LandingScreen({
@@ -48,6 +54,7 @@ export function LandingScreen({
     });
   const [value, setValue] = useState("");
   const [askedWhereToStart, setAskedWhereToStart] = useState(false);
+  const labelId = useId();
 
   const messages = [
     TUTOR_INTRO_MESSAGE,
@@ -64,39 +71,56 @@ export function LandingScreen({
         : null;
 
   return (
-    <ThreeColumn
-      rail={
-        <SyllabusRail
-          topics={railTopics}
-          footer={
-            <p className="font-mono text-xs text-muted-foreground">
-              {railFooter}
-            </p>
-          }
-        />
-      }
-      drawer={
-        <LandingTutorPanel
-          messages={messages}
-          onHint={() => void hint()}
-          onWhereToStart={() => setAskedWhereToStart(true)}
-          hintDisabled={busy || hintsRevealed.length >= question.hintCount}
-        />
-      }
+    <section
+      aria-labelledby={labelId}
+      className={cn(LANDING_COLUMN, "pb-10 lg:pb-16")}
     >
-      <LandingSheet
-        question={question}
-        weekNumber={weekNumber}
-        value={value}
-        onChange={setValue}
-        onCheck={() => void check(value)}
-        onRevealHint={() => void hint()}
-        hintsRevealed={hintsRevealed}
-        checking={status === "checking"}
-        revealing={status === "hinting"}
-        verdict={sheetVerdict}
-        error={error}
-      />
-    </ThreeColumn>
+      <p id={labelId} className="type-label mb-3">
+        Try one now — no sign-in needed
+      </p>
+
+      <div
+        data-slot="landing-frame"
+        className={cn(
+          "grid grid-cols-1",
+          "lg:grid-cols-[var(--rail-w)_minmax(0,1fr)] lg:overflow-hidden lg:rounded-panel lg:border lg:border-rule",
+          "xl:grid-cols-[var(--rail-w)_minmax(0,1fr)_var(--drawer-w)]",
+        )}
+      >
+        <div className="hidden bg-surface-tint py-4 lg:block">
+          <SyllabusRail
+            topics={railTopics}
+            footer={<p className="type-caption tabular">{railFooter}</p>}
+          />
+        </div>
+
+        <div className="min-w-0 lg:bg-surface lg:p-8 xl:px-6">
+          <div className="mx-auto w-full max-w-2xl">
+            <LandingSheet
+              question={question}
+              weekNumber={weekNumber}
+              value={value}
+              onChange={setValue}
+              onCheck={() => void check(value)}
+              onRevealHint={() => void hint()}
+              hintsRevealed={hintsRevealed}
+              checking={status === "checking"}
+              revealing={status === "hinting"}
+              verdict={sheetVerdict}
+              error={error}
+            />
+          </div>
+        </div>
+
+        <div className="hidden bg-surface-tint px-5 py-6 xl:block">
+          <LandingTutorPanel
+            messages={messages}
+            onHint={() => void hint()}
+            onWhereToStart={() => setAskedWhereToStart(true)}
+            hintDisabled={busy || hintsRevealed.length >= question.hintCount}
+          />
+        </div>
+      </div>
+    </section>
   );
 }

@@ -1,82 +1,68 @@
 import type { Glance } from "@/components/learn/learn-model";
+import { solvedCountLabel } from "@/components/learn/learn-model";
+import { MasteryBar } from "@/components/ui/mastery-chip";
 import { cn } from "@/lib/utils";
 
-const RING_RADIUS = 26;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"] as const;
 
 /**
- * Zone 5, ≥1280 only. Two honest numbers: how much of the course has been
- * solved, split by the course's own difficulty words, and which days were
- * practised. The calendar is a calendar — no streak, no "best run", no
- * countdown.
+ * Two honest records: how much of the published course is solved, split by
+ * the course's own difficulty words, and which days this month had practice.
+ * The calendar is a calendar — no streak, no "best run", no countdown.
  */
 export function AtAGlance({ glance }: { glance: Glance }) {
-  const fraction = glance.total > 0 ? glance.solved / glance.total : 0;
+  const activeDays = glance.calendar.days
+    .filter((day) => day.active)
+    .map((day) => day.day);
 
   return (
-    <div className="flex flex-col gap-6 rounded-lg bg-sheet p-6 text-sheet-foreground">
-      <div className="flex items-center gap-4">
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 64 64"
-          className="size-16 shrink-0 -rotate-90"
-        >
-          <circle
-            cx="32"
-            cy="32"
-            r={RING_RADIUS}
-            fill="none"
-            strokeWidth="6"
-            className="stroke-indigo-100"
-          />
-          <circle
-            cx="32"
-            cy="32"
-            r={RING_RADIUS}
-            fill="none"
-            strokeWidth="6"
-            strokeLinecap="round"
-            className="stroke-indigo-500"
-            strokeDasharray={`${(fraction * RING_CIRCUMFERENCE).toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
-          />
-        </svg>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="font-mono text-sm">
-            {`${glance.solved}/${glance.total} solved`}
-          </p>
-          <ul className="flex flex-col gap-0.5">
-            {glance.breakdown.map((row) => (
-              <li
-                key={row.label}
-                className="font-mono text-xs text-muted-foreground"
-              >
-                {`${row.label} ${row.solved}/${row.total}`}
-              </li>
-            ))}
-          </ul>
-        </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <p className="type-body-strong tabular text-ink">
+          {solvedCountLabel(glance.solved, glance.total)}
+        </p>
+        <span aria-hidden="true" className="flex">
+          <MasteryBar value={glance.solved} total={glance.total} />
+        </span>
+        <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+          {glance.breakdown.map((row) => (
+            <div key={row.label} className="contents">
+              <dt className="type-small text-ink-muted">{row.label}</dt>
+              <dd className="type-small tabular text-ink">
+                {row.total > 0 ? `${row.solved} of ${row.total}` : "none yet"}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs tracking-wide text-muted-foreground uppercase">
-          Practice days
-        </p>
-        <p className="font-mono text-xs text-muted-foreground">
-          {glance.calendar.monthLabel}
-        </p>
+        <h3 className="type-label">
+          {`Practice days · ${glance.calendar.monthLabel}`}
+        </h3>
         <div
-          className="grid grid-cols-7 gap-1"
+          className="grid w-fit grid-cols-7 gap-1"
           role="img"
-          aria-label={`Days practised in ${glance.calendar.monthLabel}: ${glance.calendar.days
-            .filter((day) => day.active)
-            .map((day) => day.day)
-            .join(", ")}`}
+          aria-label={
+            activeDays.length > 0
+              ? `Days practiced in ${glance.calendar.monthLabel}: ${activeDays.join(", ")}`
+              : `No practice yet in ${glance.calendar.monthLabel}`
+          }
         >
+          {WEEKDAY_LETTERS.map((letter, index) => (
+            <span
+              key={`weekday-${index}`}
+              aria-hidden="true"
+              className="type-caption flex size-8 items-center justify-center"
+            >
+              {letter}
+            </span>
+          ))}
           {Array.from({ length: glance.calendar.leadingBlanks }, (_, index) => (
             <span
               key={`blank-${index}`}
               aria-hidden="true"
-              className="size-5"
+              className="size-8"
             />
           ))}
           {glance.calendar.days.map((day) => (
@@ -84,10 +70,8 @@ export function AtAGlance({ glance }: { glance: Glance }) {
               key={day.day}
               aria-hidden="true"
               className={cn(
-                "flex size-5 items-center justify-center rounded-[3px] font-mono text-[10px]",
-                day.active
-                  ? "bg-indigo-500 text-primary-foreground"
-                  : "bg-indigo-100 text-muted-foreground",
+                "type-caption tabular flex size-8 items-center justify-center rounded-control",
+                day.active ? "bg-azure-500 text-on-fill" : "text-ink-muted",
               )}
             >
               {day.day}

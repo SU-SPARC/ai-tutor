@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 import type { QuestionContent } from "@/lib/types";
 import type {
   AnswerSpec,
@@ -9,8 +9,11 @@ import type {
 } from "@/lib/tutor/answer/spec";
 import type { AnswerCheckResult } from "@/lib/tutor/answer-checker";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
+import { Field as FieldPrimitive } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
 import { LinesTextarea } from "@/components/professor/lines-textarea";
 
 export { normalizeLines } from "@/components/professor/lines-textarea";
@@ -32,12 +35,20 @@ export function categoricalAcceptedAnswers(spec: {
   );
 }
 
-function Field({ title, children }: { title: string; children: ReactNode }) {
+/** A labelled control; `title` is the visible label. */
+function Field({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description?: ReactNode;
+  title: string;
+}) {
   return (
-    <label className="grid gap-1 text-sm">
-      <span>{title}</span>
-      {children}
-    </label>
+    <FieldPrimitive label={title} description={description}>
+      {children as ReactElement<Record<string, unknown>>}
+    </FieldPrimitive>
   );
 }
 
@@ -55,6 +66,7 @@ function LinesField({
   return (
     <Field title={title}>
       <LinesTextarea
+        className="min-h-24 font-mono"
         placeholder={placeholder}
         values={values}
         onChange={onChange}
@@ -62,6 +74,25 @@ function LinesField({
     </Field>
   );
 }
+
+const REQUESTED_FORM_LABELS: Record<
+  NonNullable<NumericAnswerSpec["requiredForm"]>,
+  string
+> = {
+  decimal: "Decimal",
+  fraction: "Fraction",
+  integer: "Whole number",
+  percent: "Percent",
+  simplified_fraction: "Simplified fraction",
+};
+
+const TOLERANCE_MODE_LABELS: Record<string, string> = {
+  absolute: "Absolute difference",
+  combined: "Absolute and relative",
+  decimals: "Decimal places",
+  relative: "Relative difference",
+  significant: "Significant digits",
+};
 
 export function AnswerCheckingEditor({
   answer,
@@ -155,281 +186,303 @@ export function AnswerCheckingEditor({
   }
   const shown = preview?.key === previewKey ? preview : undefined;
   return (
-    <fieldset disabled={disabled} className="grid gap-4 rounded-lg border p-4">
-      <legend className="px-1 font-medium">Answer checking</legend>
-      <Field title="Answer kind">
-        <select
-          className={nativeSelectClassName}
-          value={spec?.kind ?? "legacy"}
-          onChange={(e) => chooseKind(e.target.value)}
-        >
-          <option value="legacy">Existing answer checking</option>
-          <option value="numeric">Numeric</option>
-          <option value="categorical">Short answer</option>
-          <option value="number_list">List of numbers</option>
-        </select>
-      </Field>
-      {!spec && (
-        <p className="text-sm text-muted-foreground">
-          This question keeps its existing answer behavior. Choose a kind to
-          author explicit checking rules in the next saved version.
-        </p>
-      )}
-      {spec?.kind === "numeric" && (
-        <>
-          <Field title="Canonical answer">
-            <Input
-              value={spec.value}
-              maxLength={500}
-              onChange={(e) => numeric({ value: e.target.value })}
-            />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field title="Domain">
-              <select
-                className={nativeSelectClassName}
-                value={spec.domain}
-                onChange={(e) => {
-                  const domain = e.target.value as NumericAnswerSpec["domain"];
-                  numeric({
-                    domain,
-                    tolerance:
-                      domain === "count"
-                        ? { mode: "exact" }
-                        : { mode: "absolute", value: 0.001 },
-                    requiredForm: domain === "count" ? "integer" : undefined,
-                  });
-                }}
-              >
-                <option value="probability">Probability</option>
-                <option value="count">Count</option>
-                <option value="real">Real number</option>
-              </select>
-            </Field>
-            <Field title="Percent interpretation">
-              <select
-                className={nativeSelectClassName}
-                value={spec.percentMode}
-                onChange={(e) =>
-                  numeric({
-                    percentMode: e.target
-                      .value as NumericAnswerSpec["percentMode"],
-                  })
-                }
-              >
-                <option value="decimal">
-                  Unscaled value (0.25 or 1/4); percent notation follows the
-                  form policy
-                </option>
-                <option value="percent">Percentage points (25 or 25%)</option>
-                <option value="either">
-                  Decimal or marked percent (0.25 or 25%)
-                </option>
-              </select>
-            </Field>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Percent interpretation applies to the canonical answer too.
-            Tolerances use decimal values after percent conversion.
+    <fieldset
+      disabled={disabled}
+      className="@container min-w-0 rounded-panel bg-surface-tint p-4 sm:p-5"
+    >
+      <legend className="float-left mb-4 w-full type-h3 text-ink">
+        Answer checking
+      </legend>
+      <div className="clear-left flex flex-col gap-4">
+        <Field title="Answer kind">
+          <NativeSelect
+            value={spec?.kind ?? "legacy"}
+            onChange={(e) => chooseKind(e.target.value)}
+          >
+            <option value="legacy">Existing answer checking</option>
+            <option value="numeric">Numeric</option>
+            <option value="categorical">Short answer</option>
+            <option value="number_list">List of numbers</option>
+          </NativeSelect>
+        </Field>
+        {!spec && (
+          <p className="type-small max-w-prose text-ink-muted">
+            This question keeps its existing answer behavior. Choose a kind to
+            author explicit checking rules in the next saved version.
           </p>
-          <ToleranceEditor
-            value={spec.tolerance}
-            onChange={(tolerance) => numeric({ tolerance })}
-            exactOnly={spec.domain === "count"}
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field title="Requested form">
-              <select
-                className={nativeSelectClassName}
-                value={spec.requiredForm ?? ""}
+        )}
+        {spec?.kind === "numeric" && (
+          <>
+            <Field title="Canonical answer">
+              <Input
+                mono
+                value={spec.value}
+                maxLength={500}
+                onChange={(e) => numeric({ value: e.target.value })}
+              />
+            </Field>
+            <div className="grid gap-4 @lg:grid-cols-2">
+              <Field title="Domain">
+                <NativeSelect
+                  value={spec.domain}
+                  onChange={(e) => {
+                    const domain = e.target
+                      .value as NumericAnswerSpec["domain"];
+                    numeric({
+                      domain,
+                      tolerance:
+                        domain === "count"
+                          ? { mode: "exact" }
+                          : { mode: "absolute", value: 0.001 },
+                      requiredForm: domain === "count" ? "integer" : undefined,
+                    });
+                  }}
+                >
+                  <option value="probability">Probability</option>
+                  <option value="count">Count</option>
+                  <option value="real">Real number</option>
+                </NativeSelect>
+              </Field>
+              <Field
+                title="Percent interpretation"
+                description="Applies to the canonical answer too. Tolerances use decimal values after percent conversion."
+              >
+                <NativeSelect
+                  value={spec.percentMode}
+                  onChange={(e) =>
+                    numeric({
+                      percentMode: e.target
+                        .value as NumericAnswerSpec["percentMode"],
+                    })
+                  }
+                >
+                  <option value="decimal">
+                    Unscaled value (0.25 or 1/4); percent notation follows the
+                    form policy
+                  </option>
+                  <option value="percent">
+                    Percentage points (25 or 25%)
+                  </option>
+                  <option value="either">
+                    Decimal or marked percent (0.25 or 25%)
+                  </option>
+                </NativeSelect>
+              </Field>
+            </div>
+            <ToleranceEditor
+              value={spec.tolerance}
+              onChange={(tolerance) => numeric({ tolerance })}
+              exactOnly={spec.domain === "count"}
+            />
+            <div className="grid gap-4 @lg:grid-cols-2">
+              <Field title="Requested form">
+                <NativeSelect
+                  value={spec.requiredForm ?? ""}
+                  onChange={(e) =>
+                    numeric({
+                      requiredForm: e.target.value
+                        ? (e.target.value as NumericAnswerSpec["requiredForm"])
+                        : undefined,
+                    })
+                  }
+                >
+                  <option value="">Any supported form</option>
+                  {(
+                    [
+                      "decimal",
+                      "fraction",
+                      "simplified_fraction",
+                      "percent",
+                      "integer",
+                    ] as const
+                  ).map((v) => (
+                    <option key={v} value={v}>
+                      {REQUESTED_FORM_LABELS[v]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field title="Form policy">
+                <NativeSelect
+                  value={spec.formPolicy ?? "note"}
+                  onChange={(e) =>
+                    numeric({
+                      formPolicy: e.target.value as "note" | "require",
+                    })
+                  }
+                >
+                  <option value="note">
+                    Accept correct value and give a note
+                  </option>
+                  <option value="require">Require the requested form</option>
+                </NativeSelect>
+              </Field>
+            </div>
+            <Field title="Unit label (optional)">
+              <Input
+                value={spec.unit?.label ?? ""}
+                maxLength={40}
+                placeholder="$ or cm…"
                 onChange={(e) =>
                   numeric({
-                    requiredForm: e.target.value
-                      ? (e.target.value as NumericAnswerSpec["requiredForm"])
+                    unit: e.target.value
+                      ? {
+                          label: e.target.value,
+                          required: spec.unit?.required ?? false,
+                        }
                       : undefined,
                   })
                 }
-              >
-                <option value="">Any supported form</option>
-                {[
-                  "decimal",
-                  "fraction",
-                  "simplified_fraction",
-                  "percent",
-                  "integer",
-                ].map((v) => (
-                  <option key={v} value={v}>
-                    {v.replaceAll("_", " ")}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
-            <Field title="Form policy">
-              <select
-                className={nativeSelectClassName}
-                value={spec.formPolicy ?? "note"}
-                onChange={(e) =>
-                  numeric({ formPolicy: e.target.value as "note" | "require" })
-                }
-              >
-                <option value="note">
-                  Accept correct value and give a note
-                </option>
-                <option value="require">Require the requested form</option>
-              </select>
-            </Field>
-          </div>
-          <Field title="Unit label (optional)">
-            <Input
-              value={spec.unit?.label ?? ""}
-              maxLength={40}
-              placeholder="$ or cm"
-              onChange={(e) =>
-                numeric({
-                  unit: e.target.value
-                    ? {
-                        label: e.target.value,
-                        required: spec.unit?.required ?? false,
-                      }
-                    : undefined,
-                })
-              }
-            />
-          </Field>
-          {spec.unit && (
-            <label className="flex gap-2 text-sm">
-              <input
-                type="checkbox"
+            {spec.unit && (
+              <CheckboxField
+                label="Require the unit in the answer"
                 checked={spec.unit.required}
-                onChange={(e) =>
+                onCheckedChange={(checked) =>
                   numeric({
                     unit: {
                       label: spec.unit!.label,
-                      required: e.target.checked,
+                      required: checked === true,
                     },
                   })
                 }
               />
-              Require the unit in the answer
-            </label>
-          )}
-        </>
-      )}
-      {spec?.kind === "categorical" && (
-        <>
-          <Field title="Canonical short answer">
-            <Input
-              value={spec.canonical}
-              maxLength={500}
-              onChange={(e) =>
-                setCategorical({ ...spec, canonical: e.target.value })
+            )}
+          </>
+        )}
+        {spec?.kind === "categorical" && (
+          <>
+            <Field title="Canonical short answer">
+              <Input
+                value={spec.canonical}
+                maxLength={500}
+                onChange={(e) =>
+                  setCategorical({ ...spec, canonical: e.target.value })
+                }
+              />
+            </Field>
+            <LinesField
+              title="Aliases — accepted equivalent answers (one per line)"
+              values={spec.aliases}
+              onChange={(aliases) => setCategorical({ ...spec, aliases })}
+            />
+            <p className="type-small max-w-prose text-ink-muted">
+              The canonical answer and its aliases are the accepted answers for
+              this question; there is no separate accepted-answer list to
+              maintain.
+            </p>
+            <LinesField
+              title="Forbidden phrases (one per line, optional)"
+              values={spec.forbiddenTerms ?? []}
+              onChange={(forbiddenTerms) =>
+                setCategorical({
+                  ...spec,
+                  forbiddenTerms: forbiddenTerms.length
+                    ? forbiddenTerms
+                    : undefined,
+                })
               }
             />
-          </Field>
-          <LinesField
-            title="Aliases — accepted equivalent answers (one per line)"
-            values={spec.aliases}
-            onChange={(aliases) => setCategorical({ ...spec, aliases })}
-          />
-          <p className="text-sm text-muted-foreground">
-            The canonical answer and its aliases are the accepted answers for
-            this question; there is no separate accepted-answer list to
-            maintain.
-          </p>
-          <LinesField
-            title="Forbidden phrases (one per line, optional)"
-            values={spec.forbiddenTerms ?? []}
-            onChange={(forbiddenTerms) =>
-              setCategorical({
-                ...spec,
-                forbiddenTerms: forbiddenTerms.length
-                  ? forbiddenTerms
-                  : undefined,
-              })
-            }
-          />
-        </>
-      )}
-      {spec?.kind === "number_list" && (
-        <>
-          <LinesField
-            title="Expected values (one per line)"
-            values={spec.values}
-            onChange={(values) => setSpec({ ...spec, values })}
-          />
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={spec.ordered}
-              onChange={(e) => setSpec({ ...spec, ordered: e.target.checked })}
+          </>
+        )}
+        {spec?.kind === "number_list" && (
+          <>
+            <LinesField
+              title="Expected values (one per line)"
+              values={spec.values}
+              onChange={(values) => setSpec({ ...spec, values })}
             />
-            Require this order
-          </label>
+            <CheckboxField
+              label="Require this order"
+              checked={spec.ordered}
+              onCheckedChange={(checked) =>
+                setSpec({ ...spec, ordered: checked === true })
+              }
+            />
+            <LinesField
+              title="Labels (one per value, optional)"
+              placeholder="P(X=0)…"
+              values={spec.labels ?? []}
+              onChange={(labels) =>
+                setSpec({ ...spec, labels: labels.length ? labels : undefined })
+              }
+            />
+            <ToleranceEditor
+              value={spec.tolerance}
+              onChange={(tolerance) => setSpec({ ...spec, tolerance })}
+            />
+            <p className="type-small max-w-prose text-ink-muted">
+              Students may separate values with commas or semicolons, so
+              expected values and labels must not contain commas or semicolons
+              (write 1000, not 1,000). Labels use forms such as P(X=0)=1/10.
+              Duplicate values retain their multiplicity.
+            </p>
+          </>
+        )}
+        {spec && spec.kind !== "categorical" && (
           <LinesField
-            title="Labels (one per value, optional)"
-            placeholder="P(X=0)"
-            values={spec.labels ?? []}
-            onChange={(labels) =>
-              setSpec({ ...spec, labels: labels.length ? labels : undefined })
+            title="Accepted answers (one complete answer per line)"
+            values={answer.acceptedAnswers}
+            onChange={(acceptedAnswers) =>
+              onChange({ ...answer, acceptedAnswers })
             }
           />
-          <ToleranceEditor
-            value={spec.tolerance}
-            onChange={(tolerance) => setSpec({ ...spec, tolerance })}
-          />
-          <p className="text-sm text-muted-foreground">
-            Students may separate values with commas or semicolons, so expected
-            values and labels must not contain commas or semicolons (write 1000,
-            not 1,000). Labels use forms such as P(X=0)=1/10. Duplicate values
-            retain their multiplicity.
-          </p>
-        </>
-      )}
-      {spec && spec.kind !== "categorical" && (
-        <LinesField
-          title="Accepted answers (one complete answer per line)"
-          values={answer.acceptedAnswers}
-          onChange={(acceptedAnswers) =>
-            onChange({ ...answer, acceptedAnswers })
-          }
-        />
-      )}
-      <div className="grid gap-2 border-t pt-3">
-        <Field title="Try an answer">
-          <Input
-            maxLength={500}
-            value={trial}
-            onChange={(e) => setTrial(e.target.value)}
-          />
-        </Field>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={pending}
-          onClick={simulate}
-        >
-          {pending ? "Checking…" : "Try answer"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Preview only. No student session or attempt is recorded.
-        </p>
-        <div role="status" aria-live="polite">
-          {shown?.error ??
-            (shown?.result && (
-              <>
-                <p className="font-medium">
-                  {shown.result.outcome === "correct"
-                    ? "Correct"
-                    : shown.result.outcome === "incorrect"
-                      ? "Incorrect"
-                      : "Unreadable input"}
+        )}
+        <div className="flex flex-col gap-3 border-t border-rule pt-4">
+          <Field
+            title="Try an answer"
+            description="Preview only. No student session or attempt is recorded."
+          >
+            <Input
+              mono
+              maxLength={500}
+              value={trial}
+              onChange={(e) => setTrial(e.target.value)}
+            />
+          </Field>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-fit"
+            disabled={pending}
+            onClick={simulate}
+          >
+            {pending ? "Checking…" : "Try answer"}
+          </Button>
+          <div role="status" aria-live="polite">
+            {shown?.error ? (
+              <p className="type-small text-red-700">{shown.error}</p>
+            ) : shown?.result ? (
+              <div className="flex flex-col gap-1.5">
+                <StatusChip
+                  label={
+                    shown.result.outcome === "correct"
+                      ? "Correct"
+                      : shown.result.outcome === "incorrect"
+                        ? "Incorrect"
+                        : "Unreadable input"
+                  }
+                  tone={
+                    shown.result.outcome === "correct"
+                      ? "correct"
+                      : shown.result.outcome === "incorrect"
+                        ? "wrong"
+                        : "neutral"
+                  }
+                />
+                <p className="type-small max-w-prose text-ink">
+                  {shown.result.feedback}
                 </p>
-                <p>{shown.result.feedback}</p>
-                <p className="text-sm">
-                  Normalized: {shown.result.normalizedStudentAnswer}
+                <p className="type-caption">
+                  Normalized:{" "}
+                  <span className="font-mono">
+                    {shown.result.normalizedStudentAnswer}
+                  </span>
                 </p>
-              </>
-            ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </fieldset>
@@ -455,27 +508,19 @@ function ToleranceEditor({
     else onChange({ mode: next as "absolute" | "relative", value: 0.001 });
   }
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-4 @lg:grid-cols-2">
       <Field title="Tolerance">
-        <select
-          className={nativeSelectClassName}
-          value={value.mode}
-          onChange={(e) => mode(e.target.value)}
-        >
+        <NativeSelect value={value.mode} onChange={(e) => mode(e.target.value)}>
           <option value="exact">Exact</option>
           {!exactOnly &&
             ["absolute", "relative", "combined", "decimals", "significant"].map(
               (v) => (
                 <option value={v} key={v}>
-                  {v === "decimals"
-                    ? "Decimal places"
-                    : v === "significant"
-                      ? "Significant digits"
-                      : v}
+                  {TOLERANCE_MODE_LABELS[v] ?? v}
                 </option>
               ),
             )}
-        </select>
+        </NativeSelect>
       </Field>
       {(value.mode === "absolute" || value.mode === "relative") && (
         <Field title="Tolerance value">
@@ -491,7 +536,7 @@ function ToleranceEditor({
         </Field>
       )}
       {value.mode === "combined" && (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <>
           <Field title="Absolute tolerance">
             <Input
               type="number"
@@ -514,7 +559,7 @@ function ToleranceEditor({
               }
             />
           </Field>
-        </div>
+        </>
       )}
       {value.mode === "decimals" && (
         <Field title="Decimal places">

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace";
 import { normalizeSummary } from "@/lib/api/question-serialization";
 import { requirePracticePageAccess } from "@/lib/auth/practice-page-access";
@@ -5,6 +7,8 @@ import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Practice" };
 
 type PracticePageProps = {
   searchParams: Promise<{

@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { CourseOverviewScreen } from "@/components/courses/course-overview-screen";
 import { isCourseEntityId } from "@/lib/courses/paths";
 
+export const metadata = {
+  title: "Course",
+};
+
 /**
  * S2. The server can only check the shape of the id — whether a course with
  * that id exists is a question for the client store — so a malformed id is a

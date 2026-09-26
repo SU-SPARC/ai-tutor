@@ -2,6 +2,7 @@
 
 import { ChevronDown, Copy } from "lucide-react";
 
+import { sectionName } from "@/components/courses/course-status";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import type { CourseSection, SectionId } from "@/lib/courses/types";
  * Blueprint S3 rule 5: copying a released set to another section is the same
  * staged-then-reviewed operation as any other release, just computed for the
  * professor. Nothing is written here — picking a section only opens the review
- * modal pointed at that section.
+ * dialog pointed at that section.
  *
  * It is disabled while changes are staged, because a copy commits against the
  * set that is stored, not the one on screen, and applying it would silently
@@ -31,23 +32,25 @@ export function CopyToSectionMenu({
   onSelect: (targetSectionId: SectionId) => void;
   sections: CourseSection[];
 }) {
-  const unavailable = sections.length === 0;
+  if (sections.length === 0) {
+    return null;
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          type="button"
-          variant="outline"
+          disabled={disabled}
           size="sm"
-          disabled={disabled || unavailable}
           title={
             disabled ? "Review or discard the staged changes first." : undefined
           }
+          type="button"
+          variant="secondary"
         >
-          <Copy className="h-4 w-4" />
+          <Copy aria-hidden="true" />
           Copy to
-          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          <ChevronDown aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
@@ -57,7 +60,7 @@ export function CopyToSectionMenu({
             key={section.id}
             onSelect={() => onSelect(section.id)}
           >
-            {section.label} · {section.meetingTime}
+            {sectionName(section)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

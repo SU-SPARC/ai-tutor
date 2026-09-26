@@ -92,7 +92,7 @@ describe("practice layout", () => {
     const markup = await renderPractice();
 
     expect(markup).toContain('data-slot="practice-rail"');
-    expect(markup).toContain("WK 3");
+    expect(markup).toContain(">Wk 3<");
     // The sheet header repeats the week in its mono line.
     expect(markup).toContain("Wk 3 · 1 of 2");
   });

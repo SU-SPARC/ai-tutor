@@ -1,12 +1,17 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { Search, Users } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { InstructorStudentTable } from "@/components/professor/instructor-student-table";
 import { InstructorStudentTopicRoster } from "@/components/professor/instructor-student-topic-roster";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { LinkTab, LinkTabs } from "@/components/ui/tabs";
 import {
   requireAnalyticsAccess,
   requirePageAccess,
@@ -18,7 +23,10 @@ import {
   resolveInstructorStudentRoster,
 } from "@/lib/professor/student-identity";
 import type { InstructorStudentSort } from "@/lib/types";
-import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = {
+  title: "Students",
+};
 
 const SORTS: InstructorStudentSort[] = [
   "last_active",
@@ -29,7 +37,7 @@ const SORTS: InstructorStudentSort[] = [
 
 /**
  * Two readings of the same class: the activity table, sortable and searchable
- * by student code, and the roster grouped by practised topic. Both show the
+ * by student code, and the roster grouped by practiced topic. Both show the
  * students' usernames, resolved on the server for the signed-in professor and
  * recorded before they are rendered; see `resolveInstructorStudentRoster`.
  */
@@ -114,6 +122,8 @@ export default async function ProfessorStudentsPage({
           { requestId },
         )
       : undefined;
+  const firstShown = list.offset + 1;
+  const lastShown = Math.min(list.offset + list.limit, list.total);
 
   return (
     <StudentsPageShell>
@@ -124,72 +134,93 @@ export default async function ProfessorStudentsPage({
       ) : (
         <>
           <ViewSwitch view={view} />
-          <form className="flex flex-wrap items-center gap-3" action="">
-            <div className="flex h-10 min-w-60 items-center gap-2 rounded-md border border-input bg-background px-3 shadow-sm">
-              <Search
-                aria-hidden="true"
-                className="h-4 w-4 text-muted-foreground"
-              />
-              <input
-                aria-label="Search by student code"
-                className="w-full bg-transparent text-sm outline-none"
+          <form
+            action=""
+            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+          >
+            <Field label="Search by student code" className="sm:w-72">
+              <Input
+                autoComplete="off"
                 defaultValue={search}
                 name="q"
-                placeholder="Student code, e.g. 8f2a"
+                placeholder="e.g. 8f2a…"
+                spellCheck={false}
                 type="search"
               />
-            </div>
-            <label className="sr-only" htmlFor="student-sort">
-              Sort students
-            </label>
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none"
-              defaultValue={sort}
-              id="student-sort"
-              name="sort"
-            >
-              <option value="last_active">Last active</option>
-              <option value="lowest_accuracy">Lowest overall accuracy</option>
-              <option value="attempts">Most attempts</option>
-              <option value="sessions">Most sessions</option>
-            </select>
-            <button
-              className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            </Field>
+            <Field label="Sort by" id="student-sort" className="sm:w-60">
+              <NativeSelect defaultValue={sort} name="sort">
+                <option value="last_active">Last active</option>
+                <option value="lowest_accuracy">Lowest overall accuracy</option>
+                <option value="attempts">Most attempts</option>
+                <option value="sessions">Most sessions</option>
+              </NativeSelect>
+            </Field>
+            <Button
               type="submit"
+              variant="secondary"
+              className="pointer-coarse:h-11"
             >
+              <Search aria-hidden="true" />
               Apply
-            </button>
+            </Button>
           </form>
 
-          <InstructorStudentTable identities={identities} list={list} />
+          {list.total === 0 ? (
+            <EmptyState
+              action={
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/professor/students" prefetch={false}>
+                    Clear search
+                  </Link>
+                </Button>
+              }
+            >
+              No students match “{search}”.
+            </EmptyState>
+          ) : (
+            <>
+              <InstructorStudentTable identities={identities} list={list} />
 
-          <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span>
-              {list.total === 0
-                ? "No students match that code."
-                : `Showing ${list.offset + 1}–${Math.min(list.offset + list.limit, list.total)} of ${list.total}`}
-            </span>
-            <div className="flex items-center gap-3">
-              {page > 1 ? (
-                <Link
-                  className="font-medium text-primary hover:underline"
-                  href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
-                  prefetch={false}
-                >
-                  Previous
-                </Link>
-              ) : null}
-              {list.offset + list.limit < list.total ? (
-                <Link
-                  className="font-medium text-primary hover:underline"
-                  href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
-                  prefetch={false}
-                >
-                  Next
-                </Link>
-              ) : null}
-            </div>
-          </div>
+              <nav
+                aria-label="Student pages"
+                className="flex flex-wrap items-center justify-between gap-3"
+              >
+                <p className="type-small text-ink-muted">
+                  <span className="font-mono tabular text-ink">
+                    {firstShown}–{lastShown}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-mono tabular text-ink">
+                    {list.total}
+                  </span>{" "}
+                  {list.total === 1 ? "student" : "students"}
+                </p>
+                <div className="flex items-center gap-2">
+                  {page > 1 ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                        prefetch={false}
+                      >
+                        Previous
+                      </Link>
+                    </Button>
+                  ) : null}
+                  {list.offset + list.limit < list.total ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                        prefetch={false}
+                      >
+                        Next
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+              </nav>
+            </>
+          )}
         </>
       )}
     </StudentsPageShell>
@@ -200,13 +231,12 @@ function StudentsPageShell({ children }: { children: ReactNode }) {
   return (
     <ProfessorPageShell
       title="Students"
-      description="Students who have signed in to the tutor, with the practice activity they have recorded. Usernames are read from the account provider for each visit by an authorized instructor and every display is recorded; the practice analytics themselves hold no usernames, names, email addresses, or browser identifiers. A student's name and email address are available from their detail page."
-      aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <Users className="h-4 w-4" />
-          usernames audited
-        </Badge>
-      }
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Students" },
+      ]}
+      description="Everyone who has signed in to the tutor, with the practice they have recorded."
+      notice="Usernames are looked up for this visit only and each display is audited; names and email addresses stay on each student's record."
     >
       {children}
     </ProfessorPageShell>
@@ -215,23 +245,19 @@ function StudentsPageShell({ children }: { children: ReactNode }) {
 
 function DemoModeNotice() {
   return (
-    <Alert>
-      <AlertDescription>
-        Demo mode keeps tutor sessions in memory for the current visitor only,
-        so there is no class to list here. Connect the database to see recorded
-        practice activity.
-      </AlertDescription>
-    </Alert>
+    <EmptyState>
+      Demo mode keeps practice in memory for each visitor, so there is no class
+      to list here until you connect the database.
+    </EmptyState>
   );
 }
 
 function NoStudentsNotice() {
   return (
-    <Alert>
-      <AlertDescription>
-        No students have signed in or practised with the tutor yet.
-      </AlertDescription>
-    </Alert>
+    <EmptyState>
+      No students have signed in or practiced with the tutor yet; each one
+      appears here after their first sign-in.
+    </EmptyState>
   );
 }
 
@@ -240,37 +266,29 @@ const VIEW_LABELS: Record<StudentsView, string> = {
   topics: "By topic",
 };
 
+/**
+ * Two link tabs. Links, not Radix tabs: each view is its own audited server
+ * render, and neither may be prefetched on hover.
+ */
 function ViewSwitch({ view }: { view: StudentsView }) {
   return (
-    <nav
-      aria-label="Students view"
-      className="flex w-fit items-center gap-1 rounded-md border border-border bg-card p-1 text-sm shadow-xs"
-    >
-      {VIEWS.map((candidate) => {
-        const active = candidate === view;
-        return (
-          <Link
-            key={candidate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "rounded-sm px-3 py-1.5 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-            href={
-              candidate === "activity"
-                ? "/professor/students"
-                : `/professor/students?view=${candidate}`
-            }
-            // Rendering either view shows usernames and records it, so a
-            // hover must not do it on the professor's behalf.
-            prefetch={false}
-          >
-            {VIEW_LABELS[candidate]}
-          </Link>
-        );
-      })}
-    </nav>
+    <LinkTabs label="Students view">
+      {VIEWS.map((candidate) => (
+        <LinkTab
+          current={candidate === view}
+          href={
+            candidate === "activity"
+              ? "/professor/students"
+              : `/professor/students?view=${candidate}`
+          }
+          key={candidate}
+          // Rendering either view shows usernames and records it, so a
+          // hover must not do it on the professor's behalf.
+          prefetch={false}
+        >
+          {VIEW_LABELS[candidate]}
+        </LinkTab>
+      ))}
+    </LinkTabs>
   );
 }

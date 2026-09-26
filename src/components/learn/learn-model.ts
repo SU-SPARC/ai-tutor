@@ -227,6 +227,49 @@ export function weekLabel(weekNumber: number) {
   return `Wk ${weekNumber}`;
 }
 
+/**
+ * "Question 2 of 5" — the one position format, shared with the practice
+ * page, so a question is never "2/5" in one place and "2 of 5" in another.
+ */
+export function questionPositionLabel(position: number, total: number) {
+  return `Question ${position} of ${total}`;
+}
+
+/** "3 of 8 solved": counts in words, never a percentage on its own. */
+export function solvedCountLabel(solved: number, total: number) {
+  return `${solved} of ${total} solved`;
+}
+
+/**
+ * The topic's mastery level (0-4) for `MasteryChip` / `MasteryPip`, or
+ * `undefined` for a topic with nothing published (it has no level to show).
+ *
+ * The course has no grading rule for mastery, so this is only a reading of
+ * the solved count, and every level can be said in words from the same two
+ * numbers the row already prints:
+ * - 0 Not started: nothing opened in the topic
+ * - 1 Attempted: opened, nothing solved yet
+ * - 2 Familiar: fewer than half solved
+ * - 3 Proficient: half or more solved
+ * - 4 Mastered: every question solved
+ */
+export function topicMasteryLevel(topic: {
+  glyph: TopicGlyph;
+  solved: number;
+  total: number;
+}): 0 | 1 | 2 | 3 | 4 | undefined {
+  if (topic.total <= 0) {
+    return undefined;
+  }
+  if (topic.solved >= topic.total) {
+    return 4;
+  }
+  if (topic.solved <= 0) {
+    return topic.glyph === "current" ? 1 : 0;
+  }
+  return topic.solved * 2 >= topic.total ? 3 : 2;
+}
+
 /** The UTC Monday of the week containing `nowIso`, as a `YYYY-MM-DD` date. */
 export function weekStartIsoFor(nowIso: string) {
   const now = new Date(nowIso);

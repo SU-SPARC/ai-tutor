@@ -3,26 +3,21 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { plural } from "@/components/courses/course-status";
 import { useOptionalCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { coursePath, coursesIndexPath } from "@/lib/courses/paths";
 import { courseSummary } from "@/lib/courses/selectors";
 
 /**
- * The hub's way into the course tools. It shows the course every other
- * professor tool is currently scoped to, and the one number that decides
- * whether the professor needs to go there now.
+ * The hub's line into the course tools: the course every other professor
+ * tool is scoped to, and the one number that decides whether the professor
+ * needs to go there now. The overview puts it under its own h2 "Courses",
+ * so the card's title is an h3.
  */
 export function CoursesHubCard() {
   // The hub is also rendered outside the /professor layout in tests, where no
-  // store is mounted; the card simply stays out of the way there.
+  // store is mounted; the panel simply stays out of the way there.
   const store = useOptionalCoursesStore();
   if (!store) {
     return null;
@@ -34,56 +29,62 @@ export function CoursesHubCard() {
 
   if (!course) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Courses</CardTitle>
-          <CardDescription>
-            No active course is selected. Pick one to scope the rest of the
-            workspace to it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Button asChild variant="outline">
-            <Link href={coursesIndexPath()}>
-              All courses
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <section
+        aria-labelledby="courses-hub-title"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-panel bg-sheet p-5"
+      >
+        <div className="flex flex-col gap-1">
+          <h3 className="type-h3 text-ink" id="courses-hub-title">
+            No active course
+          </h3>
+          <p className="type-small text-ink-muted">
+            Pick one to scope the course tools.
+          </p>
+        </div>
+        <Button asChild variant="secondary">
+          <Link href={coursesIndexPath()}>
+            All courses
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+      </section>
     );
   }
 
   const summary = courseSummary(state, course.id);
+  const waiting = summary.approvedNotReleased;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Courses</CardTitle>
-        <CardDescription>
-          {course.code} · {course.term}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-0">
-        <p className="text-sm leading-6">
-          {summary.sectionCount === 1
-            ? "1 section"
-            : `${summary.sectionCount} sections`}{" "}
-          · {summary.studentCount} joined · {summary.approvedNotReleased}{" "}
-          waiting to release
+    <section
+      aria-labelledby="courses-hub-title"
+      className="flex flex-wrap items-center justify-between gap-4 rounded-panel bg-sheet p-5"
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        <h3 className="type-h3 text-ink" id="courses-hub-title">
+          <span className="type-mono mr-2 text-ink-muted">{course.code}</span>
+          {course.term}
+        </h3>
+        <p className="type-small tabular text-ink-muted">
+          {plural(summary.sectionCount, "section")} · {summary.studentCount}{" "}
+          joined ·{" "}
+          {waiting > 0 ? (
+            <span className="text-ink">{waiting} waiting to release</span>
+          ) : (
+            "nothing waiting to release"
+          )}
         </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button asChild variant="ghost">
-            <Link href={coursesIndexPath()}>All courses</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={coursePath(course.id)}>
-              Open course
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button asChild variant="ghost">
+          <Link href={coursesIndexPath()}>All courses</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link href={coursePath(course.id)}>
+            Open course
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+      </div>
+    </section>
   );
 }

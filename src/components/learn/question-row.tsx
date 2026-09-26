@@ -1,61 +1,102 @@
 import Link from "next/link";
+import { Circle, CircleDot } from "lucide-react";
+import { useId } from "react";
 
 import type { LearnQuestionRow } from "@/components/learn/learn-model";
+import { questionPositionLabel } from "@/components/learn/learn-model";
 import { QuestionSheet } from "@/components/sheet/question-sheet";
+import { StatusChip } from "@/components/ui/status-chip";
 import { cn } from "@/lib/utils";
 
-const STATUS_WORDS: Record<LearnQuestionRow["status"], string | undefined> = {
-  current: "in progress",
-  done: "done",
-  retired: "retired",
-  todo: undefined,
-};
+/**
+ * Where the student left this question, as an icon and a word. Retired and
+ * solved reuse the product's verdict and lifecycle chips; the two neutral
+ * states carry their own glyphs so colour is never the only signal.
+ */
+function QuestionStatus({ status }: { status: LearnQuestionRow["status"] }) {
+  switch (status) {
+    case "done":
+      return <StatusChip tone="correct" label="Solved" />;
+    case "retired":
+      return <StatusChip tone="retired" label="Retired" />;
+    case "current":
+      return <StatusChip tone="neutral" icon={CircleDot} label="In progress" />;
+    case "todo":
+    default:
+      return <StatusChip tone="neutral" icon={Circle} label="Not started" />;
+  }
+}
 
 /**
- * One question as a collapsed Sheet: position, code, the first two lines of
- * the prompt, and the three facts a student can act on — how hard it is, how
- * much help is there, and where they left it. No section first-try
- * percentage: that number does not exist for students in this demo, and a
- * made-up one would be worse than silence.
+ * One question as a compact Sheet: position, code and difficulty on the mono
+ * line, the title as a real heading, the first two lines of the prompt, and
+ * where the student left it. The whole card is one link whose accessible name
+ * is the question title only (not the KaTeX prompt), so a screen reader lists
+ * "Spinner and Coin Condition, link" once per row.
+ *
+ * No section first-try percentage: that number does not exist for students,
+ * and a made-up one would be worse than silence.
  */
-export function QuestionRow({ question }: { question: LearnQuestionRow }) {
-  const status = STATUS_WORDS[question.status];
-  const meta = [
-    question.difficultyLabel,
-    question.hintCount > 0
-      ? `${question.hintCount} hint${question.hintCount === 1 ? "" : "s"}`
-      : undefined,
-    status,
-  ].filter((part): part is string => Boolean(part));
+export function QuestionRow({
+  question,
+  topicTotal,
+  upNext = false,
+}: {
+  question: LearnQuestionRow;
+  /** Questions in this topic, for "Question 2 of 5". */
+  topicTotal: number;
+  /** The row the header's call to action opens: a left azure rule. */
+  upNext?: boolean;
+}) {
+  const labelId = useId();
+  const hintsUsed =
+    question.hintsUsed > 0
+      ? `${question.hintsUsed} hint${question.hintsUsed === 1 ? "" : "s"} used`
+      : undefined;
 
   return (
-    <Link
-      href={question.href}
-      className={cn(
-        "block overflow-hidden rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        question.status === "current" && "border-l-2 border-primary",
-      )}
-    >
+    <div className="group relative">
+      <Link
+        href={question.href}
+        aria-labelledby={labelId}
+        className="absolute inset-0 z-10 rounded-panel focus-ring"
+      >
+        <span id={labelId} hidden>
+          {question.title}
+        </span>
+      </Link>
       <QuestionSheet
         compact
-        className="rounded-none pb-3 sm:pb-3"
+        className={cn(
+          "border-l-2 ring-1 ring-transparent transition-shadow duration-fast ease-out group-hover:ring-input",
+          upNext ? "border-azure-500" : "border-transparent",
+        )}
         header={{
-          topicLabel: String(question.position),
+          topicLabel: questionPositionLabel(question.position, topicTotal),
           questionCode: question.questionCode,
-          answerType: "",
+          // The Sheet joins these in order: "Question 2 of 5 · Q-A638 ·
+          // Core · 1 hint used". Difficulty is a word, never a colour.
+          answerType: question.difficultyLabel,
+          difficultyLabel: hintsUsed,
         }}
+        headingLevel={3}
         hints={{ total: 0, revealed: [] }}
+        menu={
+          <span className="type-caption flex items-center gap-3 pt-1.5">
+            {upNext ? (
+              <span className="type-label sr-only text-azure-500 sm:not-sr-only">
+                Up next
+              </span>
+            ) : null}
+            <QuestionStatus status={question.status} />
+          </span>
+        }
         prompt={question.prompt}
+        title={question.title}
         tombstone={
           question.status === "retired" ? "Your attempts are kept." : undefined
         }
       />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-sheet px-4 pt-0 pb-4 sm:px-5">
-        <p className="font-mono text-xs text-muted-foreground">
-          {meta.join(" · ")}
-        </p>
-        <span className="ml-auto text-sm text-primary">Open →</span>
-      </div>
-    </Link>
+    </div>
   );
 }

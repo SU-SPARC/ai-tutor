@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Bookmark, BookmarkX, Loader2, Shuffle } from "lucide-react";
+import { useId, useState } from "react";
+import { Bookmark, BookmarkX, Shuffle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import {
+  ProfessorTime,
+  SavedForLaterChip,
+} from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import {
   QUESTION_RESERVE_REASONS,
@@ -17,6 +22,12 @@ import type {
   QuestionReserveReasonCode,
 } from "@/lib/types";
 
+/**
+ * "Save for later": keep an approved question out of the student catalog
+ * without rejecting it, and optionally let the similar-practice flow reach
+ * it. One quiet panel that shows the reserve when there is one and the form
+ * when there is not.
+ */
 export function ProfessorQuestionReserveControls({
   disabled,
   onMessage,
@@ -32,6 +43,7 @@ export function ProfessorQuestionReserveControls({
   const [note, setNote] = useState("");
   const [reasonCode, setReasonCode] =
     useState<QuestionReserveReasonCode>("save_for_later");
+  const headingId = useId();
   const canReserve =
     question.recordState === "active" &&
     !question.publishedVersion &&
@@ -99,89 +111,91 @@ export function ProfessorQuestionReserveControls({
 
   if (question.reserve) {
     return (
-      <section className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">Saved for later</Badge>
-              <Badge
-                variant={
-                  question.reserve.practiceAllowed ? "success" : "outline"
-                }
-              >
-                {question.reserve.practiceAllowed
-                  ? "Eligible for similar practice"
-                  : "Reserve only"}
-              </Badge>
-              <span className="text-sm font-medium">
-                {questionReserveReasonLabel(question.reserve.reasonCode)}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Reserved by {question.reserve.reservedBy.displayName} on{" "}
-              {question.reserve.reservedAt}. It is never shown in student
-              listings
-              {question.reserve.practiceAllowed
-                ? "; students may reach it only through the controlled optional-practice flow."
-                : "."}
-            </p>
-            {question.reserve.note ? (
-              <p className="mt-1 text-sm">{question.reserve.note}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={disabled || active}
-              onClick={() =>
-                void update(
-                  question.reserve!.practiceAllowed
-                    ? "disallow_practice"
-                    : "allow_practice",
-                )
-              }
-            >
-              {active ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Shuffle className="h-4 w-4" />
-              )}
-              {question.reserve.practiceAllowed
-                ? "Disable similar practice"
-                : "Allow as similar-problem practice"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={disabled || active}
-              onClick={() => void update("release")}
-            >
-              <BookmarkX className="h-4 w-4" />
-              Remove reserve
-            </Button>
-          </div>
+      <section
+        aria-labelledby={headingId}
+        className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:p-5"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 id={headingId} className="type-h3 text-ink">
+            Saved for later
+          </h3>
+          <SavedForLaterChip
+            practiceAllowed={question.reserve.practiceAllowed}
+          />
+          <StatusChip
+            icon={false}
+            label={
+              question.reserve.practiceAllowed
+                ? "Eligible for similar practice"
+                : "Reserve only"
+            }
+            tone={question.reserve.practiceAllowed ? "approved" : "neutral"}
+          />
+        </div>
+        <p className="type-small max-w-prose text-ink">
+          {questionReserveReasonLabel(question.reserve.reasonCode)}
+          {question.reserve.note ? ` · ${question.reserve.note}` : ""}
+        </p>
+        <p className="type-small max-w-prose text-ink-muted">
+          Reserved by {question.reserve.reservedBy.displayName} on{" "}
+          <ProfessorTime value={question.reserve.reservedAt} />. It is never
+          shown in student listings
+          {question.reserve.practiceAllowed
+            ? "; students may reach it only through the controlled optional-practice flow."
+            : "."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled || active}
+            loading={active}
+            onClick={() =>
+              void update(
+                question.reserve!.practiceAllowed
+                  ? "disallow_practice"
+                  : "allow_practice",
+              )
+            }
+          >
+            <Shuffle aria-hidden="true" />
+            {question.reserve.practiceAllowed
+              ? "Disable similar practice"
+              : "Allow as similar-problem practice"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled || active}
+            onClick={() => void update("release")}
+          >
+            <BookmarkX aria-hidden="true" />
+            Remove reserve
+          </Button>
         </div>
       </section>
     );
   }
 
   return (
-    <section className="mb-4 space-y-3 border border-border bg-muted/20 p-3">
-      <div>
-        <h3 className="text-sm font-medium">Save for later</h3>
-        <p className="text-xs text-muted-foreground">
+    <section
+      aria-labelledby={headingId}
+      className="@container flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
+    >
+      <div className="flex flex-col gap-1">
+        <h3 id={headingId} className="type-h3 text-ink">
+          Save for later
+        </h3>
+        <p className="type-small max-w-prose text-ink-muted">
           Keep this good, approved question in the professor catalog without
           publishing it to students.
         </p>
       </div>
-      <div className="grid gap-3 md:grid-cols-[14rem_minmax(0,1fr)_auto] md:items-end">
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Reason
-          <select
-            className={nativeSelectClassName}
+      <div className="grid gap-4 @xl:grid-cols-[14rem_minmax(0,1fr)_auto] @xl:items-end">
+        <Field label="Reason">
+          <NativeSelect
             value={reasonCode}
             onChange={(event) =>
               setReasonCode(event.target.value as QuestionReserveReasonCode)
@@ -192,28 +206,27 @@ export function ProfessorQuestionReserveControls({
                 {reason.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Note {reasonCode === "other" ? "(required)" : "(optional)"}
+          </NativeSelect>
+        </Field>
+        <Field
+          label={`Note ${reasonCode === "other" ? "(required)" : "(optional)"}`}
+        >
           <Textarea
             className="min-h-10"
             maxLength={1000}
+            rows={1}
             value={note}
             onChange={(event) => setNote(event.target.value)}
           />
-        </label>
+        </Field>
         <Button
           type="button"
-          size="sm"
+          variant="secondary"
           disabled={disabled || active}
+          loading={active}
           onClick={() => void update("reserve")}
         >
-          {active ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Bookmark className="h-4 w-4" />
-          )}
+          <Bookmark aria-hidden="true" />
           Save for later
         </Button>
       </div>

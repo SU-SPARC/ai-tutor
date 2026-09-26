@@ -1,29 +1,16 @@
 import Link from "next/link";
-import {
-  BarChart3,
-  CalendarClock,
-  ChevronRight,
-  ClipboardCheck,
-  FileJson,
-  ShieldCheck,
-  Upload,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { ProfessorTime } from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import type {
   ProfessorWorkspaceDecision,
   ProfessorWorkspaceOverview,
 } from "@/lib/professor/workspace-overview";
 import { professorQuestionPath } from "@/lib/professor/question-paths";
 import type { QuestionLifecycleEventAction } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 /**
  * Past-tense phrasing for the decision history. The lifecycle panel labels the
@@ -52,14 +39,14 @@ const RELEASE_DECISION_LABELS = {
 
 const TOPIC_PREVIEW_LIMIT = 3;
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
+const TOOLS = [
+  { href: "/professor/availability", label: "Student availability" },
+  { href: "/professor/students", label: "Students", prefetch: false },
+  { href: "/professor/analytics", label: "Analytics" },
+  { href: "/professor/feedback", label: "Student reports" },
+  { href: "/professor/upload", label: "Uploads" },
+  { href: "/professor/content-transfer", label: "Import & export" },
+] as const;
 
 function decisionLabel(decision: ProfessorWorkspaceDecision) {
   return decision.kind === "lifecycle"
@@ -68,385 +55,287 @@ function decisionLabel(decision: ProfessorWorkspaceDecision) {
 }
 
 /**
- * One stage of the pipeline strip. `emphasis` marks the two stages that are
- * waiting on a person rather than reporting a settled state.
+ * One stage of the pipeline strip: the count, the stage name, one line that
+ * says what the count means, and the one action for that stage. `emphasis`
+ * marks the stage that is waiting on a person.
  */
 function PipelineStage({
+  action,
   caption,
   count,
   emphasis,
   label,
-  tone,
 }: {
+  action: React.ReactNode;
   caption: string;
-  count: number;
+  count?: number;
   emphasis?: boolean;
   label: string;
-  tone?: "success";
 }) {
   return (
-    <div
-      className={
-        emphasis
-          ? "flex flex-1 flex-col gap-1.5 rounded-md border border-primary/25 bg-accent p-4"
-          : "flex flex-1 flex-col gap-1.5 rounded-md p-4"
-      }
+    <li
+      className={cn(
+        "flex min-w-0 flex-1 flex-col gap-2 rounded-panel p-4",
+        emphasis ? "bg-azure-100" : "bg-sheet",
+      )}
     >
-      <div className="flex items-baseline gap-2">
-        <span
-          className={
-            emphasis
-              ? "text-3xl leading-none font-semibold tracking-tight text-primary"
-              : tone === "success"
-                ? "text-3xl leading-none font-semibold tracking-tight text-success"
-                : "text-3xl leading-none font-semibold tracking-tight"
-          }
-        >
-          {count}
-        </span>
-        <span className="text-xs font-medium text-muted-foreground">
-          {label}
-        </span>
-      </div>
-      <div className="text-sm font-medium">{caption}</div>
-    </div>
+      <p className="type-label">{label}</p>
+      <p
+        className={cn(
+          "type-metric",
+          emphasis ? "text-azure-700" : "text-ink",
+        )}
+      >
+        {count === undefined ? "—" : count}
+      </p>
+      <p className="type-small text-ink">{caption}</p>
+      <div className="mt-auto pt-1">{action}</div>
+    </li>
   );
 }
 
-function PipelineArrow() {
+function StageLink({ href, label }: { href: string; label: string }) {
   return (
-    <ChevronRight
-      aria-hidden="true"
-      className="hidden h-4 w-4 self-center text-border lg:block"
-    />
+    <Link
+      href={href}
+      className="inline-flex min-h-8 items-center gap-1 rounded-control type-small text-azure-500 underline-offset-4 transition-colors duration-fast hover:text-azure-700 hover:underline focus-ring"
+    >
+      {label}
+      <ChevronRight aria-hidden="true" className="size-4" />
+    </Link>
   );
 }
 
+/**
+ * The overview's content in the order a professor needs it: the pipeline
+ * strip (what needs you, with one action per stage), the topics waiting on
+ * review, recent decisions, then the tools. Without an overview (a failed
+ * read) the strip still stands, with dashes for the counts, so every section
+ * stays one click away.
+ */
 export function ProfessorWorkspaceOverviewPanel({
   overview,
 }: {
-  overview: ProfessorWorkspaceOverview;
+  overview?: ProfessorWorkspaceOverview;
 }) {
-  const { availability, pipeline, recentDecisions, reviewTopics } = overview;
+  const pipeline = overview?.pipeline;
+  const availability = overview?.availability;
+  const reviewTopics = overview?.reviewTopics ?? [];
+  const recentDecisions = overview?.recentDecisions ?? [];
   const previewTopics = reviewTopics.slice(0, TOPIC_PREVIEW_LIMIT);
   const remainingTopics = reviewTopics.length - previewTopics.length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader className="flex-row items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle>Question pipeline</CardTitle>
-            <CardDescription>
-              Where the catalog currently sits. Approval and student release are
-              separate gates: approving content does not expose it.
-            </CardDescription>
-          </div>
-          <Button asChild variant="link" className="h-auto px-0">
-            <Link href="/professor/questions">Full lifecycle view</Link>
-          </Button>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-col gap-1 lg:flex-row lg:items-stretch">
-            <PipelineStage
-              caption="Imported, untriaged"
-              count={pipeline.drafts}
-              label="drafts"
-            />
-            <PipelineArrow />
-            <PipelineStage
-              caption="Waiting on you"
-              count={pipeline.needsReview}
-              emphasis={pipeline.needsReview > 0}
-              label="in review"
-            />
-            <PipelineArrow />
-            <PipelineStage
-              caption="Not published yet"
-              count={pipeline.approvedNotPublished}
-              emphasis={pipeline.approvedNotPublished > 0}
-              label="approved"
-            />
-            <PipelineArrow />
-            <PipelineStage
-              caption="Intentionally held back"
-              count={pipeline.reserved}
-              label="saved for later"
-            />
-            <PipelineArrow />
-            <PipelineStage
-              caption="Immutable versions"
-              count={pipeline.published}
-              label="published"
-            />
-            <PipelineArrow />
-            <PipelineStage
-              caption="Available to students"
-              count={availability.available}
-              label="live"
-              tone={availability.available > 0 ? "success" : undefined}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div className="flex flex-col gap-1.5">
-              <CardTitle className="flex items-center gap-2">
-                <ClipboardCheck
-                  aria-hidden="true"
-                  className="h-4 w-4 text-primary"
-                />
-                Waiting on your review
-              </CardTitle>
-              <CardDescription>
-                Questions are shown one at a time, in syllabus order. Your
-                decision is recorded against your account.
-              </CardDescription>
-            </div>
-            {overview.totalNeedsReview > 0 ? (
-              <Badge className="shrink-0">
-                {overview.totalNeedsReview} open
-              </Badge>
-            ) : null}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {previewTopics.length > 0 ? (
-              <ul className="flex flex-col divide-y">
-                {previewTopics.map((topic) => (
-                  <li
-                    key={topic.topicId}
-                    className="flex items-center justify-between gap-4 py-3 first:pt-0"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{topic.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {topic.needsReview}{" "}
-                        {topic.needsReview === 1 ? "draft" : "drafts"} awaiting
-                        a decision
-                      </span>
-                    </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/professor/review?topic=${topic.topicId}`}>
-                        Review
-                      </Link>
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nothing is waiting on your review right now.
-              </p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <Link href="/professor/review">Open the review queue</Link>
-              </Button>
-              {remainingTopics > 0 ? (
-                <span className="text-xs text-muted-foreground">
-                  and {remainingTopics} more{" "}
-                  {remainingTopics === 1 ? "topic" : "topics"}
-                </span>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarClock
-                aria-hidden="true"
-                className="h-4 w-4 text-primary"
-              />
-              Student availability
-            </CardTitle>
-            <CardDescription>
-              A release gate, separate from approval. Availability is global —
-              the data model has no cohorts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-4">
-            <dl className="flex flex-col gap-2.5 text-sm">
-              <div className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 rounded-full bg-success"
-                />
-                <dt className="flex-1">Available now</dt>
-                <dd className="font-semibold">{availability.available}</dd>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 rounded-full bg-warning"
-                />
-                <dt className="flex-1">Scheduled</dt>
-                <dd className="font-semibold">{availability.scheduled}</dd>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 rounded-full bg-input"
-                />
-                <dt className="flex-1">Held back</dt>
-                <dd className="font-semibold">{availability.heldBack}</dd>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 rounded-full bg-border"
-                />
-                <dt className="flex-1">Archived</dt>
-                <dd className="font-semibold">{availability.archived}</dd>
-              </div>
-            </dl>
-
-            {availability.nextScheduledAt ? (
-              <p className="rounded-md bg-muted px-3.5 py-3 text-xs leading-5 text-muted-foreground">
-                Next scheduled release —{" "}
-                <span className="font-medium text-foreground">
-                  {formatDate(availability.nextScheduledAt)}
-                </span>
-                .
-              </p>
-            ) : null}
-
-            <Button asChild variant="outline" className="mt-auto w-full">
-              <Link href="/professor/availability">Manage availability</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Recent decisions</CardTitle>
-            <CardDescription>
-              Review, publication, and release changes, attributed to the
-              account that made them.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentDecisions.length > 0 ? (
-              <ul className="flex flex-col divide-y">
-                {recentDecisions.map((decision) => (
-                  <li
-                    key={decision.id}
-                    className="flex items-center justify-between gap-4 py-3 first:pt-0"
-                  >
-                    <span className="text-sm">
-                      <span className="font-medium">
-                        {decisionLabel(decision)}
-                      </span>{" "}
-                      {decision.kind === "lifecycle" ? (
-                        <Link
-                          href={professorQuestionPath(decision.questionId)}
-                          className="underline-offset-4 hover:underline"
-                        >
-                          {decision.targetTitle}
-                        </Link>
-                      ) : (
-                        decision.targetTitle
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {decision.actorDisplayName} ·{" "}
-                      {formatDate(decision.occurredAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No decisions have been recorded yet.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Course tools</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1">
-              <Button
-                asChild
-                variant="ghost"
-                className="h-auto justify-start gap-3 px-3 py-2.5"
-              >
-                <Link href="/professor/analytics">
-                  <BarChart3
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                  <span className="flex-1 text-left">Analytics</span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                className="h-auto justify-start gap-3 px-3 py-2.5"
-              >
-                <Link href="/professor/upload">
-                  <Upload
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                  <span className="flex-1 text-left">Upload preview</span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                className="h-auto justify-start gap-3 px-3 py-2.5"
-              >
-                <Link href="/professor/content-transfer">
-                  <FileJson
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                  <span className="flex-1 text-left">Import &amp; export</span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ShieldCheck
-                  aria-hidden="true"
-                  className="h-4 w-4 text-success"
-                />
-                Private material excluded
-              </CardTitle>
-              <CardDescription>
-                Uploaded source files stay on the server. Students never see
-                them, and they are excluded from exports and analytics.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+    <div className="flex flex-col gap-10">
+      <section
+        aria-labelledby="overview-pipeline-heading"
+        className="flex flex-col gap-4"
+      >
+        <div className="flex flex-col gap-1">
+          <h2 id="overview-pipeline-heading" className="type-h2 text-ink">
+            Question pipeline
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            Approval and student release are separate gates: approving a
+            question does not show it to anyone.
+          </p>
         </div>
-      </div>
+        <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <PipelineStage
+            label="Drafts"
+            count={pipeline?.drafts}
+            caption="Not yet submitted"
+            action={
+              <StageLink
+                href="/professor/questions?view=draft"
+                label="Open drafts"
+              />
+            }
+          />
+          <PipelineStage
+            label="Needs review"
+            count={pipeline?.needsReview}
+            caption="Waiting on you"
+            emphasis={(pipeline?.needsReview ?? 0) > 0}
+            action={
+              <Button asChild size="sm">
+                <Link href="/professor/review">Start reviewing</Link>
+              </Button>
+            }
+          />
+          <PipelineStage
+            label="Approved"
+            count={pipeline?.approvedNotPublished}
+            caption="Not published yet"
+            action={
+              <StageLink
+                href="/professor/questions?view=approved"
+                label="Publish approved"
+              />
+            }
+          />
+          <PipelineStage
+            label="Published"
+            count={pipeline?.published}
+            caption="Immutable versions in the bank"
+            action={
+              <StageLink
+                href="/professor/questions?view=published"
+                label="See published"
+              />
+            }
+          />
+          <PipelineStage
+            label="Released"
+            count={availability?.available}
+            caption="Available to students"
+            action={
+              <StageLink
+                href="/professor/availability"
+                label="Manage availability"
+              />
+            }
+          />
+        </ol>
+        <p className="type-caption tabular">
+          {pipeline
+            ? `${pipeline.reserved} saved for later · ${pipeline.archived} archived`
+            : "Counts could not be loaded; every section is still one click away."}
+          {availability
+            ? ` · ${availability.scheduled} scheduled · ${availability.heldBack} held back`
+            : ""}
+          {availability?.nextScheduledAt ? (
+            <>
+              {" · next release "}
+              <ProfessorTime value={availability.nextScheduledAt} />
+            </>
+          ) : null}
+        </p>
+      </section>
+
+      <section
+        aria-labelledby="overview-review-heading"
+        className="flex flex-col gap-4"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="overview-review-heading" className="type-h2 text-ink">
+            Waiting on your review
+          </h2>
+          {overview && overview.totalNeedsReview > 0 ? (
+            <p className="type-small tabular text-ink-muted">
+              {overview.totalNeedsReview} open
+              {remainingTopics > 0
+                ? ` · ${remainingTopics} more ${remainingTopics === 1 ? "topic" : "topics"} in the queue`
+                : ""}
+            </p>
+          ) : null}
+        </div>
+        {previewTopics.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
+            {previewTopics.map((topic) => (
+              <li
+                key={topic.topicId}
+                className="flex items-center justify-between gap-4 py-3"
+              >
+                <div className="flex min-w-0 flex-col">
+                  <span className="type-body-strong truncate text-ink">
+                    {topic.title}
+                  </span>
+                  <span className="type-caption tabular">
+                    {topic.needsReview}{" "}
+                    {topic.needsReview === 1 ? "draft" : "drafts"} awaiting a
+                    decision
+                  </span>
+                </div>
+                <Button asChild variant="secondary" size="sm">
+                  <Link href={`/professor/review?topic=${topic.topicId}`}>
+                    Review
+                  </Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState className="py-0">
+            {overview
+              ? "Nothing is waiting on your review right now."
+              : "The review queue could not be loaded. Open it to try again."}
+          </EmptyState>
+        )}
+      </section>
+
+      <section
+        aria-labelledby="overview-decisions-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="overview-decisions-heading" className="type-h2 text-ink">
+          Recent decisions
+        </h2>
+        {recentDecisions.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
+            {recentDecisions.map((decision) => (
+              <li
+                key={decision.id}
+                className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+              >
+                <span className="min-w-0 type-body text-ink">
+                  <span className="font-medium">{decisionLabel(decision)}</span>{" "}
+                  {decision.kind === "lifecycle" ? (
+                    <Link
+                      href={professorQuestionPath(decision.questionId)}
+                      className="rounded-xs underline-offset-4 hover:underline focus-ring"
+                    >
+                      {decision.targetTitle}
+                    </Link>
+                  ) : (
+                    decision.targetTitle
+                  )}
+                </span>
+                <span className="shrink-0 type-caption">
+                  {decision.actorDisplayName} ·{" "}
+                  <ProfessorTime value={decision.occurredAt} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState className="py-0">
+            {overview
+              ? "No decisions have been recorded yet."
+              : "Decisions could not be loaded."}
+          </EmptyState>
+        )}
+      </section>
+
+      <section
+        aria-labelledby="overview-tools-heading"
+        className="flex flex-col gap-3"
+      >
+        <h2 id="overview-tools-heading" className="type-h2 text-ink">
+          Tools
+        </h2>
+        <ul className="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {TOOLS.map((tool) => (
+            <li key={tool.href}>
+              <Link
+                href={tool.href}
+                prefetch={"prefetch" in tool ? tool.prefetch : undefined}
+                className="flex min-h-10 items-center justify-between gap-2 rounded-control text-ink underline-offset-4 transition-colors duration-fast hover:text-azure-700 hover:underline focus-ring"
+              >
+                {tool.label}
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 text-ink-muted"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="type-caption max-w-prose">
+          Uploaded source files stay on the server; students never see them
+          and they are excluded from exports and analytics.
+        </p>
+      </section>
     </div>
   );
 }

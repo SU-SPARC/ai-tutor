@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Search, Shuffle } from "lucide-react";
 import { useId, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
 export const LEARN_FILTERS = [
@@ -37,6 +38,8 @@ const SORT_LABELS: Record<LearnSort, string> = {
 export type LearnToolbarProps = {
   className?: string;
   filter: LearnFilter;
+  /** Accessible name of the filter select ("Filter topics"). */
+  filterLabel?: string;
   onFilterChange: (filter: LearnFilter) => void;
   onSearchChange: (search: string) => void;
   onSortChange?: (sort: LearnSort) => void;
@@ -49,7 +52,9 @@ export type LearnToolbarProps = {
 };
 
 /**
- * Search · sort · filter · shuffle, right-aligned above a list. The shuffle
+ * Search · sort · filter · shuffle above a list, wrapping when the column is
+ * narrow (the search takes its own row on phones). Every control is 40px,
+ * 44px on touch. The shuffle
  * button is a real link so it is keyboard-reachable and opens in a new tab
  * like any other: its target is the first unsolved question on the server and
  * a random one once the page is interactive, which keeps the server and the
@@ -58,6 +63,7 @@ export type LearnToolbarProps = {
 export function LearnToolbar({
   className,
   filter,
+  filterLabel = "Filter",
   onFilterChange,
   onSearchChange,
   onSortChange,
@@ -89,10 +95,10 @@ export function LearnToolbar({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="relative min-w-40 flex-1 sm:max-w-56">
+      <div className="relative w-full sm:w-56 sm:shrink-0">
         <Search
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
         />
         <label className="sr-only" htmlFor={searchId}>
           {searchLabel}
@@ -103,7 +109,8 @@ export function LearnToolbar({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder={searchPlaceholder}
-          className="h-9 rounded-[6px] pl-8"
+          autoComplete="off"
+          className="pl-9"
         />
       </div>
 
@@ -112,50 +119,55 @@ export function LearnToolbar({
           <label className="sr-only" htmlFor={sortId}>
             Sort questions
           </label>
-          <select
+          <NativeSelect
             id={sortId}
             value={sort}
             onChange={(event) => onSortChange(event.target.value as LearnSort)}
-            className={cn(nativeSelectClassName, "h-9 w-auto rounded-[6px]")}
+            className="w-auto min-w-0 flex-1 sm:flex-none"
           >
             {LEARN_SORTS.map((value) => (
               <option key={value} value={value}>
                 {SORT_LABELS[value]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </>
       ) : null}
 
       <label className="sr-only" htmlFor={filterId}>
-        Filter
+        {filterLabel}
       </label>
-      <select
+      <NativeSelect
         id={filterId}
         value={filter}
         onChange={(event) => onFilterChange(event.target.value as LearnFilter)}
-        className={cn(nativeSelectClassName, "h-9 w-auto rounded-[6px]")}
+        className="w-auto min-w-0 flex-1 sm:flex-none"
       >
         {LEARN_FILTERS.map((value) => (
           <option key={value} value={value}>
             {FILTER_LABELS[value]}
           </option>
         ))}
-      </select>
+      </NativeSelect>
 
       {randomHref ? (
-        <Link
-          href={randomHref}
-          onMouseEnter={reshuffle}
-          onFocus={reshuffle}
-          onPointerDown={reshuffle}
-          aria-label="Open a random unsolved question"
-          title="Random unsolved"
-          className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-input px-3 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        <Button
+          asChild
+          variant="outline"
+          className="shrink-0 px-3 pointer-coarse:h-11 sm:px-4"
         >
-          <Shuffle aria-hidden="true" className="size-4" />
-          <span className="hidden sm:inline">Random unsolved</span>
-        </Link>
+          <Link
+            href={randomHref}
+            onMouseEnter={reshuffle}
+            onFocus={reshuffle}
+            onPointerDown={reshuffle}
+            aria-label="Open a random unsolved question"
+            title="Random unsolved"
+          >
+            <Shuffle aria-hidden="true" />
+            <span className="hidden sm:inline">Random unsolved</span>
+          </Link>
+        </Button>
       ) : null}
     </div>
   );

@@ -1,10 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import {
+  formatProfessorDate,
+  questionStateLabel,
+  REVISION_METHOD_LABELS,
+} from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
+import {
+  DialogBody,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { StatusChip } from "@/components/ui/status-chip";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   professorReviewReasonLabel,
   professorReviewReasonRequiresNote,
@@ -41,6 +62,7 @@ export type BatchQuestionOutcome =
 export function ProfessorQuestionBatchConfirmation({
   action,
   disabled,
+  inDialog = false,
   note,
   onCancel,
   onCompleted,
@@ -52,6 +74,12 @@ export function ProfessorQuestionBatchConfirmation({
 }: {
   action: QuestionLifecycleBatchAction;
   disabled: boolean;
+  /**
+   * Render as the body of a `DialogContent` (title, scrolling body, footer).
+   * Without it the confirmation is a plain section, which is how it renders
+   * outside a dialog and in tests.
+   */
+  inDialog?: boolean;
   note?: string;
   onCancel: () => void;
   onCompleted: (result: QuestionLifecycleBatchResult) => void;
@@ -68,6 +96,7 @@ export function ProfessorQuestionBatchConfirmation({
   const [message, setMessage] = useState<string>();
   const [preview, setPreview] = useState<QuestionLifecycleBatchPreviewResult>();
   const autoCheckedSelection = useRef<string>(undefined);
+  const headingId = useId();
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
   const topicOrders = new Map(topics.map((topic, index) => [topic.id, index]));
   const selectedTopics = questions.reduce<Map<string, number>>(
@@ -219,24 +248,19 @@ export function ProfessorQuestionBatchConfirmation({
   }
 
   const busy = disabled || isSubmitting || isChecking;
+  const title = `Confirm batch ${ACTION_LABELS[action]}`;
+  const description =
+    action === "publish"
+      ? `Each selected question is checked against the publication requirements first. The check changes nothing. When you confirm, all ${questions.length} questions are published together, or none of them are.`
+      : "This operation contains no approval step. It will apply to every selected version in one transaction, or to none of them.";
 
-  return (
-    <section
-      aria-label="Confirm batch review operation"
-      className="space-y-4 border-2 border-primary/40 bg-muted/20 p-4"
-    >
-      <div>
-        <h2 className="text-lg font-semibold">
-          Confirm batch {ACTION_LABELS[action]}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {action === "publish"
-            ? `Each selected question is checked against the publication requirements first. The check changes nothing. When you confirm, all ${questions.length} questions are published together, or none of them are.`
-            : "This operation contains no approval step. It will apply to every selected version in one transaction, or to none of them."}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2" aria-label="Selected topic summary">
+  const body = (
+    <>
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="Selected topic summary"
+      >
         {[...selectedTopics]
           .sort(
             ([leftId], [rightId]) =>
@@ -245,9 +269,12 @@ export function ProfessorQuestionBatchConfirmation({
               leftId.localeCompare(rightId),
           )
           .map(([topicId, count]) => (
-            <Badge key={topicId} variant="outline">
-              {topicTitles.get(topicId) ?? topicId}: {count}
-            </Badge>
+            <StatusChip
+              key={topicId}
+              icon={false}
+              label={`${topicTitles.get(topicId) ?? topicId}: ${count}`}
+              tone="neutral"
+            />
           ))}
       </div>
 
@@ -281,7 +308,7 @@ export function ProfessorQuestionBatchConfirmation({
             questions={questions}
             topics={topics}
           />
-          <div className="space-y-1 text-sm">
+          <div className="flex flex-col gap-1 type-small text-ink">
             <p>
               Reason:{" "}
               <span className="font-medium">
@@ -290,7 +317,7 @@ export function ProfessorQuestionBatchConfirmation({
                   : "Not selected"}
               </span>
               {action === "request_revision"
-                ? ` · Method: ${revisionMethod}`
+                ? ` · Method: ${REVISION_METHOD_LABELS[revisionMethod]}`
                 : ""}
             </p>
             {note ? <p>Audit note: {note}</p> : null}
@@ -298,48 +325,80 @@ export function ProfessorQuestionBatchConfirmation({
         </>
       )}
 
-      {message ? (
-        <p
-          role="status"
-          className="flex items-start gap-2 text-sm text-destructive"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          {message}
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        {action === "publish" ? (
-          <Button
-            type="button"
-            disabled={busy}
-            variant="outline"
-            onClick={() => void runPublicationCheck()}
-          >
-            {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isChecking ? "Checking…" : "Check again"}
-          </Button>
+      <div role="status" aria-live="polite">
+        {message ? (
+          <p className="flex items-start gap-2 type-small text-red-700">
+            <AlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0"
+            />
+            {message}
+          </p>
         ) : null}
-        <Button
-          type="button"
-          disabled={busy || (action === "publish" && !allReady)}
-          variant={action === "reject" ? "destructive" : "default"}
-          onClick={() => void confirmBatch()}
-        >
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {action === "publish"
-            ? `Publish ${questions.length} questions`
-            : `Confirm ${ACTION_LABELS[action]} for ${questions.length} questions`}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={isSubmitting}
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
       </div>
+    </>
+  );
+
+  const buttons = (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={isSubmitting}
+        onClick={onCancel}
+      >
+        Cancel
+      </Button>
+      {action === "publish" ? (
+        <Button
+          type="button"
+          disabled={busy}
+          variant="outline"
+          onClick={() => void runPublicationCheck()}
+        >
+          {isChecking ? "Checking…" : "Check again"}
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        loading={isSubmitting}
+        variant={action === "reject" ? "destructive" : "primary"}
+        onClick={() => void confirmBatch()}
+        disabled={busy || (action === "publish" && !allReady)}
+      >
+        {action === "publish"
+          ? `Publish ${questions.length} questions`
+          : `Confirm ${ACTION_LABELS[action]} for ${questions.length} questions`}
+      </Button>
+    </>
+  );
+
+  if (inDialog) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4">{body}</DialogBody>
+        <DialogFooter>{buttons}</DialogFooter>
+      </>
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-6"
+    >
+      <div className="flex flex-col gap-1.5">
+        <h2 id={headingId} className="type-h2 text-ink">
+          {title}
+        </h2>
+        <p className="type-body max-w-prose text-ink-muted">{description}</p>
+      </div>
+      {body}
+      <div className="flex flex-wrap justify-end gap-3">{buttons}</div>
     </section>
   );
 }
@@ -389,23 +448,20 @@ export function ProfessorBatchPublicationCheck({
   return (
     <section
       aria-label="Publication check"
-      className="space-y-3 border border-border bg-background p-3"
+      className="flex flex-col gap-3 rounded-panel bg-surface-tint p-4"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-medium">Publication check</h3>
-        {isChecking ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : null}
+        <h3 className="type-h3 text-ink">Publication check</h3>
         {!isChecking && (readyCount > 0 || blockedCount > 0) ? (
           <>
-            <Badge variant="success">{readyCount} Ready</Badge>
+            <StatusChip label={`${readyCount} Ready`} tone="approved" />
             {blockedCount > 0 ? (
-              <Badge variant="destructive">{blockedCount} Blocked</Badge>
+              <StatusChip label={`${blockedCount} Blocked`} tone="wrong" />
             ) : null}
           </>
         ) : null}
       </div>
-      <p role="status" className="text-sm text-muted-foreground">
+      <p role="status" className="type-small max-w-prose text-ink">
         {summary}
       </p>
       <ProfessorBatchQuestionOutcomes
@@ -416,7 +472,7 @@ export function ProfessorBatchPublicationCheck({
         questions={questions}
         topics={topics}
       />
-      <p className="text-xs text-muted-foreground">
+      <p className="type-caption max-w-prose">
         Publishing repeats every check on the server before anything changes.
         Students see a question only after the whole batch commits.
       </p>
@@ -441,38 +497,42 @@ function ProfessorBatchQuestionOutcomes({
 }) {
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
   return (
-    <div className="overflow-x-auto border border-border bg-background">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-border">
-          <tr>
-            <th className="p-2">Question</th>
-            <th className="p-2">Topic</th>
-            <th className="p-2">Version</th>
-            <th className="p-2">
+    <div className="rounded-panel bg-sheet">
+      <Table>
+        <TableCaption className="sr-only">
+          {action === "publish"
+            ? "Publication check for each selected question"
+            : "Outcome for each selected question"}
+        </TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Question</TableHead>
+            <TableHead>Topic</TableHead>
+            <TableHead>Version</TableHead>
+            <TableHead>
               {action === "publish" ? "Publication check" : "Outcome"}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {questions.map((question) => {
             const version = question.workingVersion;
             const outcome = outcomes.get(version.versionId) ?? {
               status: "unchecked" as const,
             };
             return (
-              <tr
-                key={question.questionId}
-                className="border-b border-border align-top"
-              >
-                <td className="p-2 font-medium">{version.title}</td>
-                <td className="p-2">
+              <TableRow key={question.questionId} className="align-top">
+                <TableCell className="min-w-40 font-medium">
+                  {version.title}
+                </TableCell>
+                <TableCell className="min-w-32">
                   {topicTitles.get(version.topicId) ?? version.topicId}
-                </td>
-                <td className="p-2 whitespace-nowrap">
-                  v{version.versionNumber} ·{" "}
-                  {version.state.replaceAll("_", " ")}
-                </td>
-                <td className="p-2">
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <span className="font-mono">v{version.versionNumber}</span>{" "}
+                  · {questionStateLabel(version.state)}
+                </TableCell>
+                <TableCell className="min-w-56">
                   <BatchQuestionOutcomeCell
                     action={action}
                     disabled={disabled}
@@ -483,12 +543,12 @@ function ProfessorBatchQuestionOutcomes({
                     }
                     outcome={outcome}
                   />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -506,30 +566,27 @@ function BatchQuestionOutcomeCell({
 }) {
   switch (outcome.status) {
     case "checking":
-      return <span className="text-muted-foreground">Checking…</span>;
+      return <span className="text-ink-muted">Checking…</span>;
     case "unchecked":
       return (
-        <span className="text-muted-foreground">
+        <span className="text-ink-muted">
           {action === "publish" ? "Not checked yet" : "Not applied yet"}
         </span>
       );
     case "ready":
       return (
-        <div className="space-y-1">
-          <Badge variant="success">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Ready to publish
-          </Badge>
-          <p className="text-muted-foreground">
+        <div className="flex flex-col gap-1">
+          <StatusChip label="Ready to publish" tone="approved" />
+          <p className="text-ink-muted">
             {reviewEvidenceText(outcome.reviewEvidence)}
           </p>
         </div>
       );
     case "cancelled":
       return (
-        <div className="space-y-1">
-          <Badge variant="outline">Not changed</Badge>
-          <p className="text-muted-foreground">
+        <div className="flex flex-col gap-1">
+          <StatusChip icon={false} label="Not changed" tone="neutral" />
+          <p className="text-ink-muted">
             This question passed, but the batch was cancelled because another
             selected question was blocked. Nothing changed.
           </p>
@@ -539,32 +596,30 @@ function BatchQuestionOutcomeCell({
       const failure = outcome.failure;
       const guidance = failureGuidance(failure);
       return (
-        <div className="space-y-1">
-          <Badge variant="destructive">
-            {action === "publish" ? "Cannot publish yet" : "Blocked"}
-          </Badge>
+        <div className="flex flex-col gap-1.5">
+          <StatusChip
+            label={action === "publish" ? "Cannot publish yet" : "Blocked"}
+            tone="wrong"
+          />
           {failure.publicationBlockers?.length ? (
             <>
-              <p className="text-muted-foreground">
-                Publication requirements not met:
-              </p>
-              <ul className="list-disc pl-5 text-muted-foreground">
+              <p className="text-ink">Publication requirements not met:</p>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-ink">
                 {failure.publicationBlockers.map((blocker) => (
                   <li key={blocker.code}>{blocker.message}</li>
                 ))}
               </ul>
             </>
           ) : (
-            <p className="text-muted-foreground">{failure.message}</p>
+            <p className="text-ink">{failure.message}</p>
           )}
-          {guidance ? (
-            <p className="text-muted-foreground">{guidance}</p>
-          ) : null}
+          {guidance ? <p className="text-ink-muted">{guidance}</p> : null}
           {onRemove ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
+              className="w-fit"
               disabled={disabled}
               onClick={onRemove}
             >
@@ -637,7 +692,7 @@ function batchItems(questions: QuestionLifecycleDto[]) {
 
 function reviewEvidenceText(evidence?: QuestionVersionReviewEvidence) {
   if (!evidence) return "This exact version passed every publication check.";
-  const date = evidence.reviewedAt.slice(0, 10);
+  const date = formatProfessorDate(evidence.reviewedAt);
   return evidence.kind === "approval"
     ? `You approved this exact version on ${date}. It passed every publication check.`
     : `You inspected this exact version on ${date}. It passed every publication check.`;

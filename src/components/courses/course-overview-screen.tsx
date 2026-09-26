@@ -1,55 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { Copy } from "lucide-react";
+import { Archive, ArchiveRestore, Copy } from "lucide-react";
 
 import {
   CourseFormDialog,
   type CourseFormRequest,
 } from "@/components/courses/course-form-dialog";
 import { CourseNotFound } from "@/components/courses/course-not-found";
+import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
 import { CourseSectionsList } from "@/components/courses/course-sections-list";
+import { plural } from "@/components/courses/course-status";
 import { CourseSyllabusOverlay } from "@/components/courses/course-syllabus-overlay";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { ReleasePipelineStrip } from "@/components/courses/release-pipeline-strip";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Button } from "@/components/ui/button";
+import { StatusChip } from "@/components/ui/status-chip";
+import { toast } from "@/components/ui/toast";
 import { coursesIndexPath } from "@/lib/courses/paths";
 import {
   courseSummary,
-  courseTopicsOrdered,
   coursePipeline,
   getCourse,
-  type CourseTopicView,
 } from "@/lib/courses/selectors";
 import type { CourseId } from "@/lib/courses/types";
 
-/**
- * "Syllabus follows canonical order (11 topics)" is the claim worth making when
- * it is true, because it means the professor can stop thinking about this card.
- * Anything else — a reorder, a dropped topic — has to say so.
- */
-function syllabusLine(rows: CourseTopicView[]) {
-  const included = rows.filter((row) => row.overlay.included);
-  const canonical =
-    included.length === rows.length &&
-    included.every(
-      (row, index) =>
-        index === 0 || included[index - 1].topic.order < row.topic.order,
-    );
-  return canonical
-    ? `Syllabus follows canonical order (${included.length} topics)`
-    : `Syllabus reordered (${included.length} of ${rows.length} topics)`;
-}
-
 /** S2. One offering: what is in flight, who it reaches, and what it covers. */
 export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
-  const { state, dispatch } = useCoursesStore();
+  const { state, dispatch, hydrated } = useCoursesStore();
   const [form, setForm] = useState<CourseFormRequest | null>(null);
 
   const course = getCourse(state, courseId);
+  const breadcrumbs = [
+    { href: coursesIndexPath(), label: "Courses" },
+    { label: course ? `${course.code} ${course.term}` : "Course" },
+  ];
 
   if (!course) {
+    // The server rendered the seed; a course created in this browser only
+    // exists once the saved demo has been read, so wait for that first.
+    if (!hydrated) {
+      return (
+        <CourseScreenSkeleton
+          breadcrumbs={breadcrumbs}
+          description="Reading this browser's demo data."
+          shape="overview"
+          title="Course"
+        />
+      );
+    }
     return (
       <ProfessorPageShell
         breadcrumbs={[
@@ -57,7 +57,7 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
           { label: "Not found" },
         ]}
         description="This link does not match a course in this demo."
-        title="Course"
+        title="Course not found"
       >
         <CourseNotFound what="course" />
       </ProfessorPageShell>
@@ -66,14 +66,29 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
 
   const summary = courseSummary(state, courseId);
   const pipeline = coursePipeline(state, courseId);
-  const topics = courseTopicsOrdered(state, courseId);
   const archived = course.status === "archived";
 
-  const status = `${archived ? "○ Archived" : "● Active"} · ${
-    summary.sectionCount === 1
-      ? "1 section"
-      : `${summary.sectionCount} sections`
-  } · ${syllabusLine(topics)}`;
+  function toggleArchived() {
+    if (!course) {
+      return;
+    }
+    const name = `${course.code} ${course.term}`;
+    dispatch({
+      type: archived ? "course/unarchive" : "course/archive",
+      courseId: course.id,
+    });
+    toast({
+      title: archived ? `${name} is active again` : `${name} archived`,
+      action: {
+        label: "Undo",
+        onClick: () =>
+          dispatch({
+            type: archived ? "course/archive" : "course/unarchive",
+            courseId: course.id,
+          }),
+      },
+    });
+  }
 
   return (
     <ProfessorPageShell
@@ -84,51 +99,45 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
               setForm({ mode: "clone", sourceCourseId: course.id })
             }
             type="button"
-            variant="outline"
+            variant="secondary"
           >
-            <Copy className="h-4 w-4" />
+            <Copy aria-hidden="true" />
             Clone
           </Button>
-          <Button
-            onClick={() =>
-              dispatch({
-                type: archived ? "course/unarchive" : "course/archive",
-                courseId: course.id,
-              })
-            }
-            type="button"
-            variant="outline"
-          >
+          <Button onClick={toggleArchived} type="button" variant="ghost">
+            {archived ? (
+              <ArchiveRestore aria-hidden="true" />
+            ) : (
+              <Archive aria-hidden="true" />
+            )}
             {archived ? "Unarchive" : "Archive"}
           </Button>
-          {/* A disabled button swallows its own hover, so the explanation
-              lives on a wrapper that can still be hovered. */}
-          <span title="Not in this demo">
-            <Button
-              disabled
-              title="Not in this demo"
-              type="button"
-              variant="ghost"
-            >
-              Settings
-            </Button>
-          </span>
         </>
       }
-      breadcrumbs={[
-        { href: coursesIndexPath(), label: "Courses" },
-        { label: `${course.code} ${course.term}` },
-      ]}
-      description={status}
-      title={`${course.code} · ${course.title} · ${course.term}`}
+      breadcrumbs={breadcrumbs}
+      description={course.title}
+      notice={
+        <span className="flex flex-wrap items-center gap-2">
+          {archived ? (
+            <StatusChip icon={Archive} label="Archived" tone="neutral" />
+          ) : null}
+          <span>
+            {plural(summary.sectionCount, "section")} ·{" "}
+            {summary.studentCount} joined · {summary.topicCount} topics
+          </span>
+        </span>
+      }
+      title={`${course.code} · ${course.term}`}
     >
-      <ReleasePipelineStrip
-        courseId={course.id}
-        pipeline={pipeline}
-        summary={summary}
-      />
-      <CourseSectionsList courseId={course.id} />
-      <CourseSyllabusOverlay courseId={course.id} />
+      <div className="flex flex-col gap-10">
+        <ReleasePipelineStrip
+          courseId={course.id}
+          pipeline={pipeline}
+          summary={summary}
+        />
+        <CourseSectionsList courseId={course.id} />
+        <CourseSyllabusOverlay courseId={course.id} />
+      </div>
 
       {form ? (
         <CourseFormDialog

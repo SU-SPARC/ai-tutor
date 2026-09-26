@@ -42,7 +42,7 @@ export async function generateMetadata({
     return { title: "Topic not found" };
   }
   return {
-    title: `${topic.title} · Learn`,
+    title: topic.title,
     description: topic.description,
   };
 }

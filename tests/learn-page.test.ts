@@ -6,9 +6,13 @@ import {
   buildTopicModel,
   buildWeekStrip,
   isTopicIdShape,
+  questionPositionLabel,
   relativeTimeLabel,
+  solvedCountLabel,
+  topicMasteryLevel,
   weekStartIsoFor,
 } from "@/components/learn/learn-model";
+import { toSyllabusRailTopics } from "@/components/learn/learn-syllabus-rail";
 import type {
   CourseTopic,
   StudentPracticeQuestion,
@@ -460,5 +464,53 @@ describe("relative time", () => {
     expect(relativeTimeLabel("2026-08-30T12:00:00.000Z", NOW)).toBe(
       "on Aug 30",
     );
+  });
+});
+
+describe("labels shared by the learn pages", () => {
+  it("writes positions and counts in words, one format everywhere", () => {
+    expect(questionPositionLabel(2, 5)).toBe("Question 2 of 5");
+    expect(solvedCountLabel(3, 8)).toBe("3 of 8 solved");
+  });
+
+  it("reads a topic's mastery level only from its solved count", () => {
+    expect(topicMasteryLevel({ glyph: "closed", solved: 0, total: 0 })).toBe(
+      undefined,
+    );
+    expect(topicMasteryLevel({ glyph: "todo", solved: 0, total: 4 })).toBe(0);
+    expect(topicMasteryLevel({ glyph: "current", solved: 0, total: 4 })).toBe(
+      1,
+    );
+    expect(topicMasteryLevel({ glyph: "current", solved: 1, total: 4 })).toBe(
+      2,
+    );
+    expect(topicMasteryLevel({ glyph: "current", solved: 2, total: 4 })).toBe(
+      3,
+    );
+    expect(topicMasteryLevel({ glyph: "done", solved: 4, total: 4 })).toBe(4);
+  });
+
+  it("gives the syllabus rail a mastery level and one up-next topic", () => {
+    const model = buildLearnModel({
+      nowIso: NOW,
+      progress: progressWith({
+        questions: [solvedVenn, openDice],
+        recentSessions: [openDiceSession],
+      }),
+      questions,
+      topics,
+    });
+
+    expect(
+      toSyllabusRailTopics(model.topics).map((topic) => [
+        topic.id,
+        topic.masteryLevel,
+        topic.current,
+      ]),
+    ).toEqual([
+      ["introduction", 4, false],
+      ["conditional-probability", 1, true],
+      ["central-limit-theorem", undefined, false],
+    ]);
   });
 });

@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CircleMinus, CirclePlus } from "lucide-react";
+import { CircleMinus, CirclePlus, Undo2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { stateLabel } from "@/lib/courses/format";
+import {
+  QuestionStateChip,
+  StagedChip,
+} from "@/components/courses/course-status";
+import { Button } from "@/components/ui/button";
 import { courseTopicPath } from "@/lib/courses/paths";
 import { professorReviewQueuePagePath } from "@/lib/professor/question-paths";
 import { releaseBlockReason } from "@/lib/courses/selectors";
@@ -12,37 +15,19 @@ import type {
   BankQuestion,
   CourseId,
   Difficulty,
-  QuestionLifecycleState,
 } from "@/lib/courses/types";
-import { cn } from "@/lib/utils";
-
-/** ● pub / ○ appr / ◐ rev / draft / unpub, as the blueprint's right pane reads. */
-const STATE_GLYPH: Record<QuestionLifecycleState, string> = {
-  published: "●",
-  approved: "○",
-  needs_review: "◐",
-  draft: "○",
-  unpublished: "⊘",
-};
-
-const STATE_TONE: Record<QuestionLifecycleState, string> = {
-  published: "text-success",
-  approved: "text-warning",
-  needs_review: "text-warning",
-  draft: "text-muted-foreground",
-  unpublished: "text-destructive",
-};
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  foundational: "foundational",
-  core: "core",
-  challenge: "challenge",
+  foundational: "Foundational",
+  core: "Core",
+  challenge: "Challenge",
 };
 
 /**
- * Blueprint S3 rule 2: the reason a ⊕ is disabled is never a dead end. It links
- * to the lifecycle step that unblocks it — the review queue for anything still
- * awaiting a decision, the topic page (which owns publish) for everything else.
+ * Blueprint S3 rule 2: the reason a ⊕ is unavailable is never a dead end. It
+ * links to the lifecycle step that unblocks it — the review queue for anything
+ * still awaiting a decision, the topic page (which owns publish) for
+ * everything else.
  */
 export function unblockHref(
   courseId: CourseId,
@@ -73,72 +58,76 @@ export function BankQuestionRow({
 }) {
   const blockReason = releaseBlockReason(question);
   const blocked = blockReason !== null && !released;
+  const stagedKind = staged ? (released ? "remove" : "add") : null;
+
+  const actionLabel = staged
+    ? released
+      ? `Undo staged removal of ${question.title} from ${sectionLabel}`
+      : `Undo staged release of ${question.title} to ${sectionLabel}`
+    : released
+      ? `Stage removal of ${question.title} from ${sectionLabel}`
+      : `Stage release of ${question.title} to ${sectionLabel}`;
 
   return (
-    <li className="flex items-start gap-2 border-b border-border/60 px-3 py-2 last:border-b-0">
+    <li className="flex items-start gap-2 border-b border-rule px-3 py-2 last:border-b-0">
       {blocked ? (
         // aria-disabled rather than `disabled`, so the control stays focusable
-        // and hoverable and the professor can still read why it is off.
-        <button
-          type="button"
+        // and the professor can still hear why it is off.
+        <Button
           aria-disabled="true"
           aria-label={`Cannot release ${question.title} to ${sectionLabel}: ${blockReason}`}
+          className="shrink-0 text-ink-muted"
           onClick={(event) => event.preventDefault()}
-          className="mt-0.5 shrink-0 cursor-not-allowed rounded-sm p-0.5 opacity-40 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          <CirclePlus className="h-4 w-4" aria-hidden="true" />
-        </button>
-      ) : (
-        <button
+          size="icon-sm"
           type="button"
-          onClick={onToggle}
-          aria-label={
-            released
-              ? `Stage removal of ${question.title} from ${sectionLabel}`
-              : `Stage release of ${question.title} to ${sectionLabel}`
-          }
-          className={cn(
-            "mt-0.5 shrink-0 rounded-sm p-0.5 outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
-            released
-              ? "text-muted-foreground hover:text-foreground"
-              : "text-primary hover:text-primary/80",
-          )}
+          variant="ghost"
         >
-          {released ? (
-            <CircleMinus className="h-4 w-4" aria-hidden="true" />
+          <CirclePlus aria-hidden="true" />
+        </Button>
+      ) : (
+        <Button
+          aria-label={actionLabel}
+          aria-pressed={staged}
+          className={
+            released || staged ? "shrink-0 text-ink-muted" : "shrink-0 text-azure-500"
+          }
+          onClick={onToggle}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          {staged ? (
+            <Undo2 aria-hidden="true" />
+          ) : released ? (
+            <CircleMinus aria-hidden="true" />
           ) : (
-            <CirclePlus className="h-4 w-4" aria-hidden="true" />
+            <CirclePlus aria-hidden="true" />
           )}
-        </button>
+        </Button>
       )}
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm">{question.title}</span>
-          <Badge
-            variant="outline"
-            className={cn("gap-1", STATE_TONE[question.state])}
-          >
-            <span aria-hidden="true">{STATE_GLYPH[question.state]}</span>
-            {stateLabel(question.state)}
-          </Badge>
-          <span className="text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
+        <p className="type-small text-ink">{question.title}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuestionStateChip state={question.state} />
+          <span className="type-caption tabular">
             v{question.publishedVersion ?? question.latestVersion}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="type-caption">
             {DIFFICULTY_LABELS[question.difficulty]}
           </span>
-          {staged ? <Badge variant="secondary">staged</Badge> : null}
+          {released && !staged ? (
+            <span className="type-caption">In {sectionLabel}</span>
+          ) : null}
+          {stagedKind ? <StagedChip kind={stagedKind} /> : null}
         </div>
         {blocked ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            <Link
-              href={unblockHref(courseId, question)}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              {blockReason}
-            </Link>
-          </p>
+          <Link
+            className="type-caption w-fit rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
+            href={unblockHref(courseId, question)}
+          >
+            {blockReason}
+          </Link>
         ) : null}
       </div>
     </li>

@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { Check, Circle, CircleDot, CircleSlash } from "lucide-react";
 
 import type { LearnQuestionRow } from "@/components/learn/learn-model";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<LearnQuestionRow["status"], string> = {
   current: "in progress",
-  done: "done",
+  done: "solved",
   retired: "retired",
   todo: "not started",
 };
 
 /**
- * The topic's state in one line. Eleven questions fit where a table of eleven
- * rows would not, and every dot is a link, so the row is also the fastest way
- * into any question in the topic.
+ * The topic's state in one line: every question as a 44px target with its
+ * glyph and number, so the row is also the fastest way into any question.
+ * The glyphs match the syllabus rail (filled check, dot, ring, slash), so
+ * colour is never the only signal.
  */
 export function TopicDotRow({ questions }: { questions: LearnQuestionRow[] }) {
   if (questions.length === 0) {
@@ -21,19 +23,16 @@ export function TopicDotRow({ questions }: { questions: LearnQuestionRow[] }) {
   }
 
   return (
-    <ul className="flex flex-wrap items-start gap-2">
+    <ul aria-label="Jump to a question" className="flex flex-wrap gap-1">
       {questions.map((question) => (
         <li key={question.id}>
           <Link
             href={question.href}
             title={`${question.position}. ${question.title}`}
-            className="flex w-7 flex-col items-center gap-1 rounded-[6px] py-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-control px-1 transition-colors duration-fast ease-out hover:bg-hover focus-ring"
           >
             <Dot status={question.status} />
-            <span
-              aria-hidden="true"
-              className="font-mono text-[11px] text-muted-foreground"
-            >
+            <span aria-hidden="true" className="type-caption tabular">
               {question.position}
             </span>
             <span className="sr-only">
@@ -47,28 +46,33 @@ export function TopicDotRow({ questions }: { questions: LearnQuestionRow[] }) {
 }
 
 function Dot({ status }: { status: LearnQuestionRow["status"] }) {
-  if (status === "retired") {
-    return (
-      <span
-        aria-hidden="true"
-        className="flex size-4 items-center justify-center rounded-full border border-destructive/50 text-[10px] leading-none text-destructive"
-      >
-        ⊘
-      </span>
-    );
-  }
+  const className = "size-4 shrink-0";
 
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "flex size-4 items-center justify-center rounded-full text-[10px] leading-none",
-        status === "done" && "bg-success text-success-foreground",
-        status === "current" && "bg-primary text-primary-foreground",
-        status === "todo" && "border border-border",
-      )}
-    >
-      {status === "done" ? "✓" : null}
-    </span>
-  );
+  switch (status) {
+    case "done":
+      return (
+        <span
+          aria-hidden="true"
+          className={cn(
+            className,
+            "inline-flex items-center justify-center rounded-full bg-green-500 text-on-fill",
+          )}
+        >
+          <Check className="size-3" strokeWidth={3} />
+        </span>
+      );
+    case "current":
+      return (
+        <CircleDot aria-hidden="true" className={cn(className, "text-azure-500")} />
+      );
+    case "retired":
+      return (
+        <CircleSlash aria-hidden="true" className={cn(className, "text-red-500")} />
+      );
+    case "todo":
+    default:
+      return (
+        <Circle aria-hidden="true" className={cn(className, "text-ink-muted")} />
+      );
+  }
 }

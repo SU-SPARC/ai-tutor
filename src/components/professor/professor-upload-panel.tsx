@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, FileText, Loader2, UploadCloud } from "lucide-react";
+import { useId, useRef, useState, type FormEvent } from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { StatusChip } from "@/components/ui/status-chip";
 import type { ProfessorContentUploadPreview } from "@/lib/tutor/professor-content-upload";
 
 type UploadPayload = {
@@ -16,6 +15,18 @@ type UploadPayload = {
   reviewStatus?: "needs_review";
 };
 
+const UPLOAD_KIND_LABELS: Record<
+  ProfessorContentUploadPreview["uploadKind"],
+  string
+> = {
+  pdf: "PDF",
+  tex: "LaTeX",
+};
+
+/**
+ * Upload one private file and see what the tutor would extract from it.
+ * Nothing is imported or approved here; the preview is the whole result.
+ */
 export function ProfessorUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -63,31 +74,31 @@ export function ProfessorUploadPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <form
-        className="grid gap-3 lg:grid-cols-[1fr_auto]"
+        className="flex flex-col gap-4 sm:flex-row sm:items-end"
         onSubmit={handleSubmit}
       >
-        <Input
-          ref={fileInputRef}
-          accept=".tex,.pdf,application/pdf,text/x-tex,application/x-tex"
-          type="file"
-        />
-        <Button type="submit" disabled={isUploading}>
-          {isUploading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <UploadCloud className="h-4 w-4" />
-          )}
-          Preview
+        <Field label="File" className="min-w-0 sm:max-w-md sm:flex-1">
+          <Input
+            ref={fileInputRef}
+            accept=".tex,.pdf,application/pdf,text/x-tex,application/x-tex"
+            type="file"
+            name="file"
+          />
+        </Field>
+        <Button type="submit" disabled={isUploading} loading={isUploading}>
+          Preview extraction
         </Button>
       </form>
 
-      {message ? (
-        <Alert>
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
+      <div role="status" aria-live="polite">
+        {message ? (
+          <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+            {message}
+          </p>
+        ) : null}
+      </div>
 
       {preview ? <PreviewResult preview={preview} /> : null}
     </div>
@@ -99,39 +110,46 @@ function PreviewResult({
 }: {
   preview: ProfessorContentUploadPreview;
 }) {
+  const headingId = useId();
   return (
-    <div className="flex flex-col gap-4 border border-border p-4">
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-5 rounded-panel bg-surface-tint p-4 sm:p-5"
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{preview.uploadKind}</Badge>
-        <Badge variant="outline">{preview.reviewStatus}</Badge>
-        <Badge variant="outline">not imported</Badge>
-        <Badge variant="outline">not approved</Badge>
+        <h2 id={headingId} className="type-h3 text-ink">
+          Preview
+        </h2>
+        <StatusChip label="Needs review" tone="review" />
+        <StatusChip icon={false} label="Not imported" tone="neutral" />
       </div>
 
-      <div className="grid gap-3 text-sm md:grid-cols-3">
-        <Info label="File" value={preview.file.name} />
-        <Info
-          label="Size"
-          value={`${Math.ceil(preview.file.size / 1024)} KB`}
-        />
-        <Info
-          label="Storage"
-          value={preview.privateStorage ?? "preview only"}
-        />
-      </div>
+      <dl className="grid gap-x-6 gap-y-2 type-small sm:grid-cols-[8rem_minmax(0,1fr)]">
+        <dt className="text-ink-muted">File</dt>
+        <dd className="truncate text-ink">
+          {preview.file.name}{" "}
+          <span className="text-ink-muted">
+            · {UPLOAD_KIND_LABELS[preview.uploadKind]} ·{" "}
+            <span className="tabular">
+              {Math.ceil(preview.file.size / 1024)} KB
+            </span>
+          </span>
+        </dd>
+        <dt className="text-ink-muted">Storage</dt>
+        <dd className="text-ink">
+          {preview.privateStorage ?? "Preview only; nothing was stored"}
+        </dd>
+      </dl>
 
       {preview.warnings.length > 0 ? (
-        <Alert variant="warning">
-          <AlertTriangle />
-          <AlertDescription>
-            {preview.warnings.map((warning) => (
-              <span key={warning}>{warning}</span>
-            ))}
-          </AlertDescription>
-        </Alert>
+        <ul className="flex flex-col gap-1 border-l-2 border-input py-1 pl-4 type-small text-ink">
+          {preview.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <PreviewSection
           title="Topics"
           items={preview.topics.map((item) => item.label)}
@@ -151,34 +169,23 @@ function PreviewResult({
           items={preview.misconceptions.map((item) => item.label)}
         />
       </div>
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 truncate font-medium">{value}</div>
-    </div>
+    </section>
   );
 }
 
 function PreviewSection({ items, title }: { items: string[]; title: string }) {
   return (
-    <section className="rounded-md border border-border p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <FileText className="h-4 w-4" />
-        {title}
-      </div>
+    <section className="flex flex-col gap-2 rounded-panel bg-sheet p-4">
+      <h3 className="type-body-strong text-ink">
+        {title}{" "}
+        <span className="font-mono text-ink-muted">{items.length}</span>
+      </h3>
       {items.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
-          No preview items found.
-        </div>
+        <p className="type-small text-ink-muted">Nothing found.</p>
       ) : (
-        <ul className="flex flex-col gap-2 text-sm">
+        <ul className="flex flex-col divide-y divide-rule type-small text-ink">
           {items.map((item) => (
-            <li key={item} className="rounded-sm bg-muted px-2 py-1">
+            <li key={item} className="py-1.5">
               {item}
             </li>
           ))}

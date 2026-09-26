@@ -121,7 +121,7 @@ describe("professor-friendly review panel", () => {
       }),
     );
 
-    expect(markup).toContain("Difficulty — professor final selection");
+    expect(markup).toContain(">Difficulty</label>");
     expect(markup).toContain('value="foundational"');
     expect(markup).toContain('value="intermediate" selected=""');
     expect(markup).toContain('value="challenge"');
@@ -155,7 +155,7 @@ describe("professor-friendly review panel", () => {
         loaded: true,
         selectedTopic: { ...topic, remaining: 2, total: 4 },
       }),
-    ).toContain("2 draft or revision item(s) remain");
+    ).toContain("2 draft or revision items remain");
   });
 });
 

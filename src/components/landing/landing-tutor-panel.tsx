@@ -18,9 +18,13 @@ export const WHERE_TO_START_MESSAGE =
   "Start by writing down what the problem gives you as probabilities. Then decide which of them is conditional on which.";
 
 /**
- * The hero's tutor drawer. It is real — the hint chip drives the same session
- * the sheet does — but capped: free text needs an account, so the field is
- * disabled and says why instead of failing after a click.
+ * The hero's tutor panel. It is real — the hint button drives the same
+ * session the sheet does — but capped: free text needs an account, so the
+ * field is disabled and the line under it says why instead of failing after
+ * a click.
+ *
+ * Tutor lines carry an azure left rule, never a filled bubble: the transcript
+ * reads as margin notes beside the worksheet.
  */
 export function LandingTutorPanel({
   messages,
@@ -28,25 +32,36 @@ export function LandingTutorPanel({
   onWhereToStart,
   hintDisabled = false,
 }: LandingTutorPanelProps) {
+  const headingId = useId();
   const inputId = useId();
+  const noteId = useId();
 
   return (
     <section
-      aria-label="Tutor"
-      className="flex flex-col gap-4 rounded-lg border-l border-border bg-sheet p-4 text-sheet-foreground"
+      aria-labelledby={headingId}
+      className="flex flex-col gap-5 text-ink"
     >
-      <h2 className="font-display text-base leading-none">Tutor</h2>
+      <div className="flex flex-col gap-1">
+        <h2 id={headingId} className="type-h2 text-ink">
+          Tutor
+        </h2>
+        <p className="type-caption">
+          Sees this problem, your hints and your last answer. Not your name.
+        </p>
+      </div>
 
-      <ol className="flex flex-col gap-2">
-        {messages.map((message, index) => (
-          <li
-            key={`tutor-message-${index}`}
-            className="rounded-lg bg-surface-tint px-3 py-2 text-sm leading-6"
-          >
-            {message}
-          </li>
-        ))}
-      </ol>
+      <div role="log" aria-label="Tutor messages">
+        <ol className="flex flex-col gap-3">
+          {messages.map((message, index) => (
+            <li
+              key={`tutor-message-${index}`}
+              className="type-body border-l-2 border-azure-500 pl-3 text-ink"
+            >
+              {message}
+            </li>
+          ))}
+        </ol>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -55,7 +70,6 @@ export function LandingTutorPanel({
           size="sm"
           onClick={onHint}
           disabled={hintDisabled}
-          className="rounded-[6px]"
         >
           Give me a hint
         </Button>
@@ -64,22 +78,24 @@ export function LandingTutorPanel({
           variant="outline"
           size="sm"
           onClick={onWhereToStart}
-          className="rounded-[6px]"
         >
           Where do I start?
         </Button>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2 border-t border-rule pt-4">
         <label className="sr-only" htmlFor={inputId}>
           Ask the tutor
         </label>
         <Input
           id={inputId}
           disabled
-          placeholder="Sign in to chat with the tutor"
-          className="rounded-[6px]"
+          placeholder="Ask about this problem…"
+          aria-describedby={noteId}
         />
+        <p id={noteId} className="type-caption">
+          Sign in to chat with the tutor.
+        </p>
       </div>
     </section>
   );

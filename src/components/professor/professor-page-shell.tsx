@@ -1,102 +1,57 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { ProfessorSectionNav } from "@/components/professor/professor-section-nav";
-import { ProfessorRail } from "@/components/shell/app-rail";
-import { ThreeColumn } from "@/components/shell/three-column";
+import { PageHeader, type BreadcrumbItem } from "@/components/ui/page-header";
 
-export type ProfessorBreadcrumb = {
-  href?: string;
-  label: string;
-};
+export type ProfessorBreadcrumb = BreadcrumbItem;
 
 /**
- * The frame every professor page shares: the workspace rail down the left, one
- * optional breadcrumb trail, one title block, one optional aside. Pages supply
- * their own content below it, so the workspace navigation never disappears
- * mid-task.
+ * The frame every professor page shares, inside the workspace layout (which
+ * already provides the rail, the `<main>` landmark and the phone menu): the
+ * header block (breadcrumb, serif h1, ONE sentence, at most one primary and
+ * one secondary action) and a dense column capped at 1200px.
  *
- * The rail leaves below `lg`, which is why the horizontal `ProfessorSectionNav`
- * is still rendered there: a professor on a laptop in a lecture hall keeps the
- * same destinations, just laid out across instead of down.
+ * Below 1024 the rail is hidden, so the page itself carries the workspace
+ * sections as one scrolling row above the header block (44px, not the old
+ * wrapped 120px block). Above 1024 the rail in the layout is the only copy.
+ *
+ * `aside` is the action slot. Put buttons there, not status badges; a demo
+ * notice belongs in `notice` (one quiet line under the h1).
  */
 export function ProfessorPageShell({
   aside,
   breadcrumbs,
   children,
   description,
+  notice,
   title,
 }: {
   aside?: ReactNode;
   breadcrumbs?: ProfessorBreadcrumb[];
   children: ReactNode;
   description: string;
+  /**
+   * One quiet line under the description (e.g. "Demo data"). Text or an
+   * inline node; a block element (a <p> with a link) is not re-wrapped.
+   */
+  notice?: ReactNode;
   title: string;
 }) {
   return (
-    <ThreeColumn rail={<ProfessorRail />} drawerOpen={false}>
-      <div className="flex w-full flex-col gap-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="flex max-w-3xl flex-col gap-3">
-            {breadcrumbs && breadcrumbs.length > 0 ? (
-              <nav aria-label="Breadcrumb">
-                <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  {breadcrumbs.map((crumb, index) => {
-                    // The last crumb is where you already are, so it is never a
-                    // link — it is the page's own name in the trail.
-                    const isLast = index === breadcrumbs.length - 1;
-                    return (
-                      <li
-                        key={`${crumb.label}-${index}`}
-                        className="flex items-center gap-1.5"
-                      >
-                        {index > 0 ? (
-                          <span
-                            aria-hidden
-                            className="text-muted-foreground/60"
-                          >
-                            /
-                          </span>
-                        ) : null}
-                        {crumb.href && !isLast ? (
-                          <Link
-                            href={crumb.href}
-                            className="rounded-sm transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                          >
-                            {crumb.label}
-                          </Link>
-                        ) : (
-                          <span
-                            aria-current={isLast ? "page" : undefined}
-                            className={isLast ? "text-foreground" : undefined}
-                          >
-                            {crumb.label}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              </nav>
-            ) : null}
-            <h1 className="font-display text-3xl font-normal tracking-normal">
-              {title}
-            </h1>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          {aside ? (
-            <div className="flex flex-wrap items-center gap-3">{aside}</div>
-          ) : null}
-        </div>
-
-        <div className="lg:hidden">
-          <ProfessorSectionNav />
-        </div>
-
-        {children}
-      </div>
-    </ThreeColumn>
+    <div
+      data-slot="professor-page"
+      className="mx-auto flex w-full max-w-[75rem] flex-col gap-6"
+    >
+      <ProfessorSectionNav className="lg:hidden" />
+      <PageHeader
+        breadcrumb={breadcrumbs}
+        title={title}
+        description={description}
+        actions={aside}
+        notice={notice}
+        className="mb-2"
+      />
+      {children}
+    </div>
   );
 }

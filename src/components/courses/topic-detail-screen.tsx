@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState } from "react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleCheck, Info } from "lucide-react";
 
 import { AddQuestionMenu } from "@/components/courses/add-question-menu";
 import { CourseNotFound } from "@/components/courses/course-not-found";
+import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
+import { plural } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { QuestionPreviewDrawer } from "@/components/courses/question-preview-drawer";
 import {
@@ -19,7 +21,7 @@ import {
 } from "@/components/courses/write-question-form";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SEED_NOW } from "@/lib/courses/demo-seed";
 import { topicShortLabel } from "@/lib/courses/format";
 import {
@@ -39,7 +41,6 @@ import type {
   CoursesState,
   QuestionLifecycleState,
 } from "@/lib/courses/types";
-import { cn } from "@/lib/utils";
 
 type FilterKey = "all" | QuestionLifecycleState;
 
@@ -56,7 +57,7 @@ const FILTER_LABELS: Record<FilterKey, string> = {
   all: "All",
   published: "Published",
   approved: "Approved",
-  needs_review: "In review",
+  needs_review: "Needs review",
   draft: "Draft",
   unpublished: "Unpublished",
 };
@@ -95,9 +96,45 @@ export function TopicDetailScreen(props: {
   // `?question=` drives the drawer and the row highlight, so the screen that
   // reads it is suspended per Next's search-param rule.
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<TopicDetailFallback {...props} />}>
       <TopicDetailScreenInner {...props} />
     </Suspense>
+  );
+}
+
+/** The header block from the seed, so it does not change when the table arrives. */
+function TopicDetailFallback({
+  courseId,
+  topicId,
+}: {
+  courseId: string;
+  topicId: string;
+}) {
+  const { state } = useCoursesStore();
+  const course = getCourse(state, courseId);
+  const topic = state.topics.find((candidate) => candidate.id === topicId);
+  const overlay = state.courseTopics.find(
+    (row) => row.courseId === courseId && row.topicId === topicId,
+  );
+  return (
+    <CourseScreenSkeleton
+      breadcrumbs={[
+        { href: coursesIndexPath(), label: "Courses" },
+        {
+          href: coursePath(courseId),
+          label: course ? `${course.code} ${course.term}` : "Course",
+        },
+        { href: courseTopicsPath(courseId), label: "Topic builder" },
+        {
+          label: topic
+            ? (overlay?.displayLabel ?? topicShortLabel(topic))
+            : "Topic",
+        },
+      ]}
+      description="Loading this topic's questions."
+      shape="topic"
+      title={topic ? topic.title : "Topic"}
+    />
   );
 }
 
@@ -108,7 +145,7 @@ function TopicDetailScreenInner({
   courseId: string;
   topicId: string;
 }) {
-  const { state, dispatch } = useCoursesStore();
+  const { state, dispatch, hydrated } = useCoursesStore();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -256,9 +293,22 @@ function TopicDetailScreenInner({
   const breadcrumbs = [
     { href: coursesIndexPath(), label: "Courses" },
     { href: coursePath(courseId), label: courseLabel },
-    { href: courseTopicsPath(courseId), label: "Topics" },
+    { href: courseTopicsPath(courseId), label: "Topic builder" },
     { label: shortLabel },
   ];
+
+  if ((!course || !topic) && !hydrated) {
+    // A course created in this browser is not in the seed the server
+    // rendered; wait for the saved demo before calling it missing.
+    return (
+      <CourseScreenSkeleton
+        breadcrumbs={breadcrumbs}
+        description="Loading this topic's questions."
+        shape="topic"
+        title="Topic"
+      />
+    );
+  }
 
   if (!course || !topic) {
     return (
@@ -276,12 +326,16 @@ function TopicDetailScreenInner({
     .size;
   const excluded = overlay ? !overlay.included : true;
 
-  const description = [
-    "Canonical topic",
-    `Week ${topic.weekNumber}`,
-    `${questions.length} question${questions.length === 1 ? "" : "s"} in bank`,
-    `released to ${releasedSectionCount} section${releasedSectionCount === 1 ? "" : "s"}`,
-  ].join(" · ");
+  const description = `Week ${topic.weekNumber} · ${plural(
+    questions.length,
+    "question",
+  )} in the bank · released to ${plural(releasedSectionCount, "section")}.`;
+
+  // "Unpublished" only appears when something is, or while it is selected.
+  const visibleFilters = FILTER_ORDER.filter(
+    (key) =>
+      key !== "unpublished" || counts.unpublished > 0 || filter === key,
+  );
 
   return (
     <ProfessorPageShell
@@ -291,33 +345,32 @@ function TopicDetailScreenInner({
       title={topic.title}
     >
       {excluded ? (
-        <Alert variant="warning">
-          <CircleAlert />
-          <AlertTitle>Excluded from this course&rsquo;s syllabus</AlertTitle>
+        <Alert role="note" variant="info">
+          <Info aria-hidden="true" />
+          <AlertTitle>Not in {course.code} · {course.term}&rsquo;s syllabus</AlertTitle>
           <AlertDescription>
-            <p>
-              This topic is excluded from {course.code} · {course.term}&rsquo;s
-              syllabus. Questions here cannot be released to its sections until
-              it is included.
+            <p className="type-small max-w-prose text-ink-muted">
+              Questions here cannot be released to this course&rsquo;s sections
+              until the topic is included.{" "}
+              <Link
+                className="rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
+                href={coursePath(courseId)}
+              >
+                Edit the syllabus on the course overview
+              </Link>
             </p>
-            <Link
-              className="font-medium text-primary hover:underline"
-              href={coursePath(courseId)}
-            >
-              Open the course overview
-            </Link>
           </AlertDescription>
         </Alert>
       ) : null}
 
       {savedDraftTitle ? (
         <Alert variant="success">
-          <CircleCheck />
-          <AlertTitle>&ldquo;{savedDraftTitle}&rdquo; saved</AlertTitle>
+          <CircleCheck aria-hidden="true" />
+          <AlertTitle>&ldquo;{savedDraftTitle}&rdquo; saved to the review queue</AlertTitle>
           <AlertDescription>
-            <p>
-              Saved as needs review. Approve it in the review queue, publish it,
-              then release it to a section.
+            <p className="type-small max-w-prose text-ink-muted">
+              It is marked Needs review. Approve it, publish it, then release it
+              to a section.
             </p>
           </AlertDescription>
         </Alert>
@@ -330,37 +383,34 @@ function TopicDetailScreenInner({
         />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {FILTER_ORDER.filter(
-          (key) => key !== "unpublished" || counts.unpublished > 0,
-        ).map((key) => {
-          const active = filter === key;
-          return (
-            <Button
-              aria-pressed={active}
-              className={cn(
-                active && "border-primary/40 bg-primary/10 text-primary",
-              )}
-              key={key}
-              onClick={() => setFilter(key)}
-              size="sm"
-              variant="outline"
-            >
-              {FILTER_LABELS[key]}{" "}
-              <span className="text-muted-foreground">({counts[key]})</span>
-            </Button>
-          );
-        })}
-      </div>
-
-      <TopicQuestionTable
-        onPreview={handlePreview}
-        onPublish={handlePublish}
-        publishedNotes={publishedNotes}
-        rows={visibleRows}
-        selectedQuestionId={selectedQuestionId}
-        topicId={topicId}
-      />
+      <Tabs
+        className="gap-3"
+        onValueChange={(value) => setFilter(value as FilterKey)}
+        value={filter}
+      >
+        <TabsList
+          aria-label="Filter questions by state"
+          className="max-w-full overflow-x-auto"
+          variant="segmented"
+        >
+          {visibleFilters.map((key) => (
+            <TabsTrigger count={counts[key]} key={key} value={key}>
+              {FILTER_LABELS[key]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value={filter}>
+          <TopicQuestionTable
+            caption={`${FILTER_LABELS[filter]} questions in ${topic.title}`}
+            onPreview={handlePreview}
+            onPublish={handlePublish}
+            publishedNotes={publishedNotes}
+            rows={visibleRows}
+            selectedQuestionId={selectedQuestionId}
+            topicId={topicId}
+          />
+        </TabsContent>
+      </Tabs>
 
       {selectedQuestion ? (
         <QuestionPreviewDrawer

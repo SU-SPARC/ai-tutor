@@ -122,7 +122,7 @@ describe("professor question revision panel", () => {
       ),
       "utf8",
     );
-    expect(lifecycleSource).toContain("Review & publish");
+    expect(lifecycleSource).toContain("Review and publish");
     expect(lifecycleSource).toContain("Review before publishing");
     expect(lifecycleSource).toContain("Confirm publication");
     expect(lifecycleSource).toContain("changedQuestionVersionFields");
@@ -328,7 +328,7 @@ describe("professor question revision panel", () => {
     expect(markup).toContain("Working version superseded");
     expect(markup).toContain("Professor rejected");
     expect(markup).toContain("Imported review state");
-    expect(markup).toContain("Difficulty: foundational → intermediate");
+    expect(markup).toContain("Difficulty: Foundational → Intermediate");
     expect(markup).not.toContain("professor_rejected");
     expect(markup).not.toContain("imported_review_state");
     expect(markup).not.toContain("private-pattern-secret");

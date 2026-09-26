@@ -1,42 +1,41 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { StatusPage } from "@/components/ui/status-page";
 
 export const metadata: Metadata = {
-  title: "Access denied | Suffolk Probability Tutor",
+  title: "Access denied",
 };
 
 export default function ForbiddenPage() {
   return (
-    <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg items-center px-6 py-12">
-      <Card className="w-full">
-        <CardHeader className="space-y-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <ShieldX className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-semibold">Access denied</h1>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              This signed-in account does not have access to instructor tools.
-              If professor access was recently granted in Clerk, reload this
-              page after the metadata change is saved. Signing out and back in
-              is not normally required. For help, contact the application
-              support team.
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+    <StatusPage
+      code="Access denied"
+      title="This account cannot open instructor tools"
+      description={
+        <>
+          <p>
+            This signed-in account does not have access to instructor tools.
+            If professor access was recently granted in Clerk, reload this
+            page after the metadata change is saved.
+          </p>
+          <p>
+            Signing out and back in is not normally required. For help,
+            contact the application support team.
+          </p>
+        </>
+      }
+      actions={
+        <>
           <Button asChild>
             <Link href="/learn">Return to Learn</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/account">View account</Link>
           </Button>
-        </CardContent>
-      </Card>
-    </main>
+        </>
+      }
+    />
   );
 }

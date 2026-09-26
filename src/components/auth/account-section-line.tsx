@@ -6,7 +6,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useStudentSection } from "@/components/shell/use-student-section";
 import { cn } from "@/lib/utils";
 
-const LINE_CLASSES = "text-sm leading-6";
+const LINE_CLASSES = "type-body";
 
 /**
  * `useStudentSection` remembers which section a student joined but not when —
@@ -102,11 +102,11 @@ export function AccountSectionLine({ className }: { className?: string }) {
 
   if (!section) {
     return (
-      <p className={cn(LINE_CLASSES, "text-muted-foreground", className)}>
+      <p className={cn(LINE_CLASSES, "text-ink-muted", className)}>
         No section joined ·{" "}
         <Link
           href="/join"
-          className="rounded-sm text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
         >
           Join with a code
         </Link>
@@ -120,7 +120,7 @@ export function AccountSectionLine({ className }: { className?: string }) {
     <p className={cn(LINE_CLASSES, className)}>
       <span className="font-mono">{section.label}</span>
       {joined ? (
-        <span className="text-muted-foreground"> · joined {joined}</span>
+        <span className="text-ink-muted"> · joined {joined}</span>
       ) : null}
     </p>
   );

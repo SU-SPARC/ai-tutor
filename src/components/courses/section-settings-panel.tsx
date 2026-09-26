@@ -1,23 +1,23 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
-import { RefreshCw } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Archive, RefreshCw } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/toast";
 import { coursePath } from "@/lib/courses/paths";
 import type { CourseSection } from "@/lib/courses/types";
 
+/**
+ * The Settings tab: the two fields students see when they join, the join code
+ * with its regenerate action, and archiving. Nothing here changes what has
+ * been released.
+ */
 export function SectionSettingsPanel({
   section,
   onRegenerateJoinCode,
@@ -27,136 +27,153 @@ export function SectionSettingsPanel({
 }) {
   const { dispatch } = useCoursesStore();
   const router = useRouter();
-  const fieldId = useId();
   const [label, setLabel] = useState(section.label);
   const [meetingTime, setMeetingTime] = useState(section.meetingTime);
-  const [saved, setSaved] = useState(false);
+  const [labelError, setLabelError] = useState<string | undefined>();
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const archived = section.status === "archived";
 
   function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    dispatch({
-      type: "section/update",
-      sectionId: section.id,
-      patch: { label: label.trim(), meetingTime: meetingTime.trim() },
-    });
-    setSaved(true);
-  }
-
-  function handleArchive() {
-    const confirmed = window.confirm(
-      `Archive ${section.label}? Students keep their history, but the section stops accepting new joins and disappears from the course's active list.`,
-    );
-    if (!confirmed) {
+    const trimmedLabel = label.trim();
+    if (trimmedLabel.length === 0) {
+      setLabelError("Give the section a label, for example Sec 01.");
       return;
     }
     dispatch({
       type: "section/update",
       sectionId: section.id,
+      patch: { label: trimmedLabel, meetingTime: meetingTime.trim() },
+    });
+    toast({ title: "Section settings saved", tone: "success" });
+  }
+
+  function archive() {
+    dispatch({
+      type: "section/update",
+      sectionId: section.id,
       patch: { status: "archived" },
+    });
+    toast({
+      title: `${section.label} archived`,
+      description: "Released questions and student history are kept.",
+      action: {
+        label: "Undo",
+        onClick: () =>
+          dispatch({
+            type: "section/update",
+            sectionId: section.id,
+            patch: { status: "active" },
+          }),
+      },
     });
     router.push(coursePath(section.courseId));
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Section settings</CardTitle>
-        <CardDescription>
-          The label and meeting time are what a student sees when they join with
-          the code. Nothing here changes what has been released.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <form className="flex flex-col gap-4" onSubmit={handleSave}>
+    <div className="flex flex-col gap-10">
+      <section aria-labelledby="section-details" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h2 text-ink" id="section-details">
+            Details
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            What a student sees when they join with the code.
+          </p>
+        </div>
+        <form
+          className="flex flex-col gap-4 rounded-panel bg-sheet p-5 sm:p-6"
+          noValidate
+          onSubmit={handleSave}
+        >
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-sm font-medium"
-                htmlFor={`${fieldId}-label`}
-              >
-                Label
-              </label>
+            <Field error={labelError} label="Label">
               <Input
-                id={`${fieldId}-label`}
+                autoComplete="off"
+                name="label"
                 onChange={(event) => {
                   setLabel(event.target.value);
-                  setSaved(false);
+                  setLabelError(undefined);
                 }}
-                placeholder="Sec 01"
+                placeholder="Sec 01…"
                 value={label}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                className="text-sm font-medium"
-                htmlFor={`${fieldId}-meeting`}
-              >
-                Meeting time
-              </label>
+            </Field>
+            <Field label="Meeting time" optional>
               <Input
-                id={`${fieldId}-meeting`}
-                onChange={(event) => {
-                  setMeetingTime(event.target.value);
-                  setSaved(false);
-                }}
-                placeholder="MWF 10:00"
+                autoComplete="off"
+                name="meetingTime"
+                onChange={(event) => setMeetingTime(event.target.value)}
+                placeholder="MWF 10:00…"
                 value={meetingTime}
               />
-            </div>
+            </Field>
           </div>
-          <div className="flex items-center gap-3">
-            <Button type="submit">Save</Button>
-            {saved ? (
-              <span className="text-sm text-success">Saved.</span>
-            ) : null}
+          <div>
+            <Button type="submit">Save settings</Button>
           </div>
         </form>
+      </section>
 
-        <Separator />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Join code</span>
-            <span className="text-sm text-muted-foreground">
-              Students type this once to join. Regenerating breaks the old one.
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="rounded-md border border-border px-3 py-1.5 font-mono text-sm">
-              {section.joinCode}
-            </span>
-            <Button onClick={onRegenerateJoinCode} size="sm" variant="outline">
-              <RefreshCw className="h-4 w-4" />
-              Regenerate
-            </Button>
-          </div>
+      <section aria-labelledby="section-join-code" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h2 text-ink" id="section-join-code">
+            Join code
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            Students type it once. Regenerating stops the old code working;
+            students who already joined stay.
+          </p>
         </div>
-
-        <Separator />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Archive section</span>
-            <span className="text-sm text-muted-foreground">
-              Removes it from the course&rsquo;s active sections. Released
-              questions and student history are kept.
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center gap-4 rounded-panel bg-sheet p-5 sm:p-6">
+          <span className="type-mono-input text-ink">{section.joinCode}</span>
           <Button
-            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            disabled={section.status === "archived"}
-            onClick={handleArchive}
-            variant="outline"
+            onClick={onRegenerateJoinCode}
+            type="button"
+            variant="secondary"
           >
-            {section.status === "archived" ? "Archived" : "Archive section"}
+            <RefreshCw aria-hidden="true" />
+            Regenerate code
           </Button>
         </div>
+      </section>
 
-        <p className="text-sm text-muted-foreground">
-          Delivery defaults (attempts, hints, solution reveal) are set per
-          released question in Availability.
-        </p>
-      </CardContent>
-    </Card>
+      <section aria-labelledby="section-archive" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h2 text-ink" id="section-archive">
+            Archive
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            Removes the section from the course&rsquo;s active list and stops
+            new joins. Released questions and student history are kept.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 rounded-panel bg-sheet p-5 sm:p-6">
+          <Button
+            disabled={archived}
+            onClick={() => setConfirmingArchive(true)}
+            type="button"
+            variant="destructive"
+          >
+            <Archive aria-hidden="true" />
+            {archived ? "Archived" : `Archive ${section.label}`}
+          </Button>
+          <p className="type-caption">
+            Delivery settings (attempts, hints, solution reveal) are set per
+            released question in Availability.
+          </p>
+        </div>
+      </section>
+
+      <ConfirmDialog
+        confirmLabel={`Archive ${section.label}`}
+        description={`${section.label} stops accepting joins and leaves the course's active list. Students keep their history.`}
+        destructive
+        onConfirm={archive}
+        onOpenChange={setConfirmingArchive}
+        open={confirmingArchive}
+        title={`Archive ${section.label}?`}
+      />
+    </div>
   );
 }

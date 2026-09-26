@@ -1,15 +1,9 @@
 "use client"
 
-import { TriangleAlert } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { StatusPage } from "@/components/ui/status-page"
 
 export default function ApplicationError({
   reset,
@@ -18,26 +12,17 @@ export default function ApplicationError({
   reset: () => void
 }) {
   return (
-    <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TriangleAlert
-                aria-hidden="true"
-                className="h-5 w-5 text-destructive"
-              />
-              Service temporarily unavailable
-            </CardTitle>
-            <CardDescription>
-              Tutor data could not be loaded safely. Please try again shortly.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={reset}>Try again</Button>
-          </CardContent>
-        </Card>
-      </section>
-    </main>
+    <StatusPage
+      title="This page could not load"
+      description="Tutor data could not be loaded safely. Try again in a moment; your saved practice is not affected."
+      actions={
+        <>
+          <Button onClick={reset}>Try again</Button>
+          <Button asChild variant="outline">
+            <Link href="/learn">Go to Learn</Link>
+          </Button>
+        </>
+      }
+    />
   )
 }

@@ -1,10 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { Upload } from "lucide-react";
 
 import { CoursesHubCard } from "@/components/courses/courses-hub-card";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorWorkspaceOverviewPanel } from "@/components/professor/professor-workspace-overview";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   requirePageAccess,
@@ -19,6 +18,10 @@ import {
   summarizeProfessorWorkspace,
   type ProfessorWorkspaceOverview,
 } from "@/lib/professor/workspace-overview";
+
+export const metadata: Metadata = {
+  title: "Workspace",
+};
 
 /**
  * The overview reads three dashboards. Before it did so this page could not
@@ -50,36 +53,40 @@ export default async function ProfessorPage() {
     <ProfessorPageShell
       title="Professor workspace"
       description={
-        needsReview > 0
-          ? `${needsReview} ${needsReview === 1 ? "question is" : "questions are"} waiting on your review. Approval and student release are separate steps, so nothing reaches a student until you release it.`
-          : "Approval and student release are separate steps, so nothing reaches a student until you release it."
+        overview
+          ? needsReview > 0
+            ? `${needsReview} ${needsReview === 1 ? "question is" : "questions are"} waiting on your review.`
+            : "Nothing is waiting on your review."
+          : "The workspace summary could not be loaded."
+      }
+      notice={
+        overview
+          ? undefined
+          : "Counts are unavailable until the next load; every section still opens."
       }
       aside={
         <>
-          <Button asChild variant="outline">
-            <Link href="/professor/upload">
-              <Upload className="h-4 w-4" />
-              Upload material
-            </Link>
+          <Button asChild variant="secondary">
+            <Link href="/professor/upload">Upload material</Link>
           </Button>
-          <Button asChild>
-            <Link href="/professor/review">Start reviewing</Link>
+          <Button asChild variant="secondary">
+            <Link href="/professor/questions?tab=intake">Add question</Link>
           </Button>
         </>
       }
     >
-      <CoursesHubCard />
-      {overview ? (
+      <div className="flex flex-col gap-10">
         <ProfessorWorkspaceOverviewPanel overview={overview} />
-      ) : (
-        <Alert>
-          <AlertDescription>
-            The workspace summary could not be loaded, so the counts below are
-            unavailable. Every section is still reachable from the navigation
-            above.
-          </AlertDescription>
-        </Alert>
-      )}
+        <section
+          aria-labelledby="overview-courses-heading"
+          className="flex flex-col gap-4"
+        >
+          <h2 id="overview-courses-heading" className="type-h2 text-ink">
+            Courses
+          </h2>
+          <CoursesHubCard />
+        </section>
+      </div>
     </ProfessorPageShell>
   );
 }

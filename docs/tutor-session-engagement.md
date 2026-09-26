@@ -140,7 +140,7 @@ User-facing terminology:
 - `src/components/professor/instructor-cohort-panel.tsx`
 - `src/components/professor/instructor-student-detail.tsx`
 - `src/components/professor/instructor-student-table.tsx`
-- `src/components/student/progress-dashboard.tsx`
+- `src/components/learn/learn-model.ts` (the student progress view on `/learn`; the old `student/progress-dashboard.tsx` was removed in the UI redesign)
 
 Regression coverage:
 

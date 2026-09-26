@@ -35,11 +35,11 @@ describe("professor question intake panel", () => {
       }),
     );
 
-    expect(markup).toContain("Add Question with AI");
+    expect(markup).toContain("Add a question with AI");
     expect(markup).toContain("Paste or type the question");
     expect(markup).toContain("Screenshot");
-    expect(markup).toContain("Analyze Question");
-    expect(markup).not.toContain("Save Draft");
+    expect(markup).toContain("Analyze question");
+    expect(markup).not.toContain("Save draft");
     expect(markup).not.toContain("Draft saved");
   });
 
@@ -58,18 +58,18 @@ describe("professor question intake panel", () => {
     );
 
     expect(markup).toContain("Draft saved.");
-    expect(markup).toContain("waiting in your Review Queue");
+    expect(markup).toContain("waiting in your review queue");
     expect(markup).toContain("Conditional Probability");
     expect(markup).toContain("Review and approve it before publishing");
     expect(markup).toContain("Students cannot see it yet");
     expect(markup).toContain(
       'href="/professor/questions/ai-intake-exactly-one-head-1234abcd"',
     );
-    expect(markup).toContain("View Draft");
+    expect(markup).toContain("View draft");
     expect(markup).toContain(
       'href="/professor/review?topic=conditional-probability&amp;question=ai-intake-exactly-one-head-1234abcd"',
     );
-    expect(markup).toContain("Open in Review Queue");
+    expect(markup).toContain("Open in review queue");
     expect(markup).toContain("Add another question");
     expect(markup).not.toContain("needs_review");
   });
@@ -82,7 +82,7 @@ describe("professor question intake panel", () => {
       "Draft saved",
     );
     expect(saveDraftButtonLabel({ isSaving: false, saved: false })).toBe(
-      "Save Draft",
+      "Save draft",
     );
     expect(
       questionIntakeSavedSummary(

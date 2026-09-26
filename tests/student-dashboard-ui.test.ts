@@ -47,7 +47,6 @@ import DashboardLoading from "@/app/dashboard/loading";
 import DashboardPage from "@/app/dashboard/page";
 import LearnPage from "@/app/learn/page";
 import PracticePage from "@/app/practice/page";
-import { ProgressDashboard } from "@/components/student/progress-dashboard";
 
 class RedirectSignal extends Error {
   constructor(readonly destination: string) {
@@ -231,7 +230,7 @@ describe("the learn page and the dashboard redirect", () => {
     expect(mocks.getStudentProgress).toHaveBeenCalledOnce();
     expect(markup).toContain("Continue");
     expect(markup).toContain("Five-question quiz");
-    expect(markup).not.toContain("practising as a guest");
+    expect(markup).not.toContain("practicing as a guest");
     expect(markup).not.toMatch(/leaderboard|class rank|percentile/i);
   });
 
@@ -242,80 +241,12 @@ describe("the learn page and the dashboard redirect", () => {
     const markup = renderToStaticMarkup(await LearnPage());
 
     expect(mocks.getStudentProgress).not.toHaveBeenCalled();
-    expect(markup).toContain("practising as a guest");
+    expect(markup).toContain("practicing as a guest");
     expect(markup).not.toContain("Five-question quiz");
   });
 });
 
-describe("student progress dashboard states", () => {
-  it("renders canonical topics, question states, retry guidance, and owned resume actions", () => {
-    const markup = renderToStaticMarkup(
-      createElement(ProgressDashboard, { progress }),
-    );
-
-    expect(markup).toContain("Progress by topic");
-    expect(markup.indexOf("Conditional Probability")).toBeLessThan(
-      markup.indexOf("Binomial Models"),
-    );
-    expect(markup).toContain("In progress");
-    expect(markup).toContain("Completed");
-    expect(markup).toContain("Questions to try again");
-    expect(markup).toContain("Recent practice");
-    expect(markup).toContain("Hints used");
-    expect(markup).toContain("Questions available");
-    expect(markup).toContain("Completed");
-    expect(markup).toContain("completed earlier");
-    expect(markup).toContain("1 of 3 completed · 1 completed earlier");
-    expect(markup).toContain("Continue practice");
-    expect(markup).toContain("No longer available");
-    expect(markup).toContain("Earlier published question");
-    expect(markup).not.toContain("questionId=withdrawn-question");
-    expect(markup).toContain("Resume");
-    expect(markup).toContain(
-      'href="/practice?questionId=five-question-quiz&amp;sessionId=session%3Astudent-owned"',
-    );
-    expect(markup).toContain(
-      "Your instructor determines any course credit according to the course policy.",
-    );
-    expect(markup).toContain("Unreadable submissions and hints are not attempts.");
-    expect(markup).not.toMatch(
-      /leaderboard|class rank|percentile|other student/i,
-    );
-  });
-
-  it("renders a clear empty state while retaining syllabus topics", () => {
-    const emptyProgress: StudentProgressDashboard = {
-      ...progress,
-      questions: [],
-      recentSessions: [],
-      summary: {
-        ...progress.summary,
-        completedQuestions: 0,
-        availableCompletedQuestions: 0,
-        hintsUsed: 0,
-        inProgressQuestions: 0,
-        needsAnotherAttempt: 0,
-        previouslyCompletedQuestions: 0,
-        topicsStarted: 0,
-      },
-      topics: progress.topics.map((topic) => ({
-        ...topic,
-        completedQuestions: 0,
-        inProgressQuestions: 0,
-        needsAnotherAttempt: 0,
-        previouslyCompletedQuestions: 0,
-      })),
-    };
-    const markup = renderToStaticMarkup(
-      createElement(ProgressDashboard, { progress: emptyProgress }),
-    );
-
-    expect(markup).toContain("No saved practice yet");
-    expect(markup).toContain("Start practicing");
-    expect(markup).toContain("Conditional Probability");
-    expect(markup).not.toContain("Continue practice");
-  });
-
+describe("dashboard loading and error states", () => {
   it("renders explicit loading and recoverable error states", () => {
     const loadingMarkup = renderToStaticMarkup(createElement(DashboardLoading));
     const errorMarkup = renderToStaticMarkup(

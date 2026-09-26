@@ -28,7 +28,7 @@ export async function generateMetadata({
     return { title: "Question not found" };
   }
   return {
-    title: `${studentQuestionTitle(question.title)} · Practice`,
+    title: studentQuestionTitle(question.title),
     description: question.prompt.slice(0, 150),
   };
 }

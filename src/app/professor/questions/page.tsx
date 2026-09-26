@@ -1,70 +1,84 @@
-import { ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorQuestionIntakePanel } from "@/components/professor/professor-question-intake-panel";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { professorQuestionsTabFromParam } from "@/components/professor/professor-questions-tab";
+import { ProfessorQuestionsTabs } from "@/components/professor/professor-questions-tabs";
+import { Button } from "@/components/ui/button";
 import { getQuestionLifecycleDashboard } from "@/lib/data/data-store";
 import {
   requireProfessorReview,
   requirePageAccess,
 } from "@/lib/auth/authorization";
 
-export default async function ProfessorQuestionsPage() {
+export const metadata: Metadata = {
+  title: "Questions",
+};
+
+type ProfessorQuestionsPageProps = {
+  searchParams: Promise<{
+    tab?: string | string[];
+    view?: string | string[];
+  }>;
+};
+
+function singleParam(value: string | string[] | undefined) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+export default async function ProfessorQuestionsPage({
+  searchParams,
+}: ProfessorQuestionsPageProps) {
   const authorization = await requirePageAccess(
     requireProfessorReview,
     "/professor/questions",
   );
-  const initialDashboard = await getQuestionLifecycleDashboard(authorization);
+  const [initialDashboard, params] = await Promise.all([
+    getQuestionLifecycleDashboard(authorization),
+    searchParams,
+  ]);
+  const activeQuestions = initialDashboard.questions.filter(
+    (question) => question.recordState === "active",
+  ).length;
 
   return (
     <ProfessorPageShell
-      title="Question lifecycle"
-      description="Operate immutable question versions from draft through review, approval, publication, rollback, and archival."
+      title="Questions"
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Questions" },
+      ]}
+      description={`${activeQuestions} ${activeQuestions === 1 ? "question" : "questions"} in the bank; every version is immutable and students see only what you publish.`}
+      notice={
+        initialDashboard.readOnly
+          ? (initialDashboard.readOnlyReason ??
+            "Demo mode is read-only: nothing here can be changed.")
+          : undefined
+      }
       aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <ShieldCheck className="h-4 w-4" />
-          private materials excluded
-        </Badge>
+        <Button asChild variant="secondary">
+          <Link href="/professor/review">Review queue</Link>
+        </Button>
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Question intake</CardTitle>
-          <CardDescription>
-            Turn one submitted question into a complete, editable tutoring
-            draft. Saving files it in your Review Queue and in the lifecycle
-            table below; approving and publishing stay separate steps.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <ProfessorQuestionsTabs
+        defaultTab={professorQuestionsTabFromParam(singleParam(params.tab))}
+        bankCount={activeQuestions}
+        bank={
+          <ProfessorQuestionLifecyclePanel
+            initialDashboard={initialDashboard}
+            initialView={singleParam(params.view)}
+          />
+        }
+        intake={
           <ProfessorQuestionIntakePanel
             readOnly={initialDashboard.readOnly}
             topics={initialDashboard.topics}
           />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Professor question queue</CardTitle>
-          <CardDescription>
-            Demo mode is read-only. Production changes use explicit, attributed
-            lifecycle transitions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProfessorQuestionLifecyclePanel
-            initialDashboard={initialDashboard}
-          />
-        </CardContent>
-      </Card>
+        }
+      />
     </ProfessorPageShell>
   );
 }

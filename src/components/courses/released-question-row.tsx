@@ -1,18 +1,24 @@
 "use client";
 
+import { useId } from "react";
 import {
   ChevronDown,
   ChevronUp,
   CircleMinus,
-  GripVertical,
+  History,
+  PauseCircle,
+  SlidersHorizontal,
   Undo2,
 } from "lucide-react";
 
+import { StagedChip } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
 import type { ReleasedQuestion } from "@/lib/courses/selectors";
 import type { SectionId, SolutionRevealPolicy } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
@@ -34,6 +40,11 @@ const SOLUTION_REVEAL_ORDER: SolutionRevealPolicy[] = [
 const MIN_ATTEMPTS = 1;
 const MAX_ATTEMPTS = 10;
 
+/**
+ * One question the section already has. Order and delivery settings save as
+ * they change (the reducer applies them directly); only removal is staged,
+ * shown with a "Removing" chip and an undo button until it is applied.
+ */
 export function ReleasedQuestionRow({
   expanded,
   index,
@@ -57,11 +68,14 @@ export function ReleasedQuestionRow({
   total: number;
 }) {
   const { dispatch } = useCoursesStore();
+  const settingsId = useId();
   const held = row.state === "held";
   const olderThanPublished =
     row.publishedVersion !== null &&
     row.releasedVersion !== null &&
     row.releasedVersion < row.publishedVersion;
+  const first = index === 0;
+  const last = index >= total - 1;
 
   const move = (direction: "up" | "down") =>
     dispatch({
@@ -82,109 +96,116 @@ export function ReleasedQuestionRow({
   return (
     <li
       className={cn(
-        "border-b border-border/60 last:border-b-0",
-        stagedRemove && "bg-muted/40",
+        "border-b border-rule last:border-b-0",
+        stagedRemove && "bg-surface-tint",
       )}
     >
       <div className="flex items-start gap-2 px-3 py-2">
-        <GripVertical
-          className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60"
-          aria-hidden="true"
-        />
-        <div className="flex shrink-0 flex-col">
+        <div className="flex shrink-0 items-center">
           <Button
+            aria-disabled={first || undefined}
+            aria-label={`Move ${row.title} up in ${sectionLabel}`}
+            onClick={() => {
+              if (!first) {
+                move("up");
+              }
+            }}
+            size="icon-sm"
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-5 w-6 text-muted-foreground"
-            aria-label={`Move ${row.title} up in ${sectionLabel}`}
-            disabled={index === 0}
-            onClick={() => move("up")}
           >
-            <ChevronUp className="h-3.5 w-3.5" />
+            <ChevronUp aria-hidden="true" />
           </Button>
           <Button
+            aria-disabled={last || undefined}
+            aria-label={`Move ${row.title} down in ${sectionLabel}`}
+            onClick={() => {
+              if (!last) {
+                move("down");
+              }
+            }}
+            size="icon-sm"
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-5 w-6 text-muted-foreground"
-            aria-label={`Move ${row.title} down in ${sectionLabel}`}
-            disabled={index >= total - 1}
-            onClick={() => move("down")}
           >
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown aria-hidden="true" />
           </Button>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleExpanded}
-          aria-expanded={expanded}
-          className="min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span
-              className={cn(
-                "text-sm",
-                stagedRemove && "text-muted-foreground line-through",
-              )}
-            >
-              {row.title}
-            </span>
-            <span className="text-xs text-muted-foreground">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
+          <p
+            className={cn(
+              "type-small text-ink",
+              stagedRemove && "text-ink-muted line-through",
+            )}
+          >
+            {row.title}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="type-caption tabular">
               v{row.releasedVersion ?? "—"}
             </span>
             {olderThanPublished ? (
-              <span className="text-xs text-warning">
-                ⚠ older than v{row.publishedVersion}
-              </span>
+              <StatusChip
+                icon={History}
+                label={`Older than v${row.publishedVersion}`}
+                tone="review"
+              />
             ) : null}
             {held ? (
-              <Badge variant="outline" className="text-muted-foreground">
-                held — version unpublished
-              </Badge>
+              <StatusChip
+                icon={PauseCircle}
+                label="Held · version unpublished"
+                tone="neutral"
+              />
             ) : null}
-            {stagedRemove ? <Badge variant="outline">removing</Badge> : null}
-          </span>
-          <span className="mt-0.5 block text-xs text-muted-foreground">
-            {expanded ? "Hide delivery settings" : "Delivery settings"}
-          </span>
-        </button>
+            {stagedRemove ? <StagedChip kind="remove" /> : null}
+          </div>
+        </div>
 
         <Button
+          aria-controls={settingsId}
+          aria-expanded={expanded}
+          aria-label={`Delivery settings for ${row.title}`}
+          className="shrink-0"
+          onClick={onToggleExpanded}
+          size="icon-sm"
           type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-8 w-8 shrink-0",
-            stagedRemove ? "text-foreground" : "text-muted-foreground",
-          )}
+          variant={expanded ? "secondary" : "ghost"}
+        >
+          <SlidersHorizontal aria-hidden="true" />
+        </Button>
+        <Button
           aria-label={
             stagedRemove
               ? `Undo staged removal of ${row.title} from ${sectionLabel}`
               : `Stage removal of ${row.title} from ${sectionLabel}`
           }
+          className="shrink-0"
           onClick={onToggleRemove}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
         >
           {stagedRemove ? (
-            <Undo2 className="h-4 w-4" />
+            <Undo2 aria-hidden="true" />
           ) : (
-            <CircleMinus className="h-4 w-4" />
+            <CircleMinus aria-hidden="true" />
           )}
         </Button>
       </div>
 
       {expanded ? (
-        <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-3 py-3 pl-11">
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Attempts allowed
+        <div
+          className="flex flex-col gap-3 bg-surface-tint px-3 py-3 sm:pl-18"
+          id={settingsId}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Attempts allowed">
               <Input
-                type="number"
-                min={MIN_ATTEMPTS}
+                inputMode="numeric"
                 max={MAX_ATTEMPTS}
-                className="h-8 w-20 py-1 text-sm"
-                value={row.delivery.attemptsAllowed}
+                min={MIN_ATTEMPTS}
                 onChange={(event) => {
                   const parsed = Number.parseInt(event.target.value, 10);
                   if (!Number.isFinite(parsed)) {
@@ -197,36 +218,18 @@ export function ReleasedQuestionRow({
                     ),
                   });
                 }}
+                type="number"
+                value={row.delivery.attemptsAllowed}
               />
-            </label>
-
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Hints
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 w-20"
-                aria-pressed={row.delivery.hintsEnabled}
-                aria-label={`Hints for ${row.title} in ${sectionLabel}`}
-                onClick={() =>
-                  updateDelivery({ hintsEnabled: !row.delivery.hintsEnabled })
-                }
-              >
-                {row.delivery.hintsEnabled ? "On" : "Off"}
-              </Button>
-            </div>
-
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Show solution after
+            </Field>
+            <Field label="Show solution after">
               <NativeSelect
-                className="h-8 w-[10rem] py-1 text-sm"
-                value={row.delivery.solutionReveal}
                 onChange={(event) =>
                   updateDelivery({
                     solutionReveal: event.target.value as SolutionRevealPolicy,
                   })
                 }
+                value={row.delivery.solutionReveal}
               >
                 {SOLUTION_REVEAL_ORDER.map((value) => (
                   <option key={value} value={value}>
@@ -234,10 +237,17 @@ export function ReleasedQuestionRow({
                   </option>
                 ))}
               </NativeSelect>
-            </label>
+            </Field>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Saved for this section only. The question itself is unchanged.
+          <CheckboxField
+            checked={row.delivery.hintsEnabled}
+            label="Hints on"
+            onCheckedChange={(checked) =>
+              updateDelivery({ hintsEnabled: checked === true })
+            }
+          />
+          <p className="type-caption">
+            Saved for {sectionLabel} only. The question itself is unchanged.
           </p>
         </div>
       ) : null}

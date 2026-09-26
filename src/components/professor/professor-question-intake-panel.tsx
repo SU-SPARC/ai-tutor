@@ -2,29 +2,23 @@
 
 import { AnswerCheckingEditor } from "@/components/professor/answer-checking-editor";
 import { LinesTextarea } from "@/components/professor/lines-textarea";
+import { professorDifficultyLabel } from "@/components/professor/professor-question-labels";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ClipboardCheck,
-  Eye,
-  FileImage,
-  Loader2,
-  Plus,
-  Save,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   professorQuestionPath,
   professorReviewQueuePagePath,
@@ -268,141 +262,163 @@ export function ProfessorQuestionIntakePanel({
     }
   }
 
+  const inputHeadingId = useId();
+  const previewHeadingId = useId();
+
   return (
-    <div className="flex flex-col gap-6">
-      <section className="rounded-md border border-border p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 font-medium">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Add Question with AI
-            </div>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Analyze one pasted question or one private screenshot. Analysis
-              creates only an editable preview; saving is a separate professor
-              action.
+    <div className="@container flex flex-col gap-6">
+      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @3xl:items-start">
+        <section
+          aria-labelledby={inputHeadingId}
+          className="flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5 @3xl:sticky @3xl:top-[calc(var(--header-h)+1rem)]"
+        >
+          <div className="flex flex-col gap-1">
+            <h2 id={inputHeadingId} className="type-h3 text-ink">
+              Add a question with AI
+            </h2>
+            <p className="type-small max-w-prose text-ink-muted">
+              Analyze one pasted question or one screenshot. The result is an
+              editable preview; nothing is saved until you save it as a draft.
             </p>
           </div>
-          <Badge variant="outline">professor only · preview first</Badge>
-        </div>
 
-        <div
-          className="mt-4 flex flex-wrap gap-2"
-          role="group"
-          aria-label="Question input type"
-        >
-          <Button
-            type="button"
-            size="sm"
-            variant={inputMode === "text" ? "default" : "outline"}
-            onClick={() => changeInputMode("text")}
+          <div
+            className="flex gap-1.5"
+            role="group"
+            aria-label="Question input type"
           >
-            Paste or type
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={inputMode === "image" ? "default" : "outline"}
-            onClick={() => changeInputMode("image")}
-          >
-            <FileImage className="h-4 w-4" />
-            Screenshot
-          </Button>
-        </div>
+            {(
+              [
+                { label: "Paste or type", value: "text" },
+                { label: "Screenshot", value: "image" },
+              ] as const
+            ).map((mode) => (
+              <button
+                key={mode.value}
+                type="button"
+                aria-pressed={inputMode === mode.value}
+                onClick={() => changeInputMode(mode.value)}
+                className={cn(
+                  "relative inline-flex h-8 items-center rounded-chip px-3 type-small transition-colors duration-fast focus-ring",
+                  "pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5",
+                  inputMode === mode.value
+                    ? "bg-azure-100 font-medium text-azure-700"
+                    : "bg-surface-tint text-ink hover:bg-hover",
+                )}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="mt-4">
           {inputMode === "text" ? (
             <Field label="Paste or type the question">
               <Textarea
-                className="min-h-36"
+                className="min-h-36 type-reading"
                 maxLength={8000}
-                placeholder="A fair die is rolled twice..."
+                placeholder="A fair die is rolled twice…"
                 value={questionText}
                 onChange={(event) => setQuestionText(event.target.value)}
               />
             </Field>
           ) : (
-            <Field label="Upload a screenshot or photo of the question">
+            <Field
+              label="Upload a screenshot or photo of the question"
+              description="One PNG, JPEG, or WEBP image, up to 5 MB. It is read once and never stored as a public asset."
+            >
               <Input
                 ref={fileInputRef}
                 accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
                 type="file"
               />
-              <span className="text-xs text-muted-foreground">
-                One PNG, JPEG, or WEBP image, up to 5MB. The image is processed
-                transiently and is not saved as a public asset.
-              </span>
             </Field>
           )}
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            disabled={isAnalyzing}
-            onClick={analyzeQuestion}
-          >
-            {isAnalyzing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Analyze Question
-          </Button>
-          {manualDraftAllowed ? (
-            <Button type="button" variant="outline" onClick={startManualDraft}>
-              Continue manually
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              disabled={isAnalyzing}
+              loading={isAnalyzing}
+              onClick={analyzeQuestion}
+            >
+              Analyze question
             </Button>
+            {manualDraftAllowed ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={startManualDraft}
+              >
+                Continue manually
+              </Button>
+            ) : null}
+          </div>
+
+          <div role="status" aria-live="polite">
+            {message ? (
+              <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+                {message}
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <section
+          aria-labelledby={previewHeadingId}
+          className="flex min-w-0 flex-col gap-4"
+        >
+          <h2 id={previewHeadingId} className="sr-only">
+            Question draft
+          </h2>
+
+          {saved ? (
+            <QuestionIntakeSavedNotice
+              saved={saved}
+              topicTitle={
+                topics.find((topic) => topic.id === saved.topicId)?.title
+              }
+              onAddAnother={resetForAnotherQuestion}
+            />
           ) : null}
-        </div>
-      </section>
 
-      {message ? (
-        <Alert variant="info" aria-live="polite">
-          <Sparkles />
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
+          {saveError ? (
+            <Alert variant="destructive" role="alert">
+              <AlertTriangle aria-hidden="true" />
+              <AlertTitle>Draft not saved</AlertTitle>
+              <AlertDescription>{saveError}</AlertDescription>
+            </Alert>
+          ) : null}
 
-      {saved ? (
-        <QuestionIntakeSavedNotice
-          saved={saved}
-          topicTitle={topics.find((topic) => topic.id === saved.topicId)?.title}
-          onAddAnother={resetForAnotherQuestion}
-        />
-      ) : null}
-
-      {saveError ? (
-        <Alert variant="destructive" role="alert">
-          <AlertTriangle />
-          <AlertTitle>Draft not saved</AlertTitle>
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {draft && !saved ? (
-        <QuestionDraftEditor
-          draft={draft}
-          duplicateAcknowledged={duplicateAcknowledged}
-          duplicates={duplicates}
-          isSaving={isSaving}
-          model={model}
-          readOnly={readOnly}
-          sourceKind={sourceKind}
-          topics={topics}
-          onDuplicateAcknowledged={setDuplicateAcknowledged}
-          onDraftChange={replaceDraft}
-          onSave={saveDraft}
-          onSourceKindChange={setSourceKind}
-        />
-      ) : null}
+          {draft && !saved ? (
+            <QuestionDraftEditor
+              draft={draft}
+              duplicateAcknowledged={duplicateAcknowledged}
+              duplicates={duplicates}
+              isSaving={isSaving}
+              model={model}
+              readOnly={readOnly}
+              sourceKind={sourceKind}
+              topics={topics}
+              onDuplicateAcknowledged={setDuplicateAcknowledged}
+              onDraftChange={replaceDraft}
+              onSave={saveDraft}
+              onSourceKindChange={setSourceKind}
+            />
+          ) : !saved ? (
+            <EmptyState className="rounded-panel bg-surface-tint px-5">
+              The draft appears here after you analyze a question. Every field
+              stays editable until you save it.
+            </EmptyState>
+          ) : null}
+        </section>
+      </div>
     </div>
   );
 }
 
 /**
  * The post-save confirmation. It names the destination in the professor's own
- * vocabulary (Review Queue, approve, publish) and links straight to the saved
+ * vocabulary (review queue, approve, publish) and links straight to the saved
  * question so nobody has to hunt for it.
  */
 export function QuestionIntakeSavedNotice({
@@ -416,26 +432,24 @@ export function QuestionIntakeSavedNotice({
 }) {
   return (
     <Alert variant="success" role="status" aria-live="polite">
-      <CheckCircle2 />
+      <CheckCircle2 aria-hidden="true" />
       <AlertTitle>Draft saved.</AlertTitle>
       <AlertDescription>
         <p>{questionIntakeSavedSummary(saved, topicTitle)}</p>
-        <div className="mt-1 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <Button asChild size="sm">
             <Link href={professorQuestionPath(saved.questionId)}>
-              <Eye className="h-4 w-4" />
-              View Draft
+              View draft
             </Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="secondary">
             <Link
               href={professorReviewQueuePagePath(
                 saved.topicId,
                 saved.questionId,
               )}
             >
-              <ClipboardCheck className="h-4 w-4" />
-              Open in Review Queue
+              Open in review queue
             </Link>
           </Button>
           {onAddAnother ? (
@@ -445,7 +459,7 @@ export function QuestionIntakeSavedNotice({
               variant="ghost"
               onClick={onAddAnother}
             >
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" />
               Add another question
             </Button>
           ) : null}
@@ -462,7 +476,7 @@ export function questionIntakeSavedSummary(
   const topic = topicTitle ?? saved.topicId;
   const location =
     saved.state === "needs_review"
-      ? `is waiting in your Review Queue under ${topic}.`
+      ? `is waiting in your review queue under ${topic}.`
       : `was filed under ${topic} in the question lifecycle.`;
   return `“${saved.title}” ${location} Review and approve it before publishing to students. Students cannot see it yet.`;
 }
@@ -485,7 +499,7 @@ export function saveDraftButtonLabel(input: {
   saved: boolean;
 }) {
   if (input.isSaving) return "Saving…";
-  return input.saved ? "Draft saved" : "Save Draft";
+  return input.saved ? "Draft saved" : "Save draft";
 }
 
 function newSaveKey() {
@@ -535,6 +549,10 @@ function QuestionDraftEditor({
     update("answer", { ...draft.answer, [key]: value });
   }
 
+  const headingId = useId();
+  const misconceptionsHeadingId = useId();
+  const checksHeadingId = useId();
+
   function changeAnswerType(answerType: QuestionIntakeAnswerType) {
     onDraftChange({
       ...draft,
@@ -549,26 +567,40 @@ function QuestionDraftEditor({
     });
   }
 
+  const checkTone = (status: "failed" | "passed" | "warning") =>
+    status === "passed" ? "approved" : status === "failed" ? "wrong" : "hint";
+  const checkLabel = (status: "failed" | "passed" | "warning") =>
+    status === "passed"
+      ? "Passed"
+      : status === "failed"
+        ? "Failed"
+        : "Warning";
+
   return (
-    <section className="rounded-md border border-primary/30 bg-muted/10 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">AI Question Draft</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Every tutoring field remains unverified until a professor reviews
-            it. Saving files the question in your Review Queue; approval and
-            publication stay separate steps.
-          </p>
+    <section
+      aria-labelledby={headingId}
+      className="@container flex flex-col gap-5 rounded-panel bg-sheet p-4 sm:p-5"
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 id={headingId} className="type-h3 text-ink">
+            AI question draft
+          </h3>
+          <StatusChip icon={false} label="AI-generated draft" tone="hint" />
+          {model ? (
+            <span className="type-caption font-mono">{model}</span>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="warning">AI-generated draft</Badge>
-          {model ? <Badge variant="outline">{model}</Badge> : null}
-        </div>
+        <p className="type-small max-w-prose text-ink-muted">
+          Every field is unverified until you review it. Saving files the
+          question in your review queue; approving and publishing stay separate
+          steps.
+        </p>
       </div>
 
       {draft.warnings.length > 0 || draft.unreadableSegments.length > 0 ? (
-        <Alert variant="warning" className="mt-4">
-          <AlertTriangle />
+        <Alert variant="warning" role="note">
+          <AlertTriangle aria-hidden="true" />
           <AlertTitle>Needs professor review</AlertTitle>
           <AlertDescription>
             {[
@@ -581,7 +613,7 @@ function QuestionDraftEditor({
         </Alert>
       ) : null}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 @xl:grid-cols-2">
         <Field label="Title">
           <Input
             maxLength={500}
@@ -589,9 +621,11 @@ function QuestionDraftEditor({
             onChange={(event) => update("title", event.target.value)}
           />
         </Field>
-        <Field label="Existing course topic">
-          <select
-            className={nativeSelectClassName}
+        <Field
+          label="Existing course topic"
+          description={confidenceText("Topic confidence", draft.confidence.topic)}
+        >
+          <NativeSelect
             value={draft.topicId}
             onChange={(event) => update("topicId", event.target.value)}
           >
@@ -600,27 +634,18 @@ function QuestionDraftEditor({
                 {topic.title}
               </option>
             ))}
-          </select>
-          <ConfidenceLabel
-            value={draft.confidence.topic}
-            label="Topic confidence"
-          />
+          </NativeSelect>
         </Field>
-        <Field label="Question type">
-          <select
-            className={nativeSelectClassName}
-            value={draft.questionType}
-            disabled
-          >
+        <Field
+          label="Question type"
+          description="Free response is the only question format the tutor supports today."
+        >
+          <NativeSelect value={draft.questionType} disabled>
             <option value="free_response">Free response</option>
-          </select>
-          <span className="text-xs text-muted-foreground">
-            Free response is the tutor&apos;s current supported question format.
-          </span>
+          </NativeSelect>
         </Field>
         <Field label="Answer type">
-          <select
-            className={nativeSelectClassName}
+          <NativeSelect
             value={draft.answerType}
             onChange={(event) =>
               changeAnswerType(event.target.value as QuestionIntakeAnswerType)
@@ -628,11 +653,10 @@ function QuestionDraftEditor({
           >
             <option value="numeric">Numeric</option>
             <option value="text">Text</option>
-          </select>
+          </NativeSelect>
         </Field>
         <Field label="Difficulty">
-          <select
-            className={nativeSelectClassName}
+          <NativeSelect
             value={draft.difficulty}
             onChange={(event) =>
               update("difficulty", event.target.value as Difficulty)
@@ -640,14 +664,16 @@ function QuestionDraftEditor({
           >
             {DIFFICULTIES.map((difficulty) => (
               <option key={difficulty} value={difficulty}>
-                {difficulty}
+                {professorDifficultyLabel(difficulty)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
-        <Field label="Question source">
-          <select
-            className={nativeSelectClassName}
+        <Field
+          label="Question source"
+          description="Stored as professor-provided provenance; no pattern ID is created."
+        >
+          <NativeSelect
             value={sourceKind}
             onChange={(event) =>
               onSourceKindChange(event.target.value as QuestionIntakeSourceKind)
@@ -658,104 +684,90 @@ function QuestionDraftEditor({
                 {option.label}
               </option>
             ))}
-          </select>
-          <span className="text-xs text-muted-foreground">
-            Stored with the existing professor-provided provenance; no pattern
-            ID is created.
-          </span>
+          </NativeSelect>
         </Field>
       </div>
 
-      <div className="mt-4">
-        <Field label="Question wording">
-          <Textarea
-            className="min-h-36"
-            maxLength={8000}
-            value={draft.prompt}
-            onChange={(event) => update("prompt", event.target.value)}
-          />
-          <ConfidenceLabel
-            value={draft.confidence.extraction}
-            label="Extraction confidence"
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <AnswerCheckingEditor
-          answer={draft.answer}
-          onChange={(answer) =>
-            onDraftChange({
-              ...draft,
-              answer,
-              answerType:
-                answer.spec?.kind === "numeric"
-                  ? "numeric"
-                  : answer.spec
-                    ? "text"
-                    : draft.answerType,
-            })
-          }
+      <Field
+        label="Question wording"
+        description={confidenceText(
+          "Extraction confidence",
+          draft.confidence.extraction,
+        )}
+      >
+        <Textarea
+          className="min-h-36 type-reading"
+          maxLength={8000}
+          value={draft.prompt}
+          onChange={(event) => update("prompt", event.target.value)}
         />
-        {!draft.answer.spec && (
-          <Field label="Correct accepted answers (one per line)">
-            <LinesTextarea
-              className="min-h-28"
-              values={draft.answer.acceptedAnswers}
-              onChange={(acceptedAnswers) =>
-                updateAnswer("acceptedAnswers", acceptedAnswers)
+      </Field>
+
+      <AnswerCheckingEditor
+        answer={draft.answer}
+        onChange={(answer) =>
+          onDraftChange({
+            ...draft,
+            answer,
+            answerType:
+              answer.spec?.kind === "numeric"
+                ? "numeric"
+                : answer.spec
+                  ? "text"
+                  : draft.answerType,
+          })
+        }
+      />
+      {!draft.answer.spec && (
+        <Field label="Correct accepted answers (one per line)">
+          <LinesTextarea
+            className="min-h-28 font-mono"
+            values={draft.answer.acceptedAnswers}
+            onChange={(acceptedAnswers) =>
+              updateAnswer("acceptedAnswers", acceptedAnswers)
+            }
+          />
+        </Field>
+      )}
+      {draft.answerType === "numeric" && !draft.answer.spec ? (
+        <div className="grid gap-5 @xl:grid-cols-2">
+          <Field label="Numeric value">
+            <Input
+              type="number"
+              step="any"
+              value={draft.answer.numericValue ?? ""}
+              onChange={(event) =>
+                updateAnswer("numericValue", optionalNumber(event.target.value))
               }
             />
           </Field>
-        )}
-        {draft.answerType === "numeric" && !draft.answer.spec ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Numeric value">
-              <Input
-                type="number"
-                step="any"
-                value={draft.answer.numericValue ?? ""}
-                onChange={(event) =>
-                  updateAnswer(
-                    "numericValue",
-                    optionalNumber(event.target.value),
-                  )
-                }
-              />
-            </Field>
-            <Field label="Tolerance">
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={draft.answer.tolerance ?? ""}
-                onChange={(event) =>
-                  updateAnswer("tolerance", optionalNumber(event.target.value))
-                }
-              />
-            </Field>
-          </div>
-        ) : null}
-      </div>
+          <Field label="Tolerance">
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={draft.answer.tolerance ?? ""}
+              onChange={(event) =>
+                updateAnswer("tolerance", optionalNumber(event.target.value))
+              }
+            />
+          </Field>
+        </div>
+      ) : null}
 
-      <div className="mt-4">
-        <Field label="Answer explanation">
-          <Textarea
-            className="min-h-32"
-            maxLength={8000}
-            value={draft.answer.explanation}
-            onChange={(event) =>
-              updateAnswer("explanation", event.target.value)
-            }
-          />
-          <ConfidenceLabel
-            value={draft.confidence.answer}
-            label="Answer confidence"
-          />
-        </Field>
-      </div>
+      <Field
+        label="Answer explanation"
+        description={confidenceText("Answer confidence", draft.confidence.answer)}
+      >
+        <Textarea
+          className="min-h-32"
+          maxLength={8000}
+          value={draft.answer.explanation}
+          onChange={(event) => updateAnswer("explanation", event.target.value)}
+        />
+      </Field>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 @xl:grid-cols-2">
         <Field label="Progressive hints (2–4, one per line)">
           <LinesTextarea
             className="min-h-44"
@@ -772,18 +784,23 @@ function QuestionDraftEditor({
         </Field>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <section
+        aria-labelledby={misconceptionsHeadingId}
+        className="flex flex-col gap-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h4 className="font-medium">Likely student misconceptions</h4>
-            <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col gap-0.5">
+            <h4 id={misconceptionsHeadingId} className="type-body-strong text-ink">
+              Likely student misconceptions
+            </h4>
+            <p className="type-caption">
               Keep only recognizable incorrect patterns with targeted feedback.
             </p>
           </div>
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="secondary"
             onClick={() =>
               update("misconceptions", [
                 ...draft.misconceptions,
@@ -795,99 +812,114 @@ function QuestionDraftEditor({
               ])
             }
           >
-            <Plus className="h-4 w-4" /> Add misconception
+            <Plus aria-hidden="true" /> Add misconception
           </Button>
         </div>
         {draft.misconceptions.length === 0 ? (
-          <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+          <p className="type-small text-ink-muted">
             No meaningful misconception suggested.
           </p>
         ) : (
-          draft.misconceptions.map((misconception, index) => (
-            <div
-              key={index}
-              className="grid gap-3 rounded-md border p-3 md:grid-cols-[1fr_1fr_auto]"
-            >
-              <Field label="Code / incorrect pattern">
-                <Input
-                  maxLength={500}
-                  value={misconception.id}
-                  onChange={(event) =>
-                    updateMisconception(
-                      draft,
-                      index,
-                      { id: event.target.value },
-                      onDraftChange,
-                    )
-                  }
-                />
-                <Input
-                  placeholder="Recognizable answer terms, comma separated"
-                  value={misconception.matchTerms.join(", ")}
-                  onChange={(event) =>
-                    updateMisconception(
-                      draft,
-                      index,
-                      { matchTerms: commaSeparated(event.target.value) },
-                      onDraftChange,
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Targeted tutor feedback">
-                <Textarea
-                  className="min-h-24"
-                  maxLength={8000}
-                  value={misconception.feedback}
-                  onChange={(event) =>
-                    updateMisconception(
-                      draft,
-                      index,
-                      { feedback: event.target.value },
-                      onDraftChange,
-                    )
-                  }
-                />
-              </Field>
-              <Button
-                aria-label={`Remove misconception ${index + 1}`}
-                className="md:mt-6"
-                size="icon"
-                type="button"
-                variant="ghost"
-                onClick={() =>
-                  update(
-                    "misconceptions",
-                    draft.misconceptions.filter(
-                      (_, itemIndex) => itemIndex !== index,
-                    ),
-                  )
-                }
+          <ol className="flex flex-col gap-3">
+            {draft.misconceptions.map((misconception, index) => (
+              <li
+                key={index}
+                className="grid gap-4 rounded-panel bg-surface-tint p-4 @xl:grid-cols-[1fr_1fr_auto]"
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
+                <div className="flex flex-col gap-4">
+                  <Field label={`Code / incorrect pattern ${index + 1}`}>
+                    <Input
+                      maxLength={500}
+                      value={misconception.id}
+                      onChange={(event) =>
+                        updateMisconception(
+                          draft,
+                          index,
+                          { id: event.target.value },
+                          onDraftChange,
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={`Match terms ${index + 1}`}
+                    description="Recognizable answer terms, comma separated."
+                  >
+                    <Input
+                      value={misconception.matchTerms.join(", ")}
+                      onChange={(event) =>
+                        updateMisconception(
+                          draft,
+                          index,
+                          { matchTerms: commaSeparated(event.target.value) },
+                          onDraftChange,
+                        )
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label={`Targeted tutor feedback ${index + 1}`}>
+                  <Textarea
+                    className="min-h-24"
+                    maxLength={8000}
+                    value={misconception.feedback}
+                    onChange={(event) =>
+                      updateMisconception(
+                        draft,
+                        index,
+                        { feedback: event.target.value },
+                        onDraftChange,
+                      )
+                    }
+                  />
+                </Field>
+                <Button
+                  aria-label={`Remove misconception ${index + 1}`}
+                  className="@xl:mt-7"
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() =>
+                    update(
+                      "misconceptions",
+                      draft.misconceptions.filter(
+                        (_, itemIndex) => itemIndex !== index,
+                      ),
+                    )
+                  }
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </li>
+            ))}
+          </ol>
         )}
-      </div>
+      </section>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
-        <section className="rounded-md border p-3 text-sm">
-          <h4 className="font-medium">Consistency checks</h4>
-          <ul className="mt-2 space-y-2 text-muted-foreground">
+      <div className="grid gap-4 @xl:grid-cols-2">
+        <section
+          aria-labelledby={checksHeadingId}
+          className="flex flex-col gap-2 rounded-panel bg-surface-tint p-4"
+        >
+          <h4 id={checksHeadingId} className="type-body-strong text-ink">
+            Consistency checks
+          </h4>
+          <ul className="flex flex-col gap-2 type-small text-ink">
             {draft.review.checks.length > 0 ? (
               draft.review.checks.map((check) => (
-                <li key={check.code} className="flex gap-2">
-                  <Badge
-                    variant={check.status === "passed" ? "success" : "warning"}
-                  >
-                    {check.status}
-                  </Badge>
+                <li key={check.code} className="flex items-start gap-2">
+                  <StatusChip
+                    className="mt-0.5"
+                    label={checkLabel(check.status)}
+                    tone={checkTone(check.status)}
+                  />
                   <span>{check.message}</span>
                 </li>
               ))
             ) : (
-              <li>Checks will run when the completed draft is saved.</li>
+              <li className="text-ink-muted">
+                Checks run when the completed draft is saved.
+              </li>
             )}
           </ul>
         </section>
@@ -899,38 +931,37 @@ function QuestionDraftEditor({
       </div>
 
       {readOnly ? (
-        <Alert variant="warning" className="mt-4">
-          <AlertTriangle />
-          <AlertDescription>
-            This operating mode is read-only. You can analyze and edit the
-            preview, but configured database storage is required to save it.
-          </AlertDescription>
-        </Alert>
+        <p className="type-small max-w-prose border-l-2 border-input pl-4 text-ink-muted">
+          This operating mode is read-only. You can analyze and edit the
+          preview, but saving needs configured database storage.
+        </p>
       ) : null}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 border-t border-rule pt-5 sm:flex-row sm:items-center">
         <Button
           type="button"
           aria-busy={isSaving}
           disabled={readOnly || isSaving}
+          loading={isSaving}
           onClick={onSave}
         >
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
           {saveDraftButtonLabel({ isSaving, saved: false })}
         </Button>
-        <span className="text-xs text-muted-foreground">
-          Save files a non-public draft in your Review Queue. Approve and
-          publish remain separate lifecycle actions; students see nothing until
-          you publish.
-        </span>
+        <p className="type-caption max-w-prose">
+          Saving files a non-public draft in your review queue. Students see
+          nothing until you approve and publish it.
+        </p>
       </div>
     </section>
   );
 }
+
+const DUPLICATE_REASON_LABELS: Record<QuestionIntakeDuplicate["reason"], string> =
+  {
+    exact_text: "Same text",
+    same_structure: "Same structure",
+    similar_wording: "Similar wording",
+  };
 
 function DuplicateWarnings({
   acknowledged,
@@ -941,71 +972,58 @@ function DuplicateWarnings({
   duplicates: QuestionIntakeDuplicate[];
   onAcknowledged: (checked: boolean) => void;
 }) {
+  const headingId = useId();
   return (
-    <section className="rounded-md border p-3 text-sm">
-      <h4 className="font-medium">Duplicate review</h4>
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-2 rounded-panel bg-surface-tint p-4"
+    >
+      <h4 id={headingId} className="type-body-strong text-ink">
+        Duplicate review
+      </h4>
       {duplicates.length === 0 ? (
-        <p className="mt-2 text-muted-foreground">
-          No similar question was found during the latest server check. Saving
+        <p className="type-small text-ink-muted">
+          No similar question was found in the latest server check. Saving
           checks again.
         </p>
       ) : (
-        <div className="mt-2 space-y-3">
-          <Alert variant="warning">
-            <AlertTriangle />
-            <AlertDescription>
-              A similar question may already exist.
-            </AlertDescription>
-          </Alert>
-          <ul className="space-y-2">
+        <div className="flex flex-col gap-3">
+          <p className="type-small text-ink">
+            A similar question may already exist.
+          </p>
+          <ul className="flex flex-col gap-2">
             {duplicates.map((duplicate) => (
               <li
                 key={duplicate.questionId}
-                className="rounded-md bg-muted p-2"
+                className="flex flex-col gap-0.5 rounded-control bg-sheet px-3 py-2"
               >
-                <span className="font-medium">{duplicate.title}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {duplicate.questionId} ·{" "}
-                  {duplicate.reason.replaceAll("_", " ")} ·{" "}
-                  {Math.round(duplicate.similarity * 100)}%
+                <span className="type-small font-medium text-ink">
+                  {duplicate.title}
+                </span>
+                <span className="type-caption">
+                  <span className="font-mono">{duplicate.questionId}</span>
+                  {" · "}
+                  {DUPLICATE_REASON_LABELS[duplicate.reason] ??
+                    duplicate.reason}{" "}
+                  · {Math.round(duplicate.similarity * 100)}% similar
                 </span>
               </li>
             ))}
           </ul>
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={acknowledged}
-              onChange={(event) => onAcknowledged(event.target.checked)}
-            />
-            <span>
-              I reviewed these possible duplicates and want to save this
-              legitimate variant.
-            </span>
-          </label>
+          <CheckboxField
+            label="I reviewed these possible duplicates and want to save this legitimate variant."
+            checked={acknowledged}
+            onCheckedChange={(checked) => onAcknowledged(checked === true)}
+          />
         </div>
       )}
     </section>
   );
 }
 
-function ConfidenceLabel({ label, value }: { label: string; value: number }) {
+function confidenceText(label: string, value: number) {
   const level = value >= 0.85 ? "High" : value >= 0.7 ? "Medium" : "Low";
-  return (
-    <span className="text-xs text-muted-foreground">
-      {label}: {level} ({Math.round(value * 100)}%)
-    </span>
-  );
-}
-
-function Field({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium">{label}</span>
-      {children}
-    </label>
-  );
+  return `${label}: ${level} (${Math.round(value * 100)}%)`;
 }
 
 function manualQuestionDraft(

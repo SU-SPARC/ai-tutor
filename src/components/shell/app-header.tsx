@@ -3,47 +3,37 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { CourseSwitcher } from "@/components/courses/course-switcher";
+import { MobileNav } from "@/components/shell/mobile-nav";
 import { NavLink } from "@/components/shell/nav-link";
+import { PROFESSOR_NAV, STUDENT_NAV } from "@/components/shell/nav-config";
 import { StudentSectionChip } from "@/components/shell/student-section-chip";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export type AppHeaderRole = "student" | "professor";
 
 export type AppHeaderProps = {
+  /** The account control (AccountActions): a menu when signed in. */
   accountControl?: ReactNode;
+  /**
+   * Non-production indicator. No longer drawn in the bar: it is a line in the
+   * phone menu here, and AccountActions shows it in the account menu.
+   */
   environmentLabel?: "Development" | "Local demo" | "Preview" | "Preview demo";
   role?: AppHeaderRole;
   className?: string;
 };
 
-type NavItem = {
-  href: string;
-  label: string;
-  title?: string;
-};
-
-// Two nav words, no more. Everything else a student can reach is reachable
-// from the syllabus rail or the account menu.
-const STUDENT_NAV: NavItem[] = [
-  { href: "/learn", label: "Learn" },
-  { href: "/practice", label: "Practice" },
-];
-
-const PROFESSOR_NAV: NavItem[] = [
-  { href: "/professor", label: "Workspace" },
-  { href: "/learn", label: "Learn", title: "View as student" },
-];
-
 /**
- * The one header for both roles. 56px, no border — a 1px surface-tint band
- * beneath it separates it from the page, so the header reads as part of the
- * same sheet of paper rather than a floating bar.
+ * The one header for both roles. `--header-h` (56px) tall at every width, no
+ * border, a 1px brand-gradient hairline below. It never wraps: below 1024 the
+ * nav words and theme control move into the menu sheet.
  *
- * It is a server component: the role comes from the root layout, which already
- * resolves the principal, and only the three genuinely interactive pieces (the
- * nav links, the section chip, the theme toggle) are client islands.
+ * Desktop: wordmark · course/section chip · nav words … theme · account.
+ * Phone:   logo · chip … account · menu.
+ *
+ * A server component: the role comes from the root layout; only the nav
+ * links, chip, theme control, account disclosure and menu are client islands.
  */
 export function AppHeader({
   accountControl,
@@ -54,11 +44,15 @@ export function AppHeader({
   const navItems = role === "professor" ? PROFESSOR_NAV : STUDENT_NAV;
 
   return (
-    <header className={cn("sticky top-0 z-40 bg-background", className)}>
-      <div className="mx-auto flex w-full min-h-14 max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 sm:px-6">
+    <header
+      data-slot="app-header"
+      className={cn("sticky top-0 z-40 bg-surface", className)}
+    >
+      <div className="mx-auto flex h-(--header-h) w-full max-w-[90rem] items-center gap-2 px-3 sm:gap-4 sm:px-6">
         <Link
           href="/"
-          className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          aria-label="ProbStat Tutor home"
+          className="flex shrink-0 items-center gap-2.5 rounded-control p-1 focus-ring"
         >
           <Image
             src="/logo.png"
@@ -66,19 +60,19 @@ export function AppHeader({
             width={28}
             height={28}
             priority
-            className="h-7 w-7"
+            className="size-7"
           />
-          <span className="font-display text-[17px] leading-none">
+          <span className="hidden font-display text-lg leading-none font-medium text-ink sm:inline">
             ProbStat Tutor
           </span>
         </Link>
 
-        <div className="flex items-center">
+        <div className="flex min-w-0 items-center">
           {role === "professor" ? (
             <>
               {/* The switcher renders nothing outside the courses store, so the
-               * fallback chip below stands in — `:only-child` picks whichever
-               * one actually made it into the DOM. */}
+               * fallback chip stands in; `:only-child` picks whichever one
+               * actually made it into the DOM. */}
               <CourseSwitcher />
               <FallbackCourseChip className="[&:not(:only-child)]:hidden" />
             </>
@@ -87,10 +81,7 @@ export function AppHeader({
           )}
         </div>
 
-        <nav
-          aria-label="Primary"
-          className="order-last flex w-full items-center gap-1 sm:order-none sm:w-auto"
-        >
+        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
           {navItems.map((item) => (
             <NavLink
               key={item.href}
@@ -101,23 +92,14 @@ export function AppHeader({
           ))}
         </nav>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1 whitespace-nowrap">
-          {environmentLabel ? (
-            <Badge
-              variant="outline"
-              title={`Non-production environment: ${environmentLabel}`}
-            >
-              {environmentLabel}
-            </Badge>
-          ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          <ThemeToggle className="hidden lg:inline-flex" />
           {accountControl}
-          <ThemeToggle />
+          <MobileNav role={role} environmentLabel={environmentLabel} />
         </div>
       </div>
 
-      {/* A band, not a border: the page below is the same colour, so the
-       * header edge reads as a fold rather than a rule. */}
-      <div aria-hidden="true" className="h-px w-full bg-surface-tint" />
+      <div aria-hidden="true" className="gradient-hairline w-full" />
     </header>
   );
 }
@@ -126,7 +108,7 @@ function FallbackCourseChip({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-8 w-fit shrink-0 items-center rounded-md border border-input bg-background px-2.5 text-sm font-medium",
+        "inline-flex h-8 w-fit shrink-0 items-center rounded-control bg-surface-tint px-2.5 font-mono text-sm text-ink",
         className,
       )}
     >

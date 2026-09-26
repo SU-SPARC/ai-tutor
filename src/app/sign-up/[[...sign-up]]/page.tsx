@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ThemedSignUp } from "@/components/auth/themed-clerk-form";
 import { AuthenticationUnavailable } from "@/components/auth/authentication-unavailable";
+import { MAIN_CONTENT_ID } from "@/components/shell/skip-link";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
   postSignInPath,
@@ -13,7 +14,7 @@ import {
 import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
-  title: "Create account | Suffolk Probability Tutor",
+  title: "Create account",
 };
 
 type SignUpPageProps = {
@@ -34,8 +35,14 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
     }
 
     return (
-      <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg items-center justify-center px-6 py-12">
-        <AuthenticationUnavailable />
+      <main
+        id={MAIN_CONTENT_ID}
+        tabIndex={-1}
+        className="flex min-h-[calc(100svh-var(--header-h))] w-full items-start justify-center bg-surface px-4 py-10 outline-none sm:items-center sm:px-6 sm:py-16"
+      >
+        <div className="flex w-full max-w-md justify-center">
+          <AuthenticationUnavailable />
+        </div>
       </main>
     );
   }
@@ -47,14 +54,20 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
   const destination = postSignInPath(returnTo);
   return (
-    <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg items-center justify-center px-6 py-12">
-      <ThemedSignUp
-        path="/sign-up"
-        routing="path"
-        signInUrl={signInPath(returnTo)}
-        forceRedirectUrl={destination}
-        signInForceRedirectUrl={destination}
-      />
+    <main
+      id={MAIN_CONTENT_ID}
+      tabIndex={-1}
+      className="flex min-h-[calc(100svh-var(--header-h))] w-full items-start justify-center bg-surface px-4 py-10 outline-none sm:items-center sm:px-6 sm:py-16"
+    >
+      <div className="flex w-full max-w-md justify-center">
+        <ThemedSignUp
+          path="/sign-up"
+          routing="path"
+          signInUrl={signInPath(returnTo)}
+          forceRedirectUrl={destination}
+          signInForceRedirectUrl={destination}
+        />
+      </div>
     </main>
   );
 }

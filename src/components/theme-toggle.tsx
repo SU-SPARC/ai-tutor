@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useIsHydrated } from "@/lib/use-is-hydrated"
+import { cn } from "@/lib/utils"
 
 const OPTIONS = [
   { value: "light", label: "Light", Icon: Sun },
@@ -19,7 +21,11 @@ const OPTIONS = [
   { value: "system", label: "System", Icon: Monitor },
 ] as const
 
-export function ThemeToggle() {
+/**
+ * The header's theme control: one icon button that opens Light / Dark /
+ * System. The icon shows the resolved theme.
+ */
+export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme()
 
   // The resolved theme is only known on the client, so render a stable
@@ -33,9 +39,9 @@ export function ThemeToggle() {
         size="icon"
         aria-label="Change theme"
         disabled
-        className="text-muted-foreground"
+        className={cn("text-ink-muted", className)}
       >
-        <Sun className="h-[1.15rem] w-[1.15rem]" aria-hidden="true" />
+        <Sun aria-hidden="true" />
       </Button>
     )
   }
@@ -47,30 +53,65 @@ export function ThemeToggle() {
           variant="ghost"
           size="icon"
           aria-label="Change theme"
-          className="relative text-muted-foreground hover:text-foreground"
+          className={cn("text-ink-muted hover:text-ink", className)}
         >
-          <Sun
-            className="h-[1.15rem] w-[1.15rem] scale-100 rotate-0 transition-transform duration-200 dark:scale-0 dark:-rotate-90"
-            aria-hidden="true"
-          />
-          <Moon
-            className="absolute h-[1.15rem] w-[1.15rem] scale-0 rotate-90 transition-transform duration-200 dark:scale-100 dark:rotate-0"
-            aria-hidden="true"
-          />
+          <Sun aria-hidden="true" className="dark:hidden" />
+          <Moon aria-hidden="true" className="hidden dark:block" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-36">
-        {OPTIONS.map(({ value, label, Icon }) => (
-          <DropdownMenuItem
-            key={value}
-            onSelect={() => setTheme(value)}
-            className={theme === value ? "bg-accent/60 font-medium" : undefined}
-          >
-            <Icon aria-hidden="true" />
-            {label}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup
+          value={theme ?? "system"}
+          onValueChange={(value) => setTheme(value)}
+        >
+          {OPTIONS.map(({ value, label, Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon aria-hidden="true" className="text-ink-muted" />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * The same choice as a visible three-way radio group, for the phone menu
+ * where a nested dropdown would be awkward.
+ */
+export function ThemeChoice({ className }: { className?: string }) {
+  const { theme, setTheme } = useTheme()
+  const hydrated = useIsHydrated()
+  const current = hydrated ? (theme ?? "system") : undefined
+  const name = React.useId()
+
+  return (
+    <fieldset className={cn("flex flex-col gap-2", className)}>
+      <legend className="type-label mb-2">Theme</legend>
+      <div className="inline-flex w-full gap-0.5 rounded-control bg-surface-tint p-0.5">
+        {OPTIONS.map(({ value, label, Icon }) => (
+          <label
+            key={value}
+            className={cn(
+              "relative flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xs text-sm font-medium text-ink-muted transition-colors duration-fast",
+              "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
+              current === value && "bg-sheet text-ink",
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={value}
+              checked={current === value}
+              onChange={() => setTheme(value)}
+              className="sr-only"
+            />
+            <Icon aria-hidden="true" className="size-4" />
+            {label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }

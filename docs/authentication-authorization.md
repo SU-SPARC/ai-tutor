@@ -84,7 +84,7 @@ Clerk session-token claims have separate refresh behavior. If a future client
 feature copies the role into a custom claim, Clerk refreshes short-lived tokens
 automatically, and that feature must force a fresh token with
 `getToken({ skipCache: true })` or reload the Clerk `User` with `user.reload()`
-when immediate consistency is required. The current Professor Panel navigation
+when immediate consistency is required. The current Professor workspace navigation
 and every authorization boundary intentionally avoid that stale-claim window by
 using the Backend `User`.
 

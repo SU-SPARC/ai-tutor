@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Info } from "lucide-react";
 
 import { BuilderBankPane } from "@/components/courses/builder-bank-pane";
 import {
   BuilderReleasedPane,
   buildBuilderGroups,
 } from "@/components/courses/builder-released-pane";
+import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import { CourseNotFound } from "@/components/courses/course-not-found";
+import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
+import { plural, sectionName } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { DemoResetButton } from "@/components/courses/demo-reset-button";
 import {
@@ -19,10 +21,10 @@ import {
 } from "@/components/courses/review-changes-modal";
 import { useStagedChanges } from "@/components/courses/use-staged-changes";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { NativeSelect } from "@/components/ui/native-select";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toast";
 import {
   copyReleasedSetChanges,
   getCourse,
@@ -42,19 +44,18 @@ import type {
 } from "@/lib/courses/types";
 
 const DEFAULT_OPEN_TOPICS = 3;
-const FLASH_MS = 5000;
 
-const TITLE = "Build what students see";
+const TITLE = "Topic builder";
 const DESCRIPTION =
-  "Released questions are visible to this section now. Only published versions can be released.";
+  "Choose which published questions each section can see; nothing changes until you apply.";
 
 type ReviewTarget =
   | { kind: "staged" }
   | { kind: "copy"; sectionId: SectionId; changes: StagedReleaseChange[] };
 
 /**
- * S3 — the DeltaMath screen. `?section=` is read with `useSearchParams`, so the
- * content sits inside a Suspense boundary as Next requires.
+ * S3. `?section=` is read with `useSearchParams`, so the content sits inside a
+ * Suspense boundary as Next requires.
  */
 export function TopicsBuilderScreen({ courseId }: { courseId: string }) {
   return (
@@ -64,21 +65,17 @@ export function TopicsBuilderScreen({ courseId }: { courseId: string }) {
   );
 }
 
-/** Same frame, same two-column grid — only the panes are still empty. */
+/** Same frame, same two panes, still empty. */
 function BuilderFallback({ courseId }: { courseId: string }) {
   const { state } = useCoursesStore();
   const course = getCourse(state, courseId);
   return (
-    <ProfessorPageShell
-      title={TITLE}
-      description={DESCRIPTION}
+    <CourseScreenSkeleton
       breadcrumbs={buildBreadcrumbs(courseId, course)}
-    >
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="min-h-64" />
-        <Card className="min-h-64" />
-      </div>
-    </ProfessorPageShell>
+      description={DESCRIPTION}
+      shape="builder"
+      title={TITLE}
+    />
   );
 }
 
@@ -87,14 +84,14 @@ function buildBreadcrumbs(courseId: string, course: Course | undefined) {
     { href: coursesIndexPath(), label: "Courses" },
     {
       href: coursePath(courseId),
-      label: course ? `${course.code} ${course.term}` : courseId,
+      label: course ? `${course.code} ${course.term}` : "Course",
     },
-    { label: "Topics" },
+    { label: TITLE },
   ];
 }
 
 function TopicsBuilderContent({ courseId }: { courseId: string }) {
-  const { state } = useCoursesStore();
+  const { state, hydrated } = useCoursesStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSectionId = searchParams.get("section");
@@ -121,7 +118,7 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
   /**
    * Every question the section already has a row for — released or held. That
    * is exactly what `previewReleaseChanges` treats as removable, so the two
-   * panes and the modal cannot disagree about what a ⊖ means.
+   * panes and the review dialog cannot disagree about what a ⊖ means.
    */
   const releasedIds = useMemo(
     () =>
@@ -141,8 +138,14 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
     unstage: unstageOne,
   } = staged;
 
-  const [flash, setFlash] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewTarget | null>(null);
+  // The count is kept with the request so the dialog's wording does not
+  // change underneath it while it closes.
+  const [pendingSwitch, setPendingSwitch] = useState<{
+    sectionId: SectionId;
+    count: number;
+    fromLabel: string;
+  } | null>(null);
   const [leftOpen, setLeftOpen] = useState<ReadonlySet<TopicId> | null>(null);
   const [bankOpen, setBankOpen] = useState<ReadonlySet<TopicId> | null>(null);
 
@@ -164,24 +167,10 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
     }
   }, [activeSection, requestedSectionId, courseId, router]);
 
-  useEffect(() => {
-    if (!flash) {
-      return;
-    }
-    const timer = window.setTimeout(() => setFlash(null), FLASH_MS);
-    return () => window.clearTimeout(timer);
-  }, [flash]);
-
   // Switching sections leaves nothing behind: staging is per section.
   useEffect(() => {
     clearStaged();
   }, [sectionId, clearStaged]);
-
-  // Staging something is "the next change", which retires the success line.
-  const stageToggle = (questionId: QuestionId) => {
-    setFlash(null);
-    toggleStaged(questionId);
-  };
 
   const setTopicOpen =
     (
@@ -198,31 +187,33 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
       setter(next);
     };
 
-  /** Returns false when the professor backed out, so the select can snap back. */
-  const handleSectionChange = (nextSectionId: string) => {
-    if (!activeSection || nextSectionId === activeSection.id) {
-      return false;
-    }
-    if (
-      stagedCount > 0 &&
-      !window.confirm(
-        `Discard ${stagedCount} staged ${
-          stagedCount === 1 ? "change" : "changes"
-        } for ${activeSection.label} and switch sections?`,
-      )
-    ) {
-      return false;
-    }
+  const switchSection = (nextSectionId: SectionId) => {
     clearStaged();
-    setFlash(null);
     router.replace(courseTopicsPath(courseId, nextSectionId));
-    return true;
+  };
+
+  /** Staged changes belong to one section, so leaving asks first. */
+  const requestSectionChange = (nextSectionId: string) => {
+    if (!activeSection || nextSectionId === activeSection.id) {
+      return;
+    }
+    if (stagedCount > 0) {
+      setPendingSwitch({
+        sectionId: nextSectionId,
+        count: stagedCount,
+        fromLabel: activeSection.label,
+      });
+      return;
+    }
+    switchSection(nextSectionId);
   };
 
   const handleApplied = (summary: AppliedSummary) => {
-    setFlash(
-      `${summary.sectionLabel}: released ${summary.added}, removed ${summary.removed}. Students in this section see the change now.`,
-    );
+    toast({
+      title: `${summary.sectionLabel}: released ${summary.added}, removed ${summary.removed}`,
+      description: "Students in this section see the change now.",
+      tone: "success",
+    });
     if (summary.sectionId === sectionId) {
       clearStaged();
     }
@@ -248,11 +239,21 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
   const breadcrumbs = buildBreadcrumbs(courseId, course);
 
   if (!course) {
+    if (!hydrated) {
+      return (
+        <CourseScreenSkeleton
+          breadcrumbs={breadcrumbs}
+          description={DESCRIPTION}
+          shape="builder"
+          title={TITLE}
+        />
+      );
+    }
     return (
       <ProfessorPageShell
-        title={TITLE}
-        description={DESCRIPTION}
         breadcrumbs={breadcrumbs}
+        description={DESCRIPTION}
+        title={TITLE}
       >
         <CourseNotFound what="course" />
       </ProfessorPageShell>
@@ -262,25 +263,21 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
   if (!activeSection) {
     return (
       <ProfessorPageShell
-        title={TITLE}
-        description={DESCRIPTION}
-        breadcrumbs={breadcrumbs}
         aside={<DemoResetButton />}
+        breadcrumbs={breadcrumbs}
+        description={DESCRIPTION}
+        title={TITLE}
       >
-        <Alert variant="info" className="max-w-2xl">
-          <Info aria-hidden="true" />
-          <AlertTitle>This course has no active sections</AlertTitle>
-          <AlertDescription>
-            <p>
-              Releasing is scoped to a section, so there is nothing to build
-              until one exists. Add a section on the course overview, then come
-              back.
-            </p>
-            <Button asChild variant="outline" size="sm" className="mt-2">
+        <EmptyState
+          action={
+            <Button asChild variant="secondary">
               <Link href={coursePath(courseId)}>Go to course overview</Link>
             </Button>
-          </AlertDescription>
-        </Alert>
+          }
+        >
+          This course has no active sections. Releases are per section, so add
+          one on the course overview first.
+        </EmptyState>
       </ProfessorPageShell>
     );
   }
@@ -304,82 +301,108 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
   // answer the professor asked for.
   const reviewOpen =
     review !== null && (review.kind === "copy" || stagedCount > 0);
+  const pendingSection = sections.find(
+    (section) => section.id === pendingSwitch?.sectionId,
+  );
+  const pendingCount = pendingSwitch?.count ?? stagedCount;
 
   return (
     <ProfessorPageShell
-      title={TITLE}
-      description={DESCRIPTION}
+      aside={<DemoResetButton />}
       breadcrumbs={breadcrumbs}
-      aside={
-        <>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Section:
-            <NativeSelect
-              className="h-10 w-[13rem]"
-              value={activeSection.id}
-              onChange={(event) => {
-                // Cancelling the confirm leaves no state change to re-render
-                // from, so the native value is put back by hand.
-                if (!handleSectionChange(event.target.value)) {
-                  event.target.value = activeSection.id;
-                }
-              }}
-            >
-              {sections.map((section) => (
-                <option key={section.id} value={section.id}>
-                  {section.label} · {section.meetingTime}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-          <DemoResetButton />
-        </>
-      }
+      description={DESCRIPTION}
+      title={TITLE}
     >
-      <div className="grid gap-6 lg:grid-cols-2">
-        <BuilderReleasedPane
-          flash={flash}
-          groups={groups}
-          onCopyTo={(targetSectionId) =>
-            setReview({
-              kind: "copy",
-              sectionId: targetSectionId,
-              changes: copyReleasedSetChanges(
-                state,
-                activeSection.id,
-                targetSectionId,
-              ),
-            })
-          }
-          onDiscard={() => {
-            clearStaged();
-            setFlash(null);
-          }}
-          onReview={() => setReview({ kind: "staged" })}
-          onSetTopicOpen={setTopicOpen(setLeftOpen, leftOpenTopics)}
-          onStageToggle={stageToggle}
-          openTopics={leftOpenTopics}
-          otherSections={otherSections}
-          sectionId={activeSection.id}
-          sectionLabel={activeSection.label}
-          staged={staged}
-        />
+      <Tabs
+        activationMode="manual"
+        onValueChange={requestSectionChange}
+        value={activeSection.id}
+      >
+        <TabsList aria-label="Section">
+          {sections.map((section) => (
+            <TabsTrigger key={section.id} value={section.id}>
+              {sectionName(section)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-        <BuilderBankPane
-          courseId={courseId}
-          groups={groups}
-          onCollapseAll={() => setBankOpen(new Set())}
-          onExpandAll={() =>
-            setBankOpen(new Set(groups.map((group) => group.topic.id)))
-          }
-          onSetTopicOpen={setTopicOpen(setBankOpen, bankOpenTopics)}
-          onStageToggle={stageToggle}
-          openTopics={bankOpenTopics}
-          releasedIds={releasedIds}
-          sectionLabel={activeSection.label}
-          staged={staged}
-        />
-      </div>
+        <TabsContent className="flex flex-col gap-4" value={activeSection.id}>
+          <div className="grid items-start gap-4 lg:grid-cols-2 xl:gap-6">
+            <BuilderReleasedPane
+              groups={groups}
+              onCopyTo={(targetSectionId) =>
+                setReview({
+                  kind: "copy",
+                  sectionId: targetSectionId,
+                  changes: copyReleasedSetChanges(
+                    state,
+                    activeSection.id,
+                    targetSectionId,
+                  ),
+                })
+              }
+              onSetTopicOpen={setTopicOpen(setLeftOpen, leftOpenTopics)}
+              onStageToggle={toggleStaged}
+              openTopics={leftOpenTopics}
+              otherSections={otherSections}
+              sectionId={activeSection.id}
+              sectionLabel={activeSection.label}
+              staged={staged}
+            />
+
+            <BuilderBankPane
+              courseId={courseId}
+              groups={groups}
+              onCollapseAll={() => setBankOpen(new Set())}
+              onExpandAll={() =>
+                setBankOpen(new Set(groups.map((group) => group.topic.id)))
+              }
+              onSetTopicOpen={setTopicOpen(setBankOpen, bankOpenTopics)}
+              onStageToggle={toggleStaged}
+              openTopics={bankOpenTopics}
+              releasedIds={releasedIds}
+              sectionLabel={activeSection.label}
+              staged={staged}
+            />
+          </div>
+
+          {/* One live region that outlives the bar, so staging the first
+              change is announced as well as the later ones. */}
+          <p className="sr-only" role="status">
+            {stagedCount > 0
+              ? `${plural(stagedCount, "change")} staged for ${activeSection.label}: adding ${staged.addCount}, removing ${staged.removeCount}.`
+              : ""}
+          </p>
+          {stagedCount > 0 ? (
+            <div
+              aria-label="Staged changes"
+              className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-panel bg-azure-100 px-4 py-3"
+              role="region"
+            >
+              <p className="type-small text-ink">
+                <span className="type-body-strong">
+                  {plural(stagedCount, "change")} staged for{" "}
+                  {activeSection.label}
+                </span>{" "}
+                <span className="tabular text-ink-muted">
+                  · adding {staged.addCount} · removing {staged.removeCount}
+                </span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button onClick={clearStaged} type="button" variant="ghost">
+                  Discard
+                </Button>
+                <Button
+                  onClick={() => setReview({ kind: "staged" })}
+                  type="button"
+                >
+                  Review {plural(stagedCount, "change")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </TabsContent>
+      </Tabs>
 
       <ReviewChangesModal
         changes={reviewChanges}
@@ -392,6 +415,27 @@ function TopicsBuilderContent({ courseId }: { courseId: string }) {
           .map((section) => section.label)}
         sectionId={reviewSection.id}
         sectionLabel={reviewSection.label}
+      />
+
+      <ConfirmDialog
+        cancelLabel="Keep editing"
+        confirmLabel={`Discard and open ${pendingSection?.label ?? "section"}`}
+        description={`Staged changes apply to one section. Switching discards the ${plural(
+          pendingCount,
+          "change",
+        )} you staged for ${pendingSwitch?.fromLabel ?? activeSection.label}.`}
+        onConfirm={() => {
+          if (pendingSwitch) {
+            switchSection(pendingSwitch.sectionId);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingSwitch(null);
+          }
+        }}
+        open={pendingSwitch !== null}
+        title={`Discard ${plural(pendingCount, "staged change")}?`}
       />
     </ProfessorPageShell>
   );

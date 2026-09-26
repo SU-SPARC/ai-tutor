@@ -646,3 +646,85 @@ export function sessionErrorFor(error: unknown): SessionErrorState {
       "The tutor could not be reached. Please check your connection and try again.",
   };
 }
+
+export type ParsedAnswerPreview = {
+  /** KaTeX source for the interpretation: "\frac{1}{4} = 0.25". */
+  latex: string;
+  /** Plain words for the same thing: "0.25", "about 0.3333". */
+  text: string;
+  value: number;
+};
+
+const PLAIN_NUMBER = String.raw`[+-]?(?:\d+\.?\d*|\.\d+)`;
+const NUMBER_PATTERN = new RegExp(`^(${PLAIN_NUMBER})$`);
+const PERCENT_PATTERN = new RegExp(`^(${PLAIN_NUMBER})\\s*%$`);
+const FRACTION_PATTERN = new RegExp(
+  `^(${PLAIN_NUMBER})\\s*\\/\\s*(${PLAIN_NUMBER})$`,
+);
+
+function formatPreviewValue(value: number) {
+  const scaled = value * 1_000_000;
+  const exact = Math.abs(scaled - Math.round(scaled)) < 1e-6;
+  return exact
+    ? { approximate: false, text: String(Number(value.toFixed(6))) }
+    : { approximate: true, text: String(Number(value.toFixed(4))) };
+}
+
+function latexNumber(raw: string) {
+  return raw.replace(/^\+/, "");
+}
+
+/**
+ * How the answer field reads what the student typed, shown under the field
+ * while they type: "1/4" and "25%" both read as 0.25. Only a plain number, an
+ * a/b fraction or a percentage is interpreted; anything else (an expression, a
+ * word, half-typed input) returns null, so the preview never shows an error.
+ * Pure and client-only: nothing is sent and nothing is graded. Returns null
+ * when the reading would only repeat what was typed ("0.25" → 0.25).
+ */
+export function parsedAnswerPreview(raw: string): ParsedAnswerPreview | null {
+  const input = raw.trim();
+  if (input.length === 0 || input.length > 40) {
+    return null;
+  }
+
+  let value: number;
+  let source: string;
+
+  const percent = PERCENT_PATTERN.exec(input);
+  const fraction = FRACTION_PATTERN.exec(input);
+  const number = NUMBER_PATTERN.exec(input);
+
+  if (percent) {
+    value = Number(percent[1]) / 100;
+    source = `${latexNumber(percent[1])}\\%`;
+  } else if (fraction) {
+    const denominator = Number(fraction[2]);
+    if (denominator === 0) {
+      return null;
+    }
+    value = Number(fraction[1]) / denominator;
+    source = `\\frac{${latexNumber(fraction[1])}}{${latexNumber(fraction[2])}}`;
+  } else if (number) {
+    value = Number(number[1]);
+    source = "";
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  const formatted = formatPreviewValue(value);
+  if (!formatted.approximate && formatted.text === input) {
+    return null;
+  }
+
+  const relation = formatted.approximate ? "\\approx" : "=";
+  return {
+    latex: source ? `${source} ${relation} ${formatted.text}` : formatted.text,
+    text: formatted.approximate ? `about ${formatted.text}` : formatted.text,
+    value,
+  };
+}

@@ -47,14 +47,14 @@ function truncateTitle(title: string, maxLength: number) {
 }
 
 /**
- * "Wk3 · Conditional Probability, Independence…" — the week number is what a
+ * "Wk 3 · Conditional Probability, Independence…" — the week number is what a
  * professor scans by, so it always survives truncation.
  */
 export function topicShortLabel(
   topic: Pick<CanonicalTopic, "title" | "weekNumber">,
   maxLength = 34,
 ): string {
-  return `Wk${topic.weekNumber} · ${truncateTitle(topic.title, maxLength)}`;
+  return `Wk ${topic.weekNumber} · ${truncateTitle(topic.title, maxLength)}`;
 }
 
 /** Normalize anything typed or pasted into the printed `XXX-XX` shape. */

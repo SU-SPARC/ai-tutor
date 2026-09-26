@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CourseTopic,
   StudentPracticeQuestion,
-  StudentProgressDashboard,
   TutorQuestion,
 } from "@/lib/types";
 import {
@@ -50,10 +49,6 @@ import PracticeQuestionNotFound from "@/app/practice/[questionId]/not-found";
 import ApplicationError from "@/app/error";
 import LearnPage from "@/app/learn/page";
 import TopicPage from "@/app/learn/[topic]/page";
-import {
-  primaryPracticeAction,
-  ProgressDashboard,
-} from "@/components/student/progress-dashboard";
 import {
   PracticeSimilarProblemAction,
   similarProblemStatusMessage,
@@ -246,7 +241,7 @@ describe("topic selection", () => {
       markup.indexOf("Central Limit Theorem"),
     );
     expect(markup).toContain('href="/learn/conditional-probability"');
-    expect(markup).toContain("0/2");
+    expect(markup).toContain(">0 of 2<");
     expect(markup).toContain("no questions yet");
     expect(markup).not.toContain('href="/learn/central-limit-theorem"');
     expect(mocks.getStudentProgress).not.toHaveBeenCalled();
@@ -289,7 +284,7 @@ describe("topic selection", () => {
 
     const markup = renderToStaticMarkup(await LearnPage());
 
-    expect(markup).toContain("practising as a guest");
+    expect(markup).toContain("practicing as a guest");
     expect(markup).toContain('href="/join"');
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -703,12 +698,12 @@ describe("landing page", () => {
     expect(markup).toContain("Two fair dice are rolled.");
     expect(markup).toContain("Check answer");
     expect(markup).toContain("Reveal hint 1 of 3");
-    expect(markup).toContain("Available after 2 checks or from the tutor.");
+    expect(markup).toContain("Available once every hint is shown.");
     expect(markup).toContain("Sign in to chat with the tutor");
 
     // The syllabus keeps every week, so the numbers never skip.
-    expect(markup).toContain("Wk3 · Conditional Probability");
-    expect(markup).toContain("Wk13 · Central Limit Theorem");
+    expect(markup).toContain("Wk 3 · Conditional Probability");
+    expect(markup).toContain("Wk 13 · Central Limit Theorem");
     expect(markup).toContain("no questions yet");
     expect(markup).toContain("2 questions · 2 topics");
     expect(markup).toContain('href="/learn/conditional-probability"');
@@ -719,10 +714,12 @@ describe("landing page", () => {
     expect(markup).toContain(
       "Real course problems, reviewed by your professor. Hints before answers, always.",
     );
-    expect(markup).toContain("Start practicing →");
+    expect(markup).toContain("Join your course");
+    expect(markup).toContain("I’m a professor");
+    expect(markup).toContain('href="/join#professor"');
     expect(markup).toContain("Continue as guest");
     expect(markup).toContain('href="/join"');
-    expect(markup).toContain("How it works: Try → Hint → Step → Check");
+    expect(markup).toContain("What the tutor sees");
     expect(markup).toContain("Your professor approves every problem");
     expect(markup).toContain("Guest practice is anonymous; sign in to keep it");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
@@ -749,7 +746,7 @@ describe("landing page", () => {
 
     expect(markup).toContain("Continue practicing →");
     expect(markup).toContain('href="/learn"');
-    expect(markup).not.toContain("Start practicing →");
+    expect(markup).not.toContain("Join your course");
   });
 
   it("prefers the third topic with questions as the hero, and falls back to the first question", () => {
@@ -802,128 +799,6 @@ describe("student-facing question titles", () => {
 
     expect(summary.title).toBe("Spinner and Coin Condition");
     expect(summary.id).toBe("spinner-coin");
-  });
-});
-
-describe("student dashboard", () => {
-  const progress: StudentProgressDashboard = {
-    mode: "database",
-    questions: [
-      {
-        attemptCount: 1,
-        available: true,
-        hintsUsed: 1,
-        lastActiveAt: "2026-09-09T10:00:00.000Z",
-        needsAnotherAttempt: true,
-        questionId: "spinner-coin",
-        questionTitle: "Spinner and Coin Condition",
-        resumeSessionId: "session:in-progress",
-        status: "in_progress",
-        topicId: "conditional-probability",
-        topicTitle: "Conditional Probability",
-      },
-    ],
-    recentSessions: [
-      {
-        attemptCount: 1,
-        available: true,
-        hintsUsed: 1,
-        lastSeenAt: "2026-09-09T10:00:00.000Z",
-        needsAnotherAttempt: true,
-        questionId: "spinner-coin",
-        questionTitle: "Spinner and Coin Condition",
-        sessionId: "session:in-progress",
-        status: "in_progress",
-        stepsRevealed: 0,
-        topicId: "conditional-probability",
-        topicTitle: "Conditional Probability",
-      },
-    ],
-    summary: {
-      availableCompletedQuestions: 0,
-      availableQuestions: 2,
-      completedQuestions: 0,
-      hintsUsed: 1,
-      inProgressQuestions: 1,
-      needsAnotherAttempt: 1,
-      previouslyCompletedQuestions: 0,
-      topicsStarted: 1,
-    },
-    topics: [
-      {
-        availableQuestions: 2,
-        completedQuestions: 0,
-        id: "conditional-probability",
-        inProgressQuestions: 1,
-        needsAnotherAttempt: 1,
-        previouslyCompletedQuestions: 0,
-        title: "Conditional Probability",
-      },
-    ],
-  };
-
-  it("tells a returning student to continue where they left off", () => {
-    expect(primaryPracticeAction(progress)).toMatchObject({
-      href: "/practice?questionId=spinner-coin&sessionId=session%3Ain-progress",
-      label: "Continue practice",
-      questionTitle: "Spinner and Coin Condition",
-    });
-
-    const markup = renderToStaticMarkup(
-      createElement(ProgressDashboard, { progress }),
-    );
-    expect(markup).toContain("Continue practice");
-    expect(markup).toContain("Up next:");
-    expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
-  });
-
-  it("shows dashboard question titles without the authoring Draft marker", () => {
-    const withDraft: StudentProgressDashboard = {
-      ...progress,
-      questions: [
-        { ...progress.questions[0], questionTitle: "Award Placements Draft" },
-      ],
-      recentSessions: [
-        {
-          ...progress.recentSessions[0],
-          questionTitle: "Award Placements Draft",
-        },
-      ],
-    };
-
-    expect(primaryPracticeAction(withDraft).questionTitle).toBe(
-      "Award Placements",
-    );
-    const markup = renderToStaticMarkup(
-      createElement(ProgressDashboard, { progress: withDraft }),
-    );
-    expect(markup).toContain("Award Placements");
-    expect(markup).not.toMatch(/\bDraft\b/);
-  });
-
-  it("tells a new student to start practicing", () => {
-    const empty: StudentProgressDashboard = {
-      ...progress,
-      questions: [],
-      recentSessions: [],
-      summary: {
-        ...progress.summary,
-        hintsUsed: 0,
-        inProgressQuestions: 0,
-        needsAnotherAttempt: 0,
-        topicsStarted: 0,
-      },
-    };
-
-    expect(primaryPracticeAction(empty)).toMatchObject({
-      href: "/practice",
-      label: "Start practicing",
-    });
-    const markup = renderToStaticMarkup(
-      createElement(ProgressDashboard, { progress: empty }),
-    );
-    expect(markup).toContain("No saved practice yet");
-    expect(markup).toContain("Start practicing");
   });
 });
 

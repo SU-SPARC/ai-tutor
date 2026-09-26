@@ -2,19 +2,23 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Plus } from "lucide-react";
+import { Archive, Plus } from "lucide-react";
 
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { StatusChip } from "@/components/ui/status-chip";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
 import { SEED_NOW } from "@/lib/courses/demo-seed";
 import { formatRelativeTime } from "@/lib/courses/format";
 import { courseSectionPath } from "@/lib/courses/paths";
@@ -37,9 +41,9 @@ function nextSectionId(courseId: CourseId, taken: Set<string>, count: number) {
 }
 
 /**
- * The sections of one course. Each row answers the three questions a professor
- * asks about a section in order: when does it meet, who is in it, and how much
- * of the course has actually reached it.
+ * The sections of one course as a dense table. Each row answers the questions
+ * a professor asks about a section in order: when it meets, the code students
+ * type, who is in it, and how much of the course has reached it.
  */
 export function CourseSectionsList({ courseId }: { courseId: CourseId }) {
   const { state, dispatch } = useCoursesStore();
@@ -51,10 +55,12 @@ export function CourseSectionsList({ courseId }: { courseId: CourseId }) {
 
   const [label, setLabel] = useState(`Sec ${sectionNumber(sections.length)}`);
   const [meetingTime, setMeetingTime] = useState("");
+  const [labelError, setLabelError] = useState<string | undefined>();
 
   function openForm() {
     setLabel(`Sec ${sectionNumber(sections.length)}`);
     setMeetingTime("");
+    setLabelError(undefined);
     setAdding(true);
   }
 
@@ -62,6 +68,7 @@ export function CourseSectionsList({ courseId }: { courseId: CourseId }) {
     event.preventDefault();
     const trimmedLabel = label.trim();
     if (trimmedLabel.length === 0) {
+      setLabelError("Give the section a label, for example Sec 03.");
       return;
     }
     dispatch({
@@ -79,137 +86,165 @@ export function CourseSectionsList({ courseId }: { courseId: CourseId }) {
       now: SEED_NOW,
     });
     setAdding(false);
+    toast({
+      title: `${trimmedLabel} added`,
+      description: "Every topic starts closed. Open them in the topic builder.",
+      tone: "success",
+    });
   }
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <CardTitle>Sections</CardTitle>
-          <CardDescription>
-            A section is the scope of everything students see. Students join
-            with the code; the roster is hashed keys, never names.
-          </CardDescription>
-        </div>
-        <CardAction>
-          <Button
-            onClick={() => (adding ? setAdding(false) : openForm())}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Plus className="h-4 w-4" />
-            Add section
-          </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 pt-0">
-        {adding ? (
-          <form
-            className="flex flex-wrap items-end gap-3 rounded-md border border-dashed border-border p-4"
-            onSubmit={handleSubmit}
-          >
-            <div className="flex min-w-32 flex-1 flex-col gap-1.5">
-              <label
-                className="text-sm font-medium"
-                htmlFor="new-section-label"
-              >
-                Label
-              </label>
+    <section aria-labelledby="course-sections" className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 className="type-h2 text-ink" id="course-sections">
+          Sections{" "}
+          <span className="type-mono align-middle text-ink-muted">
+            {active.length}
+          </span>
+        </h2>
+        <Button
+          aria-controls="add-section-form"
+          aria-expanded={adding}
+          onClick={() => (adding ? setAdding(false) : openForm())}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Plus aria-hidden="true" />
+          Add section
+        </Button>
+      </div>
+
+      {adding ? (
+        <form
+          className="flex flex-col gap-3 rounded-panel bg-surface-tint p-4"
+          id="add-section-form"
+          noValidate
+          onSubmit={handleSubmit}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field error={labelError} label="Label">
               <Input
-                id="new-section-label"
-                onChange={(event) => setLabel(event.target.value)}
+                autoComplete="off"
+                name="label"
+                onChange={(event) => {
+                  setLabel(event.target.value);
+                  setLabelError(undefined);
+                }}
                 value={label}
               />
-            </div>
-            <div className="flex min-w-40 flex-1 flex-col gap-1.5">
-              <label className="text-sm font-medium" htmlFor="new-section-time">
-                Meeting time
-              </label>
+            </Field>
+            <Field label="Meeting time" optional>
               <Input
-                id="new-section-time"
+                autoComplete="off"
+                name="meetingTime"
                 onChange={(event) => setMeetingTime(event.target.value)}
-                placeholder="MWF 10:00"
+                placeholder="MWF 10:00…"
                 value={meetingTime}
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setAdding(false)}
-                type="button"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-              <Button type="submit">Add section</Button>
-            </div>
-            <p className="w-full text-xs leading-5 text-muted-foreground">
-              A new section starts closed on every topic and with nothing
-              released. Opening it is a deliberate act.
-            </p>
-          </form>
-        ) : null}
-
-        {active.length === 0 && !adding ? (
-          <p className="text-sm leading-6 text-muted-foreground">
-            No sections yet. Add one to get a join code.
+            </Field>
+          </div>
+          <p className="type-small text-ink-muted">
+            A new section starts with every topic closed and nothing released.
           </p>
-        ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit">Add section</Button>
+            <Button onClick={() => setAdding(false)} type="button" variant="ghost">
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
-        {active.map((section) => {
-          const summary = sectionSummary(state, section.id);
-          return (
-            <div
-              className="flex flex-col gap-1 rounded-md border border-border p-4"
-              key={section.id}
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-medium">
-                  {section.label}
-                  {section.meetingTime ? ` · ${section.meetingTime}` : ""}
-                </span>
-                <span className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span>
-                    {summary.joined} joined · code{" "}
-                    <span className="font-mono">{section.joinCode}</span>
-                  </span>
-                  <Link
-                    className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline"
-                    href={courseSectionPath(courseId, section.id)}
-                  >
-                    Open
-                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </span>
-              </div>
-              <p className="text-sm leading-6 text-muted-foreground">
-                Topics open {summary.topicsOpen}/{summary.topicsTotal} ·
-                Released {summary.released} · Last activity{" "}
-                {summary.lastActivityAt
-                  ? formatRelativeTime(summary.lastActivityAt, SEED_NOW)
-                  : "none yet"}
-              </p>
-            </div>
-          );
-        })}
-
-        {archived.map((section) => {
-          const summary = sectionSummary(state, section.id);
-          return (
-            <div
-              className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border border-dashed p-4 text-sm text-muted-foreground"
-              key={section.id}
-            >
-              <span>
-                {section.label}
-                {section.meetingTime ? ` · ${section.meetingTime}` : ""} ·
-                archived
-              </span>
-              <span>{summary.joined} joined · no longer open to students</span>
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
+      <div className="rounded-panel bg-sheet px-2 pb-2">
+        <Table>
+          <TableCaption className="px-3 text-left">
+            Students join with the code. The roster shows hashed codes, never
+            names.
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">Section</TableHead>
+              <TableHead scope="col">Meets</TableHead>
+              <TableHead scope="col">Join code</TableHead>
+              <TableHead numeric scope="col">
+                Joined
+              </TableHead>
+              <TableHead numeric scope="col">
+                Topics open
+              </TableHead>
+              <TableHead numeric scope="col">
+                Released
+              </TableHead>
+              <TableHead scope="col">Last activity</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sections.length === 0 ? (
+              <TableRow>
+                <TableCell className="py-4 text-ink-muted" colSpan={7}>
+                  No sections yet. Add one to get a join code.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {active.map((section) => {
+              const summary = sectionSummary(state, section.id);
+              return (
+                <TableRow key={section.id}>
+                  <TableCell>
+                    <Link
+                      className="rounded-xs text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
+                      href={courseSectionPath(courseId, section.id)}
+                    >
+                      {section.label}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-ink-muted">
+                    {section.meetingTime || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <span className="type-mono text-ink">{section.joinCode}</span>
+                  </TableCell>
+                  <TableCell numeric>{summary.joined}</TableCell>
+                  <TableCell numeric>
+                    {summary.topicsOpen} of {summary.topicsTotal}
+                  </TableCell>
+                  <TableCell numeric>{summary.released}</TableCell>
+                  <TableCell className="whitespace-nowrap text-ink-muted">
+                    {summary.lastActivityAt
+                      ? formatRelativeTime(summary.lastActivityAt, SEED_NOW)
+                      : "None yet"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {archived.map((section) => {
+              const summary = sectionSummary(state, section.id);
+              return (
+                <TableRow className="text-ink-muted" key={section.id}>
+                  <TableCell className="text-ink-muted">{section.label}</TableCell>
+                  <TableCell className="text-ink-muted">
+                    {section.meetingTime || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <StatusChip icon={Archive} label="Archived" tone="neutral" />
+                  </TableCell>
+                  <TableCell className="text-ink-muted" numeric>
+                    {summary.joined}
+                  </TableCell>
+                  <TableCell className="text-ink-muted" numeric>
+                    —
+                  </TableCell>
+                  <TableCell className="text-ink-muted" numeric>
+                    —
+                  </TableCell>
+                  <TableCell className="text-ink-muted">Closed to joins</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   );
 }

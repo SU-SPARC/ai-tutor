@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { SectionScreen } from "@/components/courses/section-screen";
 import { isCourseEntityId } from "@/lib/courses/paths";
 
+export const metadata = {
+  title: "Section",
+};
+
 /**
  * One section: who joined, how they are doing, and the settings that govern the
  * join code. Availability lives on the course's topic builder, not here.

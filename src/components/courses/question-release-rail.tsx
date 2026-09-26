@@ -1,17 +1,12 @@
 "use client";
 
+import { ReleaseStatusChip } from "@/components/courses/course-status";
 import {
   useOptionalCoursesStore,
   type CoursesStoreValue,
 } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { toast } from "@/components/ui/toast";
 import { questionReleaseMap } from "@/lib/courses/selectors";
 import type { QuestionReleaseSectionRow } from "@/lib/courses/selectors";
 
@@ -29,57 +24,35 @@ function SectionRow({
   onMove,
 }: {
   row: QuestionReleaseSectionRow;
-  onMove: (sectionId: string, version: number) => void;
+  onMove: (sectionId: string, label: string, version: number) => void;
 }) {
-  if (row.status === "live") {
-    return (
-      <li className="flex items-center justify-between gap-3 py-1.5">
-        <span className="text-sm">{row.label}</span>
-        <span className="text-sm text-success">
-          v{row.releasedVersion} ● live
-        </span>
-      </li>
-    );
-  }
-
-  if (row.status === "older") {
-    const target = row.publishedVersion;
-    return (
-      <li className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-        <span className="text-sm">{row.label}</span>
-        <span className="flex items-center gap-2">
-          <span className="text-sm text-warning">
-            v{row.releasedVersion} ◐ older version
-          </span>
-          {target !== null ? (
-            <Button
-              onClick={() => onMove(row.sectionId, target)}
-              size="sm"
-              variant="outline"
-            >
-              Move to v{target}
-            </Button>
-          ) : null}
-        </span>
-      </li>
-    );
-  }
-
+  const target = row.status === "older" ? row.publishedVersion : null;
   return (
-    <li className="flex items-center justify-between gap-3 py-1.5">
-      <span className="text-sm">{row.label}</span>
-      <span className="text-sm text-muted-foreground">
-        {row.status === "held"
-          ? "held — version unpublished"
-          : "— not released"}
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
+      <span className="type-small text-ink">{row.label}</span>
+      <span className="flex flex-wrap items-center gap-2">
+        <ReleaseStatusChip
+          releasedVersion={row.releasedVersion}
+          status={row.status}
+        />
+        {target !== null ? (
+          <Button
+            onClick={() => onMove(row.sectionId, row.label, target)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            Move to v{target}
+          </Button>
+        ) : null}
       </span>
     </li>
   );
 }
 
 /**
- * "Where this is released": the rail the question editor was missing. A section
- * is pinned to one published version, so a professor who publishes v4 has not
+ * "Where this is released": the rail beside the question editor. A section is
+ * pinned to one published version, so a professor who publishes v4 has not
  * yet changed what Sec 02 sees — moving it is a separate, deliberate act.
  */
 export function QuestionReleaseRail({ questionId }: { questionId: string }) {
@@ -105,11 +78,17 @@ function ReleaseRail({
 
   if (!question) {
     return (
-      <Card>
-        <CardContent className="p-6 text-sm text-muted-foreground">
+      <section
+        aria-labelledby="release-rail-title"
+        className="flex flex-col gap-2 rounded-panel bg-surface-tint p-5"
+      >
+        <h2 className="type-h3 text-ink" id="release-rail-title">
+          Where this is released
+        </h2>
+        <p className="type-small text-ink-muted">
           Not part of the courses demo bank.
-        </CardContent>
-      </Card>
+        </p>
+      </section>
     );
   }
 
@@ -117,47 +96,53 @@ function ReleaseRail({
     (group) => group.sections.length > 0,
   );
 
-  function moveToVersion(sectionId: string, version: number) {
+  function moveToVersion(sectionId: string, label: string, version: number) {
     dispatch({
       type: "section/moveToVersion",
       sectionId,
       questionId,
       version,
     });
+    toast({
+      title: `${label} now sees v${version}`,
+      tone: "success",
+    });
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Where this is released</CardTitle>
-        <CardDescription>
-          Sections pin a published version. A newer version is not visible to a
-          section until you move it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        {groups.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No course has a section yet.
-          </p>
-        ) : null}
-        {groups.map((group) => (
-          <div className="flex flex-col gap-1" key={group.course.id}>
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {group.course.code} {shortTerm(group.course.term)}
-            </h3>
-            <ul className="divide-y divide-border">
-              {group.sections.map((row) => (
-                <SectionRow
-                  key={row.sectionId}
-                  onMove={moveToVersion}
-                  row={row}
-                />
-              ))}
-            </ul>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <section
+      aria-labelledby="release-rail-title"
+      className="flex flex-col gap-4 rounded-panel bg-surface-tint p-5"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 className="type-h3 text-ink" id="release-rail-title">
+          Where this is released
+        </h2>
+        <p className="type-small max-w-prose text-ink-muted">
+          Each section pins one published version. A newer version reaches a
+          section only when you move it.
+        </p>
+      </div>
+      {groups.length === 0 ? (
+        <p className="type-small text-ink-muted">No course has a section yet.</p>
+      ) : null}
+      {groups.map((group) => (
+        <div className="flex flex-col gap-1" key={group.course.id}>
+          <h3 className="type-label">
+            <span className="font-mono">{group.course.code}</span>{" "}
+            {shortTerm(group.course.term)}
+          </h3>
+          <ul className="divide-y divide-rule">
+            {group.sections.map((row) => (
+              <SectionRow
+                key={row.sectionId}
+                onMove={moveToVersion}
+                row={row}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }

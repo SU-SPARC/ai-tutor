@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
+import { formatShortDate } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -24,34 +25,9 @@ export const DEFAULT_SCHEDULED_OPENS_AT = new Date(
   new Date(SEED_NOW).getTime() + 7 * DAY_MS,
 ).toISOString();
 
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-/**
- * "Sep 22". Formatted by hand in UTC rather than via `toLocaleDateString` so
- * the label cannot drift between the server's ICU data and the browser's.
- */
+/** "Sep 22", in UTC so the label cannot drift between server and browser. */
 export function formatOpensAt(iso: string | null): string {
-  if (!iso) {
-    return "—";
-  }
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`;
+  return formatShortDate(iso);
 }
 
 const TOPIC_STATE_LABELS: Record<TopicAvailabilityState, string> = {
@@ -66,62 +42,71 @@ const TOPIC_STATE_ORDER: TopicAvailabilityState[] = [
   "scheduled",
 ];
 
-/** Blueprint S3 rule 4: the availability state lives on the group header. */
-const TOPIC_STATE_DOT: Record<TopicAvailabilityState, string> = {
-  open: "text-success",
-  closed: "text-muted-foreground",
-  scheduled: "text-warning",
-};
-
+/**
+ * A topic group's header on the builder: a disclosure button (inside the h3)
+ * with the live count, and beside it, never inside it, the section's
+ * availability for the topic. Availability dispatches immediately; only the
+ * question set is staged.
+ */
 export function BuilderTopicHeader({
   availability,
   count,
+  headingId,
   label,
+  listId,
+  onToggle,
   open,
   sectionId,
+  sectionLabel,
   topicId,
 }: {
   availability: SectionTopicAvailability;
   /** Released rows in this topic, staged changes already folded in. */
   count: number;
+  headingId: string;
   label: string;
+  /** The id of the list this header shows and hides. */
+  listId: string;
+  onToggle: () => void;
   open: boolean;
   sectionId: SectionId;
+  sectionLabel: string;
   topicId: TopicId;
 }) {
   const { dispatch } = useCoursesStore();
-  const Chevron = open ? ChevronDown : ChevronRight;
+  const opensAt = availability.opensAt ?? DEFAULT_SCHEDULED_OPENS_AT;
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-2">
-      <Chevron
-        className="h-4 w-4 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <span
-        className={cn(
-          "text-[0.6rem] leading-none",
-          TOPIC_STATE_DOT[availability.state],
-        )}
-        aria-hidden="true"
-      >
-        ●
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {label}{" "}
-        <span className="font-normal text-muted-foreground">({count})</span>
-      </span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-surface-tint px-3 py-1.5">
+      <h3 className="min-w-0 flex-1" id={headingId}>
+        <button
+          aria-controls={listId}
+          aria-expanded={open}
+          className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-control text-left focus-ring"
+          onClick={onToggle}
+          type="button"
+        >
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0 text-ink-muted transition-transform duration-fast ease-out",
+              open && "rotate-90",
+            )}
+          />
+          <span className="type-body-strong min-w-0 truncate text-ink">
+            {label}
+          </span>
+          <span className="type-mono shrink-0 text-ink-muted">
+            {count}
+            <span className="sr-only"> released</span>
+          </span>
+        </button>
+      </h3>
 
-      {/* Controls sit inside the <summary>; the parent stops the disclosure
-          from toggling when a click lands on this wrapper. */}
-      <div
-        data-summary-interactive="true"
-        className="flex flex-wrap items-center gap-2"
-      >
+      <div className="flex flex-wrap items-center gap-2">
         <NativeSelect
-          className="h-8 w-[7.5rem] py-1 text-xs"
-          aria-label={`Availability of ${label} for this section`}
-          value={availability.state}
+          aria-label={`Availability of ${label} for ${sectionLabel}`}
+          className="h-8 w-32 py-0 pointer-coarse:h-11"
           onChange={(event) => {
             const nextState = event.target.value as TopicAvailabilityState;
             dispatch({
@@ -135,6 +120,7 @@ export function BuilderTopicHeader({
                   : null,
             });
           }}
+          value={availability.state}
         >
           {TOPIC_STATE_ORDER.map((value) => (
             <option key={value} value={value}>
@@ -144,36 +130,26 @@ export function BuilderTopicHeader({
         </NativeSelect>
 
         {availability.state === "scheduled" ? (
-          <>
-            <Input
-              type="date"
-              className="h-8 w-[9.5rem] py-1 text-xs"
-              aria-label={`Date ${label} opens for this section`}
-              value={(availability.opensAt ?? DEFAULT_SCHEDULED_OPENS_AT).slice(
-                0,
-                10,
-              )}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (!value) {
-                  return;
-                }
-                dispatch({
-                  type: "section/setTopicState",
-                  sectionId,
-                  topicId,
-                  state: "scheduled",
-                  opensAt: `${value}T15:00:00.000Z`,
-                });
-              }}
-            />
-            <span className="text-xs text-muted-foreground">
-              opens{" "}
-              {formatOpensAt(
-                availability.opensAt ?? DEFAULT_SCHEDULED_OPENS_AT,
-              )}
-            </span>
-          </>
+          <Input
+            aria-label={`Date ${label} opens for ${sectionLabel}`}
+            className="h-8 w-40 py-0 pointer-coarse:h-11"
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) {
+                return;
+              }
+              dispatch({
+                type: "section/setTopicState",
+                sectionId,
+                topicId,
+                state: "scheduled",
+                opensAt: `${value}T15:00:00.000Z`,
+              });
+            }}
+            title={`Opens ${formatOpensAt(opensAt)}`}
+            type="date"
+            value={opensAt.slice(0, 10)}
+          />
         ) : null}
       </div>
     </div>

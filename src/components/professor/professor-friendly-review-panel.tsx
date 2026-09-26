@@ -1,14 +1,31 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { Check, Loader2, RotateCcw, Save, X } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Check, RotateCcw, Save, X } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
+import {
+  professorDifficultyLabel,
+  ProfessorTime,
+} from "@/components/professor/professor-question-labels";
 import { QuestionSheet } from "@/components/sheet/question-sheet";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { MetricTile } from "@/components/ui/metric-tile";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
 import { questionCode, studentDifficultyLabel } from "@/lib/labels";
 import { professorReviewQueuePath } from "@/lib/tutor/professor-review-mode";
 import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
@@ -24,6 +41,8 @@ type ReviewAction =
   | "reject"
   | "request_edit"
   | "request_regeneration";
+
+type TopicSummary = ProfessorQuestionReviewDashboard["topics"][number];
 
 /**
  * How the answer is checked, as one header word. The spec is optional on older
@@ -48,6 +67,13 @@ const DIFFICULTIES = [
   "challenge",
 ] as const satisfies readonly Difficulty[];
 
+/**
+ * The review queue for one syllabus topic: choose a topic, then work through
+ * its questions in a split view (the list on the left, the question as a
+ * student meets it on the right, with the decision underneath). Questions
+ * load only for the chosen topic, and each decision is a server-authorized
+ * transition; approving never publishes.
+ */
 export function ProfessorFriendlyReviewPanel({
   initialDashboard,
   initialTopicId,
@@ -69,6 +95,11 @@ export function ProfessorFriendlyReviewPanel({
   const [loadedTopicId, setLoadedTopicId] = useState<string | null>(
     preloadedTopicId || null,
   );
+  // The list keeps the order the queue loaded in; choosing a question only
+  // moves it to the front of `candidates`, which is what the preview shows.
+  const [listOrder, setListOrder] = useState<string[]>(() =>
+    initialDashboard.candidates.map((candidate) => candidate.questionId),
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [reasonCode, setReasonCode] = useState("");
@@ -77,12 +108,36 @@ export function ProfessorFriendlyReviewPanel({
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(
     initialDashboard.candidates[0]?.difficulty ?? "foundational",
   );
+  const previewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const listHeadingId = useId();
+  const previewHeadingId = useId();
+  const decisionHeadingId = useId();
+  const topicsHeadingId = useId();
 
   const current = dashboard.candidates[0];
   const selectedTopic = useMemo(
     () => dashboard.topics.find((topic) => topic.topicId === selectedTopicId),
     [dashboard.topics, selectedTopicId],
   );
+  const orderedCandidates = useMemo(() => {
+    const position = new Map(listOrder.map((id, index) => [id, index]));
+    return [...dashboard.candidates].sort(
+      (left, right) =>
+        (position.get(left.questionId) ?? Number.MAX_SAFE_INTEGER) -
+        (position.get(right.questionId) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [dashboard.candidates, listOrder]);
+  const counts = selectedTopic ?? totalsFor(dashboard.topics);
+
+  function adoptDashboard(nextDashboard: ProfessorQuestionReviewDashboard) {
+    setDashboard(nextDashboard);
+    setListOrder(
+      nextDashboard.candidates.map((candidate) => candidate.questionId),
+    );
+    setSelectedDifficulty(
+      nextDashboard.candidates[0]?.difficulty ?? "foundational",
+    );
+  }
 
   async function requestTopicDashboard(topicId: string) {
     const result = await fetch(professorReviewQueuePath(topicId));
@@ -96,23 +151,20 @@ export function ProfessorFriendlyReviewPanel({
     return payload.dashboard;
   }
 
-  async function loadQueue() {
-    if (!selectedTopicId) return;
+  async function loadQueue(topicId = selectedTopicId) {
+    if (!topicId) return;
     setIsLoading(true);
     setMessage(null);
 
     try {
-      const nextDashboard = await requestTopicDashboard(selectedTopicId);
-      setDashboard(nextDashboard);
-      setLoadedTopicId(selectedTopicId);
+      const nextDashboard = await requestTopicDashboard(topicId);
+      adoptDashboard(nextDashboard);
+      setLoadedTopicId(topicId);
       setReviewedCount(0);
       setNote("");
       setReasonCode("");
-      setSelectedDifficulty(
-        nextDashboard.candidates[0]?.difficulty ?? "foundational",
-      );
       const topic = nextDashboard.topics.find(
-        (item) => item.topicId === selectedTopicId,
+        (item) => item.topicId === topicId,
       );
       setMessage(
         nextDashboard.candidates.length > 0
@@ -187,15 +239,18 @@ export function ProfessorFriendlyReviewPanel({
       setReasonCode("");
       try {
         const nextDashboard = await requestTopicDashboard(loadedTopicId);
-        setDashboard(nextDashboard);
-        setSelectedDifficulty(
-          nextDashboard.candidates[0]?.difficulty ?? "foundational",
-        );
-        setMessage(
-          difficultyChanged
-            ? `${current.title} was revised to ${approvedDifficulty} as working version ${payload.question?.workingVersion.versionNumber ?? "new"} and approved (not published).`
+        adoptDashboard(nextDashboard);
+        toast({
+          title: difficultyChanged
+            ? `${current.title} was revised to ${professorDifficultyLabel(approvedDifficulty).toLowerCase()} as working version ${payload.question?.workingVersion.versionNumber ?? "new"} and approved (not published).`
             : `${current.title} was ${transition.successLabel}.`,
-        );
+          tone: "success",
+        });
+        // The next question replaces this one in place; bring its title into
+        // view (and focus) so it is read from the top.
+        if (nextDashboard.candidates.length > 0) {
+          requestAnimationFrame(() => previewHeadingRef.current?.focus());
+        }
       } catch {
         setDashboard((currentDashboard) =>
           advanceDashboardAfterDecision(
@@ -233,24 +288,42 @@ export function ProfessorFriendlyReviewPanel({
     setReviewedCount(0);
   }
 
+  function focusCandidate(questionId: string) {
+    const next = dashboard.candidates.find(
+      (candidate) => candidate.questionId === questionId,
+    );
+    if (!next || next === current) return;
+    setDashboard((currentDashboard) => ({
+      ...currentDashboard,
+      candidates: [
+        next,
+        ...currentDashboard.candidates.filter(
+          (candidate) => candidate.questionId !== questionId,
+        ),
+      ],
+    }));
+    setSelectedDifficulty(next.difficulty);
+    setNote("");
+    setReasonCode("");
+    setMessage(null);
+  }
+
+  const busy = dashboard.readOnly || Boolean(activeAction);
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {dashboard.readOnly ? (
-        <Alert>
-          <AlertDescription>
-            {dashboard.readOnlyReason ?? "This review queue is read-only."}
-          </AlertDescription>
-        </Alert>
+        <p className="type-small max-w-prose border-l-2 border-input pl-4 text-ink-muted">
+          {dashboard.readOnlyReason ?? "This review queue is read-only."}
+        </p>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Syllabus topic
-          <select
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Field label="Syllabus topic" className="min-w-0 sm:max-w-md sm:flex-1">
+          <NativeSelect
             value={selectedTopicId}
             disabled={isLoading}
             onChange={(event) => selectTopic(event.target.value)}
-            className={nativeSelectClassName}
           >
             <option value="">Choose a topic</option>
             {dashboard.topics.map((topic) => (
@@ -258,243 +331,375 @@ export function ProfessorFriendlyReviewPanel({
                 {topic.title} — {topic.needsReview} need review
               </option>
             ))}
-          </select>
-        </label>
+          </NativeSelect>
+        </Field>
         <Button
           type="button"
           disabled={!selectedTopicId || isLoading}
-          onClick={loadQueue}
+          onClick={() => void loadQueue()}
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          Load review queue
+          {isLoading ? "Loading…" : "Load review queue"}
         </Button>
       </div>
 
-      <div
-        aria-label="Syllabus topic review counts"
-        className="overflow-x-auto border border-border"
-      >
-        <div className="grid min-w-3xl grid-cols-[minmax(18rem,1fr)_repeat(4,8rem)] bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-          <span>Topic</span>
-          <span>Needs review</span>
-          <span>Approved</span>
-          <span>Rejected / revision</span>
-          <span>Remaining</span>
+      <section aria-label={`Review counts for ${counts.title}`}>
+        <p className="mb-2 type-label">{counts.title}</p>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <MetricTile
+            label="Needs review"
+            value={counts.needsReview}
+            delta="Waiting on a decision"
+          />
+          <MetricTile
+            label="Approved"
+            value={counts.approved}
+            delta={
+              <Link
+                href="/professor/questions?view=approved"
+                className="text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
+              >
+                Publish from the bank
+              </Link>
+            }
+          />
+          <MetricTile
+            label="Rejected / revision"
+            value={counts.rejectedOrRevisionRequested}
+            delta={
+              <Link
+                href="/professor/questions?view=revision_requested"
+                className="text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
+              >
+                See revisions
+              </Link>
+            }
+          />
+          <MetricTile
+            label="Remaining"
+            value={counts.remaining}
+            delta="Drafts and revisions in progress"
+          />
         </div>
-        {dashboard.topics.map((topic) => (
-          <button
-            key={topic.topicId}
-            type="button"
-            aria-pressed={selectedTopicId === topic.topicId}
-            disabled={isLoading}
-            className="grid w-full min-w-3xl grid-cols-[minmax(18rem,1fr)_repeat(4,8rem)] border-t border-border px-3 py-2 text-left text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
-            onClick={() => selectTopic(topic.topicId)}
-          >
-            <span>{topic.title}</span>
-            <span className="tabular-nums">{topic.needsReview}</span>
-            <span className="tabular-nums">{topic.approved}</span>
-            <span className="tabular-nums">
-              {topic.rejectedOrRevisionRequested}
-            </span>
-            <span className="tabular-nums">{topic.remaining}</span>
-          </button>
-        ))}
+      </section>
+
+      <div role="status" aria-live="polite">
+        {message ? (
+          <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+            {message}
+          </p>
+        ) : null}
       </div>
 
-      {selectedTopic ? (
-        <div className="space-y-2">
-          <section
-            aria-label={`${selectedTopic.title} review progress`}
-            className="grid grid-cols-2 gap-2 lg:grid-cols-4"
-          >
-            <ProgressCount
-              label="Needs review"
-              value={selectedTopic.needsReview}
-            />
-            <ProgressCount label="Approved" value={selectedTopic.approved} />
-            <ProgressCount
-              label="Rejected / revision requested"
-              value={selectedTopic.rejectedOrRevisionRequested}
-            />
-            <ProgressCount label="Remaining" value={selectedTopic.remaining} />
-          </section>
-          <p className="text-xs text-muted-foreground">
-            Remaining includes drafts awaiting submission or review and versions
-            awaiting revision. Approval does not publish a version.
-          </p>
-        </div>
-      ) : null}
-
-      {message ? (
-        <Alert role="status">
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
-
       {current ? (
-        <article className="space-y-5 border border-border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="mb-2 flex flex-wrap gap-2">
-                <Badge variant="outline">
-                  {selectedTopic?.title ?? current.topicId}
-                </Badge>
-                <Badge variant="outline">
-                  Working version {current.versionNumber}
-                </Badge>
-                {current.publishedVersionId ? (
-                  <Badge variant="secondary">
-                    Published version remains live
-                  </Badge>
-                ) : null}
-                {current.review.reviewPriority === "priority" ? (
-                  <Badge>priority</Badge>
-                ) : null}
-              </div>
-              <h2 className="text-xl font-semibold tracking-normal">
-                {current.title}
+        <div className="grid gap-6 lg:grid-cols-5 lg:items-start">
+          <section
+            aria-labelledby={listHeadingId}
+            className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-span-2"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h2 id={listHeadingId} className="type-h3 text-ink">
+                Waiting on review
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Created by {current.createdBy.displayName}
+              <p className="type-caption tabular">
+                {dashboard.candidates.length} left
+                {reviewedCount > 0 ? ` · ${reviewedCount} decided` : ""}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">
-                {reviewedCount + 1} of{" "}
-                {reviewedCount + dashboard.candidates.length}
-              </Badge>
-            </div>
-          </div>
+            <ol className="flex flex-col overflow-y-auto rounded-panel bg-sheet lg:max-h-[calc(100svh-var(--header-h)-8rem)]">
+              {orderedCandidates.map((candidate) => {
+                const isCurrent = candidate === current;
+                return (
+                  <li
+                    key={candidate.questionId}
+                    className="border-b border-rule last:border-b-0"
+                  >
+                    <button
+                      type="button"
+                      aria-current={isCurrent ? "true" : undefined}
+                      disabled={Boolean(activeAction)}
+                      onClick={() => focusCandidate(candidate.questionId)}
+                      className="flex w-full flex-col gap-1.5 border-l-2 border-transparent px-4 py-3 text-left transition-colors duration-fast hover:bg-surface-tint focus-ring aria-[current=true]:border-azure-500 aria-[current=true]:bg-azure-100 disabled:cursor-not-allowed"
+                    >
+                      <span className="type-caption">
+                        <span className="font-mono">
+                          {questionCode(candidate.questionId)}
+                        </span>
+                        {" · "}
+                        {professorDifficultyLabel(candidate.difficulty)}
+                      </span>
+                      <span className="type-body-strong text-ink">
+                        {candidate.title}
+                      </span>
+                      <span className="flex flex-wrap gap-1.5">
+                        <StatusChip label="Needs review" tone="review" />
+                        {candidate.review.reviewPriority === "priority" ? (
+                          <StatusChip
+                            icon={false}
+                            label="Priority"
+                            tone="neutral"
+                          />
+                        ) : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
 
-          <div className="rounded-md border border-border bg-muted/30 p-3">
-            <label className="flex max-w-sm flex-col gap-1 text-sm font-medium">
-              Difficulty — professor final selection
-              <select
-                aria-label="Difficulty — professor final selection"
-                className={nativeSelectClassName}
-                disabled={dashboard.readOnly || Boolean(activeAction)}
-                value={selectedDifficulty}
-                onChange={(event) =>
-                  setSelectedDifficulty(event.target.value as Difficulty)
-                }
+          <article
+            aria-labelledby={previewHeadingId}
+            className="flex min-w-0 flex-col gap-6 lg:col-span-3"
+          >
+            <header className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                <StatusChip
+                  icon={false}
+                  label={`Working version ${current.versionNumber}`}
+                  tone="neutral"
+                />
+                {current.publishedVersionId ? (
+                  <StatusChip
+                    label="Published version remains live"
+                    tone="published"
+                  />
+                ) : null}
+              </div>
+              <h2
+                id={previewHeadingId}
+                ref={previewHeadingRef}
+                tabIndex={-1}
+                className="type-h2 scroll-mt-[calc(var(--header-h)+1rem)] text-ink focus-ring"
               >
-                {DIFFICULTIES.map((difficulty) => (
-                  <option key={difficulty} value={difficulty}>
-                    {difficulty}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="mt-2 text-xs text-muted-foreground">
-              AI or an import may suggest a difficulty; you have final
-              authority. Changing it creates a new immutable manual revision
-              before approval. Approval still does not publish the question.
-            </p>
-          </div>
+                {current.title}
+              </h2>
+              <p className="type-caption">
+                Created by {current.createdBy.displayName} ·{" "}
+                <ProfessorTime value={current.createdAt} />
+              </p>
+            </header>
 
-          {/* The candidate as a student would meet it, with the whole hint and
-              step ladder already down and the accepted answer in the field:
-              what is being approved is the page, not a list of fields. */}
-          <QuestionSheet
-            answer={{
-              value: current.answer.acceptedAnswers.join(", "),
-              onChange: () => {},
-              onCheck: () => {},
-              disabled: true,
-              helper:
-                "Students see an empty field; this is the accepted answer",
-            }}
-            header={{
-              topicLabel: selectedTopic?.title ?? "",
-              questionCode: questionCode(current.questionId),
-              answerType: answerTypeLabel(current),
-              difficultyLabel: studentDifficultyLabel(selectedDifficulty),
-            }}
-            hints={{ total: current.hints.length, revealed: current.hints }}
-            prompt={current.prompt}
-            steps={{ revealed: current.solutionSteps }}
-          />
-          <ReviewBlock
-            title="Answer explanation"
-            values={[current.answer.explanation]}
-          />
-          <ReviewBlock
-            title="Misconceptions"
-            values={current.misconceptions.map((item) => item.feedback)}
-          />
-          <ReviewBlock
-            title="Source/originality note"
-            values={[
-              current.source.originalityNote ??
-                "No public-safe originality note is recorded.",
-            ]}
-          />
+            {/* The candidate as a student would meet it, with the whole hint
+                and step ladder already down and the accepted answer in the
+                field: what is being approved is the page, not a list of
+                fields. */}
+            <QuestionSheet
+              answer={{
+                value: current.answer.acceptedAnswers.join(", "),
+                onChange: () => {},
+                onCheck: () => {},
+                disabled: true,
+                helper:
+                  "Students see an empty field; this is the accepted answer",
+              }}
+              header={{
+                topicLabel: selectedTopic?.title ?? "",
+                questionCode: questionCode(current.questionId),
+                answerType: answerTypeLabel(current),
+                difficultyLabel: studentDifficultyLabel(selectedDifficulty),
+              }}
+              headingLevel={3}
+              hints={{ total: current.hints.length, revealed: current.hints }}
+              prompt={current.prompt}
+              steps={{ revealed: current.solutionSteps }}
+            />
 
-          <ProfessorReviewReasonFields
-            disabled={dashboard.readOnly || Boolean(activeAction)}
-            note={note}
-            onNoteChange={setNote}
-            onReasonCodeChange={setReasonCode}
-            reasonCode={reasonCode}
-          />
-
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {current.allowedActions.includes("approve") ? (
-              <ActionButton
-                action="approve"
-                activeAction={activeAction}
-                disabled={dashboard.readOnly}
-                icon={<Check className="h-4 w-4" />}
-                label="Approve"
-                onClick={reviewCurrent}
+            <div className="flex flex-col gap-5">
+              <ReviewBlock
+                title="Answer explanation"
+                values={[current.answer.explanation]}
               />
-            ) : null}
-            {current.allowedActions.includes("request_revision") ? (
-              <>
-                <ActionButton
-                  action="request_edit"
-                  activeAction={activeAction}
-                  disabled={dashboard.readOnly}
-                  icon={<Save className="h-4 w-4" />}
-                  label="Request edit"
-                  onClick={reviewCurrent}
-                  variant="outline"
-                />
-                <ActionButton
-                  action="request_regeneration"
-                  activeAction={activeAction}
-                  disabled={dashboard.readOnly}
-                  icon={<RotateCcw className="h-4 w-4" />}
-                  label="Request regeneration"
-                  onClick={reviewCurrent}
-                  variant="outline"
-                />
-              </>
-            ) : null}
-            {current.allowedActions.includes("reject") ? (
-              <ActionButton
-                action="reject"
-                activeAction={activeAction}
-                disabled={dashboard.readOnly}
-                icon={<X className="h-4 w-4" />}
-                label="Reject"
-                onClick={reviewCurrent}
-                variant="destructive"
+              <ReviewBlock
+                title="Misconceptions"
+                values={current.misconceptions.map((item) => item.feedback)}
               />
-            ) : null}
-          </div>
-        </article>
+              <ReviewBlock
+                title="Source and originality"
+                values={[
+                  current.source.originalityNote ??
+                    "No public-safe originality note is recorded.",
+                ]}
+              />
+            </div>
+
+            <section
+              aria-labelledby={decisionHeadingId}
+              className="flex flex-col gap-5 rounded-panel bg-surface-tint p-4 sm:p-5"
+            >
+              <h3 id={decisionHeadingId} className="type-h3 text-ink">
+                Your decision
+              </h3>
+              <Field
+                label="Difficulty"
+                description="AI or an import may suggest a difficulty; you have final authority. Changing it creates a new immutable manual revision before approval. Approval still does not publish the question."
+                className="max-w-md"
+              >
+                <NativeSelect
+                  disabled={busy}
+                  value={selectedDifficulty}
+                  onChange={(event) =>
+                    setSelectedDifficulty(event.target.value as Difficulty)
+                  }
+                >
+                  {DIFFICULTIES.map((difficulty) => (
+                    <option key={difficulty} value={difficulty}>
+                      {professorDifficultyLabel(difficulty)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+
+              <ProfessorReviewReasonFields
+                disabled={busy}
+                note={note}
+                onNoteChange={setNote}
+                onReasonCodeChange={setReasonCode}
+                reasonCode={reasonCode}
+              />
+              <p className="-mt-2 type-caption">
+                Approve needs no reason. Request edit, Request regeneration and
+                Reject do.
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {current.allowedActions.includes("approve") ? (
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    loading={activeAction === "approve"}
+                    onClick={() => void reviewCurrent("approve")}
+                  >
+                    <Check aria-hidden="true" />
+                    Approve
+                  </Button>
+                ) : null}
+                {current.allowedActions.includes("request_revision") ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      loading={activeAction === "request_edit"}
+                      onClick={() => void reviewCurrent("request_edit")}
+                    >
+                      <Save aria-hidden="true" />
+                      Request edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      loading={activeAction === "request_regeneration"}
+                      onClick={() => void reviewCurrent("request_regeneration")}
+                    >
+                      <RotateCcw aria-hidden="true" />
+                      Request regeneration
+                    </Button>
+                  </>
+                ) : null}
+                {current.allowedActions.includes("reject") ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={busy}
+                    loading={activeAction === "reject"}
+                    onClick={() => void reviewCurrent("reject")}
+                  >
+                    <X aria-hidden="true" />
+                    Reject
+                  </Button>
+                ) : null}
+              </div>
+            </section>
+          </article>
+        </div>
       ) : (
-        <ReviewQueueEmptyState
-          loaded={loadedTopicId === selectedTopicId && Boolean(loadedTopicId)}
-          selectedTopic={selectedTopic}
-        />
+        <div className="flex flex-col gap-6">
+          <ReviewQueueEmptyState
+            loaded={loadedTopicId === selectedTopicId && Boolean(loadedTopicId)}
+            selectedTopic={selectedTopic}
+          />
+          <section
+            aria-labelledby={topicsHeadingId}
+            className="flex flex-col gap-3"
+          >
+            <h2 id={topicsHeadingId} className="type-h3 text-ink">
+              Topics in syllabus order
+            </h2>
+            <div className="rounded-panel bg-sheet">
+              <Table>
+                <TableCaption className="sr-only">
+                  Review counts for every syllabus topic. Choose a topic to
+                  load its queue.
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Topic</TableHead>
+                    <TableHead numeric>Needs review</TableHead>
+                    <TableHead numeric>Approved</TableHead>
+                    <TableHead numeric>Rejected / revision</TableHead>
+                    <TableHead numeric>Remaining</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboard.topics.map((topic) => (
+                    <TableRow
+                      key={topic.topicId}
+                      data-state={
+                        selectedTopicId === topic.topicId
+                          ? "selected"
+                          : undefined
+                      }
+                    >
+                      <TableCell className="min-w-56">
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          aria-label={`Review ${topic.title}`}
+                          className="rounded-control text-left text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring disabled:text-ink-muted"
+                          onClick={() => {
+                            selectTopic(topic.topicId);
+                            void loadQueue(topic.topicId);
+                          }}
+                        >
+                          {topic.title}
+                        </button>
+                      </TableCell>
+                      <TableCell numeric>{topic.needsReview}</TableCell>
+                      <TableCell numeric>{topic.approved}</TableCell>
+                      <TableCell numeric>
+                        {topic.rejectedOrRevisionRequested}
+                      </TableCell>
+                      <TableCell numeric>{topic.remaining}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+        </div>
       )}
     </div>
+  );
+}
+
+function totalsFor(topics: TopicSummary[]) {
+  return topics.reduce(
+    (sum, topic) => ({
+      approved: sum.approved + topic.approved,
+      needsReview: sum.needsReview + topic.needsReview,
+      rejectedOrRevisionRequested:
+        sum.rejectedOrRevisionRequested + topic.rejectedOrRevisionRequested,
+      remaining: sum.remaining + topic.remaining,
+      title: sum.title,
+    }),
+    {
+      approved: 0,
+      needsReview: 0,
+      rejectedOrRevisionRequested: 0,
+      remaining: 0,
+      title: "All topics",
+    },
   );
 }
 
@@ -555,14 +760,12 @@ function ReviewQueueEmptyState({
   selectedTopic,
 }: {
   loaded: boolean;
-  selectedTopic?: ProfessorQuestionReviewDashboard["topics"][number];
+  selectedTopic?: TopicSummary;
 }) {
   const text = professorReviewEmptyStateText({ loaded, selectedTopic });
 
   return (
-    <div className="border border-border p-6 text-sm text-muted-foreground">
-      {text}
-    </div>
+    <EmptyState className="rounded-panel bg-sheet px-5">{text}</EmptyState>
   );
 }
 
@@ -571,7 +774,7 @@ export function professorReviewEmptyStateText({
   selectedTopic,
 }: {
   loaded: boolean;
-  selectedTopic?: ProfessorQuestionReviewDashboard["topics"][number];
+  selectedTopic?: TopicSummary;
 }) {
   let text = "Select one syllabus topic, then load its review queue.";
   if (selectedTopic && !loaded) {
@@ -581,70 +784,27 @@ export function professorReviewEmptyStateText({
   } else if (selectedTopic && selectedTopic.remaining === 0) {
     text = `Review complete for ${selectedTopic.title}. Nothing remains in its working queue.`;
   } else if (selectedTopic && loaded) {
-    text = `No versions currently need review for ${selectedTopic.title}. ${selectedTopic.remaining} draft or revision item(s) remain.`;
+    text = `No versions currently need review for ${selectedTopic.title}. ${selectedTopic.remaining} draft or revision ${selectedTopic.remaining === 1 ? "item remains" : "items remain"}.`;
   }
   return text;
-}
-
-function ProgressCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border bg-muted/40 px-3 py-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
-    </div>
-  );
 }
 
 function ReviewBlock({ title, values }: { title: string; values: string[] }) {
   const safeValues = values.filter(Boolean);
   return (
-    <section>
-      <h3 className="text-xs font-medium uppercase text-muted-foreground">
-        {title}
-      </h3>
-      <div className="mt-2 space-y-2 text-sm leading-6">
-        {safeValues.length > 0 ? (
-          safeValues.map((value, index) => (
-            <p key={`${title}-${index}`}>{value}</p>
-          ))
-        ) : (
-          <p className="text-muted-foreground">No recorded value.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ActionButton({
-  action,
-  activeAction,
-  disabled,
-  icon,
-  label,
-  onClick,
-  variant = "default",
-}: {
-  action: ReviewAction;
-  activeAction: ReviewAction | null;
-  disabled: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: (action: ReviewAction) => void;
-  variant?: "default" | "destructive" | "outline";
-}) {
-  return (
-    <Button
-      type="button"
-      disabled={disabled || Boolean(activeAction)}
-      variant={variant}
-      onClick={() => onClick(action)}
-    >
-      {activeAction === action ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+    <section className="flex flex-col gap-2">
+      <h3 className="type-h3 text-ink">{title}</h3>
+      {safeValues.length > 1 ? (
+        <ul className="flex max-w-prose list-disc flex-col gap-1.5 pl-5 type-body text-ink">
+          {safeValues.map((value, index) => (
+            <li key={`${title}-${index}`}>{value}</li>
+          ))}
+        </ul>
+      ) : safeValues.length === 1 ? (
+        <p className="type-body max-w-prose text-ink">{safeValues[0]}</p>
       ) : (
-        icon
+        <p className="type-small text-ink-muted">Nothing recorded.</p>
       )}
-      {label}
-    </Button>
+    </section>
   );
 }

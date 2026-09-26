@@ -1,14 +1,22 @@
 "use client";
 
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   PROFESSOR_LIFECYCLE_REASONS,
   PROFESSOR_REVIEW_REASONS,
   professorReviewReasonRequiresNote,
 } from "@/lib/tutor/professor-review-reasons";
 
+/**
+ * The reason and audit note that go with a reject, a revision request or an
+ * archive. Two labelled fields; the caller decides the grid (pass
+ * `className="contents"` to drop them into a wider row).
+ */
 export function ProfessorReviewReasonFields({
+  className,
   disabled,
   includeLifecycleReasons = false,
   note,
@@ -16,6 +24,7 @@ export function ProfessorReviewReasonFields({
   onReasonCodeChange,
   reasonCode,
 }: {
+  className?: string;
   disabled?: boolean;
   includeLifecycleReasons?: boolean;
   note: string;
@@ -29,12 +38,9 @@ export function ProfessorReviewReasonFields({
     : PROFESSOR_REVIEW_REASONS;
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Decision reason
-        <select
-          aria-label="Decision reason"
-          className={nativeSelectClassName}
+    <div className={cn("grid gap-4 md:grid-cols-2", className)}>
+      <Field label="Decision reason">
+        <NativeSelect
           disabled={disabled}
           value={reasonCode}
           onChange={(event) => onReasonCodeChange(event.target.value)}
@@ -45,24 +51,26 @@ export function ProfessorReviewReasonFields({
               {label}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Audit note {noteRequired ? "(required for Other)" : "(optional)"}
+        </NativeSelect>
+      </Field>
+      <Field
+        label={`Audit note ${noteRequired ? "(required for Other)" : "(optional)"}`}
+      >
         <Textarea
-          className="min-h-20"
+          className="min-h-10"
           disabled={disabled}
           maxLength={1000}
           placeholder={
             noteRequired
-              ? "Describe the reason for this decision"
-              : "Add context for the lifecycle history"
+              ? "Say why you made this decision…"
+              : "Context for the version history…"
           }
           required={noteRequired}
+          rows={2}
           value={note}
           onChange={(event) => onNoteChange(event.target.value)}
         />
-      </label>
+      </Field>
     </div>
   );
 }

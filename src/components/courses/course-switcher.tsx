@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Check, ChevronDown } from "lucide-react";
+import { ArrowRight, Check, ChevronDown } from "lucide-react";
 
 import { useOptionalCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
@@ -15,20 +15,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-const TRIGGER_CLASSES = "h-8 gap-2 px-2.5 text-sm font-medium";
+const TRIGGER_CLASSES =
+  "h-8 min-w-0 max-w-full gap-1.5 bg-surface-tint px-2.5 text-sm font-normal hover:bg-hover";
 
 function courseLabel(code: string, term: string) {
   return `${code} · ${term}`;
 }
 
 /**
- * The one control that scopes every professor tool. It lives in the section nav
- * rather than the page header so it survives navigation between tools.
+ * The one control that scopes every professor tool. It lives in the app
+ * header (the chip slot), so it survives navigation between tools.
  *
- * Two defensive shapes here: it renders nothing without a provider (the nav is
- * also importable outside /professor), and it renders a disabled trigger with
- * the seeded course name until the store has hydrated, so the nav row never
- * changes height when localStorage comes back.
+ * Two defensive shapes: it renders nothing without a provider (the header is
+ * also rendered outside the courses store), and until the store has hydrated
+ * it renders a static chip with the seeded course name, so the header never
+ * changes width when localStorage comes back. That placeholder is plain text,
+ * not a disabled button, so it is not mistaken for a control.
  */
 export function CourseSwitcher({ className }: { className?: string }) {
   const store = useOptionalCoursesStore();
@@ -50,18 +52,14 @@ export function CourseSwitcher({ className }: { className?: string }) {
 
   if (!hydrated) {
     return (
-      <Button
-        aria-hidden
-        className={cn(TRIGGER_CLASSES, className)}
-        disabled
-        size="sm"
-        tabIndex={-1}
-        variant="outline"
+      <span
+        className={cn(
+          "inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control bg-surface-tint px-2.5 text-sm text-ink",
+          className,
+        )}
       >
-        <BookOpen className="h-4 w-4" />
-        {label}
-        <ChevronDown className="h-4 w-4 opacity-60" />
-      </Button>
+        <CourseLabel label={label} />
+      </span>
     );
   }
 
@@ -72,11 +70,10 @@ export function CourseSwitcher({ className }: { className?: string }) {
           aria-label={`Active course: ${label}. Switch course.`}
           className={cn(TRIGGER_CLASSES, className)}
           size="sm"
-          variant="outline"
+          variant="ghost"
         >
-          <BookOpen className="h-4 w-4" />
-          {label}
-          <ChevronDown className="h-4 w-4 opacity-60" />
+          <CourseLabel label={label} />
+          <ChevronDown aria-hidden="true" className="size-4 text-ink-muted" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
@@ -94,16 +91,15 @@ export function CourseSwitcher({ className }: { className?: string }) {
                 }
               >
                 <Check
+                  aria-hidden="true"
                   className={cn(
-                    "h-4 w-4",
+                    "size-4 text-azure-500",
                     selected ? "opacity-100" : "opacity-0",
                   )}
                 />
                 <span className="flex flex-col">
                   <span>{courseLabel(course.code, course.term)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {course.title}
-                  </span>
+                  <span className="type-caption">{course.title}</span>
                 </span>
               </DropdownMenuItem>
             );
@@ -112,11 +108,28 @@ export function CourseSwitcher({ className }: { className?: string }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/professor/courses">
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight aria-hidden="true" />
             All courses
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** "MATH-255 · Fall 2026": the code in mono, the term truncating first. */
+function CourseLabel({ label }: { label: string }) {
+  const separator = label.indexOf(" · ");
+  if (separator === -1) {
+    return <span className="truncate">{label}</span>;
+  }
+  return (
+    <>
+      <span className="shrink-0 font-mono">{label.slice(0, separator)}</span>
+      <span aria-hidden="true" className="text-ink-muted">
+        ·
+      </span>
+      <span className="truncate">{label.slice(separator + 3)}</span>
+    </>
   );
 }

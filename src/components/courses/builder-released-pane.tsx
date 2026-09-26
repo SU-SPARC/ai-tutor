@@ -1,16 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Undo2 } from "lucide-react";
+import { Search, Undo2 } from "lucide-react";
 
 import { BuilderTopicHeader } from "@/components/courses/builder-topic-header";
+import { StagedChip } from "@/components/courses/course-status";
 import { CopyToSectionMenu } from "@/components/courses/copy-to-section-menu";
 import { ReleasedQuestionRow } from "@/components/courses/released-question-row";
 import type { StagedChanges } from "@/components/courses/use-staged-changes";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { sectionBuilder } from "@/lib/courses/selectors";
 import type {
@@ -78,12 +76,14 @@ function matchesReleasedSearch(row: ReleasedQuestion, needle: string) {
   );
 }
 
+/**
+ * The left pane: what the section sees now, per topic, with staged adds shown
+ * where they will land and staged removals struck through. Counts are live
+ * (what the section would hold if the professor applied now).
+ */
 export function BuilderReleasedPane({
-  flash,
   groups,
   onCopyTo,
-  onDiscard,
-  onReview,
   onSetTopicOpen,
   onStageToggle,
   openTopics,
@@ -92,12 +92,8 @@ export function BuilderReleasedPane({
   sectionLabel,
   staged,
 }: {
-  /** Transient "Released 4 · removed 2 to Sec 01" line, or null. */
-  flash: string | null;
   groups: BuilderGroup[];
   onCopyTo: (targetSectionId: SectionId) => void;
-  onDiscard: () => void;
-  onReview: () => void;
   onSetTopicOpen: (topicId: TopicId, open: boolean) => void;
   onStageToggle: (questionId: QuestionId) => void;
   openTopics: ReadonlySet<TopicId>;
@@ -123,7 +119,6 @@ export function BuilderReleasedPane({
       return next;
     });
 
-  /** Counts read live: what the section would hold if the professor applied now. */
   const views = useMemo(
     () =>
       groups.map((group) => {
@@ -150,166 +145,145 @@ export function BuilderReleasedPane({
   );
 
   const liveTotal = views.reduce((total, view) => total + view.liveCount, 0);
+  const headingId = `released-${sectionId}`;
+
+  const shown = views
+    .map((view) => {
+      const visibleRows = view.rows.filter((row) =>
+        matchesReleasedSearch(row, needle),
+      );
+      const visibleAdds = view.stagedAdds.filter(
+        (question) =>
+          needle.length === 0 ||
+          question.title.toLowerCase().includes(needle) ||
+          question.id.toLowerCase().includes(needle),
+      );
+      return { ...view, visibleRows, visibleAdds };
+    })
+    .filter(
+      (view) =>
+        needle.length === 0 ||
+        view.visibleRows.length > 0 ||
+        view.visibleAdds.length > 0,
+    );
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="sticky top-0 z-10 gap-3 rounded-t-lg border-b border-border bg-card">
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col rounded-panel bg-sheet"
+    >
+      <div className="sticky top-(--header-h) z-10 flex flex-col gap-3 rounded-t-panel border-b border-rule bg-sheet px-4 pt-4 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Released to {sectionLabel} ({liveTotal})
+          <h2 className="type-h3 text-ink" id={headingId}>
+            Released to {sectionLabel}{" "}
+            <span className="type-mono text-ink-muted">{liveTotal}</span>
           </h2>
           <CopyToSectionMenu
             disabled={staged.count > 0}
-            sections={otherSections}
             onSelect={onCopyTo}
+            sections={otherSections}
           />
         </div>
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search released…"
-          aria-label={`Search questions released to ${sectionLabel}`}
-          className="h-9"
-        />
-        {flash ? (
-          <Alert variant="success">
-            <CheckCircle2 aria-hidden="true" />
-            <AlertDescription>{flash}</AlertDescription>
-          </Alert>
-        ) : null}
-      </CardHeader>
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+          />
+          <Input
+            aria-label={`Search questions released to ${sectionLabel}`}
+            className="pl-9"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search released questions…"
+            type="search"
+            value={search}
+          />
+        </div>
+      </div>
 
-      <CardContent className="flex-1 p-0">
-        {views.map(({ group, rows, stagedAdds, liveCount }) => {
-          const visibleRows = rows.filter((row) =>
-            matchesReleasedSearch(row, needle),
-          );
-          const visibleAdds = stagedAdds.filter(
-            (question) =>
-              needle.length === 0 ||
-              question.title.toLowerCase().includes(needle) ||
-              question.id.toLowerCase().includes(needle),
-          );
-          if (
-            needle.length > 0 &&
-            visibleRows.length === 0 &&
-            visibleAdds.length === 0
-          ) {
-            return null;
-          }
+      <div className="flex flex-col">
+        {shown.map(({ group, rows, visibleRows, visibleAdds, liveCount }) => {
           const isOpen =
             openTopics.has(group.topic.id) ||
             (needle.length > 0 &&
               (visibleRows.length > 0 || visibleAdds.length > 0));
+          const listId = `released-${sectionId}-${group.topic.id}`;
 
           return (
-            <details
+            <section
+              aria-labelledby={`${listId}-heading`}
+              className="border-b border-rule last:border-b-0"
               key={group.topic.id}
-              open={isOpen}
-              onToggle={(event) => {
-                const nextOpen = event.currentTarget.open;
-                if (nextOpen !== isOpen) {
-                  onSetTopicOpen(group.topic.id, nextOpen);
-                }
-              }}
-              className="border-b border-border last:border-b-0"
             >
-              <summary
-                className="flex cursor-pointer list-none items-center bg-muted/30 px-3 py-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset [&::-webkit-details-marker]:hidden"
-                onClick={(event) => {
-                  // We own `open`, so the native toggle is always suppressed;
-                  // clicks that land on the state control must not toggle at all.
-                  event.preventDefault();
-                  const target =
-                    event.target instanceof Element ? event.target : null;
-                  if (target?.closest("[data-summary-interactive]")) {
-                    return;
-                  }
-                  onSetTopicOpen(group.topic.id, !isOpen);
-                }}
-              >
-                <BuilderTopicHeader
-                  availability={group.availability}
-                  count={liveCount}
-                  label={group.label}
-                  open={isOpen}
-                  sectionId={sectionId}
-                  topicId={group.topic.id}
-                />
-              </summary>
+              <BuilderTopicHeader
+                availability={group.availability}
+                count={liveCount}
+                headingId={`${listId}-heading`}
+                label={group.label}
+                listId={listId}
+                onToggle={() => onSetTopicOpen(group.topic.id, !isOpen)}
+                open={isOpen}
+                sectionId={sectionId}
+                sectionLabel={sectionLabel}
+                topicId={group.topic.id}
+              />
+              {isOpen ? (
+                <ul id={listId}>
+                  {visibleRows.length === 0 && visibleAdds.length === 0 ? (
+                    <li className="type-small px-4 py-3 text-ink-muted">
+                      Nothing released to {sectionLabel} in this topic yet. Add
+                      published questions from the bank.
+                    </li>
+                  ) : null}
 
-              <ul>
-                {visibleRows.length === 0 && visibleAdds.length === 0 ? (
-                  <li className="px-3 py-3 text-sm text-muted-foreground">
-                    Nothing released to {sectionLabel} in this topic yet. Add
-                    published questions from the bank on the right.
-                  </li>
-                ) : null}
+                  {visibleRows.map((row) => (
+                    <ReleasedQuestionRow
+                      expanded={expandedRows.has(row.id)}
+                      // Move bounds come from the whole topic, not the filtered
+                      // view, so searching never makes ▲/▼ lie about the ends.
+                      index={rows.indexOf(row)}
+                      key={row.id}
+                      onToggleExpanded={() => toggleExpanded(row.id)}
+                      onToggleRemove={() => onStageToggle(row.id)}
+                      row={row}
+                      sectionId={sectionId}
+                      sectionLabel={sectionLabel}
+                      stagedRemove={staged.kindFor(row.id) === "remove"}
+                      total={rows.length}
+                    />
+                  ))}
 
-                {visibleRows.map((row) => (
-                  <ReleasedQuestionRow
-                    key={row.id}
-                    expanded={expandedRows.has(row.id)}
-                    // Move bounds come from the whole topic, not the filtered
-                    // view, so searching never makes ▲/▼ lie about the ends.
-                    index={rows.indexOf(row)}
-                    onToggleExpanded={() => toggleExpanded(row.id)}
-                    onToggleRemove={() => onStageToggle(row.id)}
-                    row={row}
-                    sectionId={sectionId}
-                    sectionLabel={sectionLabel}
-                    stagedRemove={staged.kindFor(row.id) === "remove"}
-                    total={rows.length}
-                  />
-                ))}
-
-                {visibleAdds.map((question) => (
-                  <GhostAddRow
-                    key={question.id}
-                    onUndo={() => onStageToggle(question.id)}
-                    question={question}
-                    sectionLabel={sectionLabel}
-                  />
-                ))}
-              </ul>
-            </details>
+                  {visibleAdds.map((question) => (
+                    <StagedAddRow
+                      key={question.id}
+                      onUndo={() => onStageToggle(question.id)}
+                      question={question}
+                      sectionLabel={sectionLabel}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+            </section>
           );
         })}
 
         {groups.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            This course has no included topics yet. Add them on the course
-            overview.
+          <p className="type-body px-4 py-6 text-ink-muted">
+            This course has no included topics yet. Include them from the
+            course overview.
           </p>
         ) : null}
-      </CardContent>
-
-      {staged.count > 0 ? (
-        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-b-lg border-t border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {staged.count} staged
-            </span>{" "}
-            · adding {staged.addCount} · removing {staged.removeCount}
+        {groups.length > 0 && shown.length === 0 ? (
+          <p className="type-body px-4 py-6 text-ink-muted">
+            Nothing released to {sectionLabel} matches “{search.trim()}”.
           </p>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={onDiscard}>
-              Discard
-            </Button>
-            <Button type="button" size="sm" onClick={onReview}>
-              Review {staged.count} {staged.count === 1 ? "change" : "changes"}{" "}
-              →
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </Card>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
 /** A staged add, shown where it will land once applied. */
-function GhostAddRow({
+function StagedAddRow({
   onUndo,
   question,
   sectionLabel,
@@ -319,30 +293,26 @@ function GhostAddRow({
   sectionLabel: string;
 }) {
   return (
-    <li className="px-3 py-2">
-      <div className="flex items-start gap-2 rounded-md border border-dashed border-border bg-muted/20 px-2 py-1.5">
-        <div className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm text-muted-foreground">
-              {question.title}
-            </span>
-            <Badge variant="outline">adding</Badge>
-            <span className="text-xs text-muted-foreground">
-              v{question.publishedVersion ?? question.latestVersion}
-            </span>
+    <li className="flex items-start gap-2 border-b border-rule bg-azure-100 px-3 py-2 last:border-b-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1 sm:pl-16">
+        <p className="type-small text-ink">{question.title}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="type-caption tabular">
+            v{question.publishedVersion ?? question.latestVersion}
           </span>
+          <StagedChip kind="add" />
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground"
-          aria-label={`Undo staged release of ${question.title} to ${sectionLabel}`}
-          onClick={onUndo}
-        >
-          <Undo2 className="h-4 w-4" />
-        </Button>
       </div>
+      <Button
+        aria-label={`Undo staged release of ${question.title} to ${sectionLabel}`}
+        className="shrink-0"
+        onClick={onUndo}
+        size="icon-sm"
+        type="button"
+        variant="ghost"
+      >
+        <Undo2 aria-hidden="true" />
+      </Button>
     </li>
   );
 }

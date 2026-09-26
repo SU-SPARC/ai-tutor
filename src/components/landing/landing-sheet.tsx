@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { LANDING_TEXT_LINK } from "@/components/landing/landing-headline";
 import { QuestionSheet } from "@/components/sheet/question-sheet";
 import type { SessionErrorState } from "@/components/tutor/tutor-client";
 import { questionCode, studentDifficultyLabel } from "@/lib/labels";
@@ -32,7 +33,7 @@ export function answerTypeFor(inputFormatHint: string) {
 /**
  * The landing hero: a real approved question, checked by the real rule-based
  * checker, with no account. Everything it knows comes from the session hook
- * that `LandingScreen` owns, because the tutor drawer next to it drives the
+ * that `LandingScreen` owns, because the tutor panel next to it drives the
  * same session.
  */
 export function LandingSheet({
@@ -51,6 +52,8 @@ export function LandingSheet({
   return (
     <div className="flex flex-col gap-3">
       <QuestionSheet
+        title={question.title}
+        headingLevel={2}
         header={{
           topicLabel: `Wk ${weekNumber}`,
           questionCode: questionCode(question.id),
@@ -74,38 +77,37 @@ export function LandingSheet({
         }}
         steps={{
           revealed: [],
-          gateText: "Available after 2 checks or from the tutor.",
+          gateText: "Available once every hint is shown.",
         }}
       />
 
-      {verdict === "correct" ? (
-        <p className="px-1 text-sm text-muted-foreground" aria-live="polite">
-          Nice — that’s the course’s own checker.{" "}
-          <Link
-            href="/join"
-            className="text-primary underline underline-offset-4"
-          >
-            Sign in to keep your progress.
-          </Link>
-        </p>
-      ) : null}
+      {/* One polite region for what happens after a check: the invitation
+       * to keep progress, or why the check could not run. It is always in
+       * the DOM so screen readers pick up its changes. */}
+      <div role="status" className="px-1">
+        {verdict === "correct" ? (
+          <p className="type-small text-ink-muted">
+            That was the course’s own answer checker.{" "}
+            <Link href="/join" className={LANDING_TEXT_LINK}>
+              Join MATH-255 to keep your progress.
+            </Link>
+          </p>
+        ) : null}
 
-      {error ? (
-        <p className="px-1 text-sm text-muted-foreground" aria-live="polite">
-          {error.message}
-          {error.signInHref ? (
-            <>
-              {" "}
-              <Link
-                href={error.signInHref}
-                className="text-primary underline underline-offset-4"
-              >
-                Sign in
-              </Link>
-            </>
-          ) : null}
-        </p>
-      ) : null}
+        {error ? (
+          <p className="type-small text-ink">
+            {error.message}
+            {error.signInHref ? (
+              <>
+                {" "}
+                <Link href={error.signInHref} className={LANDING_TEXT_LINK}>
+                  Sign in
+                </Link>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

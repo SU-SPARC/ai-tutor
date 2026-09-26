@@ -74,14 +74,11 @@ export function PracticeSimilarProblemAction({
   }
 
   return (
-    <div
-      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
-      aria-live="polite"
-    >
+    <div className="flex flex-col items-start gap-2" aria-live="polite">
       <Button
         type="button"
-        variant="outline"
-        className="shrink-0"
+        variant="secondary"
+        className="pointer-coarse:h-11"
         disabled={
           disabled ||
           state === "loading" ||
@@ -91,27 +88,21 @@ export function PracticeSimilarProblemAction({
         onClick={() => void findSimilarProblem()}
       >
         {state === "loading" ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          <Loader2 className="animate-spin" aria-hidden="true" />
         ) : (
-          <Shuffle className="h-4 w-4" aria-hidden="true" />
+          <Shuffle aria-hidden="true" />
         )}
         {state === "loading" ? "Looking for a problem…" : "Try a similar problem"}
       </Button>
-      {statusMessage ? (
-        <p
-          className={
-            state === "error"
-              ? "min-w-0 text-xs leading-5 text-destructive"
-              : "min-w-0 text-xs leading-5 text-muted-foreground"
-          }
-        >
-          {statusMessage}
-        </p>
-      ) : (
-        <p className="min-w-0 text-xs leading-5 text-muted-foreground">
-          {SIMILAR_PROBLEM_DESCRIPTION}
-        </p>
-      )}
+      <p
+        className={
+          state === "error"
+            ? "type-small max-w-prose text-ink"
+            : "type-small max-w-prose text-ink-muted"
+        }
+      >
+        {statusMessage ?? SIMILAR_PROBLEM_DESCRIPTION}
+      </p>
     </div>
   );
 }

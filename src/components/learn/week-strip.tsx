@@ -3,39 +3,37 @@ import { weekDayName } from "@/components/learn/learn-model";
 import { cn } from "@/lib/utils";
 
 /**
- * Zone 2. Seven dots and a count. Deliberately not a streak: a gap costs
- * nothing, the copy never says "keep it up", and the number is the only claim
- * the page makes about the week.
+ * Seven day circles and a count. Deliberately not a streak: a gap costs
+ * nothing, the copy never says "keep it up", and the count is the only claim
+ * the page makes about the week. A practiced day is filled; today is ringed.
  */
 export function WeekStrip({ week }: { week: WeekStripModel }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+    <div className="flex flex-col gap-3">
       <ul className="flex items-center gap-2" aria-label="Practice this week">
         {week.days.map((day, index) => (
-          <li key={day.iso} className="flex flex-col items-center gap-1">
+          <li key={day.iso}>
             <span
               aria-hidden="true"
-              className="font-mono text-[11px] text-muted-foreground"
+              className={cn(
+                "type-label flex size-8 items-center justify-center rounded-full",
+                day.active
+                  ? "bg-azure-500 text-on-fill"
+                  : "border border-rule text-ink-muted",
+                day.isToday && "ring-2 ring-azure-500 ring-offset-2 ring-offset-surface",
+              )}
             >
               {day.label}
             </span>
-            <span
-              className={cn(
-                "size-2.5 rounded-full",
-                day.active ? "bg-primary" : "bg-indigo-100",
-                day.isToday && !day.active && "ring-1 ring-indigo-300",
-              )}
-            >
-              <span className="sr-only">
-                {`${weekDayName(index)}: ${
-                  day.active ? "practised" : "no practice"
-                }`}
-              </span>
+            <span className="sr-only">
+              {`${weekDayName(index)}${day.isToday ? " (today)" : ""}: ${
+                day.active ? "practiced" : "no practice"
+              }`}
             </span>
           </li>
         ))}
       </ul>
-      <p className="font-mono text-xs text-muted-foreground">{week.summary}</p>
+      <p className="type-small tabular text-ink">{week.summary}</p>
     </div>
   );
 }

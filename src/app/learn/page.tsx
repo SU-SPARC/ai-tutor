@@ -18,7 +18,7 @@ import type { StudentProgressDashboard } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Learn · Suffolk Probability & Statistics Tutor",
+  title: "Learn",
   description:
     "Your syllabus, what to continue, and every practice question your professor has approved.",
 };

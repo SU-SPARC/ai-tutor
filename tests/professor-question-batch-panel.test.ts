@@ -187,7 +187,7 @@ describe("professor question batch review UI", () => {
     );
     expect(markup).toContain("Ready to publish");
     expect(markup).toContain(
-      "You approved this exact version on 2026-09-18. It passed every publication check.",
+      "You approved this exact version on Sep 18, 2026. It passed every publication check.",
     );
     expect(markup).toContain("Cannot publish yet");
     expect(markup).toContain("not reviewed this exact version yourself");
@@ -309,7 +309,7 @@ describe("professor question batch review UI", () => {
     const ownMarkup = render(approvedByMe);
     expect(ownMarkup).toContain("Approved by you");
     expect(ownMarkup).toContain(
-      "You approved this exact version on 2026-09-18.",
+      "You approved this exact version on Sep 18, 2026.",
     );
     expect(ownMarkup).toContain("counts as your review");
     expect(ownMarkup).not.toContain("Mark this version inspected");

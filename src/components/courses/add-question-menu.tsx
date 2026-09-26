@@ -8,7 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -27,31 +27,23 @@ export function AddQuestionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button aria-label="Add a question to this topic">
-          <Plus className="h-4 w-4" />
+        <Button type="button">
+          <Plus aria-hidden="true" />
           Add question
-          <ChevronDown className="h-4 w-4 opacity-60" />
+          <ChevronDown aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel>Every route lands in Needs review</DropdownMenuLabel>
         <DropdownMenuItem onSelect={onWriteItMyself}>
           Write it myself
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href={UPLOAD_PATH}>Paste LaTeX / upload</Link>
+          <Link href={UPLOAD_PATH}>Paste LaTeX or upload a file</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link className="flex-col items-start gap-0.5" href={UPLOAD_PATH}>
-            <span>Generate from material</span>
-            <span className="text-xs text-muted-foreground">
-              Lands in Needs review
-            </span>
-          </Link>
+          <Link href={UPLOAD_PATH}>Generate from course material</Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">
-          All three enter the same review queue. Approve, publish, then release.
-        </p>
       </DropdownMenuContent>
     </DropdownMenu>
   );

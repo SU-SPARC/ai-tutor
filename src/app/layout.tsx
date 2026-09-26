@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Source_Code_Pro, Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { CoursesStoreProvider } from "@/components/courses/courses-store";
 import { AppHeader, type AppHeaderRole } from "@/components/shell/app-header";
+import { SkipLink } from "@/components/shell/skip-link";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AccountActions } from "@/components/auth/account-actions";
+import { Toaster } from "@/components/ui/toast";
 import {
   currentAuthenticatedUser,
   hasPermission,
@@ -15,41 +17,59 @@ import {
 import { getServerEnv } from "@/lib/env/server";
 import { operatingModePolicyFor } from "@/lib/runtime/operating-mode";
 
-const inter = Inter({
+// One superfamily, designed together. The serif carries titles and problem
+// statements (the optical-size axis keeps 17px text sturdy and 48px titles
+// fine); the sans carries the interface; the mono carries answers and codes.
+const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
-  variable: "--font-inter",
+  axes: ["opsz"],
+  style: ["normal"],
+  variable: "--font-source-serif",
   display: "swap",
 });
 
-// The display serif. Italic is loaded because the landing hero uses exactly
-// one italic line; nothing else in the app does.
-const newsreader = Newsreader({
+const sourceSans = Source_Sans_3({
   subsets: ["latin"],
-  style: ["normal", "italic"],
-  variable: "--font-newsreader",
+  weight: ["400", "500", "600"],
+  variable: "--font-source-sans",
   display: "swap",
 });
 
-// Question codes, answer inputs, week labels — anything that is a value rather
-// than a sentence.
-const jetBrainsMono = JetBrains_Mono({
+const sourceCode = Source_Code_Pro({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  weight: ["400", "500"],
+  variable: "--font-source-code",
   display: "swap",
 });
 
+const DESCRIPTION =
+  "Practice MATH-255 probability and statistics problems. Hints before answers, and every question approved by your professor.";
+
+// Pages set a short name ("Learn", "Review queue"); the template adds the
+// product after a middle dot. Pages that set no title (the landing page)
+// get the default.
 export const metadata: Metadata = {
-  title: "Suffolk AI Probability Tutor",
-  description:
-    "A rule-first probability and statistics tutor with professor review and controlled LLM fallback.",
-  // `icons` is intentionally omitted: Next derives the correct hashed URLs
-  // from src/app/icon.png and src/app/apple-icon.png on its own.
+  title: { default: "ProbStat Tutor", template: "%s · ProbStat Tutor" },
+  description: DESCRIPTION,
+  applicationName: "ProbStat Tutor",
+  // `icons` is intentionally omitted: Next derives the hashed URLs from
+  // src/app/icon.svg, icon.png and apple-icon.png on its own.
   openGraph: {
-    title: "Suffolk AI Probability Tutor",
-    description:
-      "A rule-first probability and statistics tutor with professor review and controlled LLM fallback.",
+    title: "ProbStat Tutor",
+    description: DESCRIPTION,
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  // --surface in each theme, as hex because browser chrome needs a plain colour.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f7fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0f18" },
+  ],
 };
 
 /**
@@ -81,12 +101,16 @@ export default async function RootLayout({
   const role = await resolveHeaderRole();
   const shell = (
     <>
+      <SkipLink />
       <AppHeader
-        accountControl={<AccountActions />}
+        accountControl={
+          <AccountActions environmentLabel={operatingMode.indicatorLabel} />
+        }
         environmentLabel={operatingMode.indicatorLabel}
         role={role}
       />
       {children}
+      <Toaster />
     </>
   );
   // Professors get the courses store above the header so its course switcher
@@ -106,7 +130,7 @@ export default async function RootLayout({
     // theme class onto <html> before React hydrates.
     <html
       lang="en"
-      className={`${inter.variable} ${newsreader.variable} ${jetBrainsMono.variable}`}
+      className={`${sourceSerif.variable} ${sourceSans.variable} ${sourceCode.variable}`}
       suppressHydrationWarning
     >
       <body>

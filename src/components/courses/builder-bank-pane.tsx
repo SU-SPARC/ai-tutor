@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Search } from "lucide-react";
 
 import { BankQuestionRow } from "@/components/courses/bank-question-row";
 import type { BuilderGroup } from "@/components/courses/builder-released-pane";
 import type { StagedChanges } from "@/components/courses/use-staged-changes";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { courseTopicPath } from "@/lib/courses/paths";
+import { cn } from "@/lib/utils";
 import type {
   BankQuestion,
   CourseId,
@@ -28,7 +29,7 @@ type BankFilter =
 const FILTERS: { id: BankFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "published", label: "Published" },
-  { id: "approved_not_released", label: "Approved, not released" },
+  { id: "approved_not_released", label: "Approved" },
   { id: "needs_review", label: "Needs review" },
   { id: "draft", label: "Draft" },
 ];
@@ -45,7 +46,7 @@ function matchesFilter(
       return question.state === "published";
     case "approved_not_released":
       // Approved is by definition not yet releasable, so "not released" is the
-      // honest reading of the chip: it can't be out there, and here is why.
+      // honest reading of the filter: it can't be out there, and here is why.
       return question.state === "approved" && !released;
     case "needs_review":
       return question.state === "needs_review";
@@ -68,6 +69,12 @@ function matchesSearch(question: BankQuestion, needle: string) {
   );
 }
 
+/**
+ * The right pane: the whole bank for the course's topics, grouped by topic
+ * (Teachable's curriculum pattern), with a state chip per row and ⊕ / ⊖ to
+ * stage a change. Rows that cannot be released say why, as a link to the step
+ * that unblocks them.
+ */
 export function BuilderBankPane({
   courseId,
   groups,
@@ -96,6 +103,27 @@ export function BuilderBankPane({
   const [filter, setFilter] = useState<BankFilter>("all");
   const needle = search.trim().toLowerCase();
 
+  const filterCounts = useMemo(() => {
+    const counts: Record<BankFilter, number> = {
+      all: 0,
+      published: 0,
+      approved_not_released: 0,
+      needs_review: 0,
+      draft: 0,
+    };
+    for (const group of groups) {
+      for (const question of group.bank) {
+        const released = releasedIds.has(question.id);
+        for (const entry of FILTERS) {
+          if (matchesFilter(question, entry.id, released)) {
+            counts[entry.id] += 1;
+          }
+        }
+      }
+    }
+    return counts;
+  }, [groups, releasedIds]);
+
   const views = useMemo(
     () =>
       groups.map((group) => {
@@ -122,135 +150,154 @@ export function BuilderBankPane({
   const anyVisible = views.some((view) => view.questions.length > 0);
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="sticky top-0 z-10 gap-3 rounded-t-lg border-b border-border bg-card">
-        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Question bank
-        </h2>
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search prompt / tag / id"
-          aria-label="Search the question bank"
-          className="h-9"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {FILTERS.map((entry) => (
-            <Button
-              key={entry.id}
-              type="button"
-              size="sm"
-              variant={filter === entry.id ? "secondary" : "outline"}
-              aria-pressed={filter === entry.id}
-              onClick={() => setFilter(entry.id)}
-            >
-              {entry.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="ghost" onClick={onExpandAll}>
-            Expand all
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={onCollapseAll}
-          >
-            Collapse all
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex-1 p-0">
-        {views.map(({ group, questions, nextCount }) => {
-          if (questions.length === 0) {
-            return null;
-          }
-          const isOpen =
-            openTopics.has(group.topic.id) ||
-            needle.length > 0 ||
-            filter !== "all";
-          const Chevron = isOpen ? ChevronDown : ChevronRight;
-
-          return (
-            <details
-              key={group.topic.id}
-              open={isOpen}
-              onToggle={(event) => {
-                const nextOpen = event.currentTarget.open;
-                if (nextOpen !== isOpen) {
-                  onSetTopicOpen(group.topic.id, nextOpen);
-                }
-              }}
-              className="border-b border-border last:border-b-0"
-            >
-              <summary
-                className="flex cursor-pointer list-none items-center gap-2 bg-muted/30 px-3 py-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset [&::-webkit-details-marker]:hidden"
-                onClick={(event) => {
-                  event.preventDefault();
-                  onSetTopicOpen(group.topic.id, !isOpen);
-                }}
+    <section
+      aria-labelledby="bank-heading"
+      className="flex min-w-0 flex-col rounded-panel bg-sheet"
+    >
+      <Tabs
+        className="gap-0"
+        onValueChange={(value) => setFilter(value as BankFilter)}
+        value={filter}
+      >
+        <div className="sticky top-(--header-h) z-10 flex flex-col gap-3 rounded-t-panel border-b border-rule bg-sheet px-4 pt-4 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="type-h3 text-ink" id="bank-heading">
+              Question bank{" "}
+              <span className="type-mono text-ink-muted">
+                {filterCounts.all}
+              </span>
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button onClick={onExpandAll} size="sm" type="button" variant="ghost">
+                Expand all
+              </Button>
+              <Button
+                onClick={onCollapseAll}
+                size="sm"
+                type="button"
+                variant="ghost"
               >
-                <Chevron
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {group.label}{" "}
-                  <span className="font-normal text-muted-foreground">
-                    ({group.bankCount})
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {group.releasedCount}
-                  {nextCount === group.releasedCount ? null : (
-                    <span className="text-foreground">→{nextCount}</span>
-                  )}
-                  /{group.bankCount}
-                  <span className="sr-only">
-                    {" "}
-                    released to {sectionLabel} of {group.bankCount} in the bank
-                  </span>
-                </span>
-              </summary>
+                Collapse all
+              </Button>
+            </div>
+          </div>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+            />
+            <Input
+              aria-label="Search the question bank"
+              className="pl-9"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search prompt, tag, or id…"
+              type="search"
+              value={search}
+            />
+          </div>
+          <TabsList
+            aria-label="Filter the bank by state"
+            className="max-w-full overflow-x-auto"
+            variant="segmented"
+          >
+            {FILTERS.map((entry) => (
+              <TabsTrigger
+                count={filterCounts[entry.id]}
+                key={entry.id}
+                value={entry.id}
+              >
+                {entry.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-              <ul>
-                {questions.map((question) => (
-                  <BankQuestionRow
-                    key={question.id}
-                    courseId={courseId}
-                    onToggle={() => onStageToggle(question.id)}
-                    question={question}
-                    released={releasedIds.has(question.id)}
-                    sectionLabel={sectionLabel}
-                    staged={staged.kindFor(question.id) !== undefined}
-                  />
-                ))}
-              </ul>
+        <TabsContent className="flex flex-col" value={filter}>
+          {views.map(({ group, questions, nextCount }) => {
+            if (questions.length === 0) {
+              return null;
+            }
+            const isOpen =
+              openTopics.has(group.topic.id) ||
+              needle.length > 0 ||
+              filter !== "all";
+            const listId = `bank-${group.topic.id}`;
+            const changed = nextCount !== group.releasedCount;
 
-              {/* Whop's dashed add-row: it stays where the professor's eye is. */}
-              <div className="px-3 pt-1 pb-3">
-                <Link
-                  href={courseTopicPath(courseId, group.topic.id)}
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            return (
+              <section
+                aria-labelledby={`${listId}-heading`}
+                className="border-b border-rule last:border-b-0"
+                key={group.topic.id}
+              >
+                <h3
+                  className="bg-surface-tint px-3 py-1.5"
+                  id={`${listId}-heading`}
                 >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add question to this topic
-                </Link>
-              </div>
-            </details>
-          );
-        })}
+                  <button
+                    aria-controls={listId}
+                    aria-expanded={isOpen}
+                    className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-control text-left focus-ring"
+                    onClick={() => onSetTopicOpen(group.topic.id, !isOpen)}
+                    type="button"
+                  >
+                    <ChevronRight
+                      aria-hidden="true"
+                      className={cn(
+                        "size-4 shrink-0 text-ink-muted transition-transform duration-fast ease-out",
+                        isOpen && "rotate-90",
+                      )}
+                    />
+                    <span className="type-body-strong min-w-0 flex-1 truncate text-ink">
+                      {group.label}
+                    </span>
+                    <span className="type-caption shrink-0 tabular">
+                      {group.releasedCount}
+                      {changed ? (
+                        <span className="text-ink"> → {nextCount}</span>
+                      ) : null}{" "}
+                      of {group.bankCount} released
+                      <span className="sr-only"> to {sectionLabel}</span>
+                    </span>
+                  </button>
+                </h3>
 
-        {!anyVisible ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            No questions match that search or filter.
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
+                {isOpen ? (
+                  <div id={listId}>
+                    <ul>
+                      {questions.map((question) => (
+                        <BankQuestionRow
+                          courseId={courseId}
+                          key={question.id}
+                          onToggle={() => onStageToggle(question.id)}
+                          question={question}
+                          released={releasedIds.has(question.id)}
+                          sectionLabel={sectionLabel}
+                          staged={staged.kindFor(question.id) !== undefined}
+                        />
+                      ))}
+                    </ul>
+                    <div className="px-3 pt-1 pb-3">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link href={courseTopicPath(courseId, group.topic.id)}>
+                          <Plus aria-hidden="true" />
+                          Add a question to this topic
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+
+          {!anyVisible ? (
+            <p className="type-body px-4 py-6 text-ink-muted">
+              No questions match that search or filter.
+            </p>
+          ) : null}
+        </TabsContent>
+      </Tabs>
+    </section>
   );
 }

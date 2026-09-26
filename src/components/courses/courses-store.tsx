@@ -25,7 +25,15 @@ export type CoursesStoreValue = {
   dispatch: Dispatch<CoursesAction>;
   /** Re-seed the demo and forget what was persisted. */
   reset: () => void;
-  /** False until the localStorage read has run; render placeholders until then. */
+  /**
+   * False on the server and on the first client render, true once the
+   * persisted demo state has been read from localStorage (or found missing).
+   * Until then `state` is the seed, so a screen that looks up an id the
+   * professor created in this browser must render its skeleton, not "not
+   * found", while `hydrated` is false. The course overview, topic builder,
+   * topic detail and section screens and the header's course switcher gate
+   * on it.
+   */
   hydrated: boolean;
 };
 
@@ -59,13 +67,6 @@ function parsePersistedState(raw: string | null): CoursesState | undefined {
   }
 }
 
-/**
- * Holds all course/section state for /professor.
- *
- * The initial state is `createSeedState()` on both the server and the client so
- * the first paint matches; the persisted state is swapped in after mount. That
- * is why components read `hydrated` instead of reaching for localStorage.
- */
 type StoreState = {
   data: CoursesState;
   hydrated: boolean;
@@ -176,7 +177,7 @@ export function useCoursesStore(): CoursesStoreValue {
   const value = useContext(CoursesStoreContext);
   if (!value) {
     throw new Error(
-      "useCoursesStore must be used inside <CoursesStoreProvider>. It is mounted in src/app/professor/layout.tsx, so this component is rendering outside /professor.",
+      "useCoursesStore must be used inside <CoursesStoreProvider>. The root layout mounts it around the header for professors, and src/app/professor/layout.tsx mounts it around the workspace, so this component is rendering for a student, a signed-out visitor, or a test without the provider. Use useOptionalCoursesStore() where the store may be absent.",
     );
   }
   return value;

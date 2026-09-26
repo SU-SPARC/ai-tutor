@@ -1,13 +1,16 @@
-import { ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorContentAvailabilityPanel } from "@/components/professor/professor-content-availability-panel";
-import { Badge } from "@/components/ui/badge";
 import { getContentAvailabilityDashboard } from "@/lib/data/data-store";
 import {
   requireProfessorReview,
   requirePageAccess,
 } from "@/lib/auth/authorization";
+
+export const metadata: Metadata = {
+  title: "Student availability",
+};
 
 export default async function ProfessorAvailabilityPage() {
   const authorization = await requirePageAccess(
@@ -18,13 +21,16 @@ export default async function ProfessorAvailabilityPage() {
 
   return (
     <ProfessorPageShell
-      title="Approved question availability"
-      description="Publish globally, schedule, unpublish, or archive student access for professor-approved questions. Availability is a separate gate from review approval, so changes here never alter a review decision or an immutable version."
-      aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <ShieldCheck className="h-4 w-4" />
-          private materials excluded
-        </Badge>
+      title="Student availability"
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Student availability" },
+      ]}
+      description="Publish, schedule, unpublish or archive what students can reach, topic by topic and question by question."
+      notice={
+        initialDashboard.mode === "demo"
+          ? "Demo data · Private source material is never exposed here."
+          : "Private source material is never exposed here."
       }
     >
       <ProfessorContentAvailabilityPanel initialDashboard={initialDashboard} />

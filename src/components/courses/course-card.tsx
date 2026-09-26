@@ -1,20 +1,15 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { Card } from "@/components/ui/card";
 import { coursePath } from "@/lib/courses/paths";
 import type { CourseSummary } from "@/lib/courses/selectors";
 import type { Course } from "@/lib/courses/types";
 
-/** "1 section" / "2 sections" — counts on these cards are read, not parsed. */
-function plural(count: number, singular: string, pluralForm = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
-}
-
 /**
  * One offering, with the facts in the order a professor scans them: which
- * course, which term, how big, how much is out there — and then, last and
- * alone, the one thing that is waiting on them.
+ * course and term, how big, how much is out there, and then, last and alone,
+ * the one thing that is waiting on them. The whole panel is the hit target;
+ * the link's name stays short ("MATH-255 Fall 2026").
  */
 export function CourseCard({
   course,
@@ -25,48 +20,54 @@ export function CourseCard({
 }) {
   const waiting = summary.approvedNotReleased;
 
+  const facts: { label: string; value: number }[] = [
+    { label: "Sections", value: summary.sectionCount },
+    { label: "Joined", value: summary.studentCount },
+    { label: "Topics", value: summary.topicCount },
+    { label: "Released", value: summary.releasedCount },
+  ];
+
   return (
-    <Card className="transition-colors focus-within:border-primary/40 hover:border-primary/40">
-      <Link
-        className="flex h-full flex-col gap-4 rounded-lg p-5 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        href={coursePath(course.id)}
-      >
-        <div className="flex flex-col gap-1">
-          <span className="font-semibold">{course.code}</span>
-          <span className="text-sm leading-6 text-muted-foreground">
-            {course.title} · {course.term}
-          </span>
+    <li className="group relative flex flex-col gap-4 rounded-panel bg-sheet p-5 transition-colors duration-fast hover:bg-hover has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h3 className="type-h3 text-ink">
+            <Link
+              className="outline-none after:absolute after:inset-0 after:rounded-panel"
+              href={coursePath(course.id)}
+            >
+              <span className="type-mono mr-2 text-ink-muted">
+                {course.code}
+              </span>
+              {course.term}
+            </Link>
+          </h3>
+          <p className="type-small truncate text-ink-muted">{course.title}</p>
         </div>
+        <ArrowRight
+          aria-hidden="true"
+          className="mt-1 size-5 shrink-0 text-ink-muted transition-transform duration-fast ease-out group-hover:translate-x-0.5"
+        />
+      </div>
 
-        <div className="flex flex-col gap-1 text-sm leading-6">
-          <span>
-            {plural(summary.sectionCount, "section")} · {summary.studentCount}{" "}
-            joined
-          </span>
-          <span className="text-muted-foreground">
-            {plural(summary.topicCount, "topic")} · {summary.releasedCount}{" "}
-            released
-          </span>
-        </div>
+      <dl className="grid grid-cols-4 gap-3">
+        {facts.map((fact) => (
+          <div className="flex flex-col" key={fact.label}>
+            <dt className="type-caption">{fact.label}</dt>
+            <dd className="type-mono text-ink">{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
 
-        {waiting > 0 ? (
-          <p className="flex items-center gap-2 text-sm leading-6">
-            <span>{waiting} approved, not yet released</span>
-            <span aria-hidden className="text-warning">
-              ●
-            </span>
-          </p>
-        ) : (
-          <p className="text-sm leading-6 text-muted-foreground">
-            Nothing waiting on you
-          </p>
-        )}
-
-        <span className="mt-auto inline-flex items-center gap-1.5 pt-1 text-sm font-medium text-primary">
-          Open
-          <ArrowRight aria-hidden="true" className="h-4 w-4" />
-        </span>
-      </Link>
-    </Card>
+      {waiting > 0 ? (
+        <p className="type-body-strong mt-auto border-l-2 border-azure-500 pl-3 text-ink">
+          {waiting} approved, not yet released
+        </p>
+      ) : (
+        <p className="type-small mt-auto border-l-2 border-rule pl-3 text-ink-muted">
+          Nothing waiting on you
+        </p>
+      )}
+    </li>
   );
 }

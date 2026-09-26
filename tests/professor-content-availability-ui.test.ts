@@ -91,7 +91,7 @@ describe("professor content availability UI", () => {
     expect(markup).toContain("Available from (optional)");
     expect(markup).toContain("Approved working version");
     expect(markup).toContain(
-      "Use the lifecycle controls below before changing student availability",
+      "Change it in Question lifecycle before changing student availability",
     );
     expect(markup).toContain("Availability audit");
     expect(markup).toContain("Professor Test");

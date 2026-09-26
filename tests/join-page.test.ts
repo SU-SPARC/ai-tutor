@@ -37,6 +37,10 @@ vi.mock("@/app/sign-in/ghost-actions", () => ({
 
 import { joinAsDemoProfessor, joinAsGuestStudent } from "@/app/join/actions";
 import JoinPage from "@/app/join/page";
+import {
+  parseSectionCode,
+  SECTION_CODE_ERROR,
+} from "@/components/auth/join-screen";
 
 class RedirectSignal extends Error {
   constructor(readonly destination: string) {
@@ -90,10 +94,47 @@ describe("join screen", () => {
     expect(markup).toContain("Continue with Suffolk (SSO)");
     expect(markup).toContain("SSO is not configured in this demo");
     expect(markup).toContain("Continue as guest");
-    expect(markup).toContain("or enter a section code");
+    expect(markup).toContain("Section code");
+    expect(markup).toContain('placeholder="K7Q-2M"');
     expect(markup).toContain("Join</button>");
-    expect(markup).toContain("Continue →");
     expect(markup).toContain("Professor demo sign-in");
+    expect(markup).toContain('id="professor"');
+  });
+
+  it("has one guest door, not a second unnamed Continue button", async () => {
+    const markup = await renderJoin();
+
+    expect(markup.match(/Continue as guest/g)).toHaveLength(1);
+    expect(markup).not.toContain("Continue →");
+  });
+
+  it("leads with the section code in the demo and with SSO once it is configured", async () => {
+    const demo = await renderJoin();
+    expect(demo.indexOf("Section code")).toBeLessThan(
+      demo.indexOf("Continue with Suffolk (SSO)"),
+    );
+
+    mocks.getServerEnv.mockReturnValue({
+      ANONYMOUS_PILOT_ENABLED: true,
+      CLERK_ENABLED: true,
+      GHOST_LOGIN_ENABLED: false,
+    });
+    const configured = await renderJoin();
+    expect(configured.indexOf("Continue with Suffolk (SSO)")).toBeLessThan(
+      configured.indexOf("Section code"),
+    );
+  });
+
+  it("accepts a section code in any case or spacing and refuses anything else", () => {
+    expect(parseSectionCode("K7Q-2M")).toBe("K7Q-2M");
+    expect(parseSectionCode("k7q2m")).toBe("K7Q-2M");
+    expect(parseSectionCode(" r4n 8x ")).toBe("R4N-8X");
+    expect(parseSectionCode("")).toBeNull();
+    expect(parseSectionCode("K7Q")).toBeNull();
+    expect(parseSectionCode("K7Q-2MX")).toBeNull();
+    expect(SECTION_CODE_ERROR).toBe(
+      "Enter the 6-character code from your professor",
+    );
   });
 
   it("links the SSO door at Clerk once it is configured, and drops the demo doors", async () => {

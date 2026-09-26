@@ -3,17 +3,16 @@
 import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 
-import { SectionRosterTable } from "@/components/courses/section-roster-table";
+import { plural } from "@/components/courses/course-status";
+import {
+  SectionRosterTable,
+  type RosterSortKey,
+} from "@/components/courses/section-roster-table";
 import { TopicMasteryBars } from "@/components/courses/topic-mastery-bars";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { MetricTile } from "@/components/ui/metric-tile";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SEED_NOW } from "@/lib/courses/demo-seed";
 import { formatRelativeTime, shortStudentLabel } from "@/lib/courses/format";
@@ -22,12 +21,12 @@ import type { CourseSection, SectionMember } from "@/lib/courses/types";
 
 const PAGE_SIZE = 25;
 
-type SortKey = "last_active" | "sessions" | "correctness" | "hints";
+type SortKey = RosterSortKey;
 
 const SORT_LABELS: Record<SortKey, string> = {
   last_active: "Last active",
   sessions: "Sessions",
-  correctness: "Correctness",
+  correctness: "Correct",
   hints: "Hints",
 };
 
@@ -85,23 +84,9 @@ function buildCsv(members: SectionMember[]) {
   return [header.map(csvCell).join(","), ...rows].join("\n");
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 p-6">
-        <span className="text-2xl leading-none font-semibold tracking-tight">
-          {value}
-        </span>
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </CardContent>
-    </Card>
-  );
-}
-
 /**
- * The Progress tab: three numbers a professor can act on, mastery per topic,
- * and the roster the numbers came from — the same data as
- * `/professor/students`, narrowed to the students who joined this section.
+ * The Progress tab: three numbers a professor can act on, mastery per open
+ * topic, and the roster the numbers came from (this section's members only).
  */
 export function SectionProgressPanel({
   members,
@@ -126,12 +111,34 @@ export function SectionProgressPanel({
     return [...filtered].sort((left, right) => compare(left, right, sort));
   }, [members, search, sort]);
 
+  const totals = useMemo(
+    () =>
+      members.reduce(
+        (sum, member) => ({
+          attempts: sum.attempts + member.attempts,
+          correct: sum.correct + member.correctAttempts,
+        }),
+        { attempts: 0, correct: 0 },
+      ),
+    [members],
+  );
+
+  const lastActivity = members.reduce<string | null>(
+    (latest, member) =>
+      latest === null || member.lastActiveAt > latest
+        ? member.lastActiveAt
+        : latest,
+    null,
+  );
+
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+  const firstShown = (currentPage - 1) * PAGE_SIZE + 1;
+  const lastShown = (currentPage - 1) * PAGE_SIZE + pageRows.length;
 
   function handleExport() {
     const blob = new Blob([buildCsv(visible)], {
@@ -148,61 +155,89 @@ export function SectionProgressPanel({
   }
 
   return (
-    <>
-      <div className="grid gap-4 md:grid-cols-3">
-        <Stat
+    <div className="flex flex-col gap-10">
+      <section aria-label="Section summary" className="grid gap-3 sm:grid-cols-3">
+        <MetricTile
+          delta={
+            totals.attempts > 0
+              ? `${totals.correct} of ${totals.attempts} answers correct`
+              : "No answers yet"
+          }
           label="Class correctness"
-          value={`${progress.classCorrectness}%`}
+          value={totals.attempts > 0 ? `${progress.classCorrectness}%` : "—"}
         />
-        <Stat
-          label="Active this week"
-          value={`${progress.activeThisWeek}/${progress.activeTotal}`}
+        <MetricTile
+          delta={`of ${plural(progress.activeTotal, "student")} joined`}
+          label="Active in the last 7 days"
+          value={progress.activeThisWeek}
         />
-        <Stat label="Needs attention" value={String(progress.needsAttention)} />
-      </div>
+        <MetricTile
+          delta="Flagged for repeated misses"
+          label="Need attention"
+          value={progress.needsAttention}
+        />
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Topic mastery</CardTitle>
-          <CardDescription>
-            Average mastery across the students who have reached each topic.
-            Closed topics are left off — a topic nobody can open is not a topic
-            nobody understands.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TopicMasteryBars rows={progress.topicMastery} />
-        </CardContent>
-      </Card>
+      <section aria-labelledby="section-mastery" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h2 text-ink" id="section-mastery">
+            Topic mastery
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            Average mastery of the students who reached each open topic. Closed
+            topics are left off.
+          </p>
+        </div>
+        <TopicMasteryBars rows={progress.topicMastery} />
+      </section>
 
-      <Card>
-        <CardHeader className="gap-4">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle>Students</CardTitle>
-            <CardDescription>
-              {members.length} joined · identities are hashed; you see codes,
-              not names.
-            </CardDescription>
+      <section aria-labelledby="section-students" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="type-h2 text-ink" id="section-students">
+              Students{" "}
+              <span className="type-mono align-middle text-ink-muted">
+                {members.length}
+              </span>
+            </h2>
+            <p className="type-small text-ink-muted">
+              Last activity{" "}
+              {lastActivity ? formatRelativeTime(lastActivity, SEED_NOW) : "—"}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-56 flex-1">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                aria-label="Filter students by code"
-                className="pl-9"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="code…"
-                value={search}
-              />
-            </div>
+          <Button
+            disabled={visible.length === 0}
+            onClick={handleExport}
+            type="button"
+            variant="secondary"
+          >
+            <Download aria-hidden="true" />
+            Export CSV
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+            />
+            <Input
+              aria-label="Filter students by code"
+              autoComplete="off"
+              className="pl-9"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by code…"
+              spellCheck={false}
+              type="search"
+              value={search}
+            />
+          </div>
+          <Field className="flex-row items-center gap-2" label="Sort by">
             <NativeSelect
-              aria-label="Sort students"
               className="w-auto"
               onChange={(event) => {
                 setSort(event.target.value as SortKey);
@@ -212,71 +247,57 @@ export function SectionProgressPanel({
             >
               {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
                 <option key={key} value={key}>
-                  Sort: {SORT_LABELS[key]}
+                  {SORT_LABELS[key]}
                 </option>
               ))}
             </NativeSelect>
-            <Button onClick={handleExport} variant="outline">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <SectionRosterTable members={pageRows} />
+          </Field>
+        </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {visible.length === 0
-                ? "No students match."
-                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${
-                    (currentPage - 1) * PAGE_SIZE + pageRows.length
-                  } of ${visible.length}`}
-              {" · "}
-              Last activity{" "}
-              {members.length > 0
-                ? formatRelativeTime(
-                    members.reduce(
-                      (latest, member) =>
-                        member.lastActiveAt > latest
-                          ? member.lastActiveAt
-                          : latest,
-                      members[0].lastActiveAt,
-                    ),
-                    SEED_NOW,
-                  )
-                : "—"}
-            </p>
+        <SectionRosterTable
+          emptyMessage={
+            members.length === 0
+              ? `No students have joined yet. Share the join code ${section.joinCode}.`
+              : `No student code starts with “${search.trim()}”.`
+          }
+          members={pageRows}
+          sectionLabel={section.label}
+          sort={sort}
+        />
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="type-small tabular text-ink-muted" role="status">
+            {visible.length === 0
+              ? "No students shown"
+              : `Showing ${firstShown}–${lastShown} of ${visible.length}`}
+          </p>
+          {pageCount > 1 ? (
             <div className="flex items-center gap-2">
               <Button
                 disabled={currentPage <= 1}
                 onClick={() => setPage(currentPage - 1)}
                 size="sm"
-                variant="outline"
+                type="button"
+                variant="secondary"
               >
-                Prev
+                Previous
               </Button>
-              <span className="text-sm text-muted-foreground">
+              <span className="type-small tabular text-ink-muted">
                 Page {currentPage} of {pageCount}
               </span>
               <Button
                 disabled={currentPage >= pageCount}
                 onClick={() => setPage(currentPage + 1)}
                 size="sm"
-                variant="outline"
+                type="button"
+                variant="secondary"
               >
                 Next
               </Button>
             </div>
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            Same data as{" "}
-            <span className="font-medium">/professor/students</span>, filtered
-            to this section&rsquo;s members.
-          </p>
-        </CardContent>
-      </Card>
-    </>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }

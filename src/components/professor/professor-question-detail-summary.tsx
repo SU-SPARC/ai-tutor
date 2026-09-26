@@ -1,25 +1,16 @@
 "use client";
 
-import Link from "next/link";
-import { ClipboardCheck, ListChecks } from "lucide-react";
+import { useId } from "react";
 
-import { LifecycleBadge } from "@/components/professor/professor-question-lifecycle-panel";
+import {
+  professorDifficultyLabel,
+  ProfessorTime,
+  QuestionStateChip,
+  SavedForLaterChip,
+} from "@/components/professor/professor-question-labels";
 import { QuestionSheet } from "@/components/sheet/question-sheet";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  difficultyLabel,
-  questionCode,
-  studentDifficultyLabel,
-} from "@/lib/labels";
-import { professorReviewQueuePagePath } from "@/lib/professor/question-paths";
+import { StatusChip } from "@/components/ui/status-chip";
+import { questionCode, studentDifficultyLabel } from "@/lib/labels";
 import {
   questionIntakeProvenance,
   questionIntakeSourceLabel,
@@ -29,7 +20,7 @@ import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
 
 /**
  * Plain-language guidance for the professor's next move. Lifecycle enum names
- * stay out of the sentence; the badge next to the title carries the state.
+ * stay out of the sentence; the chip next to the title carries the state.
  */
 export function professorQuestionNextStep(question: QuestionLifecycleDto) {
   if (question.recordState === "archived") {
@@ -75,15 +66,10 @@ function answerTypeLabel(version: QuestionVersionDto) {
   }
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
+/**
+ * Where one question stands (a header block of chips and facts under the
+ * page title) and the working version in the shape a student meets it.
+ */
 export function ProfessorQuestionDetailSummary({
   question,
   topicTitle,
@@ -95,17 +81,116 @@ export function ProfessorQuestionDetailSummary({
   const intake = questionIntakeProvenance(question);
   const state =
     question.recordState === "archived" ? "archived" : working.state;
+  const statusHeadingId = useId();
+  const sheetHeadingId = useId();
 
   return (
     <div className="flex flex-col gap-6">
+      <section
+        aria-labelledby={statusHeadingId}
+        className="flex flex-col gap-4 rounded-panel bg-surface-tint p-4 sm:p-5"
+      >
+        <h2 id={statusHeadingId} className="sr-only">
+          Where this question stands
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuestionStateChip state={state} />
+          <span className="font-mono text-ink-muted">
+            v{working.versionNumber}
+          </span>
+          {intake ? (
+            <StatusChip
+              icon={false}
+              label={questionIntakeSourceLabel(intake)}
+              tone="neutral"
+            />
+          ) : null}
+          {question.reserve ? (
+            <SavedForLaterChip
+              practiceAllowed={question.reserve.practiceAllowed}
+            />
+          ) : null}
+          {question.reserve?.practiceAllowed ? (
+            <StatusChip
+              icon={false}
+              label="Eligible for similar practice"
+              tone="approved"
+            />
+          ) : null}
+        </div>
+        <p className="type-body max-w-prose text-ink">
+          {professorQuestionNextStep(question)}
+        </p>
+        <dl className="grid gap-x-6 gap-y-2 type-small sm:grid-cols-[10rem_minmax(0,1fr)]">
+          <dt className="text-ink-muted">Topic</dt>
+          <dd className="text-ink">{topicTitle ?? working.topicId}</dd>
+          <dt className="text-ink-muted">Difficulty</dt>
+          <dd className="text-ink">
+            {professorDifficultyLabel(working.difficulty)}
+          </dd>
+          <dt className="text-ink-muted">Working version</dt>
+          <dd className="text-ink">
+            v{working.versionNumber}, created by{" "}
+            {working.createdBy.displayName} on{" "}
+            <ProfessorTime value={working.createdAt} />
+          </dd>
+          <dt className="text-ink-muted">Published version</dt>
+          <dd className="text-ink">
+            {question.publishedVersion
+              ? `v${question.publishedVersion.versionNumber} is live for students`
+              : question.reserve?.practiceAllowed
+                ? "None. Available only as controlled optional practice."
+                : "None. Students cannot see this question."}
+          </dd>
+          {question.reserve ? (
+            <>
+              <dt className="text-ink-muted">Save for later</dt>
+              <dd className="text-ink">
+                {questionReserveReasonLabel(question.reserve.reasonCode)} ·{" "}
+                {question.reserve.reservedBy.displayName}
+                {question.reserve.note ? ` · ${question.reserve.note}` : ""}
+                {question.reserve.practiceAllowed
+                  ? " · Optional similar practice enabled"
+                  : " · Reserve only"}
+              </dd>
+            </>
+          ) : null}
+          {intake ? (
+            <>
+              <dt className="text-ink-muted">Saved from</dt>
+              <dd className="text-ink">
+                {questionIntakeSourceLabel(intake)}
+                {intake.model ? (
+                  <>
+                    {" "}
+                    (<span className="font-mono">{intake.model}</span>)
+                  </>
+                ) : null}{" "}
+                by {intake.submittedBy} on{" "}
+                <ProfessorTime value={intake.submittedAt} />
+              </dd>
+            </>
+          ) : null}
+          <dt className="text-ink-muted">Question ID</dt>
+          <dd className="break-all font-mono text-ink">
+            {question.questionId}
+          </dd>
+        </dl>
+      </section>
+
       {/* The working version in the shape a student meets it, with every hint
           and step already down: what is being decided on is the page, not a
           list of fields describing the page. */}
-      <section aria-label="Student view" className="flex flex-col gap-3">
+      <section
+        aria-labelledby={sheetHeadingId}
+        className="flex flex-col gap-3"
+      >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="font-display text-xl font-normal">Student view</h2>
-          <p className="text-xs text-muted-foreground">
-            The working version, v{working.versionNumber} — not necessarily the
+          <h2 id={sheetHeadingId} className="type-h2 text-ink">
+            Student view
+          </h2>
+          <p className="type-caption">
+            The working version, v{working.versionNumber}; not necessarily the
             version students can see.
           </p>
         </div>
@@ -123,102 +208,12 @@ export function ProfessorQuestionDetailSummary({
             answerType: answerTypeLabel(working),
             difficultyLabel: studentDifficultyLabel(working.difficulty),
           }}
+          headingLevel={3}
           hints={{ total: working.hints.length, revealed: working.hints }}
           prompt={working.prompt}
           steps={{ revealed: working.solutionSteps }}
         />
       </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-2">
-            <span>{working.title}</span>
-            <LifecycleBadge state={state} />
-            {intake ? (
-              <Badge variant="warning">
-                {questionIntakeSourceLabel(intake)}
-              </Badge>
-            ) : null}
-            {question.reserve ? (
-              <Badge variant="secondary">Saved for later</Badge>
-            ) : null}
-            {question.reserve?.practiceAllowed ? (
-              <Badge variant="success">Eligible for similar practice</Badge>
-            ) : null}
-          </CardTitle>
-          <CardDescription>
-            {professorQuestionNextStep(question)}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
-            <dt className="font-medium">Topic</dt>
-            <dd>{topicTitle ?? working.topicId}</dd>
-            <dt className="font-medium">Difficulty</dt>
-            <dd>{difficultyLabel(working.difficulty)}</dd>
-            <dt className="font-medium">Working version</dt>
-            <dd>
-              v{working.versionNumber}, created by{" "}
-              {working.createdBy.displayName} on {formatDate(working.createdAt)}
-            </dd>
-            <dt className="font-medium">Published version</dt>
-            <dd>
-              {question.publishedVersion
-                ? `v${question.publishedVersion.versionNumber} is live for students`
-                : question.reserve?.practiceAllowed
-                  ? "None. Available only as controlled optional practice."
-                  : "None. Students cannot see this question."}
-            </dd>
-            {question.reserve ? (
-              <>
-                <dt className="font-medium">Save for later</dt>
-                <dd>
-                  {questionReserveReasonLabel(question.reserve.reasonCode)} ·{" "}
-                  {question.reserve.reservedBy.displayName}
-                  {question.reserve.note ? ` · ${question.reserve.note}` : ""}
-                  {question.reserve.practiceAllowed
-                    ? " · Optional similar practice enabled"
-                    : " · Reserve only"}
-                </dd>
-              </>
-            ) : null}
-            {intake ? (
-              <>
-                <dt className="font-medium">Saved from</dt>
-                <dd>
-                  {questionIntakeSourceLabel(intake)}
-                  {intake.model ? ` (${intake.model})` : ""} by{" "}
-                  {intake.submittedBy} on {formatDate(intake.submittedAt)}
-                </dd>
-              </>
-            ) : null}
-            <dt className="font-medium">Question ID</dt>
-            <dd className="font-mono text-xs">{question.questionId}</dd>
-          </dl>
-          <div className="flex flex-wrap gap-2">
-            {working.state === "needs_review" &&
-            question.recordState === "active" ? (
-              <Button asChild size="sm" variant="outline">
-                <Link
-                  href={professorReviewQueuePagePath(
-                    working.topicId,
-                    question.questionId,
-                  )}
-                >
-                  <ClipboardCheck className="h-4 w-4" />
-                  Open in Review Queue
-                </Link>
-              </Button>
-            ) : null}
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/professor/questions">
-                <ListChecks className="h-4 w-4" />
-                All questions
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

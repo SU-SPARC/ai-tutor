@@ -1,16 +1,9 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,20 +42,6 @@ function toLines(value: string) {
     .filter((line) => line.length > 0);
 }
 
-function Label({
-  children,
-  htmlFor,
-}: {
-  children: React.ReactNode;
-  htmlFor: string;
-}) {
-  return (
-    <label className="text-sm font-medium" htmlFor={htmlFor}>
-      {children}
-    </label>
-  );
-}
-
 /**
  * The "Write it myself" path, inline under the topic header so the professor
  * never leaves the topic they are filling. It writes a draft into the same
@@ -75,7 +54,8 @@ export function WriteQuestionForm({
   onCancel: () => void;
   onSubmit: (draft: WrittenQuestionDraft) => void;
 }) {
-  const fieldId = useId();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [answerType, setAnswerType] = useState<AnswerType>("numeric");
@@ -83,12 +63,22 @@ export function WriteQuestionForm({
   const [finalAnswer, setFinalAnswer] = useState("");
   const [hints, setHints] = useState("");
   const [solutionSteps, setSolutionSteps] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
 
-  const ready = title.trim().length > 0 && prompt.trim().length > 0;
+  const titleError =
+    showErrors && title.trim().length === 0
+      ? "Give the question a title."
+      : undefined;
+  const promptError =
+    showErrors && prompt.trim().length === 0
+      ? "Write the prompt students will see."
+      : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!ready) {
+    if (title.trim().length === 0 || prompt.trim().length === 0) {
+      setShowErrors(true);
+      (title.trim().length === 0 ? titleRef : promptRef).current?.focus();
       return;
     }
     onSubmit({
@@ -103,118 +93,120 @@ export function WriteQuestionForm({
   }
 
   return (
-    <Card>
-      <form onSubmit={handleSubmit}>
-        <CardHeader>
-          <CardTitle>Write a question for this topic</CardTitle>
-          <CardDescription>
-            Saved straight into the review queue as <em>needs review</em>. The
-            topic is already set; approve it, publish it, then release it to a
-            section.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-title`}>Title</Label>
+    <section
+      aria-labelledby="write-question-title"
+      className="rounded-panel bg-sheet p-5 sm:p-6"
+    >
+      <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h2 text-ink" id="write-question-title">
+            Write a question for this topic
+          </h2>
+          <p className="type-small max-w-prose text-ink-muted">
+            It saves to the review queue as Needs review. Approve it, publish
+            it, then release it to a section.
+          </p>
+        </div>
+
+        <Field error={titleError} label="Title">
+          <Input
+            autoComplete="off"
+            name="title"
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Bayes with two urns…"
+            ref={titleRef}
+            value={title}
+          />
+        </Field>
+
+        <Field
+          description="LaTeX between $…$ renders as math."
+          error={promptError}
+          label="Prompt"
+        >
+          <Textarea
+            name="prompt"
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="An urn holds 4 red and 6 blue balls…"
+            ref={promptRef}
+            rows={4}
+            value={prompt}
+          />
+        </Field>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Answer type">
+            <NativeSelect
+              name="answerType"
+              onChange={(event) =>
+                setAnswerType(event.target.value as AnswerType)
+              }
+              value={answerType}
+            >
+              {ANSWER_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {ANSWER_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Difficulty">
+            <NativeSelect
+              name="difficulty"
+              onChange={(event) =>
+                setDifficulty(event.target.value as Difficulty)
+              }
+              value={difficulty}
+            >
+              {DIFFICULTIES.map((value) => (
+                <option key={value} value={value}>
+                  {DIFFICULTY_LABELS[value]}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Final answer" optional>
             <Input
-              id={`${fieldId}-title`}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Bayes with two urns"
-              required
-              value={title}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-prompt`}>Prompt</Label>
-            <Textarea
-              id={`${fieldId}-prompt`}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="An urn holds 4 red and 6 blue balls…  LaTeX in $…$ renders."
-              required
-              rows={4}
-              value={prompt}
-            />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${fieldId}-answer-type`}>Answer type</Label>
-              <NativeSelect
-                id={`${fieldId}-answer-type`}
-                onChange={(event) =>
-                  setAnswerType(event.target.value as AnswerType)
-                }
-                value={answerType}
-              >
-                {ANSWER_TYPES.map((value) => (
-                  <option key={value} value={value}>
-                    {ANSWER_TYPE_LABELS[value]}
-                  </option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${fieldId}-difficulty`}>Difficulty</Label>
-              <NativeSelect
-                id={`${fieldId}-difficulty`}
-                onChange={(event) =>
-                  setDifficulty(event.target.value as Difficulty)
-                }
-                value={difficulty}
-              >
-                {DIFFICULTIES.map((value) => (
-                  <option key={value} value={value}>
-                    {DIFFICULTY_LABELS[value]}
-                  </option>
-                ))}
-              </NativeSelect>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-final-answer`}>Final answer</Label>
-            <Input
-              id={`${fieldId}-final-answer`}
+              autoComplete="off"
+              mono
+              name="finalAnswer"
               onChange={(event) => setFinalAnswer(event.target.value)}
-              placeholder="7/12"
+              placeholder="7/12…"
               value={finalAnswer}
             />
-          </div>
+          </Field>
+        </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-hints`}>Hints</Label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field description="One hint per line." label="Hints" optional>
             <Textarea
-              id={`${fieldId}-hints`}
+              name="hints"
               onChange={(event) => setHints(event.target.value)}
-              placeholder={"One hint per line."}
               rows={3}
               value={hints}
             />
-            <p className="text-xs text-muted-foreground">One per line.</p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-steps`}>Solution steps</Label>
+          </Field>
+          <Field
+            description="One step per line."
+            label="Solution steps"
+            optional
+          >
             <Textarea
-              id={`${fieldId}-steps`}
+              name="solutionSteps"
               onChange={(event) => setSolutionSteps(event.target.value)}
-              placeholder={"One step per line."}
               rows={3}
               value={solutionSteps}
             />
-            <p className="text-xs text-muted-foreground">One per line.</p>
-          </div>
-        </CardContent>
-        <CardFooter className="gap-3">
-          <Button disabled={!ready} type="submit">
-            Save to review queue
-          </Button>
-          <Button onClick={onCancel} type="button" variant="outline">
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit">Save to review queue</Button>
+          <Button onClick={onCancel} type="button" variant="ghost">
             Cancel
           </Button>
-        </CardFooter>
+        </div>
       </form>
-    </Card>
+    </section>
   );
 }

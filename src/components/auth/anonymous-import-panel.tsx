@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { ArrowRight, Download, Loader2 } from "lucide-react";
+import { Download, LoaderCircle } from "lucide-react";
 
 import type { StudentOnboardingActionState } from "@/app/onboarding/actions";
 import { Button } from "@/components/ui/button";
@@ -144,33 +144,37 @@ export function AnonymousImportPanel({
     }
   }
 
+  // A quiet tinted panel inside the page's sheet: this is a decision the
+  // student makes once, not a warning, so it carries no amber and no border.
   return (
     <section
       aria-labelledby="browser-practice-heading"
       aria-busy={busy}
-      className="rounded-md border border-warning/50 bg-warning/10 p-4 text-sm"
+      className="flex flex-col gap-4 rounded-panel bg-surface-tint p-4 sm:p-5"
     >
-      <h2 id="browser-practice-heading" className="font-semibold">
-        Practice from this browser
-      </h2>
-      <p className="mt-2 leading-6 text-muted-foreground">
-        Import only if this is your own browser profile. On a shared computer,
-        the saved practice may belong to someone else. Nothing is imported until
-        you choose an import button.
-      </p>
+      <div className="flex flex-col gap-1">
+        <h2 id="browser-practice-heading" className="type-h3 text-ink">
+          Practice from this browser
+        </h2>
+        <p className="type-body max-w-prose text-ink-muted">
+          Import only if this is your own browser profile. On a shared computer,
+          the saved practice may belong to someone else. Nothing is imported
+          until you choose an import button.
+        </p>
+      </div>
 
       {checkingLegacy ? (
         <p
           role="status"
-          className="mt-4 flex items-center text-muted-foreground"
+          className="type-body flex items-center gap-2 text-ink-muted"
         >
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-          Checking this browser for older practice
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+          Checking this browser for older practice…
         </p>
       ) : null}
 
       {hasBrowserPractice ? (
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3">
           {signedIdentityAvailable ? (
             <Button
               disabled={busy}
@@ -181,7 +185,7 @@ export function AnonymousImportPanel({
                 })
               }
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
+              <Download aria-hidden="true" />
               Import recent practice
             </Button>
           ) : null}
@@ -197,7 +201,7 @@ export function AnonymousImportPanel({
                 })
               }
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
+              <Download aria-hidden="true" />
               Import older practice
             </Button>
           ) : null}
@@ -213,7 +217,7 @@ export function AnonymousImportPanel({
           ) : null}
         </div>
       ) : !checkingLegacy ? (
-        <p className="mt-4 text-muted-foreground">
+        <p className="type-body text-ink-muted">
           No practice waiting to be imported was found in this browser.
         </p>
       ) : null}
@@ -223,8 +227,8 @@ export function AnonymousImportPanel({
           role={feedback.kind === "error" ? "alert" : "status"}
           className={
             feedback.kind === "error"
-              ? "mt-4 text-destructive"
-              : "mt-4 text-foreground"
+              ? "type-body font-medium text-red-700"
+              : "type-body text-ink"
           }
         >
           {feedback.text}
@@ -255,24 +259,27 @@ function OnboardingContinueForm({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
+  // Importing is the primary choice while there is practice to import; the
+  // acknowledgement then steps back to an outline button so the two never
+  // compete as equals.
   return (
-    <form action={formAction} className="mt-6 border-t pt-4">
+    <form
+      action={formAction}
+      className="flex flex-col gap-3 border-t border-rule pt-4"
+    >
       <Button
-        disabled={disabled || pending}
+        disabled={disabled}
+        loading={pending}
         type="submit"
-        variant={hasBrowserPractice ? "outline" : "default"}
+        variant={hasBrowserPractice ? "outline" : "primary"}
+        className="h-auto min-h-10 w-full py-2 whitespace-normal sm:w-fit"
       >
-        {pending ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        )}
         {hasBrowserPractice
           ? "I understand — continue without importing"
           : "I understand — continue"}
       </Button>
       {state.error ? (
-        <p role="alert" className="mt-3 text-destructive">
+        <p role="alert" className="type-body font-medium text-red-700">
           {state.error}
         </p>
       ) : null}

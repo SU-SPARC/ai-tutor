@@ -1,19 +1,36 @@
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Shaped like the page: the metric row, then the two performance tables. */
 export default function ProfessorAnalyticsLoading() {
   return (
     <ProfessorPageShell
-      title="Course practice overview"
-      description="Loading published-practice performance and tutor usage."
+      title="Analytics"
+      description="Published-practice performance and tutor use across the class, with no student named."
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
-        {[0, 1, 2, 3].map((index) => (
-          <Skeleton key={index} className="h-24 rounded-lg" />
+      <p role="status" className="sr-only">
+        Loading published-practice performance…
+      </p>
+      <div aria-busy="true" className="flex flex-col gap-10">
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((index) => (
+              <Skeleton key={index} className="h-24 rounded-panel" />
+            ))}
+          </div>
+        </div>
+        {[0, 1].map((table) => (
+          <div key={table} className="flex flex-col gap-3">
+            <Skeleton className="h-8 w-56" />
+            <div className="flex flex-col gap-px overflow-hidden rounded-panel">
+              {[0, 1, 2, 3, 4, 5].map((row) => (
+                <Skeleton key={row} className="h-10 rounded-none" />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
-      <Skeleton className="h-72 rounded-lg" />
-      <Skeleton className="h-72 rounded-lg" />
     </ProfessorPageShell>
   );
 }

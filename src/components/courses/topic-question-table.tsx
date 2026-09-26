@@ -3,23 +3,27 @@
 import Link from "next/link";
 
 import demoQuestionData from "../../../data/demo/questions.json";
-import { Badge } from "@/components/ui/badge";
+import { QuestionStateChip } from "@/components/courses/course-status";
 import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { stateLabel } from "@/lib/courses/format";
 import {
   professorQuestionPath,
   professorReviewQueuePagePath,
 } from "@/lib/professor/question-paths";
 import { cn } from "@/lib/utils";
-import type { BankQuestion, QuestionLifecycleState } from "@/lib/courses/types";
+import type {
+  AnswerType,
+  BankQuestion,
+  QuestionLifecycleState,
+} from "@/lib/courses/types";
 
 /**
  * The legacy editor at `/professor/questions/[qid]` is backed by the eight
@@ -40,21 +44,17 @@ export function hasLegacyEditor(questionId: string) {
   return LEGACY_EDITOR_QUESTION_IDS.has(questionId);
 }
 
-type StateGlyph = { glyph: string; tone: string };
-
-/**
- * The dot is the state, the colour is how close the question is to a student:
- * published is live, approved and needs-review are waiting on a gate,
- * unpublished is content that was pulled back.
- */
-const STATE_GLYPHS: Record<QuestionLifecycleState, StateGlyph> = {
-  published: { glyph: "●", tone: "text-success" },
-  approved: { glyph: "○", tone: "text-warning" },
-  needs_review: { glyph: "◐", tone: "text-warning" },
-  draft: { glyph: "○", tone: "text-muted-foreground" },
-  unpublished: { glyph: "●", tone: "text-destructive" },
+/** Answer types in words, never the enum. */
+export const ANSWER_TYPE_LABELS: Record<AnswerType, string> = {
+  numeric: "Numeric",
+  categorical: "Categorical",
+  expression: "Expression",
 };
 
+/**
+ * Kept for existing importers: the lifecycle state as the shared StatusChip,
+ * so the topic page, the builder and the review queue use one vocabulary.
+ */
 export function QuestionStateBadge({
   state,
   className,
@@ -62,15 +62,7 @@ export function QuestionStateBadge({
   state: QuestionLifecycleState;
   className?: string;
 }) {
-  const { glyph, tone } = STATE_GLYPHS[state];
-  return (
-    <Badge variant="outline" className={cn("gap-1.5", className)}>
-      <span aria-hidden className={tone}>
-        {glyph}
-      </span>
-      {stateLabel(state)}
-    </Badge>
-  );
+  return <QuestionStateChip className={className} state={state} />;
 }
 
 export type QuestionRow = {
@@ -88,7 +80,7 @@ export type QuestionActionProps = {
 };
 
 /**
- * One question's next move, in the row and again in the drawer footer so the
+ * One question's next move, in the row and again in the preview footer so the
  * professor never has to go back to the table to act on what they just read.
  */
 export function QuestionAction({
@@ -100,19 +92,20 @@ export function QuestionAction({
 }: QuestionActionProps) {
   if (question.state === "approved" || question.state === "unpublished") {
     return (
-      <div className={cn("flex flex-col items-start gap-1", className)}>
+      <div className={cn("flex flex-col items-end gap-1", className)}>
         <Button
-          className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
           onClick={() => onPublish(question.id)}
           size="sm"
-          variant="outline"
+          type="button"
+          variant="secondary"
         >
-          Publish
+          {question.state === "approved" ? "Publish" : "Republish"} v
+          {question.latestVersion}
         </Button>
-        <span className="text-xs text-muted-foreground">
+        <span className="type-caption">
           {question.state === "approved"
-            ? "Approved — publishing makes it releasable"
-            : "Unpublished — republish to make it releasable"}
+            ? "Publishing makes it releasable"
+            : "Republish to make it releasable"}
         </span>
       </div>
     );
@@ -120,7 +113,7 @@ export function QuestionAction({
 
   if (question.state === "needs_review") {
     return (
-      <Button asChild className={className} size="sm" variant="outline">
+      <Button asChild className={className} size="sm" variant="secondary">
         <Link href={professorReviewQueuePagePath(topicId, question.id)}>
           Review
         </Link>
@@ -130,15 +123,16 @@ export function QuestionAction({
 
   if (question.state === "draft") {
     return (
-      <span className={cn("text-sm text-muted-foreground", className)}>
-        Draft
+      <span className={cn("type-caption", className)}>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">No action while in draft</span>
       </span>
     );
   }
 
   if (hasLegacyEditor(question.id)) {
     return (
-      <Button asChild className={className} size="sm" variant="outline">
+      <Button asChild className={className} size="sm" variant="ghost">
         <Link href={professorQuestionPath(question.id)}>Open editor</Link>
       </Button>
     );
@@ -149,23 +143,25 @@ export function QuestionAction({
       className={className}
       onClick={() => onPreview(question.id)}
       size="sm"
-      variant="outline"
+      type="button"
+      variant="ghost"
     >
       Preview
     </Button>
   );
 }
 
-/** The just-published confirmation, shown inline under the row's action. */
+/** The just-published confirmation, shown under the action and announced. */
 export function PublishedNote({ version }: { version: number }) {
   return (
-    <p className="mt-1 text-xs text-success">
-      Published v{version} — now releasable
+    <p className="type-caption text-green-700" role="status">
+      Published v{version}. It can be released now.
     </p>
   );
 }
 
 export function TopicQuestionTable({
+  caption,
   rows,
   topicId,
   selectedQuestionId,
@@ -173,6 +169,8 @@ export function TopicQuestionTable({
   onPublish,
   onPreview,
 }: {
+  /** Names what the table lists, for screen readers ("Published questions in Bayes"). */
+  caption?: string;
   rows: QuestionRow[];
   topicId: string;
   selectedQuestionId: string | null;
@@ -181,25 +179,27 @@ export function TopicQuestionTable({
   onPreview: (questionId: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card shadow-xs">
+    <div className="rounded-panel bg-sheet px-2 pb-2">
       <Table>
+        {caption ? (
+          <TableCaption className="sr-only">{caption}</TableCaption>
+        ) : null}
         <TableHeader>
           <TableRow>
-            <TableHead className="px-4">Question</TableHead>
-            <TableHead className="px-4">Answer type</TableHead>
-            <TableHead className="px-4">State</TableHead>
-            <TableHead className="px-4">Released to</TableHead>
-            <TableHead className="px-4 text-right">Action</TableHead>
+            <TableHead scope="col">Question</TableHead>
+            <TableHead scope="col">Answer type</TableHead>
+            <TableHead scope="col">State</TableHead>
+            <TableHead scope="col">Released to</TableHead>
+            <TableHead className="text-right" scope="col">
+              Action
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell
-                className="px-4 py-6 text-sm text-muted-foreground"
-                colSpan={5}
-              >
-                No questions match this filter.
+              <TableCell className="py-4 text-ink-muted" colSpan={5}>
+                No questions in this topic match this filter.
               </TableCell>
             </TableRow>
           ) : null}
@@ -207,30 +207,31 @@ export function TopicQuestionTable({
             const selected = question.id === selectedQuestionId;
             return (
               <TableRow
-                key={question.id}
-                className={cn(selected && "bg-muted/60")}
                 data-state={selected ? "selected" : undefined}
+                key={question.id}
               >
-                <TableCell className="px-4 py-3">
+                <TableCell className="min-w-56">
                   <button
-                    aria-label={`Preview ${question.title}`}
-                    className="rounded-sm text-left font-medium text-primary outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    aria-haspopup="dialog"
+                    className="rounded-xs text-left text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
                     onClick={() => onPreview(question.id)}
                     type="button"
                   >
                     {question.title}
+                    <span className="sr-only">, open preview</span>
                   </button>
                 </TableCell>
-                <TableCell className="px-4 py-3 text-muted-foreground">
-                  {question.answerType}
+                <TableCell className="text-ink-muted">
+                  {ANSWER_TYPE_LABELS[question.answerType] ??
+                    question.answerType}
                 </TableCell>
-                <TableCell className="px-4 py-3">
-                  <QuestionStateBadge state={question.state} />
+                <TableCell>
+                  <QuestionStateChip state={question.state} />
                 </TableCell>
-                <TableCell className="px-4 py-3 text-muted-foreground">
+                <TableCell className="text-ink-muted">
                   {releasedTo.length > 0 ? releasedTo.join(", ") : "—"}
                 </TableCell>
-                <TableCell className="px-4 py-3">
+                <TableCell>
                   <div className="flex flex-col items-end gap-1">
                     <QuestionAction
                       onPreview={onPreview}
