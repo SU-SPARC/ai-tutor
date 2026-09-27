@@ -130,11 +130,34 @@ describe("students grouped by practised topic", () => {
     // Anders practised both topics and is listed under each; Brown practised
     // one; the anonymous student's attempt places them under the second.
     expect(roster.topics[0].students).toEqual(
-      [ANDERS_KEY, BROWN_KEY].sort().map((studentKey) => ({ studentKey })),
+      [ANDERS_KEY, BROWN_KEY].sort().map((studentKey) => ({
+        aiHelpRequests: studentKey === ANDERS_KEY ? 2 : 0,
+        studentKey,
+      })),
     );
     expect(roster.topics[1].students).toEqual(
-      [ANDERS_KEY, ANONYMOUS_KEY].sort().map((studentKey) => ({ studentKey })),
+      [ANDERS_KEY, ANONYMOUS_KEY].sort().map((studentKey) => ({
+        aiHelpRequests: studentKey === ANDERS_KEY ? 5 : 0,
+        studentKey,
+      })),
     );
+  });
+
+  it("scopes AI Help requests by topic while preserving the global total", async () => {
+    const authorization = await professorAuthorization();
+    const roster = await repository.listTopicRoster(authorization);
+    const summary = await repository.getStudentDetail(authorization, ANDERS_KEY);
+
+    expect(
+      roster.topics[0].students.find((student) => student.studentKey === ANDERS_KEY),
+    ).toMatchObject({ aiHelpRequests: 2 });
+    expect(
+      roster.topics[1].students.find((student) => student.studentKey === ANDERS_KEY),
+    ).toMatchObject({ aiHelpRequests: 5 });
+    expect(summary?.summary.aiHelpRequests).toBe(7);
+    expect(
+      roster.topics[0].students.find((student) => student.studentKey === BROWN_KEY),
+    ).toMatchObject({ aiHelpRequests: 0 });
   });
 
   it("lists students with no practised topic once, under unassigned", async () => {
@@ -143,7 +166,10 @@ describe("students grouped by practised topic", () => {
     // Liam Clark only signed in; Mia Clark opened a question without
     // interacting, which is not practice and associates no topic.
     expect(roster.unassigned).toEqual(
-      [CLARK_LIAM_KEY, CLARK_MIA_KEY].sort().map((studentKey) => ({ studentKey })),
+      [CLARK_LIAM_KEY, CLARK_MIA_KEY].sort().map((studentKey) => ({
+        aiHelpRequests: 0,
+        studentKey,
+      })),
     );
   });
 
@@ -319,19 +345,19 @@ describe("students grouped by practised topic", () => {
     // Conditional Probability: abrown before zanders, by username, although
     // Anders's surname sorts first.
     expect(roster.topics[0].students).toEqual([
-      { identity: { status: "identified", username: BROWN.username }, studentKey: BROWN_KEY },
-      { identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
+      { aiHelpRequests: 0, identity: { status: "identified", username: BROWN.username }, studentKey: BROWN_KEY },
+      { aiHelpRequests: 2, identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
     ]);
     // Binomial Models: the anonymous student follows the identified one.
     expect(roster.topics[1].students).toEqual([
-      { identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
-      { identity: { status: "anonymous" }, studentKey: ANONYMOUS_KEY },
+      { aiHelpRequests: 5, identity: { status: "identified", username: ANDERS.username }, studentKey: ANDERS_KEY },
+      { aiHelpRequests: 0, identity: { status: "anonymous" }, studentKey: ANONYMOUS_KEY },
     ]);
     // Unassigned: aclark (Mia) before zclark (Liam), the reverse of their
     // first names.
     expect(roster.unassigned).toEqual([
-      { identity: { status: "identified", username: CLARK_MIA.username }, studentKey: CLARK_MIA_KEY },
-      { identity: { status: "identified", username: CLARK_LIAM.username }, studentKey: CLARK_LIAM_KEY },
+      { aiHelpRequests: 0, identity: { status: "identified", username: CLARK_MIA.username }, studentKey: CLARK_MIA_KEY },
+      { aiHelpRequests: 0, identity: { status: "identified", username: CLARK_LIAM.username }, studentKey: CLARK_LIAM_KEY },
     ]);
     // The anonymous student was never sent to the provider.
     expect(lookUpIdentities).toHaveBeenCalledTimes(1);
@@ -459,6 +485,22 @@ async function seed(database: PGlite) {
     `insert into attempts (session_id, question_id, topic_id, mode, source, verdict) values
        ('anders-bm', 'bm-question', 'binomial-models', 'check', 'rule', 'correct'),
        ('anonymous-bm', 'bm-question', 'binomial-models', 'check', 'rule', 'incorrect')`,
+  );
+  await database.query(
+    `insert into student_usage_events (
+       user_id, event_type, idempotency_key, tutor_session_id,
+       question_id, question_version_id, topic_id
+     )
+     select $1, 'ai_help_click', 'anders-cp-help-' || n, 'anders-cp',
+            'cp-question', s.question_version_id, 'conditional-probability'
+     from tutor_sessions s cross join generate_series(1, 2) n
+     where s.id = 'anders-cp'
+     union all
+     select $1, 'ai_help_click', 'anders-bm-help-' || n, 'anders-bm',
+            'bm-question', s.question_version_id, 'binomial-models'
+     from tutor_sessions s cross join generate_series(1, 5) n
+     where s.id = 'anders-bm'`,
+    [ANDERS.userId],
   );
 }
 

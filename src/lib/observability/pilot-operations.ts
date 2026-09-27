@@ -21,6 +21,7 @@ export type PilotOperationalSubsystem =
   | "content"
   | "question-feedback"
   | "retrieval"
+  | "student-tool-usage"
   | "tutor-session"
   | "unknown";
 

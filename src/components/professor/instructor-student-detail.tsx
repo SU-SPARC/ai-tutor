@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAccuracy } from "@/lib/professor/student-pseudonym";
+import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
 import {
   FULL_CREDIT_VALID_ATTEMPT_LIMIT,
   MANUAL_REVIEW_REASON,
@@ -368,8 +369,11 @@ function RecentActivity({
 
 export function InstructorStudentDetailPanel({
   detail,
+  sketchpadMeasurementEnabled = false,
 }: {
   detail: InstructorStudentDetail;
+  /** From the typed server environment; see `sketchpadTimeDisplay`. */
+  sketchpadMeasurementEnabled?: boolean;
 }) {
   const {
     activity,
@@ -386,7 +390,9 @@ export function InstructorStudentDetailPanel({
   const hasActivity =
     summary.sessions > 0 ||
     summary.extraPracticeSessions > 0 ||
-    summary.attempts > 0;
+    summary.attempts > 0 ||
+    summary.aiHelpRequests > 0 ||
+    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0);
   const scoredAttempts =
     summary.correctAttempts + (summary.incorrectAttempts ?? 0);
   const now = requestTime();
@@ -406,7 +412,7 @@ export function InstructorStudentDetailPanel({
             practiced with the tutor, so every count below is zero.
           </p>
         )}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
           <MetricTile
             label="Practice sessions"
             value={count(summary.sessions)}
@@ -429,6 +435,17 @@ export function InstructorStudentDetailPanel({
           <MetricTile
             label="Solutions revealed"
             value={count(summary.solutionsRevealed)}
+          />
+          <MetricTile
+            label="Est. Sketchpad Time"
+            value={sketchpadTimeDisplay(
+              summary.sketchpadActiveSeconds,
+              sketchpadMeasurementEnabled,
+            )}
+          />
+          <MetricTile
+            label="AI Help Requests"
+            value={count(summary.aiHelpRequests)}
           />
         </div>
       </section>

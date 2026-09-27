@@ -128,6 +128,8 @@ describe("production pilot data cleanup", () => {
       questions: 1,
       solution_steps: 1,
       student_progress: 0,
+      student_tool_active_buckets: 1,
+      student_usage_events: 1,
       tutor_sessions: 3,
       user_roles: 1,
       users: 1,
@@ -175,6 +177,8 @@ describe("production pilot data cleanup", () => {
     });
     expect(after.publishedCatalog).toEqual(before.publishedCatalog);
     expect(after.counts.tutor_sessions).toBe(0);
+    expect(after.counts.student_usage_events).toBe(0);
+    expect(after.counts.student_tool_active_buckets).toBe(0);
     expect(after.counts.users).toBe(before.counts.users - 1);
     expect(after.counts.questions).toBe(before.counts.questions - 1);
     expect(after.auditHistory.rowCount).toBe(before.auditHistory.rowCount + 1);
@@ -671,6 +675,8 @@ function validManifestSkeleton(): CleanupManifest {
       "solution_steps",
       "student_content_availability_events",
       "student_progress",
+      "student_tool_active_buckets",
+      "student_usage_events",
       "topic_student_availability",
       "topics",
       "tutor_sessions",
@@ -867,6 +873,20 @@ async function seedPrePilotState(database: PGlite) {
       (select question_version_id from tutor_sessions where id = 'cleanup-session-pilot'),
       'technical_problem', 'resolved', 'Test-only report.', now(),
       '${PROFESSOR}', 'Test-only resolution.'
+    );
+    insert into student_usage_events (
+      user_id, event_type, idempotency_key, tutor_session_id, question_id,
+      question_version_id, topic_id
+    ) values (
+      '${PILOT}', 'ai_help_click', 'cleanup-ai-help-request',
+      'cleanup-session-pilot-synthetic', '${SYNTHETIC}',
+      (select question_version_id from tutor_sessions where id = 'cleanup-session-pilot-synthetic'),
+      'cleanup-topic'
+    );
+    insert into student_tool_active_buckets (
+      user_id, tool, bucket_started_at, credited_seconds
+    ) values (
+      '${PILOT}', 'sketchpad', '2026-09-27T12:00:00Z', 15
     );
   `);
   await database.query(

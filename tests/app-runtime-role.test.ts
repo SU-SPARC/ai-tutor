@@ -170,6 +170,12 @@ describe("least-privilege runtime role provisioning", () => {
         has_table_privilege('app_runtime', 'question_reserve_events', 'INSERT') as reserve_event_insert,
         has_table_privilege('app_runtime', 'app_reserve_practice_questions', 'SELECT') as reserve_view_select,
         has_table_privilege('app_runtime', 'schema_migrations', 'INSERT') as ledger_insert,
+        has_table_privilege('app_runtime', 'student_usage_events', 'INSERT') as usage_insert,
+        has_table_privilege('app_runtime', 'student_usage_events', 'UPDATE') as usage_update,
+        has_table_privilege('app_runtime', 'student_usage_events', 'DELETE') as usage_delete,
+        has_table_privilege('app_runtime', 'student_tool_active_buckets', 'INSERT') as bucket_insert,
+        has_table_privilege('app_runtime', 'student_tool_active_buckets', 'UPDATE') as bucket_update,
+        has_table_privilege('app_runtime', 'student_tool_active_buckets', 'DELETE') as bucket_delete,
         has_table_privilege('app_runtime', 'roles', 'UPDATE') as role_update,
         has_sequence_privilege('app_runtime', 'attempts_id_seq', 'USAGE') as sequence_usage,
         has_function_privilege('app_runtime', 'app_set_updated_at()', 'EXECUTE') as trigger_execute,
@@ -184,15 +190,21 @@ describe("least-privilege runtime role provisioning", () => {
       where rolname = 'app_runtime'
     `);
     expect(verification.rows[0]).toEqual({
-      row_level_security_tables: 31,
+      row_level_security_tables: 33,
       ledger_insert: false,
+      usage_insert: true,
+      usage_update: false,
+      usage_delete: false,
+      bucket_insert: true,
+      bucket_update: false,
+      bucket_delete: false,
       publication_assert_execute: true,
       publication_gate_execute: true,
       role_update: false,
       reviewer_function_execute: true,
       reserve_event_insert: true,
       reserve_view_select: true,
-      runtime_policies: 31,
+      runtime_policies: 33,
       rolbypassrls: false,
       rolcanlogin: false,
       rolcreatedb: false,
@@ -305,7 +317,7 @@ describe("least-privilege runtime role provisioning", () => {
     await expect(readRlsEvidence(client)).resolves.toMatchObject({
       dataApiGrantCount: 0,
       status: "passed",
-      tableCount: 31,
+      tableCount: 33,
     });
     await database.exec("reset role");
   });

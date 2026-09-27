@@ -17,6 +17,7 @@ import {
   assignStudentLabels,
   formatAccuracy,
 } from "@/lib/professor/student-pseudonym";
+import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
 import type {
   InstructorStudentIdentities,
   InstructorStudentList,
@@ -97,9 +98,12 @@ export function RelativeTime({
 export function InstructorStudentTable({
   identities,
   list,
+  sketchpadMeasurementEnabled = false,
 }: {
   identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
+  /** From the typed server environment; see `sketchpadTimeDisplay`. */
+  sketchpadMeasurementEnabled?: boolean;
 }) {
   const labels = assignStudentLabels(
     list.students.map((student) => student.studentKey),
@@ -137,6 +141,12 @@ export function InstructorStudentTable({
             </TableHead>
             <TableHead scope="col" numeric>
               Solutions
+            </TableHead>
+            <TableHead scope="col" numeric>
+              Est. Sketchpad Time
+            </TableHead>
+            <TableHead scope="col" numeric>
+              AI Help Requests
             </TableHead>
             <TableHead scope="col" numeric>
               Practice sessions
@@ -192,6 +202,13 @@ export function InstructorStudentTable({
                 </TableCell>
                 <TableCell numeric>{student.hintsUsed}</TableCell>
                 <TableCell numeric>{student.solutionsRevealed}</TableCell>
+                <TableCell numeric className="whitespace-nowrap">
+                  {sketchpadTimeDisplay(
+                    student.sketchpadActiveSeconds,
+                    sketchpadMeasurementEnabled,
+                  )}
+                </TableCell>
+                <TableCell numeric>{student.aiHelpRequests}</TableCell>
                 <TableCell numeric>{student.sessions}</TableCell>
                 <TableCell numeric className="pr-4">
                   {student.extraPracticeSessions}
@@ -200,7 +217,7 @@ export function InstructorStudentTable({
             ))
           ) : (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={9} className="px-4 py-6 text-ink-muted">
+              <TableCell colSpan={11} className="px-4 py-6 text-ink-muted">
                 No students on this page.
               </TableCell>
             </TableRow>

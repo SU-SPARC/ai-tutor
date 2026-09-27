@@ -102,6 +102,33 @@ const EXTRA_PRACTICE_TOTALS_CTE = `
   )
 `;
 
+const STUDENT_TOOL_USAGE_TOTALS_CTE = `
+  ai_help_totals as (
+    select user_id, count(*)::int as ai_help_requests
+    from student_usage_events
+    where event_type = 'ai_help_click'
+    group by user_id
+  ),
+  sketchpad_totals as (
+    select user_id, coalesce(sum(credited_seconds), 0)::int
+      as sketchpad_active_seconds
+    from student_tool_active_buckets
+    where tool = 'sketchpad'
+    group by user_id
+  ),
+  student_tool_usage_totals as (
+    select
+      accounts.student_key,
+      coalesce(ai.ai_help_requests, 0)::int as ai_help_requests,
+      coalesce(sketchpad.sketchpad_active_seconds, 0)::int
+        as sketchpad_active_seconds
+    from student_accounts accounts
+    left join ai_help_totals ai on ai.user_id = accounts.user_id
+    left join sketchpad_totals sketchpad
+      on sketchpad.user_id = accounts.user_id
+  )
+`;
+
 const SESSION_TOTALS_CTE = `
   session_totals as (
     select
@@ -182,6 +209,8 @@ const STUDENT_POPULATION_CTE = `
 
 const SUMMARY_COLUMNS = `
   p.student_key,
+  coalesce(usage.ai_help_requests, 0) as ai_help_requests,
+  coalesce(usage.sketchpad_active_seconds, 0) as sketchpad_active_seconds,
   coalesce(st.sessions, 0) as sessions,
   coalesce(st.hints_used, 0) as hints_used,
   coalesce(st.solutions_revealed, 0) as solutions_revealed,
@@ -220,6 +249,7 @@ const SORT_CLAUSES: Record<InstructorStudentSort, string> = {
 };
 
 type StudentSummaryRow = {
+  ai_help_requests: number | string | null;
   attempts: number | string | null;
   correct_attempts: number | string | null;
   extra_practice_sessions: number | string | null;
@@ -231,6 +261,7 @@ type StudentSummaryRow = {
   misconception_attempts: number | string | null;
   needs_attention: boolean | null;
   sessions: number | string | null;
+  sketchpad_active_seconds: number | string | null;
   solutions_revealed: number | string | null;
   solved_sessions: number | string | null;
   student_key: string;
@@ -252,6 +283,7 @@ type TopicRow = {
 };
 
 type TopicRosterRow = {
+  ai_help_requests: number | string | null;
   student_key: string;
   topic_id: string | null;
   topic_title: string | null;
@@ -310,6 +342,7 @@ function timestamp(value: Date | string | null | undefined) {
 
 function toSummary(row: StudentSummaryRow): InstructorStudentSummary {
   return {
+    aiHelpRequests: count(row.ai_help_requests),
     attempts: count(row.attempts),
     correctAttempts: count(row.correct_attempts),
     extraPracticeSessions: count(row.extra_practice_sessions),
@@ -321,6 +354,7 @@ function toSummary(row: StudentSummaryRow): InstructorStudentSummary {
     misconceptionAttempts: count(row.misconception_attempts),
     needsAttention: Boolean(row.needs_attention),
     sessions: count(row.sessions),
+    sketchpadActiveSeconds: count(row.sketchpad_active_seconds),
     solutionsRevealed: count(row.solutions_revealed),
     solvedSessions: count(row.solved_sessions),
     studentKey: String(row.student_key),
@@ -355,6 +389,7 @@ async function readStudentList(
       ${ATTENTION_STUDENTS_CTE},
       ${EXTRA_PRACTICE_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
+      ${STUDENT_TOOL_USAGE_TOTALS_CTE},
       ${STUDENT_POPULATION_CTE}
       select
         ${SUMMARY_COLUMNS},
@@ -365,6 +400,8 @@ async function readStudentList(
       left join attention_students attention
         on attention.student_key = p.student_key
       left join extra_practice_totals extra on extra.student_key = p.student_key
+      left join student_tool_usage_totals usage
+        on usage.student_key = p.student_key
       where $3::text is null or p.student_key like $3 || '%'
       order by ${order}
       limit $1
@@ -396,6 +433,7 @@ async function readStudentSummary(
       ${ATTENTION_STUDENTS_CTE},
       ${EXTRA_PRACTICE_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
+      ${STUDENT_TOOL_USAGE_TOTALS_CTE},
       ${STUDENT_POPULATION_CTE}
       select ${SUMMARY_COLUMNS}
       from student_population p
@@ -404,6 +442,8 @@ async function readStudentSummary(
       left join attention_students attention
         on attention.student_key = p.student_key
       left join extra_practice_totals extra on extra.student_key = p.student_key
+      left join student_tool_usage_totals usage
+        on usage.student_key = p.student_key
       where p.student_key = $1
     `,
     [studentKey],
@@ -502,6 +542,16 @@ async function readTopicRoster(
       ${SESSION_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
       ${STUDENT_POPULATION_CTE},
+      topic_ai_help_totals as (
+        select
+          accounts.student_key,
+          events.topic_id,
+          count(*)::int as ai_help_requests
+        from student_usage_events events
+        join student_accounts accounts on accounts.user_id = events.user_id
+        where events.event_type = 'ai_help_click'
+        group by accounts.student_key, events.topic_id
+      ),
       student_topics as (
         select ss.student_key, q.topic_id
         from student_sessions ss
@@ -514,11 +564,14 @@ async function readTopicRoster(
       )
       select
         p.student_key,
+        coalesce(ai.ai_help_requests, 0) as ai_help_requests,
         t.id as topic_id,
         t.title as topic_title
       from student_population p
       left join student_topics st on st.student_key = p.student_key
       left join topics t on t.id = st.topic_id
+      left join topic_ai_help_totals ai
+        on ai.student_key = p.student_key and ai.topic_id = t.id
       order by t.sort_order nulls last, t.title, t.id, p.student_key
     `,
   );
@@ -528,6 +581,7 @@ async function readTopicRoster(
     revealed: false,
     ...groupStudentsByTopic(
       rows.map((row) => ({
+        aiHelpRequests: count(row.ai_help_requests),
         studentKey: String(row.student_key),
         topicId: row.topic_id ? String(row.topic_id) : undefined,
         topicTitle: row.topic_title ? String(row.topic_title) : undefined,

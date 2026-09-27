@@ -760,6 +760,7 @@ function activityList(
     offset: 0,
     students: studentKeys.map(
       (studentKey): InstructorStudentSummary => ({
+        aiHelpRequests: 0,
         attempts: 0,
         correctAttempts: 0,
         extraPracticeSessions: 0,
@@ -769,6 +770,7 @@ function activityList(
         misconceptionAttempts: 0,
         needsAttention: false,
         sessions: 0,
+        sketchpadActiveSeconds: 0,
         solutionsRevealed: 0,
         solvedSessions: 0,
         studentKey,

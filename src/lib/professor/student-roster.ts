@@ -6,6 +6,7 @@ import type {
 
 /** One (student, topic) pair, or a student alone when they have no topic. */
 export type StudentTopicRow = {
+  aiHelpRequests?: number;
   studentKey: string;
   topicId?: string;
   topicTitle?: string;
@@ -40,7 +41,12 @@ export function groupStudentsByTopic(
       topicTitle: row.topicTitle ?? row.topicId,
     };
     if (!group.students.some((s) => s.studentKey === row.studentKey)) {
-      group.students.push({ studentKey: row.studentKey });
+      group.students.push({
+        ...(row.aiHelpRequests !== undefined
+          ? { aiHelpRequests: row.aiHelpRequests }
+          : {}),
+        studentKey: row.studentKey,
+      });
     }
     groups.set(row.topicId, group);
     assigned.add(row.studentKey);
@@ -54,7 +60,17 @@ export function groupStudentsByTopic(
     unassigned: sortByStudentKey(
       [...everyone]
         .filter((studentKey) => !assigned.has(studentKey))
-        .map((studentKey) => ({ studentKey })),
+        .map((studentKey) => {
+          const row = rows.find(
+            (candidate) => candidate.studentKey === studentKey,
+          );
+          return {
+            ...(row?.aiHelpRequests !== undefined
+              ? { aiHelpRequests: row.aiHelpRequests }
+              : {}),
+            studentKey,
+          };
+        }),
     ),
   };
 }

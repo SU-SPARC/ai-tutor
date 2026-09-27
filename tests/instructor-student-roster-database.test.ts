@@ -188,6 +188,7 @@ describe("signed-in students on the professor Students page", () => {
     // The student opened one question without interacting; that row is not
     // practice and must not count as a session or supply a last-active time.
     expect(summary).toEqual({
+      aiHelpRequests: 0,
       attempts: 0,
       correctAttempts: 0,
       extraPracticeSessions: 0,
@@ -199,11 +200,29 @@ describe("signed-in students on the professor Students page", () => {
       misconceptionAttempts: 0,
       needsAttention: false,
       sessions: 0,
+      sketchpadActiveSeconds: 0,
       solutionsRevealed: 0,
       solvedSessions: 0,
       studentKey: NEW_KEY,
       topicsPracticed: 0,
     });
+  });
+
+  it("aggregates global AI Help requests and Sketchpad buckets without exposing owners", async () => {
+    const authorization = await professorAuthorization();
+    const list = await repository.listStudents(authorization, { limit: 100 });
+    const summary = list.students.find(
+      (student) => student.studentKey === PRACTICED_KEY,
+    );
+
+    expect(summary).toMatchObject({
+      aiHelpRequests: 2,
+      sketchpadActiveSeconds: 45,
+    });
+    expect(JSON.stringify(list)).not.toContain(PRACTICED_STUDENT.userId);
+    expect(list.students.map((student) => student.studentKey)).not.toContain(
+      keyFor(`user:${TEST_PROFESSOR.userId}`),
+    );
   });
 
   it("resolves a zero-activity student's detail without fabricating activity", async () => {
@@ -257,8 +276,11 @@ describe("signed-in students on the professor Students page", () => {
 
     expect(markup).toContain(studentLabel(NEW_KEY));
     expect(markup).toContain(`href="/professor/students/${NEW_KEY}"`);
-    // Sessions, extra practice, attempts, correct, topics, hints, solutions.
-    expect(markup.match(/<td[^>]*>0<\/td>/g)).toHaveLength(6);
+    // Attempts, topics, hints, solutions, AI Help, sessions, extra practice.
+    expect(markup.match(/<td[^>]*>0<\/td>/g)).toHaveLength(7);
+    expect(markup).toContain("Not yet measured");
+    expect(markup).toContain("Est. Sketchpad Time");
+    expect(markup).toContain("AI Help Requests");
     expect(markup).toContain("(—)");
     expect(markup).toContain(">—</td>");
     for (const identifier of IDENTIFIERS) {
@@ -475,6 +497,7 @@ describe("signed-in students on the professor Students page", () => {
     }
     expect(serialized).not.toContain("@");
     expect(Object.keys(list.students[0] ?? {}).sort()).toEqual([
+      "aiHelpRequests",
       "attempts",
       "correctAttempts",
       "extraPracticeSessions",
@@ -486,6 +509,7 @@ describe("signed-in students on the professor Students page", () => {
       "misconceptionAttempts",
       "needsAttention",
       "sessions",
+      "sketchpadActiveSeconds",
       "solutionsRevealed",
       "solvedSessions",
       "studentKey",
@@ -658,6 +682,27 @@ async function professorAuthorization(): Promise<AnalyticsAuthorization> {
   return requireAnalyticsAccess();
 }
 
+describe("professor analytics when the usage tables cannot be read", () => {
+  it("fails closed instead of returning rows without usage columns", async () => {
+    const database = await migratedDatabase();
+    await database.exec("drop table student_usage_events cascade");
+    const repository = createDatabaseInstructorStudentRepository(
+      pgliteQuery(database),
+    );
+    const authorization = await professorAuthorization();
+
+    await expect(
+      repository.listStudents(authorization, { limit: 5 }),
+    ).rejects.toThrow(/student_usage_events/);
+    await expect(repository.listTopicRoster(authorization)).rejects.toThrow(
+      /student_usage_events/,
+    );
+    await expect(
+      repository.getStudentDetail(authorization, NEW_KEY),
+    ).rejects.toThrow(/student_usage_events/);
+  }, 60_000);
+});
+
 function keyFor(owner: string) {
   return createHash("sha256").update(owner).digest("hex");
 }
@@ -821,4 +866,27 @@ async function seed(database: PGlite) {
       ('roster-practised-session', 'cp-question', 'conditional-probability', 'check', 'rule', 'incorrect'),
       ('roster-anonymous-session', 'cp-question', 'conditional-probability', 'check', 'rule', 'incorrect');
   `);
+  await database.query(
+    `insert into student_usage_events (
+       user_id, event_type, idempotency_key, tutor_session_id, question_id,
+       question_version_id, topic_id
+     ) values
+       ($1, 'ai_help_click', 'ai-request-1', 'roster-practised-session',
+        'cp-question', $3, 'conditional-probability'),
+       ($1, 'ai_help_click', 'ai-request-2', 'roster-practised-session',
+        'cp-question', $3, 'conditional-probability'),
+       ($2, 'ai_help_click', 'professor-ai-request', 'roster-professor-session',
+        'cp-question', $3, 'conditional-probability')`,
+    [PRACTICED_STUDENT.userId, TEST_PROFESSOR.userId, version.id],
+  );
+  await database.query(
+    `insert into student_tool_active_buckets (
+       user_id, tool, bucket_started_at, credited_seconds
+     ) values
+       ($1, 'sketchpad', '2026-09-27T12:00:00Z', 15),
+       ($1, 'sketchpad', '2026-09-27T12:00:15Z', 15),
+       ($1, 'sketchpad', '2026-09-27T12:00:30Z', 15),
+       ($2, 'sketchpad', '2026-09-27T12:00:00Z', 15)`,
+    [PRACTICED_STUDENT.userId, TEST_PROFESSOR.userId],
+  );
 }

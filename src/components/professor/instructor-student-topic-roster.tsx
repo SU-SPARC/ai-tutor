@@ -88,6 +88,9 @@ export function InstructorStudentTopicRoster({
                   <TableHead scope="col" className="pr-4">
                     Student
                   </TableHead>
+                  <TableHead scope="col" numeric className="pr-4">
+                    AI Help Requests
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,13 +103,16 @@ export function InstructorStudentTopicRoster({
                         }
                       />
                     </TableCell>
-                    <TableCell className="pr-4">
+                    <TableCell>
                       <Link
                         className="relative rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-3"
                         href={`/professor/students/${student.studentKey}`}
                       >
                         {labels.get(student.studentKey)}
                       </Link>
+                    </TableCell>
+                    <TableCell numeric className="pr-4">
+                      {student.aiHelpRequests ?? 0}
                     </TableCell>
                   </TableRow>
                 ))}

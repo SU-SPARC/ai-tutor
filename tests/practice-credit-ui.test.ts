@@ -38,6 +38,7 @@ function detail(
     misconceptions: [],
     mode: "database",
     summary: {
+      aiHelpRequests: 0,
       attempts: 6,
       correctAttempts: 2,
       extraPracticeSessions: 1,
@@ -47,6 +48,7 @@ function detail(
       misconceptionAttempts: 0,
       needsAttention: false,
       sessions: 3,
+      sketchpadActiveSeconds: 0,
       solutionsRevealed: 1,
       solvedSessions: 2,
       studentKey: "a".repeat(64),
