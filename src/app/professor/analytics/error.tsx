@@ -2,15 +2,13 @@
 
 import { RotateCcw } from "lucide-react";
 
+import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
+/**
+ * Renders inside the workspace layout, so the rail stays. The error itself is
+ * never shown: it can carry query text.
+ */
 export default function ProfessorAnalyticsError({
   error,
   reset,
@@ -21,24 +19,27 @@ export default function ProfessorAnalyticsError({
   void error;
 
   return (
-    <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
-        <Card role="alert">
-          <CardHeader>
-            <CardTitle>Course analytics could not be loaded</CardTitle>
-            <CardDescription>
-              Recorded practice information is temporarily unavailable. Try
-              loading the page again.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button type="button" onClick={reset}>
-              <RotateCcw aria-hidden="true" className="h-4 w-4" />
-              Try again
-            </Button>
-          </CardContent>
-        </Card>
+    <ProfessorPageShell
+      title="Analytics"
+      description="Published-practice performance and tutor use across the class, with no student named."
+    >
+      <section
+        role="alert"
+        aria-labelledby="analytics-error-heading"
+        className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
+      >
+        <h2 id="analytics-error-heading" className="type-h3 text-ink">
+          Course analytics could not be loaded
+        </h2>
+        <p className="type-body text-ink-muted">
+          Recorded practice information is temporarily unavailable. Try loading
+          the page again.
+        </p>
+        <Button type="button" variant="secondary" onClick={reset}>
+          <RotateCcw aria-hidden="true" />
+          Try again
+        </Button>
       </section>
-    </main>
+    </ProfessorPageShell>
   );
 }

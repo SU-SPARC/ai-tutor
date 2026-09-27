@@ -1,9 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const postgresMocks = vi.hoisted(() => ({
+  queryPostgres: vi.fn(),
+}));
+
+vi.mock("@/lib/data/postgres", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/data/postgres")>()),
+  queryPostgres: postgresMocks.queryPostgres,
+}));
 
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import {
   acknowledgeStudentOnboarding,
   hasAcknowledgedStudentOnboarding,
+  resetStudentOnboardingForTests,
 } from "@/lib/data/student-onboarding-repository";
 
 describe("student onboarding acknowledgement storage", () => {
@@ -53,5 +63,65 @@ describe("student onboarding acknowledgement storage", () => {
         query as DatabaseQueryExecutor,
       ),
     ).rejects.toThrow("active student account was not found");
+  });
+});
+
+describe("student onboarding acknowledgement without Postgres", () => {
+  beforeEach(() => {
+    resetStudentOnboardingForTests();
+    postgresMocks.queryPostgres.mockReset();
+    vi.stubEnv("APP_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the acknowledgement in memory in demo mode and never queries Postgres", async () => {
+    vi.stubEnv("APP_DEMO_MODE", "true");
+
+    await expect(
+      hasAcknowledgedStudentOnboarding("ghost:student"),
+    ).resolves.toBe(false);
+
+    await acknowledgeStudentOnboarding("ghost:student");
+
+    await expect(
+      hasAcknowledgedStudentOnboarding("ghost:student"),
+    ).resolves.toBe(true);
+    // One student's acknowledgement is not another's.
+    await expect(
+      hasAcknowledgedStudentOnboarding("ghost:other"),
+    ).resolves.toBe(false);
+    expect(postgresMocks.queryPostgres).not.toHaveBeenCalled();
+  });
+
+  it("falls back to memory in local database mode when Postgres fails", async () => {
+    vi.stubEnv("APP_DEMO_MODE", "false");
+    postgresMocks.queryPostgres.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    await expect(
+      hasAcknowledgedStudentOnboarding("user:student"),
+    ).resolves.toBe(false);
+    await expect(
+      acknowledgeStudentOnboarding("user:student"),
+    ).resolves.toBeUndefined();
+    await expect(
+      hasAcknowledgedStudentOnboarding("user:student"),
+    ).resolves.toBe(true);
+  });
+
+  it("does not fall back when an explicit database executor fails", async () => {
+    vi.stubEnv("APP_DEMO_MODE", "true");
+    const query = vi.fn(async () => {
+      throw new Error("connect ECONNREFUSED");
+    });
+
+    await expect(
+      acknowledgeStudentOnboarding(
+        "user:student",
+        query as unknown as DatabaseQueryExecutor,
+      ),
+    ).rejects.toThrow("ECONNREFUSED");
   });
 });

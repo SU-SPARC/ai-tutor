@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AuthenticatedStudentAuthorization } from "@/lib/auth/authorization";
+import type { StudentAuthorization } from "@/lib/auth/authorization";
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
@@ -51,8 +51,15 @@ function isAnswerAttempt(
   return isValidAnswerAttempt(attempt);
 }
 
+/**
+ * The progress of whoever the authorization names — a signed-in student or a
+ * browser that already carries an anonymous practice identity. The body only
+ * passes the grant to `listTutorSessionsForStudent`, which resolves the owner
+ * itself, so a guest with saved practice sees it on `/learn` exactly as a
+ * signed-in student does.
+ */
 export async function getStudentProgress(
-  authorization: AuthenticatedStudentAuthorization,
+  authorization: StudentAuthorization,
 ): Promise<StudentProgressDashboard> {
   const [{ mode, sessions: retainedSessions }, questions, topics] =
     await Promise.all([
@@ -88,9 +95,7 @@ export async function getStudentProgress(
   );
   const questionProgress = [...progressByQuestion.values()]
     .map(toQuestionProgress)
-    .filter(
-      (question) => question.available || question.status === "completed",
-    )
+    .filter((question) => question.available || question.status === "completed")
     .sort(
       (left, right) =>
         compareCanonicalTopicIds(left.topicId, right.topicId) ||
@@ -193,9 +198,9 @@ export async function getStudentProgress(
           session.status !== "content_unpublished" &&
           Boolean(
             topic &&
-              (question ||
-                (session.practiceContext === "reserve_practice" &&
-                  reserveQuestion)),
+            (question ||
+              (session.practiceContext === "reserve_practice" &&
+                reserveQuestion)),
           );
         const reserveCorrect = session.attempts.some(
           (attempt) => attempt.verdict === "correct",
@@ -208,7 +213,7 @@ export async function getStudentProgress(
             ? Boolean(session.solved || session.status === "completed")
             : Boolean(
                 progress &&
-                  (progress.completed || progress.correctAttempts > 0),
+                (progress.completed || progress.correctAttempts > 0),
               );
 
         return [
@@ -281,7 +286,9 @@ function aggregateQuestionProgress(
   for (const session of sessions) {
     const question = questionsById.get(session.questionId);
     const questionTitle =
-      question?.title ?? session.questionTitle ?? session.questionVersion?.title;
+      question?.title ??
+      session.questionTitle ??
+      session.questionVersion?.title;
     const topicId =
       question?.topicId ?? session.topicId ?? session.questionVersion?.topicId;
     const topic = topicId ? topicsById.get(topicId) : undefined;

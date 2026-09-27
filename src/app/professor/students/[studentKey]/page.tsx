@@ -1,16 +1,20 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { UserRound } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { InstructorStudentDetailPanel } from "@/components/professor/instructor-student-detail";
 import { InstructorStudentIdentityPanel } from "@/components/professor/instructor-student-identity";
-import { Badge } from "@/components/ui/badge";
+import { RelativeTime } from "@/components/professor/instructor-student-table";
 import {
   requireAnalyticsAccess,
   requirePageAccess,
 } from "@/lib/auth/authorization";
 import { getInstructorStudentDetail } from "@/lib/data/data-store";
 import { isStudentKey, studentLabel } from "@/lib/professor/student-pseudonym";
+
+export const metadata: Metadata = {
+  title: "Student record",
+};
 
 export default async function ProfessorStudentPage({
   params,
@@ -35,20 +39,35 @@ export default async function ProfessorStudentPage({
     notFound();
   }
 
+  const label = studentLabel(studentKey);
+  const lastActiveAt = detail.summary.lastActiveAt;
+
   return (
     <ProfessorPageShell
-      title={studentLabel(studentKey)}
-      description="Practice activity for one student, derived from the same recorded sessions as the student's own dashboard. The record carries no name, email address, or device identifier; an authorized instructor can reveal the student's account identity below when they need it."
-      aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <UserRound className="h-4 w-4" />
-          pseudonymous record
-        </Badge>
+      title={label}
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Students", href: "/professor/students" },
+        { label },
+      ]}
+      description="Practice recorded for one student, from the same sessions as their own dashboard."
+      notice={
+        <>
+          {lastActiveAt ? (
+            <>
+              Last active <RelativeTime value={lastActiveAt} />
+            </>
+          ) : (
+            "No practice recorded yet"
+          )}
+          {" · "}A pseudonymous record: no name, email address or device
+          identifier is stored with it.
+        </>
       }
     >
       <InstructorStudentIdentityPanel
         studentKey={studentKey}
-        studentLabel={studentLabel(studentKey)}
+        studentLabel={label}
       />
       <InstructorStudentDetailPanel detail={detail} />
     </ProfessorPageShell>

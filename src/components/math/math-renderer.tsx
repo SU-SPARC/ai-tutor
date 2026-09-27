@@ -1,6 +1,78 @@
 import katex from "katex"
+import { useId } from "react"
 
 import { cn } from "@/lib/utils"
+
+// Words for the handful of commands that appear in MATH-255 problems. Anything
+// outside this table makes `speakLatex` give up rather than guess.
+const SPOKEN_COMMANDS: Record<string, string> = {
+  "\\mid": "given",
+  "\\cap": "and",
+  "\\cup": "or",
+  "\\le": "is at most",
+  "\\leq": "is at most",
+  "\\ge": "is at least",
+  "\\geq": "is at least",
+  "\\ne": "is not equal to",
+  "\\neq": "is not equal to",
+  "\\times": "times",
+  "\\cdot": "times",
+  "\\approx": "is approximately",
+  "\\mu": "mu",
+  "\\sigma": "sigma",
+  "\\lambda": "lambda",
+  "\\bar": "bar",
+  "\\overline": "bar",
+  "\\left": "",
+  "\\right": "",
+  "\\,": " ",
+  "\\;": " ",
+}
+
+/**
+ * A plain spoken form for simple expressions ("P(A \\mid B)" -> "P of A given
+ * B", "\\frac{1}{4}" -> "1 over 4"). Returns undefined for anything it cannot
+ * read confidently; the MathML that KaTeX emits is always there regardless.
+ */
+export function speakLatex(expression: string): string | undefined {
+  let text = expression.trim()
+  if (!text || text.length > 80) {
+    return undefined
+  }
+
+  // \frac{a}{b} -> (a over b), innermost first.
+  for (let guard = 0; guard < 4 && text.includes("\\frac"); guard += 1) {
+    const next = text.replace(
+      /\\frac\{([^{}]*)\}\{([^{}]*)\}/g,
+      (_, top: string, bottom: string) => ` ${top} over ${bottom} `,
+    )
+    if (next === text) {
+      return undefined
+    }
+    text = next
+  }
+  text = text.replace(/\\[a-zA-Z]+|\\[,;]/g, (command) =>
+    command in SPOKEN_COMMANDS ? ` ${SPOKEN_COMMANDS[command]} ` : "\u0000",
+  )
+  // An unknown command, or sub/superscripts we do not phrase: give up.
+  if (text.includes("\u0000") || /[\\_^]/.test(text)) {
+    return undefined
+  }
+  text = text
+    .replace(/[{}]/g, "")
+    .replace(/([A-Za-z])\(/g, "$1 of (")
+    .replace(/[()]/g, " ")
+    .replace(/=/g, " equals ")
+    .replace(/</g, " is less than ")
+    .replace(/>/g, " is greater than ")
+    .replace(/\+/g, " plus ")
+    .replace(/(\s|^)-(\s|\d)/g, "$1minus $2")
+    .replace(/%/g, " percent")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return text.length > 0 ? text : undefined
+}
 
 type MathProps = {
   children: string
@@ -14,17 +86,21 @@ type MathProps = {
  */
 export function Math({ children, display = false, className }: MathProps) {
   const expression = children
+  const spokenId = useId()
   let html: string | null = null
 
   try {
+    // HTML for sighted readers, MathML for screen readers (the HTML half is
+    // aria-hidden by KaTeX itself).
     html = katex.renderToString(expression, {
       displayMode: display,
       throwOnError: false,
-      output: "html",
+      output: "htmlAndMathml",
     })
   } catch {
     html = null
   }
+  const spoken = html === null ? undefined : speakLatex(expression)
 
   if (html === null) {
     return (
@@ -32,12 +108,30 @@ export function Math({ children, display = false, className }: MathProps) {
     )
   }
 
-  return (
+  const rendered = (
     <span
-      className={cn(display ? "block overflow-x-auto py-1" : "inline", className)}
+      data-slot="math"
+      aria-describedby={spoken ? spokenId : undefined}
+      className={cn(
+        display ? "block overflow-x-auto py-1" : "inline",
+        className,
+      )}
       // KaTeX output is generated from the expression string, not user HTML.
       dangerouslySetInnerHTML={{ __html: html }}
     />
+  )
+
+  if (!spoken) {
+    return rendered
+  }
+
+  return (
+    <>
+      {rendered}
+      <span id={spokenId} hidden>
+        {spoken}
+      </span>
+    </>
   )
 }
 

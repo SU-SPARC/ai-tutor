@@ -788,11 +788,11 @@ Verify: npm run lint && npm run typecheck && npm run test:migrations && npx vite
 ### Prompt 3 — Professor plan builder, simulator, and review display (phase 1, UI)
 
 ```
-Read docs/step-grading.md sections 6 and 11 first, then src/components/professor/professor-question-revision-editor.tsx, src/components/professor/professor-friendly-review-panel.tsx, src/components/professor/professor-question-review-panel.tsx, src/components/professor/professor-question-detail-summary.tsx, src/lib/api/professor-dtos.ts, and tests/professor-question-revision-panel.test.tsx.
+Read docs/step-grading.md sections 6 and 11 first, then src/components/professor/professor-question-revision-editor.tsx, src/components/professor/professor-friendly-review-panel.tsx (the review queue; the separate standard review panel was removed in the UI redesign), src/components/professor/professor-question-detail-summary.tsx, src/lib/api/professor-dtos.ts, and tests/professor-question-revision-panel.test.tsx.
 
 Add a "Step-by-step plan" section to the revision editor: a "Build from existing steps" converter (one step per solutionSteps line; deterministic expected-value suggestions from the last numeric literal, fraction, or C/P/binom token; nothing saved without confirmation), per-step forms for every field in section 2, a collapsed path editor, the policy form with plain-language explanations, an inline validation list driven by validateSolutionPlan on every change, and a grader simulator that runs checkStep and gradeStep on professor-typed sample inputs and shows outcome, feedback code, and student-facing feedback. The simulator never calls the model. Saving sends revision.solutionPlan through the existing revision request.
 
-Review surfaces: add a plan summary (step titles, asks, expected kinds and values, policy) to ProfessorQuestionReviewCandidateDto and render it in the friendly and standard review panels; show the full plan in the detail summary and history inspector; ensure the change summary lists "Solution plan".
+Review surfaces: add a plan summary (step titles, asks, expected kinds and values, policy) to ProfessorQuestionReviewCandidateDto and render it in the review queue panel; show the full plan in the detail summary and history inspector; ensure the change summary lists "Solution plan".
 
 Constraints: keep all existing editor behavior and tests; the plan section is hidden when the working version has no plan and no conversion has been started; math renders through MathText.
 

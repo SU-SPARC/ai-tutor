@@ -1,17 +1,7 @@
-import { Info } from "lucide-react";
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -25,6 +15,12 @@ const RELIABLE_QUESTION_ATTEMPTS = 4;
 
 type QuestionPerformance = ProfessorPracticeAnalytics["questions"][number];
 
+/**
+ * Topic and question performance for published practice: two dense tables
+ * with numeric columns, each introduced by an h2 and footnoted by its caption
+ * (scope, ranking rule, and whether the rows are demo fixtures). No cards,
+ * no badges; a demo notice is one quiet line in the caption.
+ */
 export function InstructorPracticePerformance({
   practice,
 }: {
@@ -36,66 +32,67 @@ export function InstructorPracticePerformance({
       left.topicTitle.localeCompare(right.topicTitle),
   );
   const questions = [...practice.questions].sort(compareQuestionPerformance);
+  const demoNote =
+    practice.mode === "demo"
+      ? " Demo fixtures, not results from a recorded class."
+      : "";
 
   return (
-    <section className="flex flex-col gap-6" aria-label="Practice performance">
-      {practice.mode === "demo" ? (
-        <Alert variant="info">
-          <Info aria-hidden="true" />
-          <AlertTitle>Demonstration performance data</AlertTitle>
-          <AlertDescription>
-            These topic and question rows are public demo fixtures, not results
-            from a recorded class.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>Topic performance</CardTitle>
-            <PracticeScopeBadge mode={practice.mode} />
-          </div>
-          <CardDescription>
-            Published normal-practice sessions only. Answer attempts count
-            checks; hints, solutions, and LLM fallbacks are reported separately.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
+    <div className="flex flex-col gap-8">
+      <section
+        aria-labelledby="topic-performance-heading"
+        className="flex flex-col gap-3"
+      >
+        <h2 id="topic-performance-heading" className="type-h2 text-ink">
+          Topic performance
+        </h2>
+        <div className="rounded-panel bg-sheet">
+          <Table
+            containerClassName="rounded-panel"
+            aria-describedby="topic-performance-note"
+          >
+            <TableCaption className="sr-only">
+              Topic performance, in syllabus order
+            </TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-6">Topic</TableHead>
-                <TableHead className="text-right">Answer attempts</TableHead>
-                <TableHead className="text-right">Correct %</TableHead>
-                <TableHead className="text-right">Hints used</TableHead>
-                <TableHead className="text-right">Solutions revealed</TableHead>
-                <TableHead className="px-6 text-right">LLM fallbacks</TableHead>
+                <TableHead scope="col" className="pl-4">
+                  Topic
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Answer attempts
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Correct %
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Hints used
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Solutions revealed
+                </TableHead>
+                <TableHead scope="col" numeric className="pr-4">
+                  LLM fallbacks
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {topics.length > 0 ? (
                 topics.map((topic) => (
                   <TableRow key={topic.topicId}>
-                    <TableCell className="px-6 font-medium">
+                    <TableCell className="min-w-48 pl-4 font-medium">
                       {topic.topicTitle}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {topic.attempts}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell numeric>{topic.attempts}</TableCell>
+                    <TableCell numeric>
                       {formatAccuracy(
                         topic.correctAttempts,
                         topic.correctAttempts + (topic.incorrectAttempts ?? 0),
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {topic.hintsUsed}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {topic.stepsRevealed}
-                    </TableCell>
-                    <TableCell className="px-6 text-right">
+                    <TableCell numeric>{topic.hintsUsed}</TableCell>
+                    <TableCell numeric>{topic.stepsRevealed}</TableCell>
+                    <TableCell numeric className="pr-4">
                       {topic.llmAttempts}
                     </TableCell>
                   </TableRow>
@@ -108,57 +105,74 @@ export function InstructorPracticePerformance({
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <p id="topic-performance-note" className="type-caption max-w-prose">
+          Published normal-practice sessions only. Answer attempts count checks;
+          hints, solutions and LLM fallbacks are counted separately.
+          {demoNote}
+        </p>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Question performance</CardTitle>
-          <CardDescription>
-            Questions with at least four scored answer checks are ranked by
-            lowest correct percentage. Lower-volume questions follow by attempt
-            count and are not labeled as difficult.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
+      <section
+        aria-labelledby="question-performance-heading"
+        className="flex flex-col gap-3"
+      >
+        <h2 id="question-performance-heading" className="type-h2 text-ink">
+          Question performance
+        </h2>
+        <div className="rounded-panel bg-sheet">
+          <Table
+            stickyHeader
+            containerClassName="rounded-panel lg:max-h-[70svh]"
+            className="[&_thead_th]:bg-sheet"
+            aria-describedby="question-performance-note"
+          >
+            <TableCaption className="sr-only">
+              Question performance, lowest correct percentage first
+            </TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-6">Question title</TableHead>
-                <TableHead>Topic</TableHead>
-                <TableHead className="text-right">Answer attempts</TableHead>
-                <TableHead className="text-right">Correct %</TableHead>
-                <TableHead className="text-right">Hints</TableHead>
-                <TableHead className="text-right">Solutions revealed</TableHead>
-                <TableHead className="px-6 text-right">LLM fallbacks</TableHead>
+                <TableHead scope="col" className="pl-4">
+                  Question title
+                </TableHead>
+                <TableHead scope="col">Topic</TableHead>
+                <TableHead scope="col" numeric>
+                  Answer attempts
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Correct %
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Hints
+                </TableHead>
+                <TableHead scope="col" numeric>
+                  Solutions revealed
+                </TableHead>
+                <TableHead scope="col" numeric className="pr-4">
+                  LLM fallbacks
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {questions.length > 0 ? (
                 questions.map((question) => (
                   <TableRow key={question.questionId}>
-                    <TableCell className="px-6 font-medium">
+                    <TableCell className="min-w-56 pl-4 font-medium">
                       {question.questionTitle}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="min-w-40 text-ink-muted">
                       {question.topicTitle}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {question.attempts}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell numeric>{question.attempts}</TableCell>
+                    <TableCell numeric>
                       {formatAccuracy(
                         question.correctAttempts,
                         question.correctAttempts + question.incorrectAttempts,
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {question.hintsUsed}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {question.stepsRevealed}
-                    </TableCell>
-                    <TableCell className="px-6 text-right">
+                    <TableCell numeric>{question.hintsUsed}</TableCell>
+                    <TableCell numeric>{question.stepsRevealed}</TableCell>
+                    <TableCell numeric className="pr-4">
                       {question.llmAttempts}
                     </TableCell>
                   </TableRow>
@@ -171,9 +185,14 @@ export function InstructorPracticePerformance({
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-    </section>
+        </div>
+        <p id="question-performance-note" className="type-caption max-w-prose">
+          Questions with at least four scored answer checks come first, lowest
+          correct percentage at the top. Lower-volume questions follow by
+          attempt count and are not labeled as difficult.{demoNote}
+        </p>
+      </section>
+    </div>
   );
 }
 
@@ -209,25 +228,10 @@ function compareQuestionPerformance(
   );
 }
 
-function PracticeScopeBadge({
-  mode,
-}: {
-  mode: ProfessorPracticeAnalytics["mode"];
-}) {
-  return (
-    <Badge variant={mode === "database" ? "success" : "secondary"}>
-      {mode === "database" ? "Recorded class data" : "Demo data"}
-    </Badge>
-  );
-}
-
 function EmptyRow({ columns, message }: { columns: number; message: string }) {
   return (
-    <TableRow>
-      <TableCell
-        className="px-6 py-8 text-center text-muted-foreground"
-        colSpan={columns}
-      >
+    <TableRow className="hover:bg-transparent">
+      <TableCell className="px-4 py-6 text-ink-muted" colSpan={columns}>
         {message}
       </TableCell>
     </TableRow>

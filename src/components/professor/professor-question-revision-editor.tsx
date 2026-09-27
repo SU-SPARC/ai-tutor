@@ -2,12 +2,13 @@
 
 import { AnswerCheckingEditor } from "@/components/professor/answer-checking-editor";
 import type { AnswerSpec } from "@/lib/tutor/answer/spec";
-import { useMemo, useState, type ReactNode } from "react";
-import { Loader2, Save, X } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { Save } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { professorDifficultyLabel } from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
@@ -59,6 +60,7 @@ export function ProfessorQuestionRevisionEditor({
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string>();
+  const headingId = useId();
   const revision = useMemo(
     () => revisionFromForm(form, question),
     [form, question],
@@ -122,32 +124,30 @@ export function ProfessorQuestionRevisionEditor({
 
   return (
     <section
-      aria-label={`Edit ${version.title}`}
-      className="space-y-4 border border-primary/30 bg-muted/20 p-4"
+      aria-labelledby={headingId}
+      className="@container flex flex-col gap-5 rounded-panel bg-sheet p-4 sm:p-6"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-medium">{revisionHeading(question)}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Saving creates a new attributed draft from version{" "}
-            {version.versionNumber}. The original version and any published
-            version remain unchanged.
-          </p>
-        </div>
-        <Badge variant="outline">public-safe fields only</Badge>
+      <div className="flex max-w-prose flex-col gap-1">
+        <h3 id={headingId} className="type-h3 text-ink">
+          {revisionHeading(question)}
+        </h3>
+        <p className="type-small text-ink-muted">
+          Saving creates a new attributed draft from version{" "}
+          {version.versionNumber}. The original version and any published
+          version remain unchanged. Only public fields can be edited.
+        </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <RevisionField label="Title">
-          <Input
-            value={form.title}
-            maxLength={500}
-            onChange={(event) => updateForm("title", event.target.value)}
-          />
-        </RevisionField>
-        <RevisionField label="Syllabus topic">
-          <select
-            className={nativeSelectClassName}
+      <Field label="Title">
+        <Input
+          value={form.title}
+          maxLength={500}
+          onChange={(event) => updateForm("title", event.target.value)}
+        />
+      </Field>
+      <div className="grid gap-5 @2xl:grid-cols-2">
+        <Field label="Syllabus topic">
+          <NativeSelect
             value={form.topicId}
             onChange={(event) => updateForm("topicId", event.target.value)}
           >
@@ -156,11 +156,10 @@ export function ProfessorQuestionRevisionEditor({
                 {topic.title}
               </option>
             ))}
-          </select>
-        </RevisionField>
-        <RevisionField label="Difficulty">
-          <select
-            className={nativeSelectClassName}
+          </NativeSelect>
+        </Field>
+        <Field label="Difficulty">
+          <NativeSelect
             value={form.difficulty}
             onChange={(event) =>
               updateForm("difficulty", event.target.value as Difficulty)
@@ -168,70 +167,59 @@ export function ProfessorQuestionRevisionEditor({
           >
             {DIFFICULTIES.map((difficulty) => (
               <option key={difficulty} value={difficulty}>
-                {difficulty}
+                {professorDifficultyLabel(difficulty)}
               </option>
             ))}
-          </select>
-        </RevisionField>
-        <AnswerCheckingEditor
-          disabled={disabled || isSaving}
-          answer={{
-            acceptedAnswers: form.acceptedAnswers.split("\n"),
-            explanation: form.answerExplanation,
-            spec: form.spec,
-            numericValue: form.numericValue.trim()
-              ? Number(form.numericValue)
-              : undefined,
-            tolerance: form.tolerance.trim()
-              ? Number(form.tolerance)
-              : undefined,
-          }}
-          onChange={(answer) =>
-            setForm((current) => ({
-              ...current,
-              spec: answer.spec,
-              acceptedAnswers: answer.acceptedAnswers.join("\n"),
-              numericValue: answer.spec ? "" : current.numericValue,
-              tolerance: answer.spec ? "" : current.tolerance,
-            }))
-          }
+          </NativeSelect>
+        </Field>
+      </div>
+
+      <Field label="Question wording">
+        <Textarea
+          value={form.prompt}
+          className="min-h-28 type-reading"
+          maxLength={8000}
+          onChange={(event) => updateForm("prompt", event.target.value)}
         />
-        {!form.spec && (
-          <RevisionField label="Accepted final answers (one per line)">
+      </Field>
+
+      <AnswerCheckingEditor
+        disabled={disabled || isSaving}
+        answer={{
+          acceptedAnswers: form.acceptedAnswers.split("\n"),
+          explanation: form.answerExplanation,
+          spec: form.spec,
+          numericValue: form.numericValue.trim()
+            ? Number(form.numericValue)
+            : undefined,
+          tolerance: form.tolerance.trim() ? Number(form.tolerance) : undefined,
+        }}
+        onChange={(answer) =>
+          setForm((current) => ({
+            ...current,
+            spec: answer.spec,
+            acceptedAnswers: answer.acceptedAnswers.join("\n"),
+            numericValue: answer.spec ? "" : current.numericValue,
+            tolerance: answer.spec ? "" : current.tolerance,
+          }))
+        }
+      />
+      {!form.spec && (
+        <>
+          <Field
+            label="Accepted final answers"
+            description="One accepted answer per line."
+          >
             <Textarea
               value={form.acceptedAnswers}
-              className="min-h-24"
+              className="min-h-24 font-mono"
               onChange={(event) =>
                 updateForm("acceptedAnswers", event.target.value)
               }
             />
-          </RevisionField>
-        )}
-      </div>
-
-      <RevisionField label="Question wording">
-        <Textarea
-          value={form.prompt}
-          className="min-h-28"
-          maxLength={8000}
-          onChange={(event) => updateForm("prompt", event.target.value)}
-        />
-      </RevisionField>
-      <RevisionField label="Answer explanation">
-        <Textarea
-          value={form.answerExplanation}
-          className="min-h-28"
-          maxLength={8000}
-          onChange={(event) =>
-            updateForm("answerExplanation", event.target.value)
-          }
-        />
-      </RevisionField>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {!form.spec && (
-          <>
-            <RevisionField label="Numeric answer (optional)">
+          </Field>
+          <div className="grid gap-5 @2xl:grid-cols-2">
+            <Field label="Numeric answer" optional>
               <Input
                 type="number"
                 step="any"
@@ -240,8 +228,12 @@ export function ProfessorQuestionRevisionEditor({
                   updateForm("numericValue", event.target.value)
                 }
               />
-            </RevisionField>
-            <RevisionField label="Tolerance (optional, non-negative)">
+            </Field>
+            <Field
+              label="Tolerance"
+              optional
+              description="Zero or more; how far a numeric answer may be off."
+            >
               <Input
                 type="number"
                 min="0"
@@ -251,10 +243,24 @@ export function ProfessorQuestionRevisionEditor({
                   updateForm("tolerance", event.target.value)
                 }
               />
-            </RevisionField>
-          </>
-        )}
-        <RevisionField label="Solution steps (one per line)">
+            </Field>
+          </div>
+        </>
+      )}
+
+      <Field label="Answer explanation">
+        <Textarea
+          value={form.answerExplanation}
+          className="min-h-28"
+          maxLength={8000}
+          onChange={(event) =>
+            updateForm("answerExplanation", event.target.value)
+          }
+        />
+      </Field>
+
+      <div className="grid gap-5 @2xl:grid-cols-2">
+        <Field label="Solution steps" description="One step per line.">
           <Textarea
             value={form.solutionSteps}
             className="min-h-32"
@@ -262,17 +268,17 @@ export function ProfessorQuestionRevisionEditor({
               updateForm("solutionSteps", event.target.value)
             }
           />
-        </RevisionField>
-        <RevisionField label="Hints (one per line)">
+        </Field>
+        <Field label="Hints" description="One hint per line, in order.">
           <Textarea
             value={form.hints}
             className="min-h-32"
             onChange={(event) => updateForm("hints", event.target.value)}
           />
-        </RevisionField>
+        </Field>
       </div>
 
-      <RevisionField label="Misconception notes (one per line)">
+      <Field label="Misconception notes" description="One note per line.">
         <Textarea
           value={form.misconceptionNotes}
           className="min-h-28"
@@ -280,53 +286,50 @@ export function ProfessorQuestionRevisionEditor({
             updateForm("misconceptionNotes", event.target.value)
           }
         />
-      </RevisionField>
+      </Field>
 
-      <RevisionField label="Version comment (optional)">
+      <Field
+        label="Version comment"
+        optional
+        description="Why this version exists. Professors see it in the version history."
+      >
         <Textarea
           value={comment}
           className="min-h-20"
           maxLength={1000}
-          placeholder="Explain why this version is being created. Professors can see this in the lifecycle history."
           onChange={(event) => setComment(event.target.value)}
         />
-      </RevisionField>
+      </Field>
 
-      <div className="rounded-md border border-border bg-background p-3 text-sm">
-        <p className="font-medium">Revision summary</p>
-        <p className="mt-1 text-muted-foreground">
+      <div className="flex flex-col gap-1 border-l-2 border-azure-500 pl-4">
+        <p className="type-body-strong text-ink">Revision summary</p>
+        <p className="type-small text-ink">
           {changedFields.length > 0
             ? changedFields.join(", ")
             : "No content changes yet."}
         </p>
       </div>
 
-      {message ? (
-        <p role="status" className="text-sm text-destructive">
-          {message}
-        </p>
-      ) : null}
+      <div role="status" aria-live="polite">
+        {message ? <p className="type-small text-red-700">{message}</p> : null}
+      </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         <Button
           type="button"
           disabled={disabled || isSaving}
+          loading={isSaving}
           onClick={saveRevision}
         >
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
+          <Save aria-hidden="true" />
           Save revision draft
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           disabled={isSaving}
           onClick={onCancel}
         >
-          <X className="h-4 w-4" />
           Cancel
         </Button>
       </div>
@@ -445,19 +448,4 @@ function optionalNumber(value: string) {
   if (!value.trim()) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function RevisionField({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) {
-  return (
-    <label className="block space-y-1 text-sm">
-      <span className="font-medium">{label}</span>
-      {children}
-    </label>
-  );
 }

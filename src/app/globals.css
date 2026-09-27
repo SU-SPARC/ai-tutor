@@ -4,28 +4,119 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Palette extracted from public/logo.png (the sigma mark).
- * The logo is a vertical gradient: spring green #0FF7A3 -> teal #00C0A8
- * -> cyan #008CBB -> azure #0048D0. Azure covers the most pixels, so it
- * is the primary; the spring green becomes the CTA accent.
+ * ProbStat Tutor tokens. Three layers:
  *
- * Two rules to keep the palette accessible:
+ *   1. Primitives: the azure / green / amber / red ramps (100 wash, 300 hover
+ *      and fills, 500 ink-on-surface, 700 ink-on-wash), the logo's mint, and
+ *      the five mastery steps sampled along the logo gradient.
+ *   2. Semantic: --surface (the desk) < --surface-tint (quiet panels) <
+ *      --sheet (the problem sheet, lightest), --ink, --ink-muted, --rule
+ *      (decorative hairline), --input (control boundary, >= 3:1).
+ *   3. Tailwind: `@theme inline` below turns every token into a class
+ *      (bg-sheet, text-ink-muted, bg-azure-100, text-green-700, bg-mastery-3,
+ *      border-rule, rounded-control ...).
  *
- * 1. --cta is a BACKGROUND-only token in light mode. Green on white is
- *    1.6:1 as text. When you need green *text* on a light surface, use
- *    --success (4.95:1) instead.
- * 2. --border is decorative and deliberately low-contrast. --input is the
- *    boundary that identifies a control and must stay >= 3:1 against both
- *    --background and --card (WCAG 1.4.11). Do not collapse them into one
- *    value.
+ * The shadcn-era names (background, card, primary, muted, accent, cta,
+ * success, warning, destructive, indigo-*) are kept as aliases so existing
+ * pages keep rendering while they migrate. New code uses the semantic names.
  *
- * Every text pair below clears 4.5:1 and every interactive boundary clears
- * 3:1 in both themes.
+ * Colour rules (brief section 2):
+ *   - primary = azure: links, focus ring, primary buttons, "instructive".
+ *   - cta = mint FILL with ink text. Never text, never a thin icon.
+ *   - correct = green, wrong/retired = red, hint = amber (hints only),
+ *     step = azure-100 wash with azure-700 text.
+ *   - The 100 step of every ramp is a background; 500 is ink on a surface;
+ *     700 is ink on its own 100 wash. Every text pair is >= 4.5:1 in both
+ *     themes (checked with contrast.py; values in the S0 foundation report).
+ *   - The gradient appears only as the header hairline, progress fills and
+ *     the logo. No gradient text, buttons or washes.
  */
 
+@theme {
+  /* Raw size scale (13 / 16 / 19 / 23 / 28 / 34 / 41 / 56). Pages should use
+   * the type ROLE utilities further down (type-h1, type-body ...), not these. */
+  --text-1: 0.8125rem;
+  --text-1--line-height: 1.25rem;
+  --text-2: 1rem;
+  --text-2--line-height: 1.5rem;
+  --text-3: 1.1875rem;
+  --text-3--line-height: 1.75rem;
+  --text-4: 1.4375rem;
+  --text-4--line-height: 1.2;
+  --text-5: 1.75rem;
+  --text-5--line-height: 1.15;
+  --text-6: 2.125rem;
+  --text-6--line-height: 1.15;
+  --text-7: 2.5625rem;
+  --text-7--line-height: 1.15;
+  --text-8: 3.5rem;
+  --text-8--line-height: 1.08;
+
+  /* Families. The next/font variables are set on <html> in layout.tsx. */
+  /* One superfamily: Source Serif 4 / Source Sans 3 / Source Code Pro. */
+  --font-display:
+    var(--font-source-serif), "Iowan Old Style", Georgia, "Times New Roman",
+    serif;
+  --font-sans:
+    var(--font-source-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    var(--font-source-code), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Motion. `ease-out` replaces Tailwind's default curve on purpose. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 @theme inline {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Semantic surfaces and ink. */
+  --color-surface: var(--surface);
+  --color-surface-tint: var(--surface-tint);
+  --color-sheet: var(--sheet);
+  --color-sheet-foreground: var(--sheet-foreground);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-hover: var(--hover);
+
+  /* Ramps. */
+  --color-azure-100: var(--azure-100);
+  --color-azure-300: var(--azure-300);
+  --color-azure-500: var(--azure-500);
+  --color-azure-700: var(--azure-700);
+  --color-green-100: var(--green-100);
+  --color-green-300: var(--green-300);
+  --color-green-500: var(--green-500);
+  --color-green-700: var(--green-700);
+  --color-amber-100: var(--amber-100);
+  --color-amber-300: var(--amber-300);
+  --color-amber-500: var(--amber-500);
+  --color-amber-700: var(--amber-700);
+  --color-red-100: var(--red-100);
+  --color-red-300: var(--red-300);
+  --color-red-500: var(--red-500);
+  --color-red-700: var(--red-700);
+  --color-mint: var(--mint);
+  --color-mint-foreground: var(--mint-foreground);
+  --color-on-fill: var(--on-fill);
+  --color-mint-hover: var(--mint-hover);
+  --color-scrim: var(--scrim);
+
+  /* Mastery ramp: fill + the text that sits on it. */
+  --color-mastery-0: var(--mastery-0);
+  --color-mastery-1: var(--mastery-1);
+  --color-mastery-2: var(--mastery-2);
+  --color-mastery-3: var(--mastery-3);
+  --color-mastery-4: var(--mastery-4);
+  --color-mastery-0-foreground: var(--mastery-0-foreground);
+  --color-mastery-1-foreground: var(--mastery-1-foreground);
+  --color-mastery-2-foreground: var(--mastery-2-foreground);
+  --color-mastery-3-foreground: var(--mastery-3-foreground);
+  --color-mastery-4-foreground: var(--mastery-4-foreground);
+
+  /* Legacy aliases (kept so current pages render; migrate to the above). */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -45,75 +136,142 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-indigo-100: var(--indigo-100);
+  --color-indigo-300: var(--indigo-300);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-700: var(--indigo-700);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-xs: calc(var(--radius) * 0.5);
-  --radius-sm: calc(var(--radius) * 0.75);
-  --radius-md: calc(var(--radius) * 0.875);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.5);
+
+  /* Radius: controls and chips 6, sheet and panels 10. */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-control: 0.375rem;
+  --radius-chip: 0.375rem;
+  --radius-panel: 0.625rem;
 }
 
 :root {
   color-scheme: light;
 
-  --background: oklch(0.994 0.003 250);
-  --foreground: oklch(0.185 0.022 264);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.185 0.022 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.185 0.022 264);
+  /* Layout. Every sticky offset and viewport calc reads these. */
+  --header-h: 3.5rem;
+  --rail-w: 16.5rem;
+  --rail-collapsed-w: 3rem;
+  --drawer-w: 23.75rem;
+  --sheet-gutter: 2rem;
+  --bottom-bar-h: 3.5rem;
 
-  /* Logo azure #0048D0 — 7.2:1 against its foreground. */
-  --primary: oklch(0.465 0.218 262);
-  --primary-foreground: oklch(0.99 0.005 250);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
 
-  --secondary: oklch(0.966 0.008 250);
-  --secondary-foreground: oklch(0.245 0.03 262);
-  --muted: oklch(0.968 0.008 250);
-  --muted-foreground: oklch(0.494 0.022 258);
+  /* ---- Light: "desk" ---- */
+  --surface: oklch(0.975 0.006 250);
+  --surface-tint: oklch(0.955 0.012 250);
+  --sheet: oklch(1 0 0);
+  --ink: oklch(0.2 0.025 262);
+  --ink-muted: oklch(0.47 0.025 258);
+  --rule: oklch(0.9 0.012 252);
+  /* 3.7:1 on surface-tint, 3.9:1 on surface, 4.2:1 on sheet. */
+  --input: oklch(0.585 0.03 252);
+  /* One step past surface-tint so hover reads on every surface. */
+  --hover: oklch(0.935 0.014 252);
 
-  /* Hover surface for ghost/outline controls — brand-tinted, not vivid. */
-  --accent: oklch(0.952 0.024 240);
-  --accent-foreground: oklch(0.27 0.05 262);
+  --azure-100: oklch(0.95 0.03 262);
+  --azure-300: oklch(0.82 0.1 262);
+  --azure-500: oklch(0.465 0.218 262);
+  --azure-700: oklch(0.38 0.19 262);
+  --green-100: oklch(0.96 0.05 160);
+  --green-300: oklch(0.85 0.12 160);
+  --green-500: oklch(0.52 0.14 158);
+  --green-700: oklch(0.42 0.12 158);
+  --amber-100: oklch(0.96 0.05 80);
+  --amber-300: oklch(0.88 0.1 80);
+  --amber-500: oklch(0.55 0.12 70);
+  --amber-700: oklch(0.45 0.11 65);
+  --red-100: oklch(0.96 0.03 25);
+  --red-300: oklch(0.86 0.08 25);
+  --red-500: oklch(0.55 0.2 27);
+  --red-700: oklch(0.45 0.18 27);
+  --mint: oklch(0.815 0.177 163);
+  --mint-foreground: oklch(0.2 0.025 262);
+  --mint-hover: oklch(0.77 0.17 163);
+  /* Modal and sheet backdrop; the same deep ink in both themes. */
+  --scrim: oklch(0.14 0.02 262 / 0.5);
+  /* Text on a saturated 500 fill (azure, red, green). */
+  --on-fill: oklch(0.99 0.005 250);
 
-  /* Logo spring green #00E5A0 — background-only in this theme. */
-  --cta: oklch(0.815 0.177 163);
-  --cta-foreground: oklch(0.22 0.045 255);
+  --mastery-0: var(--rule);
+  --mastery-1: var(--azure-300);
+  --mastery-2: var(--azure-500);
+  --mastery-3: oklch(0.6 0.121 231);
+  --mastery-4: var(--mint);
+  --mastery-0-foreground: var(--ink-muted);
+  --mastery-1-foreground: var(--ink);
+  --mastery-2-foreground: var(--on-fill);
+  --mastery-3-foreground: var(--ink);
+  --mastery-4-foreground: var(--mint-foreground);
 
-  --destructive: oklch(0.55 0.22 27);
-  --destructive-foreground: oklch(0.99 0.005 250);
-  --success: oklch(0.52 0.14 158);
-  --success-foreground: oklch(0.99 0.005 250);
-  --warning: oklch(0.52 0.12 68);
-  --warning-foreground: oklch(0.99 0.005 250);
-
-  --border: oklch(0.906 0.012 252);
-  --input: oklch(0.65 0.03 252);
-  --ring: oklch(0.465 0.218 262);
-
-  /* Sampled along the logo gradient, green -> azure. */
-  --chart-1: oklch(0.815 0.177 163);
-  --chart-2: oklch(0.724 0.132 179);
-  --chart-3: oklch(0.64 0.12 205);
-  --chart-4: oklch(0.6 0.121 231);
-  --chart-5: oklch(0.512 0.189 258);
-
+  /* Four logo stops, low mastery (azure) to mastered (mint). */
   --brand-gradient: linear-gradient(
-    160deg,
-    oklch(0.815 0.177 163),
-    oklch(0.724 0.132 179) 45%,
-    oklch(0.465 0.218 262)
+    90deg,
+    var(--azure-500),
+    oklch(0.6 0.121 231) 38%,
+    oklch(0.724 0.132 179) 70%,
+    var(--mint)
   );
+
+  --sheet-shadow:
+    0 1px 2px color-mix(in oklch, var(--ink) 6%, transparent),
+    0 8px 24px color-mix(in oklch, var(--ink) 8%, transparent);
+
+  /* ---- Semantic aliases (legacy names) ---- */
+  --background: var(--surface);
+  --foreground: var(--ink);
+  --card: var(--sheet);
+  --card-foreground: var(--ink);
+  --popover: var(--sheet);
+  --popover-foreground: var(--ink);
+  --sheet-foreground: var(--ink);
+  --primary: var(--azure-500);
+  --primary-foreground: var(--on-fill);
+  --secondary: var(--surface-tint);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-tint);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--hover);
+  --accent-foreground: var(--ink);
+  --cta: var(--mint);
+  --cta-foreground: var(--mint-foreground);
+  --destructive: var(--red-500);
+  --destructive-foreground: var(--on-fill);
+  --success: var(--green-500);
+  --success-foreground: var(--on-fill);
+  /* Amber means "hint" in this product; `warning` survives only as an alias. */
+  --warning: var(--amber-500);
+  --warning-foreground: var(--on-fill);
+  --border: var(--rule);
+  --ring: var(--azure-500);
+  --indigo-100: var(--azure-100);
+  --indigo-300: var(--azure-300);
+  --indigo-500: var(--azure-500);
+  --indigo-700: var(--azure-700);
+
+  --chart-1: var(--azure-500);
+  --chart-2: oklch(0.6 0.121 231);
+  --chart-3: oklch(0.64 0.12 205);
+  --chart-4: oklch(0.724 0.132 179);
+  --chart-5: var(--mint);
 
   --radius: 0.625rem;
 }
@@ -121,85 +279,314 @@
 .dark {
   color-scheme: dark;
 
-  --background: oklch(0.165 0.014 258);
-  --foreground: oklch(0.962 0.006 250);
-  --card: oklch(0.212 0.016 258);
-  --card-foreground: oklch(0.962 0.006 250);
-  --popover: oklch(0.212 0.016 258);
-  --popover-foreground: oklch(0.962 0.006 250);
+  /* ---- Dark: "chalkboard". Surfaces lighten as they come forward. ---- */
+  --surface: oklch(0.17 0.02 262);
+  --surface-tint: oklch(0.205 0.02 260);
+  --sheet: oklch(0.235 0.02 260);
+  --ink: oklch(0.95 0.008 250);
+  --ink-muted: oklch(0.72 0.02 254);
+  --rule: oklch(0.31 0.02 258);
+  /* 3.7:1 on sheet, 4.0:1 on surface-tint, 4.2:1 on surface. */
+  --input: oklch(0.565 0.03 258);
+  --hover: oklch(0.27 0.022 258);
 
-  /* The logo azure is too dark on a dark ground; lift it in the same hue
-   * family to #5999F8 for 6.8:1 against --background. */
-  --primary: oklch(0.685 0.155 258);
-  --primary-foreground: oklch(0.17 0.03 262);
+  --azure-100: oklch(0.28 0.06 262);
+  --azure-300: oklch(0.45 0.12 262);
+  --azure-500: oklch(0.685 0.155 258);
+  --azure-700: oklch(0.8 0.12 258);
+  --green-100: oklch(0.27 0.05 160);
+  --green-300: oklch(0.45 0.1 160);
+  --green-500: oklch(0.76 0.17 160);
+  --green-700: oklch(0.85 0.15 160);
+  --amber-100: oklch(0.28 0.05 75);
+  --amber-300: oklch(0.45 0.09 75);
+  --amber-500: oklch(0.82 0.15 78);
+  --amber-700: oklch(0.88 0.13 80);
+  --red-100: oklch(0.28 0.06 25);
+  --red-300: oklch(0.45 0.12 25);
+  --red-500: oklch(0.68 0.19 25);
+  --red-700: oklch(0.8 0.14 25);
+  --mint: oklch(0.815 0.177 163);
+  --mint-foreground: oklch(0.17 0.03 262);
+  --mint-hover: oklch(0.86 0.16 163);
+  --scrim: oklch(0.08 0.02 262 / 0.6);
+  --on-fill: oklch(0.17 0.03 262);
 
-  --secondary: oklch(0.268 0.018 258);
-  --secondary-foreground: oklch(0.962 0.006 250);
-  --muted: oklch(0.268 0.018 258);
-  --muted-foreground: oklch(0.725 0.022 254);
+  --mastery-3-foreground: oklch(0.17 0.03 262);
 
-  --accent: oklch(0.285 0.028 255);
-  --accent-foreground: oklch(0.96 0.008 250);
-
-  --cta: oklch(0.815 0.177 163);
-  --cta-foreground: oklch(0.19 0.04 255);
-
-  --destructive: oklch(0.68 0.19 25);
-  --destructive-foreground: oklch(0.17 0.03 262);
-  --success: oklch(0.76 0.17 160);
-  --success-foreground: oklch(0.17 0.03 262);
-  --warning: oklch(0.82 0.15 78);
-  --warning-foreground: oklch(0.17 0.03 262);
-
-  --border: oklch(0.32 0.02 258);
-  --input: oklch(0.505 0.03 258);
-  --ring: oklch(0.685 0.155 258);
-
-  --chart-1: oklch(0.815 0.177 163);
-  --chart-2: oklch(0.724 0.132 179);
-  --chart-3: oklch(0.64 0.12 205);
-  --chart-4: oklch(0.6 0.121 231);
-  --chart-5: oklch(0.685 0.155 258);
-
-  --brand-gradient: linear-gradient(
-    160deg,
-    oklch(0.815 0.177 163),
-    oklch(0.724 0.132 179) 45%,
-    oklch(0.685 0.155 258)
-  );
+  --sheet-shadow: none;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
 
   html {
     @apply bg-background font-sans text-foreground;
+    scroll-padding-top: calc(var(--header-h) + 1rem);
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply min-h-svh bg-background text-foreground antialiased;
+    @apply min-h-svh bg-background text-foreground antialiased type-body;
+    font-feature-settings: "kern";
   }
 
-  /* Headings read tighter than body copy at the sizes this app uses. */
-  h1,
-  h2,
+  ::selection {
+    background-color: var(--azure-100);
+    color: var(--ink);
+  }
+
+  /* Unstyled headings default to their role. */
+  h1 {
+    @apply type-h1;
+  }
+
+  h2 {
+    @apply type-h2;
+  }
+
   h3 {
-    @apply tracking-tight;
+    @apply type-h3;
+  }
+
+  h4,
+  h5,
+  h6 {
+    @apply type-body-strong;
+  }
+
+  /* 16px controls everywhere: iOS zooms into anything smaller. */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 1em);
+  }
+
+  /* One focus ring for everything interactive: 2px azure, offset 2. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
+  /* Only state changes move. Someone who asked the OS for less motion gets
+   * the end state immediately. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-@layer utilities {
-  /* Echoes the logo gradient. Used for the hero wordmark and rule accents. */
-  .brand-gradient-text {
-    background-image: var(--brand-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
+/* ---------------------------------------------------------------------------
+ * TYPE ROLES. One class per role; pages use these and nothing else for type.
+ * Serif = Source Serif 4, sans = Source Sans 3, mono = Source Code Pro.
+ * ------------------------------------------------------------------------- */
 
-  .brand-gradient-surface {
-    background-image: var(--brand-gradient);
+/* Landing h1 only. */
+@utility type-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 3rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  @media (width >= 64rem) {
+    font-size: 3.5rem;
   }
 }
+
+/* Page titles (PageHeader). */
+@utility type-h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+/* Section and panel titles. */
+@utility type-h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: normal;
+  text-wrap: balance;
+}
+
+/* Sub-panels, card titles. */
+@utility type-h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.35;
+  letter-spacing: normal;
+  text-wrap: balance;
+}
+
+/* Problem statements, worked steps, prose. KaTeX inherits this size. */
+@utility type-reading {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 65ch;
+  @media (width >= 40rem) {
+    font-size: 1.125rem;
+  }
+}
+
+@utility type-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+@utility type-body-strong {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Table cells, helper text, meta lines. The floor inside tables. */
+@utility type-small {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+/* Group labels, table headers, eyebrows. Sentence case, never uppercase. */
+@utility type-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: var(--ink-muted);
+}
+
+/* Timestamps, footnotes. 13px is the floor for any text. */
+@utility type-caption {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* Codes, join codes, week labels, numbers in columns. */
+@utility type-mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The answer field. */
+@utility type-mono-input {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 1.125rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Big numbers in metric tiles and pipeline strips: mono 28px, tabular. */
+@utility type-metric {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chip text (StatusChip, MasteryChip, Badge): 13px medium on a 24px chip.
+ * A named utility instead of `text-1`, which tailwind-merge reads as a text
+ * colour and drops when a tone class such as `text-green-700` follows it. */
+@utility chip-text {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+/* The shared focus ring, for components that suppress the default outline. */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Numbers that line up in columns. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one shadow in the product, for the Sheet. Light theme only. */
+@utility sheet-shadow {
+  box-shadow: var(--sheet-shadow);
+}
+
+/* The 1px gradient line under the header. */
+@utility gradient-hairline {
+  height: 1px;
+  background-image: var(--brand-gradient);
+}
+
+/* Progress-bar fills only. */
+@utility brand-gradient-fill {
+  background-image: var(--brand-gradient);
+}
+
+/* Also set --tw-duration / --tw-ease so tw-animate-css enter/exit use them. */
+@utility duration-fast {
+  --tw-duration: var(--duration-fast);
+  transition-duration: var(--duration-fast);
+}
+
+@utility duration-base {
+  --tw-duration: var(--duration-base);
+  transition-duration: var(--duration-base);
+}
+
+/* The Sheet's ruled margin: a 1px rule one gutter in from the left edge. */
+@utility sheet-margin {
+  background-image: linear-gradient(var(--rule), var(--rule));
+  background-size: 1px 100%;
+  background-position: var(--sheet-gutter) 0;
+  background-repeat: no-repeat;
+}
+
+/* Bottom safe area for phone bars. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* KaTeX: at least 17px and never smaller than the surrounding text. */
+[data-slot="math"] .katex {
+  font-size: max(1.0625em, 1.0625rem);
+}
+

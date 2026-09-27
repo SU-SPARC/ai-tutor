@@ -1,40 +1,24 @@
-import Link from "next/link"
-import { SearchX } from "lucide-react"
+import Link from "next/link";
 
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { StatusPage } from "@/components/ui/status-page";
 
 export default function PracticeQuestionNotFound() {
   return (
-    <main className="min-h-svh bg-background">
-      <section className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <SearchX className="h-5 w-5 text-primary" />
-              Question not available
-            </CardTitle>
-            <CardDescription>
-              This question could not be found, is not currently available, or
-              is not published for practice yet. Try another question.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button asChild>
-              <Link href="/topics">Browse topics</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/practice">Open practice</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-    </main>
-  )
+    <StatusPage
+      code="404"
+      title="Question not available"
+      description="This question could not be found or is not published for practice yet. Pick another one to keep going."
+      actions={
+        <>
+          <Button asChild>
+            <Link href="/learn">Browse topics</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/practice">Open practice</Link>
+          </Button>
+        </>
+      }
+    />
+  );
 }

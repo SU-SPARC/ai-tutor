@@ -33,11 +33,22 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page("/account", "src/app/account/page.tsx", "student-authenticated", [
     "requireStudent",
   ]),
-  page("/dashboard", "src/app/dashboard/page.tsx", "student-authenticated", [
-    "requireStudent",
-    "getStudentProgress",
-  ]),
+  page("/dashboard", "src/app/dashboard/page.tsx", "public", ["redirect"]),
   page("/forbidden", "src/app/forbidden/page.tsx", "public", []),
+  page("/join", "src/app/join/page.tsx", "public-auth-protocol", [
+    "GHOST_LOGIN_ENABLED",
+  ]),
+  page("/learn", "src/app/learn/page.tsx", "student-or-anonymous", [
+    "requireStudentAccess",
+    "getStudentProgress",
+    "getApprovedQuestions",
+  ]),
+  page(
+    "/learn/[topic]",
+    "src/app/learn/[topic]/page.tsx",
+    "student-or-anonymous",
+    ["requireStudentAccess", "getStudentProgress", "listQuestionsByTopic"],
+  ),
   page("/onboarding", "src/app/onboarding/page.tsx", "student-authenticated", [
     "requireStudent",
   ]),
@@ -67,6 +78,36 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "src/app/professor/availability/page.tsx",
     "professor-review",
     ["requireProfessorReview", "getContentAvailabilityDashboard"],
+  ),
+  page(
+    "/professor/courses",
+    "src/app/professor/courses/page.tsx",
+    "professor",
+    [],
+  ),
+  page(
+    "/professor/courses/[id]",
+    "src/app/professor/courses/[id]/page.tsx",
+    "professor",
+    ["isCourseEntityId"],
+  ),
+  page(
+    "/professor/courses/[id]/topics",
+    "src/app/professor/courses/[id]/topics/page.tsx",
+    "professor",
+    ["isCourseEntityId"],
+  ),
+  page(
+    "/professor/courses/[id]/topics/[topicId]",
+    "src/app/professor/courses/[id]/topics/[topicId]/page.tsx",
+    "professor",
+    ["isCourseEntityId"],
+  ),
+  page(
+    "/professor/courses/[id]/sections/[sid]",
+    "src/app/professor/courses/[id]/sections/[sid]/page.tsx",
+    "professor",
+    ["isCourseEntityId"],
   ),
   page(
     "/professor/content-transfer",
@@ -130,9 +171,9 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "public-auth-protocol",
     ["safeReturnPath", "SignUp"],
   ),
-  page("/topics", "src/app/topics/page.tsx", "public", ["getQuestionCounts"]),
+  page("/topics", "src/app/topics/page.tsx", "public", ["redirect"]),
   page("/topics/[slug]", "src/app/topics/[slug]/page.tsx", "public", [
-    "listQuestionsByTopic",
+    "redirect",
   ]),
 
   layout("/", "src/app/layout.tsx", "public", []),
@@ -140,6 +181,30 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "requireProfessor",
   ]),
 
+  action(
+    "signInAsGhost",
+    "src/app/sign-in/ghost-actions.ts",
+    "public-auth-protocol",
+    ["GHOST_LOGIN_ENABLED", "parseGhostRole"],
+  ),
+  action(
+    "signOutGhost",
+    "src/app/sign-in/ghost-actions.ts",
+    "public-auth-protocol",
+    [],
+  ),
+  action(
+    "joinAsGuestStudent",
+    "src/app/join/actions.ts",
+    "public-auth-protocol",
+    ["GHOST_LOGIN_ENABLED", "signInAsGhost"],
+  ),
+  action(
+    "joinAsDemoProfessor",
+    "src/app/join/actions.ts",
+    "public-auth-protocol",
+    ["GHOST_LOGIN_ENABLED", "signInAsGhost"],
+  ),
   action(
     "acknowledgeStudentOnboardingAction",
     "src/app/onboarding/actions.ts",

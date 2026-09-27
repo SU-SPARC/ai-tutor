@@ -503,7 +503,7 @@ describe("Students page", () => {
     // group; mclark before mclark2 in the unassigned group.
     expect(markup.indexOf("abrown")).toBeLessThan(markup.indexOf("zanders"));
     expect(markup.indexOf("zanders")).toBeLessThan(
-      markup.indexOf("practised without signing in"),
+      markup.indexOf("practiced without signing in"),
     );
     expect(markup.indexOf(">mclark<")).toBeLessThan(markup.indexOf(">mclark2<"));
     expect(markup).not.toContain("Reveal all names");
@@ -533,7 +533,7 @@ describe("Students page", () => {
     expect(markup).toContain("Search by student code");
     expect(markup).toContain("zanders");
     expect(markup).toContain("abrown");
-    expect(markup).toContain("practised without signing in");
+    expect(markup).toContain("practiced without signing in");
     expect(markup).toContain("Username unavailable");
     expect(markup).toContain(studentLabel(KEY_BROWN));
     // The activity view keeps its own order: the list's, not the alphabet's.
@@ -697,7 +697,7 @@ describe("roster and table markup", () => {
       markup.indexOf("Username unavailable"),
     );
     expect(markup.indexOf("Username unavailable")).toBeLessThan(
-      markup.indexOf("practised without signing in"),
+      markup.indexOf("practiced without signing in"),
     );
     expect(markup).toContain("No longer has an account");
     expect(markup).toContain("5 students");

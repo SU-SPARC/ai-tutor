@@ -1,44 +1,62 @@
 "use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
-import {
-  CheckCircle2,
-  ChevronDown,
-  Eye,
-  Loader2,
-  Pencil,
-  RotateCcw,
-  ShieldCheck,
-} from "lucide-react";
+import { Fragment, useId, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { ChevronDown, Eye, Pencil, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { ProfessorQuestionBatchConfirmation } from "@/components/professor/professor-question-batch-confirmation";
+import {
+  creationMethodLabel,
+  professorDifficultyLabel,
+  ProfessorTime,
+  QuestionStateChip,
+  REVISION_METHOD_LABELS,
+  replaceSearchParam,
+  SavedForLaterChip,
+  formatProfessorDate,
+  type QuestionDisplayState,
+} from "@/components/professor/professor-question-labels";
 import { ProfessorQuestionReserveControls } from "@/components/professor/professor-question-reserve-controls";
+import { ProfessorQuestionVersionHistory } from "@/components/professor/professor-question-version-history";
 import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
 import {
   canEditQuestionVersion,
   ProfessorQuestionRevisionEditor,
   revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
+import { questionCode } from "@/lib/labels";
+import { professorQuestionPath } from "@/lib/professor/question-paths";
 import type {
   QuestionLifecycleAction,
   QuestionLifecycleBatchAction,
   QuestionLifecycleBatchResult,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
-  QuestionLifecycleEventAction,
-  QuestionLifecycleEventDto,
   QuestionVersionDto,
   QuestionVersionState,
 } from "@/lib/types";
@@ -47,12 +65,16 @@ import {
   questionIntakeSourceLabel,
 } from "@/lib/question-intake/provenance";
 import { lifecycleActionRequiresReason } from "@/lib/tutor/question-lifecycle";
-import { questionReserveReasonLabel } from "@/lib/tutor/professor-question-reserve";
 import {
   professorReviewReasonLabel,
   professorReviewReasonRequiresNote,
 } from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
+import { cn } from "@/lib/utils";
+
+// The version history lives in its own module; it is re-exported here because
+// callers and tests import it from the lifecycle panel.
+export { ProfessorQuestionVersionHistory };
 
 type LifecycleFilter =
   | QuestionVersionState
@@ -74,7 +96,7 @@ const FILTERS: Array<{ label: string; value: LifecycleFilter }> = [
   { label: "Needs review", value: "needs_review" },
   { label: "Revision requested", value: "revision_requested" },
   { label: "Approved", value: "approved" },
-  { label: "Reserve", value: "reserve" },
+  { label: "Saved for later", value: "reserve" },
   { label: "Practice allowed", value: "practice_allowed" },
   { label: "Published", value: "published" },
   { label: "Unpublished", value: "unpublished" },
@@ -94,30 +116,69 @@ const ACTION_LABELS: Record<QuestionLifecycleAction, string> = {
   unpublish: "Unpublish",
 };
 
-const EVENT_LABELS: Record<QuestionLifecycleEventAction, string> = {
-  ...ACTION_LABELS,
-  create_version: "Version created",
-  migrate: "History migrated",
-  regenerate: "Version regenerated",
+/** The same actions once they have happened, for confirmations. */
+const ACTION_DONE_LABELS: Record<QuestionLifecycleAction, string> = {
+  approve: "approved (not published)",
+  archive: "archived",
+  publish: "published",
+  reject: "rejected",
+  request_revision: "sent back for revision",
+  restore: "restored",
+  rollback: "rolled back",
+  submit: "submitted for review",
+  unpublish: "unpublished",
 };
 
-const RESERVE_EVENT_LABELS = {
-  allow_practice: "Similar practice allowed",
-  disallow_practice: "Similar practice disabled",
-  release: "Reserve removed",
-  reserve: "Saved for later",
-} as const;
+const BATCH_DONE_LABELS: Record<QuestionLifecycleBatchAction, string> = {
+  publish: "Published",
+  reject: "Rejected",
+  request_revision: "Sent back for revision",
+};
 
+function filterFromView(view?: string): LifecycleFilter {
+  return FILTERS.find((item) => item.value === view)?.value ?? "all";
+}
+
+function matchesFilter(
+  question: QuestionLifecycleDto,
+  filter: LifecycleFilter,
+) {
+  if (filter === "all") return true;
+  if (filter === "archived") return question.recordState === "archived";
+  if (filter === "reserve") return Boolean(question.reserve);
+  if (filter === "practice_allowed") {
+    return Boolean(question.reserve?.practiceAllowed);
+  }
+  return (
+    question.recordState === "active" &&
+    question.workingVersion.state === filter
+  );
+}
+
+function displayState(question: QuestionLifecycleDto): QuestionDisplayState {
+  return question.recordState === "archived"
+    ? "archived"
+    : question.workingVersion.state;
+}
+
+/**
+ * The question bank (every question, grouped by syllabus topic, with views,
+ * row actions and a sticky toolbar for batch actions) and, with
+ * `hideBulkControls`, the single-question lifecycle on the detail page.
+ */
 export function ProfessorQuestionLifecyclePanel({
   focusQuestionId,
   hideBulkControls = false,
   initialDashboard,
+  initialView,
 }: {
   /** Opens this question's row immediately and marks it in the table. */
   focusQuestionId?: string;
   /** Single-question views have no use for lifecycle filters or batches. */
   hideBulkControls?: boolean;
   initialDashboard: QuestionLifecycleDashboard;
+  /** A view to open on (`?view=approved`); anything unknown shows All. */
+  initialView?: string;
 }) {
   const [activeKey, setActiveKey] = useState<string>();
   const [batchAction, setBatchAction] =
@@ -134,7 +195,10 @@ export function ProfessorQuestionLifecyclePanel({
     focusQuestionId,
   );
   const [editingId, setEditingId] = useState<string>();
-  const [filter, setFilter] = useState<LifecycleFilter>("all");
+  const [filter, setFilter] = useState<LifecycleFilter>(() =>
+    hideBulkControls ? "all" : filterFromView(initialView),
+  );
+  const [collapsedTopicIds, setCollapsedTopicIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string>();
   const [note, setNote] = useState("");
   const [reasonCode, setReasonCode] = useState("");
@@ -144,23 +208,48 @@ export function ProfessorQuestionLifecyclePanel({
   const [revisionMethod, setRevisionMethod] = useState<
     "manual" | "regeneration"
   >("manual");
+  const decisionHeadingId = useId();
 
   const questions = useMemo(
     () =>
-      dashboard.questions.filter((question) => {
-        if (filter === "all") return true;
-        if (filter === "archived") return question.recordState === "archived";
-        if (filter === "reserve") return Boolean(question.reserve);
-        if (filter === "practice_allowed") {
-          return Boolean(question.reserve?.practiceAllowed);
-        }
-        return (
-          question.recordState === "active" &&
-          question.workingVersion.state === filter
-        );
-      }),
+      dashboard.questions.filter((question) => matchesFilter(question, filter)),
     [dashboard.questions, filter],
   );
+  const filterCounts = useMemo(
+    () =>
+      new Map(
+        FILTERS.map((item) => [
+          item.value,
+          dashboard.questions.filter((question) =>
+            matchesFilter(question, item.value),
+          ).length,
+        ]),
+      ),
+    [dashboard.questions],
+  );
+  const groups = useMemo(() => {
+    const byTopic = new Map<string, QuestionLifecycleDto[]>();
+    for (const question of questions) {
+      const topicId = question.workingVersion.topicId;
+      byTopic.set(topicId, [...(byTopic.get(topicId) ?? []), question]);
+    }
+    const known = dashboard.topics
+      .filter((topic) => byTopic.has(topic.id))
+      .map((topic) => ({
+        id: topic.id,
+        questions: byTopic.get(topic.id) ?? [],
+        title: topic.title,
+      }));
+    const knownIds = new Set(dashboard.topics.map((topic) => topic.id));
+    const unknown = [...byTopic]
+      .filter(([topicId]) => !knownIds.has(topicId))
+      .map(([topicId, items]) => ({
+        id: topicId,
+        questions: items,
+        title: topicId,
+      }));
+    return [...known, ...unknown];
+  }, [dashboard.topics, questions]);
   const inspectionByVersionId = useMemo(
     () =>
       new Map(
@@ -178,6 +267,35 @@ export function ProfessorQuestionLifecyclePanel({
       ),
     [dashboard.questions, selectedVersionIds],
   );
+  const topicTitles = useMemo(
+    () => new Map(dashboard.topics.map((topic) => [topic.id, topic.title])),
+    [dashboard.topics],
+  );
+  const busy =
+    dashboard.readOnly || Boolean(activeKey) || Boolean(batchAction);
+  const selectableInView = questions.filter(
+    (question) =>
+      isBatchSelectableQuestion(question) && !dashboard.readOnly,
+  );
+  const selectedInView = selectableInView.filter((question) =>
+    selectedVersionIds.includes(question.workingVersion.versionId),
+  ).length;
+  const viewLabel =
+    FILTERS.find((item) => item.value === filter)?.label ?? "All";
+
+  function replaceQuestion(updated: QuestionLifecycleDto) {
+    setDashboard((current) => ({
+      ...current,
+      questions: current.questions.map((candidate) =>
+        candidate.questionId === updated.questionId ? updated : candidate,
+      ),
+    }));
+  }
+
+  function changeFilter(next: LifecycleFilter) {
+    setFilter(next);
+    replaceSearchParam("view", next === "all" ? undefined : next);
+  }
 
   async function transition(
     question: QuestionLifecycleDto,
@@ -231,20 +349,16 @@ export function ProfessorQuestionLifecyclePanel({
         setMessage(payload.error ?? "Lifecycle transition failed.");
         return false;
       }
-      setDashboard((current) => ({
-        ...current,
-        questions: current.questions.map((candidate) =>
-          candidate.questionId === payload.question?.questionId
-            ? payload.question
-            : candidate,
-        ),
-      }));
+      replaceQuestion(payload.question);
       setNote("");
       setReasonCode("");
       setSelectedVersionIds((current) =>
         current.filter((candidate) => candidate !== versionId),
       );
-      setMessage(`${ACTION_LABELS[action]} completed.`);
+      toast({
+        title: `“${question.workingVersion.title}” ${ACTION_DONE_LABELS[action]}.`,
+        tone: "success",
+      });
       return true;
     } catch {
       setMessage("Lifecycle transition failed.");
@@ -293,14 +407,7 @@ export function ProfessorQuestionLifecyclePanel({
         );
         return;
       }
-      setDashboard((current) => ({
-        ...current,
-        questions: current.questions.map((candidate) =>
-          candidate.questionId === detail.question?.questionId
-            ? detail.question
-            : candidate,
-        ),
-      }));
+      replaceQuestion(detail.question);
       setSelectedVersionIds((current) =>
         current.filter(
           (versionId) => versionId !== question.workingVersion.versionId,
@@ -308,7 +415,10 @@ export function ProfessorQuestionLifecyclePanel({
       );
       setNote("");
       setReasonCode("");
-      setMessage("A regenerated version was submitted for review.");
+      toast({
+        title: "A regenerated version was submitted for review.",
+        tone: "success",
+      });
     } catch {
       setMessage("Regeneration failed.");
     } finally {
@@ -344,14 +454,7 @@ export function ProfessorQuestionLifecyclePanel({
         setMessage(payload.error ?? "Provenance correction failed.");
         return;
       }
-      setDashboard((current) => ({
-        ...current,
-        questions: current.questions.map((candidate) =>
-          candidate.questionId === payload.question?.questionId
-            ? payload.question
-            : candidate,
-        ),
-      }));
+      replaceQuestion(payload.question);
       setSelectedVersionIds((current) =>
         current.filter(
           (versionId) => versionId !== question.workingVersion.versionId,
@@ -400,9 +503,11 @@ export function ProfessorQuestionLifecyclePanel({
           payload.inspection!,
         ],
       }));
-      setMessage(
-        "Inspection recorded for this exact immutable version. It can now be selected for a supported batch action.",
-      );
+      toast({
+        title: `Inspection recorded for v${version.versionNumber}.`,
+        description: "You can now select it for a batch action.",
+        tone: "success",
+      });
     } catch {
       setMessage("Inspection could not be recorded.");
     } finally {
@@ -458,6 +563,28 @@ export function ProfessorQuestionLifecyclePanel({
     );
   }
 
+  function toggleViewSelection(selected: boolean) {
+    const viewIds = selectableInView.map(
+      (question) => question.workingVersion.versionId,
+    );
+    if (!selected) {
+      setSelectedVersionIds((current) =>
+        current.filter((versionId) => !viewIds.includes(versionId)),
+      );
+      return;
+    }
+    const next = [
+      ...selectedVersionIds,
+      ...viewIds.filter((versionId) => !selectedVersionIds.includes(versionId)),
+    ];
+    if (next.length > 25) {
+      setMessage(
+        "A batch can contain at most 25 inspected versions, so only the first 25 were selected.",
+      );
+    }
+    setSelectedVersionIds(next.slice(0, 25));
+  }
+
   function completeBatch(result: QuestionLifecycleBatchResult) {
     const updatedById = new Map(
       result.questions.map((question) => [question.questionId, question]),
@@ -475,546 +602,679 @@ export function ProfessorQuestionLifecyclePanel({
     const titles = result.questions
       .map((question) => question.workingVersion.title)
       .join(", ");
-    setMessage(
-      `${ACTION_LABELS[result.action]} completed for ${result.questions.length} questions${result.reviewedBy ? ` by ${result.reviewedBy.displayName} at ${result.reviewedBy.occurredAt}` : ""}: ${titles}.`,
+    setMessage(undefined);
+    toast({
+      title: `${BATCH_DONE_LABELS[result.action]} ${result.questions.length} questions.`,
+      description: `${titles}${result.reviewedBy ? ` · ${result.reviewedBy.displayName}` : ""}`,
+      tone: "success",
+    });
+  }
+
+  function toggleTopic(topicId: string) {
+    setCollapsedTopicIds((current) =>
+      current.includes(topicId)
+        ? current.filter((candidate) => candidate !== topicId)
+        : [...current, topicId],
+    );
+  }
+
+  function questionActions(question: QuestionLifecycleDto, inRow: boolean) {
+    const working = question.workingVersion;
+    return (
+      <>
+        {question.allowedActions.map((action) => {
+          const key = `${question.questionId}:${working.versionId}:${action}`;
+          const destructive = action === "reject" || action === "unpublish";
+          const primary =
+            !inRow && (action === "approve" || action === "publish");
+          return (
+            <Button
+              key={action}
+              type="button"
+              size={inRow ? "sm" : "md"}
+              variant={
+                primary
+                  ? "primary"
+                  : destructive && !inRow
+                    ? "destructive"
+                    : "outline"
+              }
+              disabled={busy}
+              loading={activeKey === key}
+              onClick={() => {
+                if (action === "publish") {
+                  setMessage(undefined);
+                  setPublicationPreview({
+                    action,
+                    expectedState: working.state,
+                    question,
+                    versionId: working.versionId,
+                  });
+                  return;
+                }
+                void transition(question, action);
+              }}
+            >
+              {action === "publish" ? <Eye aria-hidden="true" /> : null}
+              {action === "publish"
+                ? "Review and publish"
+                : ACTION_LABELS[action]}
+            </Button>
+          );
+        })}
+        {!question.reserve &&
+        question.regenerationAllowed &&
+        !question.provenanceCorrectionAllowed ? (
+          <Button
+            type="button"
+            size={inRow ? "sm" : "md"}
+            variant="outline"
+            disabled={busy}
+            loading={activeKey === `${question.questionId}:regenerate`}
+            onClick={() => regenerate(question)}
+          >
+            <RotateCcw aria-hidden="true" />
+            Regenerate
+          </Button>
+        ) : null}
+        {!question.reserve && question.provenanceCorrectionAllowed ? (
+          <Button
+            type="button"
+            size={inRow ? "sm" : "md"}
+            variant="outline"
+            disabled={busy}
+            loading={
+              activeKey === `${question.questionId}:correct-provenance`
+            }
+            onClick={() => correctProvenance(question)}
+          >
+            <ShieldCheck aria-hidden="true" />
+            Correct provenance
+          </Button>
+        ) : null}
+      </>
+    );
+  }
+
+  function questionDetails(question: QuestionLifecycleDto) {
+    const working = question.workingVersion;
+    return (
+      <div className="flex flex-col gap-6">
+        <ProfessorQuestionReserveControls
+          disabled={busy}
+          question={question}
+          onMessage={setMessage}
+          onUpdated={(updated) => {
+            replaceQuestion(updated);
+            setSelectedVersionIds((current) =>
+              current.filter((versionId) => versionId !== working.versionId),
+            );
+          }}
+        />
+        <WorkingVersionInspection
+          active={
+            activeKey === `${question.questionId}:${working.versionId}:inspect`
+          }
+          disabled={busy || !isBatchSelectableQuestion(question)}
+          approvedByYouAt={ownApprovalTimestamp(
+            question,
+            dashboard.professorUserId,
+          )}
+          inspection={inspectionByVersionId.get(working.versionId)}
+          question={question}
+          showContent={!hideBulkControls}
+          topicTitle={topicTitles.get(working.topicId)}
+          onInspect={() => void markInspected(question)}
+        />
+        {!question.reserve && canEditQuestionVersion(question) ? (
+          editingId === question.questionId ? (
+            <ProfessorQuestionRevisionEditor
+              key={question.workingVersion.versionId}
+              disabled={busy}
+              question={question}
+              topics={dashboard.topics}
+              onCancel={() => setEditingId(undefined)}
+              onSaved={(updated) => {
+                replaceQuestion(updated);
+                setEditingId(undefined);
+                setSelectedVersionIds((current) =>
+                  current.filter(
+                    (versionId) => versionId !== working.versionId,
+                  ),
+                );
+                toast({
+                  title: "Revision saved as a new draft.",
+                  description: "Submit it for review when it is ready.",
+                  tone: "success",
+                });
+              }}
+            />
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-fit"
+              disabled={busy}
+              onClick={() => setEditingId(question.questionId)}
+            >
+              <Pencil aria-hidden="true" />
+              {revisionActionLabel(question)}
+            </Button>
+          )
+        ) : null}
+        <ProfessorQuestionVersionHistory
+          activeKey={activeKey}
+          dashboardReadOnly={dashboard.readOnly || Boolean(batchAction)}
+          question={question}
+          topics={dashboard.topics}
+          onTransition={(action, versionId, expectedState) => {
+            if (action === "rollback") {
+              setMessage(undefined);
+              setPublicationPreview({
+                action,
+                expectedState,
+                question,
+                versionId,
+              });
+              return;
+            }
+            void transition(question, action, versionId, expectedState);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const decisionFields = (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <ProfessorReviewReasonFields
+        className="contents"
+        disabled={dashboard.readOnly || Boolean(activeKey)}
+        includeLifecycleReasons
+        note={note}
+        onNoteChange={setNote}
+        onReasonCodeChange={setReasonCode}
+        reasonCode={reasonCode}
+      />
+      <Field label="Revision method">
+        <NativeSelect
+          value={revisionMethod}
+          onChange={(event) =>
+            setRevisionMethod(
+              event.target.value === "regeneration"
+                ? "regeneration"
+                : "manual",
+            )
+          }
+        >
+          <option value="manual">{REVISION_METHOD_LABELS.manual}</option>
+          <option value="regeneration">
+            {REVISION_METHOD_LABELS.regeneration}
+          </option>
+        </NativeSelect>
+      </Field>
+    </div>
+  );
+
+  const messageLine = (
+    <div role="status" aria-live="polite">
+      {message ? (
+        <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const dialogs = (
+    <>
+      <Dialog
+        open={Boolean(batchAction)}
+        onOpenChange={(open) => {
+          if (!open) setBatchAction(undefined);
+        }}
+      >
+        {batchAction ? (
+          <DialogContent size="lg">
+            <ProfessorQuestionBatchConfirmation
+              action={batchAction}
+              disabled={dashboard.readOnly || Boolean(activeKey)}
+              inDialog
+              note={note}
+              questions={selectedQuestions}
+              reasonCode={reasonCode}
+              revisionMethod={revisionMethod}
+              topics={dashboard.topics}
+              onCancel={() => setBatchAction(undefined)}
+              onCompleted={completeBatch}
+              onRemoveQuestion={(versionId) =>
+                toggleBatchSelection(versionId, false)
+              }
+            />
+          </DialogContent>
+        ) : null}
+      </Dialog>
+      <Dialog
+        open={Boolean(publicationPreview)}
+        onOpenChange={(open) => {
+          if (!open && !activeKey) setPublicationPreview(undefined);
+        }}
+      >
+        {publicationPreview ? (
+          <PublicationPreview
+            active={Boolean(activeKey)}
+            message={message}
+            preview={publicationPreview}
+            topicTitles={topicTitles}
+            onCancel={() => setPublicationPreview(undefined)}
+            onConfirm={async () => {
+              const completed = await transition(
+                publicationPreview.question,
+                publicationPreview.action,
+                publicationPreview.versionId,
+                publicationPreview.expectedState,
+              );
+              if (completed) setPublicationPreview(undefined);
+            }}
+          />
+        ) : null}
+      </Dialog>
+    </>
+  );
+
+  if (hideBulkControls) {
+    return (
+      <div className="flex flex-col gap-6">
+        {questions.map((question) => (
+          <Fragment key={question.questionId}>
+            <div className="flex flex-col gap-4 rounded-panel bg-surface-tint p-4 sm:p-5">
+              {dashboard.readOnly ? (
+                <p className="type-small text-ink-muted">
+                  {dashboard.readOnlyReason ??
+                    "This question is read-only in the current mode."}
+                </p>
+              ) : null}
+              {decisionFields}
+              <div
+                role="group"
+                aria-label={`Actions for ${question.workingVersion.title}`}
+                className="flex flex-wrap gap-2"
+              >
+                {questionActions(question, false)}
+              </div>
+              {messageLine}
+            </div>
+            {questionDetails(question)}
+          </Fragment>
+        ))}
+        {dialogs}
+      </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {hideBulkControls ? null : (
-        <div className="flex flex-wrap gap-2" aria-label="Lifecycle filters">
-          {FILTERS.map((item) => (
-            <Button
+    <div className="flex flex-col gap-5">
+      <div
+        role="group"
+        aria-label="Question views"
+        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible"
+      >
+        {FILTERS.map((item) => {
+          const selected = filter === item.value;
+          return (
+            <button
               key={item.value}
               type="button"
-              size="sm"
-              variant={filter === item.value ? "default" : "outline"}
-              aria-pressed={filter === item.value}
-              onClick={() => setFilter(item.value)}
+              aria-pressed={selected}
+              onClick={() => changeFilter(item.value)}
+              className={cn(
+                "relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-chip px-3 type-small whitespace-nowrap transition-colors duration-fast focus-ring",
+                "pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5",
+                selected
+                  ? "bg-azure-100 font-medium text-azure-700"
+                  : "bg-surface-tint text-ink hover:bg-hover",
+              )}
             >
               {item.label}
-            </Button>
-          ))}
-        </div>
-      )}
-
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_12rem_auto] lg:items-end">
-        <ProfessorReviewReasonFields
-          disabled={dashboard.readOnly || Boolean(activeKey)}
-          includeLifecycleReasons
-          note={note}
-          onNoteChange={setNote}
-          onReasonCodeChange={setReasonCode}
-          reasonCode={reasonCode}
-        />
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Revision method
-          <select
-            className={nativeSelectClassName}
-            value={revisionMethod}
-            onChange={(event) =>
-              setRevisionMethod(
-                event.target.value === "regeneration"
-                  ? "regeneration"
-                  : "manual",
-              )
-            }
-          >
-            <option value="manual">Manual revision</option>
-            <option value="regeneration">Regeneration</option>
-          </select>
-        </label>
-        <div className="flex gap-2">
-          <Badge variant="secondary">{dashboard.mode}</Badge>
-          <Badge variant="outline">
-            {dashboard.questions.filter((question) => question.reserve).length}{" "}
-            reserved
-          </Badge>
-          <Badge variant="outline">
-            {
-              dashboard.questions.filter(
-                (question) => question.reserve?.practiceAllowed,
-              ).length
-            }{" "}
-            practice allowed
-          </Badge>
-          {dashboard.readOnly ? (
-            <Badge variant="outline">read-only</Badge>
-          ) : null}
-        </div>
+              <span
+                className={cn(
+                  "font-mono tabular",
+                  selected ? "text-azure-700" : "text-ink-muted",
+                )}
+              >
+                {filterCounts.get(item.value) ?? 0}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {message ? (
-        <Alert role="status">
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
+      <section
+        aria-labelledby={decisionHeadingId}
+        className="flex flex-col gap-4 rounded-panel bg-surface-tint p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-1">
+          <p id={decisionHeadingId} className="type-body-strong text-ink">
+            Reason for your next decision
+          </p>
+          <p className="type-small max-w-prose text-ink-muted">
+            Reject, Request revision, Archive, Unpublish and Roll back need a
+            reason, on one question or a batch.
+            {dashboard.readOnly
+              ? ` ${dashboard.readOnlyReason ?? "This question bank is read-only in the current mode."}`
+              : ""}
+          </p>
+        </div>
+        {decisionFields}
+        {messageLine}
+      </section>
 
-      {hideBulkControls ? null : (
-        <section
-          aria-label="Inspected question batch actions"
-          className="space-y-2 border border-border bg-muted/20 p-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">
-                {selectedQuestions.length} versions selected
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {filter === "approved"
-                  ? "Select approved questions, then choose Publish selected. Each question is checked against the publication requirements before anything changes, and all of them publish together or none do."
-                  : "Choose the Approved view for bulk publication. Questions you approved or inspected yourself can be published together."}{" "}
-                Batch approval is intentionally not available.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={
-                  dashboard.readOnly ||
-                  Boolean(activeKey) ||
-                  Boolean(batchAction)
-                }
-                onClick={() => openBatchConfirmation("publish")}
-              >
-                Publish selected
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={
-                  dashboard.readOnly ||
-                  Boolean(activeKey) ||
-                  Boolean(batchAction)
-                }
-                onClick={() => openBatchConfirmation("request_revision")}
-              >
-                Batch request revision
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                disabled={
-                  dashboard.readOnly ||
-                  Boolean(activeKey) ||
-                  Boolean(batchAction)
-                }
-                onClick={() => openBatchConfirmation("reject")}
-              >
-                Batch reject
-              </Button>
-              {selectedQuestions.length > 0 ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={Boolean(batchAction)}
-                  onClick={() => setSelectedVersionIds([])}
-                >
-                  Clear selection
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      )}
+      <p className="type-small max-w-prose text-ink-muted">
+        {filter === "approved"
+          ? "Select approved questions, then choose Publish selected. Each question is checked against the publication requirements before anything changes, and all of them publish together or none do."
+          : "Choose the Approved view for bulk publication. Questions you approved or inspected yourself can be published together."}{" "}
+        Batch approval is intentionally not available.
+      </p>
 
-      {batchAction ? (
-        <ProfessorQuestionBatchConfirmation
-          action={batchAction}
-          disabled={dashboard.readOnly || Boolean(activeKey)}
-          note={note}
-          questions={selectedQuestions}
-          reasonCode={reasonCode}
-          revisionMethod={revisionMethod}
-          topics={dashboard.topics}
-          onCancel={() => setBatchAction(undefined)}
-          onCompleted={completeBatch}
-          onRemoveQuestion={(versionId) =>
-            toggleBatchSelection(versionId, false)
+      {questions.length === 0 ? (
+        <EmptyState
+          className="rounded-panel bg-sheet px-5"
+          action={
+            filter !== "all" ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => changeFilter("all")}
+              >
+                Show all questions
+              </Button>
+            ) : undefined
           }
-        />
-      ) : null}
-
-      {publicationPreview ? (
-        <PublicationPreview
-          active={Boolean(activeKey)}
-          preview={publicationPreview}
-          onCancel={() => setPublicationPreview(undefined)}
-          onConfirm={async () => {
-            const completed = await transition(
-              publicationPreview.question,
-              publicationPreview.action,
-              publicationPreview.versionId,
-              publicationPreview.expectedState,
-            );
-            if (completed) setPublicationPreview(undefined);
-          }}
-        />
-      ) : null}
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Batch</TableHead>
-            <TableHead>Question</TableHead>
-            <TableHead>Working</TableHead>
-            <TableHead>Published</TableHead>
-            <TableHead>Version</TableHead>
-            <TableHead>Attribution</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {questions.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-muted-foreground">
-                No questions match this lifecycle view.
-              </TableCell>
-            </TableRow>
-          ) : (
-            questions.map((question) => {
-              const working = question.workingVersion;
-              const inspection = inspectionByVersionId.get(working.versionId);
-              const approvedByYouAt = ownApprovalTimestamp(
-                question,
-                dashboard.professorUserId,
-              );
-              const canSelect = isBatchSelectableQuestion(question);
-              const focused = question.questionId === focusQuestionId;
-              const intake = questionIntakeProvenance(question);
+        >
+          {filter === "all"
+            ? "No questions yet. Add one from the Intake tab."
+            : `No questions match the ${viewLabel} view.`}
+        </EmptyState>
+      ) : (
+        <div className="rounded-panel bg-sheet">
+          <Table>
+            <TableCaption className="sr-only">
+              {`Questions in the ${viewLabel} view, grouped by syllabus topic`}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    aria-label="Select every eligible question in this view"
+                    checked={
+                      selectedInView === 0
+                        ? false
+                        : selectedInView === selectableInView.length
+                          ? true
+                          : "indeterminate"
+                    }
+                    disabled={
+                      selectableInView.length === 0 || Boolean(batchAction)
+                    }
+                    onCheckedChange={(checked) =>
+                      toggleViewSelection(checked === true)
+                    }
+                  />
+                </TableHead>
+                <TableHead>Question</TableHead>
+                <TableHead>Working version</TableHead>
+                <TableHead>Published</TableHead>
+                <TableHead>Created by</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            {groups.map((group) => {
+              const collapsed = collapsedTopicIds.includes(group.id);
               return (
-                <Fragment key={question.questionId}>
-                  <TableRow
-                    id={`question-${question.questionId}`}
-                    data-focused={focused ? "true" : undefined}
-                    className={focused ? "bg-primary/5" : undefined}
-                  >
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select working version of ${working.title}`}
-                        checked={selectedVersionIds.includes(working.versionId)}
-                        disabled={
-                          !canSelect ||
-                          dashboard.readOnly ||
-                          Boolean(batchAction)
-                        }
-                        title={
-                          canSelect
-                            ? "Select this working version to publish, request revision, or reject it together with others"
-                            : "This working version is not eligible for batch review"
-                        }
-                        onChange={(event) =>
-                          toggleBatchSelection(
-                            working.versionId,
-                            event.target.checked,
-                          )
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
+                <TableBody key={group.id}>
+                  <TableRow className="bg-surface-tint hover:bg-surface-tint">
+                    <th colSpan={6} scope="rowgroup" className="p-0 text-left">
                       <button
                         type="button"
-                        className="flex max-w-xl items-start gap-2 text-left"
-                        aria-expanded={expandedId === question.questionId}
-                        onClick={() =>
-                          setExpandedId((current) =>
-                            current === question.questionId
-                              ? undefined
-                              : question.questionId,
-                          )
-                        }
+                        aria-expanded={!collapsed}
+                        onClick={() => toggleTopic(group.id)}
+                        className="flex min-h-11 w-full items-center gap-2 px-3 text-left focus-ring"
                       >
                         <ChevronDown
                           aria-hidden="true"
-                          className={
-                            expandedId === question.questionId
-                              ? "mt-0.5 h-4 w-4 rotate-180"
-                              : "mt-0.5 h-4 w-4"
-                          }
+                          className={cn(
+                            "size-4 shrink-0 text-ink-muted transition-transform duration-fast",
+                            collapsed && "-rotate-90",
+                          )}
                         />
-                        <span>
-                          <span className="block font-medium">
-                            {working.title}
-                            {question.reserve ? (
-                              <Badge variant="secondary" className="ml-2">
-                                {question.reserve.practiceAllowed
-                                  ? "Saved + practice"
-                                  : "Saved for later"}
-                              </Badge>
-                            ) : null}
-                          </span>
-                          <span className="line-clamp-2 text-sm text-muted-foreground">
-                            {working.prompt}
-                          </span>
+                        <span className="type-body-strong text-ink">
+                          {group.title}
+                        </span>
+                        <span className="type-small tabular text-ink-muted">
+                          {group.questions.length}{" "}
+                          {group.questions.length === 1
+                            ? "question"
+                            : "questions"}
                         </span>
                       </button>
-                    </TableCell>
-                    <TableCell>
-                      <LifecycleBadge
-                        state={
-                          question.recordState === "archived"
-                            ? "archived"
-                            : working.state
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {question.publishedVersion ? (
-                        <Badge variant="success">
-                          v{question.publishedVersion.versionNumber}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">None</span>
-                      )}
-                    </TableCell>
-                    <TableCell>v{working.versionNumber}</TableCell>
-                    <TableCell className="text-sm">
-                      <span className="block">
-                        {working.createdBy.displayName}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {working.creationMethod}
-                      </span>
-                      {intake ? (
-                        <Badge variant="warning" className="mt-1">
-                          {questionIntakeSourceLabel(intake)}
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {question.allowedActions.map((action) => {
-                          const key = `${question.questionId}:${working.versionId}:${action}`;
-                          return (
-                            <Button
-                              key={action}
-                              type="button"
-                              size="sm"
-                              variant={
-                                action === "reject" || action === "unpublish"
-                                  ? "destructive"
-                                  : "outline"
-                              }
-                              disabled={
-                                dashboard.readOnly ||
-                                Boolean(activeKey) ||
-                                Boolean(batchAction)
-                              }
-                              onClick={() => {
-                                if (action === "publish") {
-                                  setPublicationPreview({
-                                    action,
-                                    expectedState: working.state,
-                                    question,
-                                    versionId: working.versionId,
-                                  });
-                                  return;
-                                }
-                                void transition(question, action);
-                              }}
-                            >
-                              {activeKey === key ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : null}
-                              {action === "publish" ? (
-                                <Eye className="h-4 w-4" />
-                              ) : null}
-                              {action === "publish"
-                                ? "Review & publish"
-                                : ACTION_LABELS[action]}
-                            </Button>
-                          );
-                        })}
-                        {!question.reserve &&
-                        question.regenerationAllowed &&
-                        !question.provenanceCorrectionAllowed ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              dashboard.readOnly ||
-                              Boolean(activeKey) ||
-                              Boolean(batchAction)
-                            }
-                            onClick={() => regenerate(question)}
-                          >
-                            {activeKey ===
-                            `${question.questionId}:regenerate` ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RotateCcw className="h-4 w-4" />
-                            )}
-                            Regenerate
-                          </Button>
-                        ) : null}
-                        {!question.reserve &&
-                        question.provenanceCorrectionAllowed ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              dashboard.readOnly ||
-                              Boolean(activeKey) ||
-                              Boolean(batchAction)
-                            }
-                            onClick={() => correctProvenance(question)}
-                          >
-                            {activeKey ===
-                            `${question.questionId}:correct-provenance` ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4" />
-                            )}
-                            Correct provenance
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
+                    </th>
                   </TableRow>
-                  {expandedId === question.questionId ? (
-                    <TableRow>
-                      <TableCell colSpan={7}>
-                        <ProfessorQuestionReserveControls
-                          disabled={
-                            dashboard.readOnly ||
-                            Boolean(activeKey) ||
-                            Boolean(batchAction)
-                          }
-                          question={question}
-                          onMessage={setMessage}
-                          onUpdated={(updated) => {
-                            setDashboard((current) => ({
-                              ...current,
-                              questions: current.questions.map((candidate) =>
-                                candidate.questionId === updated.questionId
-                                  ? updated
-                                  : candidate,
-                              ),
-                            }));
-                            setSelectedVersionIds((current) =>
-                              current.filter(
-                                (versionId) => versionId !== working.versionId,
-                              ),
-                            );
-                          }}
-                        />
-                        <WorkingVersionInspection
-                          active={
-                            activeKey ===
-                            `${question.questionId}:${working.versionId}:inspect`
-                          }
-                          disabled={
-                            dashboard.readOnly ||
-                            Boolean(activeKey) ||
-                            Boolean(batchAction) ||
-                            !isBatchSelectableQuestion(question)
-                          }
-                          approvedByYouAt={approvedByYouAt}
-                          inspection={inspection}
-                          question={question}
-                          topicTitle={
-                            dashboard.topics.find(
-                              (topic) => topic.id === working.topicId,
-                            )?.title
-                          }
-                          onInspect={() => void markInspected(question)}
-                        />
-                        {!question.reserve &&
-                        canEditQuestionVersion(question) ? (
-                          editingId === question.questionId ? (
-                            <ProfessorQuestionRevisionEditor
-                              key={question.workingVersion.versionId}
-                              disabled={
-                                dashboard.readOnly ||
-                                Boolean(activeKey) ||
-                                Boolean(batchAction)
-                              }
-                              question={question}
-                              topics={dashboard.topics}
-                              onCancel={() => setEditingId(undefined)}
-                              onSaved={(updated) => {
-                                setDashboard((current) => ({
-                                  ...current,
-                                  questions: current.questions.map(
-                                    (candidate) =>
-                                      candidate.questionId ===
-                                      updated.questionId
-                                        ? updated
-                                        : candidate,
-                                  ),
-                                }));
-                                setEditingId(undefined);
-                                setSelectedVersionIds((current) =>
-                                  current.filter(
-                                    (versionId) =>
-                                      versionId !== working.versionId,
-                                  ),
-                                );
-                                setMessage(
-                                  "Revision saved as a new draft. Submit it for review when ready.",
-                                );
-                              }}
-                            />
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="mb-4"
-                              disabled={
-                                dashboard.readOnly ||
-                                Boolean(activeKey) ||
-                                Boolean(batchAction)
-                              }
-                              onClick={() => setEditingId(question.questionId)}
+                  {collapsed
+                    ? null
+                    : group.questions.map((question) => {
+                        const working = question.workingVersion;
+                        const canSelect = isBatchSelectableQuestion(question);
+                        const focused = question.questionId === focusQuestionId;
+                        const expanded = expandedId === question.questionId;
+                        const selected = selectedVersionIds.includes(
+                          working.versionId,
+                        );
+                        const intake = questionIntakeProvenance(question);
+                        const detailsId = `question-details-${question.questionId}`;
+                        return (
+                          <Fragment key={question.questionId}>
+                            <TableRow
+                              id={`question-${question.questionId}`}
+                              data-focused={focused ? "true" : undefined}
+                              data-state={selected ? "selected" : undefined}
+                              className={cn(
+                                "align-top",
+                                focused && !selected && "bg-surface-tint",
+                              )}
                             >
-                              <Pencil className="h-4 w-4" />
-                              {revisionActionLabel(question)}
-                            </Button>
-                          )
-                        ) : null}
-                        <ProfessorQuestionVersionHistory
-                          activeKey={activeKey}
-                          dashboardReadOnly={
-                            dashboard.readOnly || Boolean(batchAction)
-                          }
-                          question={question}
-                          topics={dashboard.topics}
-                          onTransition={(action, versionId, expectedState) => {
-                            if (action === "rollback") {
-                              setPublicationPreview({
-                                action,
-                                expectedState,
-                                question,
-                                versionId,
-                              });
-                              return;
-                            }
-                            void transition(
-                              question,
-                              action,
-                              versionId,
-                              expectedState,
-                            );
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </Fragment>
+                              <TableCell className="pt-3">
+                                <Checkbox
+                                  aria-label={`Select working version of ${working.title}`}
+                                  checked={selected}
+                                  disabled={
+                                    !canSelect ||
+                                    dashboard.readOnly ||
+                                    Boolean(batchAction)
+                                  }
+                                  title={
+                                    canSelect
+                                      ? "Select this working version to publish, request revision, or reject it together with others"
+                                      : "This working version is not eligible for batch review"
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    toggleBatchSelection(
+                                      working.versionId,
+                                      checked === true,
+                                    )
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="min-w-60">
+                                <button
+                                  type="button"
+                                  className="flex max-w-xl items-start gap-2 rounded-control text-left focus-ring"
+                                  aria-controls={expanded ? detailsId : undefined}
+                                  aria-expanded={expanded}
+                                  onClick={() =>
+                                    setExpandedId((current) =>
+                                      current === question.questionId
+                                        ? undefined
+                                        : question.questionId,
+                                    )
+                                  }
+                                >
+                                  <ChevronDown
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "mt-1 size-4 shrink-0 text-ink-muted transition-transform duration-fast",
+                                      !expanded && "-rotate-90",
+                                    )}
+                                  />
+                                  <span className="flex min-w-0 flex-col gap-0.5">
+                                    <span className="type-body-strong text-ink">
+                                      {working.title}
+                                    </span>
+                                    <span className="type-caption">
+                                      <span className="font-mono">
+                                        {questionCode(question.questionId)}
+                                      </span>
+                                      {" · "}
+                                      {professorDifficultyLabel(
+                                        working.difficulty,
+                                      )}
+                                    </span>
+                                  </span>
+                                </button>
+                              </TableCell>
+                              <TableCell className="pt-2.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <QuestionStateChip
+                                    state={displayState(question)}
+                                  />
+                                  <span className="font-mono text-ink-muted">
+                                    v{working.versionNumber}
+                                  </span>
+                                  {question.reserve ? (
+                                    <SavedForLaterChip
+                                      practiceAllowed={
+                                        question.reserve.practiceAllowed
+                                      }
+                                    />
+                                  ) : null}
+                                </div>
+                              </TableCell>
+                              <TableCell className="pt-3 font-mono">
+                                {question.publishedVersion ? (
+                                  `v${question.publishedVersion.versionNumber}`
+                                ) : (
+                                  <span className="text-ink-muted">
+                                    <span aria-hidden="true">—</span>
+                                    <span className="sr-only">
+                                      Not published
+                                    </span>
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="pt-3">
+                                <span className="block text-ink">
+                                  {working.createdBy.displayName}
+                                </span>
+                                <span className="type-caption">
+                                  {creationMethodLabel(working.creationMethod)}
+                                </span>
+                                {intake ? (
+                                  <StatusChip
+                                    className="mt-1"
+                                    icon={false}
+                                    label={questionIntakeSourceLabel(intake)}
+                                    tone="neutral"
+                                  />
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="min-w-72">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <Button asChild size="sm" variant="ghost">
+                                    <Link
+                                      href={professorQuestionPath(
+                                        question.questionId,
+                                      )}
+                                      aria-label={`Open ${working.title}`}
+                                    >
+                                      Open
+                                    </Link>
+                                  </Button>
+                                  {questionActions(question, true)}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {expanded ? (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell
+                                  id={detailsId}
+                                  colSpan={6}
+                                  className="bg-surface p-4 whitespace-normal sm:p-6"
+                                >
+                                  {questionDetails(question)}
+                                </TableCell>
+                              </TableRow>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })}
+                </TableBody>
               );
-            })
-          )}
-        </TableBody>
-      </Table>
+            })}
+          </Table>
+        </div>
+      )}
+
+      {selectedQuestions.length > 0 ? (
+        <div
+          role="region"
+          aria-label="Batch actions"
+          className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-panel border border-azure-300 bg-azure-100 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+        >
+          <p className="type-body-strong text-ink">
+            {selectedQuestions.length}{" "}
+            {selectedQuestions.length === 1 ? "question" : "questions"}{" "}
+            selected
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => openBatchConfirmation("publish")}
+            >
+              Publish selected
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => openBatchConfirmation("request_revision")}
+            >
+              Batch request revision
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={busy}
+              onClick={() => openBatchConfirmation("reject")}
+            >
+              Batch reject
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={Boolean(batchAction)}
+              onClick={() => setSelectedVersionIds([])}
+            >
+              Clear selection
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {dialogs}
     </div>
   );
 }
@@ -1026,6 +1286,7 @@ function WorkingVersionInspection({
   inspection,
   onInspect,
   question,
+  showContent,
   topicTitle,
 }: {
   active: boolean;
@@ -1035,92 +1296,130 @@ function WorkingVersionInspection({
   inspection?: QuestionLifecycleDashboard["inspections"][number];
   onInspect: () => void;
   question: QuestionLifecycleDto;
+  /** The full field list; the detail page already shows it above. */
+  showContent: boolean;
   topicTitle?: string;
 }) {
   const version = question.workingVersion;
+  const headingId = useId();
   return (
     <section
-      aria-label={"Inspect working version " + version.versionNumber}
-      className="mb-4 space-y-3 border border-border bg-background p-4"
+      aria-labelledby={headingId}
+      className="flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-medium">Working-version inspection</h3>
-          <p className="text-sm text-muted-foreground">
-            Batch actions require that you personally reviewed this exact
-            immutable version {version.versionNumber}: either you approved it,
-            or you record an inspection here after reading it in full.
+        <div className="flex max-w-prose flex-col gap-1">
+          <h3 id={headingId} className="type-h3 text-ink">
+            Your review of v{version.versionNumber}
+          </h3>
+          <p className="type-small text-ink-muted">
+            To publish it with other questions, you must have approved this
+            exact version or recorded an inspection after reading it in full.
           </p>
         </div>
         {inspection ? (
-          <Badge variant="success">
-            <CheckCircle2 className="h-4 w-4" />
-            Inspected
-          </Badge>
+          <StatusChip label="Inspected" tone="approved" />
         ) : approvedByYouAt ? (
-          <Badge variant="success">
-            <CheckCircle2 className="h-4 w-4" />
-            Approved by you
-          </Badge>
+          <StatusChip label="Approved by you" tone="approved" />
         ) : (
-          <Badge variant="outline">Not reviewed by you</Badge>
+          <StatusChip icon={false} label="Not reviewed by you" tone="neutral" />
         )}
       </div>
-      <dl className="grid gap-2 text-sm md:grid-cols-[10rem_1fr]">
-        <dt className="font-medium">Topic</dt>
-        <dd>{topicTitle ?? version.topicId}</dd>
-        <dt className="font-medium">Difficulty</dt>
-        <dd>{version.difficulty}</dd>
-        <dt className="font-medium">Wording</dt>
-        <dd>{version.prompt}</dd>
-        <dt className="font-medium">Accepted answers</dt>
-        <dd>{version.answer.acceptedAnswers.join(", ")}</dd>
-        <dt className="font-medium">Answer explanation</dt>
-        <dd>{version.answer.explanation}</dd>
-        <dt className="font-medium">Solution steps</dt>
-        <dd>
-          <ol className="list-decimal space-y-1 pl-5">
-            {version.solutionSteps.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        </dd>
-        <dt className="font-medium">Hints</dt>
-        <dd>{version.hints.join(" · ") || "None"}</dd>
-        <dt className="font-medium">Misconception notes</dt>
-        <dd>
-          {version.misconceptions.map((item) => item.feedback).join(" · ") ||
-            "None"}
-        </dd>
-      </dl>
+      {showContent ? (
+        <dl className="grid gap-x-6 gap-y-2 type-small sm:grid-cols-[10rem_minmax(0,1fr)]">
+          <InspectionTerm label="Topic">
+            {topicTitle ?? version.topicId}
+          </InspectionTerm>
+          <InspectionTerm label="Difficulty">
+            {professorDifficultyLabel(version.difficulty)}
+          </InspectionTerm>
+          <InspectionTerm label="Wording">
+            <span className="max-w-prose">{version.prompt}</span>
+          </InspectionTerm>
+          <InspectionTerm label="Accepted answers">
+            <span className="font-mono">
+              {version.answer.acceptedAnswers.join(", ")}
+            </span>
+          </InspectionTerm>
+          <InspectionTerm label="Answer explanation">
+            {version.answer.explanation}
+          </InspectionTerm>
+          <InspectionTerm label="Solution steps">
+            <ol className="flex list-decimal flex-col gap-1 pl-5">
+              {version.solutionSteps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </InspectionTerm>
+          <InspectionTerm label="Hints">
+            {version.hints.length > 0 ? (
+              <ol className="flex list-decimal flex-col gap-1 pl-5">
+                {version.hints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ol>
+            ) : (
+              "None"
+            )}
+          </InspectionTerm>
+          <InspectionTerm label="Misconception notes">
+            {version.misconceptions.length > 0 ? (
+              <ul className="flex list-disc flex-col gap-1 pl-5">
+                {version.misconceptions.map((item) => (
+                  <li key={item.id}>{item.feedback}</li>
+                ))}
+              </ul>
+            ) : (
+              "None"
+            )}
+          </InspectionTerm>
+        </dl>
+      ) : null}
       {inspection ? (
-        <p className="text-sm text-muted-foreground">
-          Recorded for {inspection.professorDisplayName} at{" "}
-          {inspection.inspectedAt}.
+        <p className="type-small text-ink-muted">
+          Inspected by {inspection.professorDisplayName} on{" "}
+          <ProfessorTime value={inspection.inspectedAt} />.
         </p>
       ) : approvedByYouAt ? (
-        <p className="text-sm text-muted-foreground">
-          You approved this exact version on {approvedByYouAt.slice(0, 10)}.
-          That counts as your review, so it can be published together with other
-          questions without a separate inspection.
+        <p className="type-small max-w-prose text-ink-muted">
+          You approved this exact version on{" "}
+          {formatProfessorDate(approvedByYouAt)}. That counts as your review,
+          so it can be published together with other questions without a
+          separate inspection.
         </p>
       ) : isBatchSelectableQuestion(question) ? (
         <Button
           type="button"
           size="sm"
           variant="outline"
+          className="w-fit"
           disabled={disabled}
+          loading={active}
           onClick={onInspect}
         >
-          {active ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Mark this version inspected
         </Button>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          This lifecycle state is not eligible for batch review selection.
+        <p className="type-small text-ink-muted">
+          Questions in this state cannot be selected for a batch.
         </p>
       )}
     </section>
+  );
+}
+
+function InspectionTerm({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <>
+      <dt className="type-body-strong text-ink">{label}</dt>
+      <dd className="min-w-0 break-words text-ink">{children}</dd>
+    </>
   );
 }
 
@@ -1149,16 +1448,25 @@ function isBatchSelectableQuestion(question: QuestionLifecycleDto) {
   );
 }
 
+/**
+ * The publish (or roll-back) confirmation, as a dialog: the exact immutable
+ * version students will receive, next to what it replaces, and the fields
+ * that changed.
+ */
 function PublicationPreview({
   active,
+  message,
   onCancel,
   onConfirm,
   preview,
+  topicTitles,
 }: {
   active: boolean;
+  message?: string;
   onCancel: () => void;
   onConfirm: () => Promise<void>;
   preview: PublicationPreviewState;
+  topicTitles: Map<string, string>;
 }) {
   const target = preview.question.versions.find(
     (version) => version.versionId === preview.versionId,
@@ -1175,88 +1483,101 @@ function PublicationPreview({
     : ["Initial publication"];
 
   return (
-    <section
-      aria-label="Publication change summary"
-      className="space-y-4 border-2 border-primary/40 bg-muted/20 p-4"
-    >
-      <div>
-        <h2 className="text-lg font-semibold">Review before publishing</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This is the exact immutable version students will receive. Confirm
-          only after reviewing the change summary.
-        </p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <PublicationSummary
-          label={
-            base
-              ? `Current/base version ${base.versionNumber}`
-              : "No current publication"
-          }
-          version={base}
-        />
-        <PublicationSummary
-          label={`Target version ${target.versionNumber}`}
-          version={target}
-        />
-      </div>
-      <div className="rounded-md border border-border bg-background p-3 text-sm">
-        <p className="font-medium">Changed fields</p>
-        <p className="mt-1 text-muted-foreground">{changed.join(", ")}</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <DialogContent size="lg">
+      <DialogHeader>
+        <DialogTitle>Review before publishing</DialogTitle>
+        <DialogDescription>
+          This is the exact version students will receive. Confirm after
+          reading what changed.
+        </DialogDescription>
+      </DialogHeader>
+      <DialogBody className="flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <PublicationSummary
+            label={
+              base
+                ? `Current version v${base.versionNumber}`
+                : "No current publication"
+            }
+            topicTitles={topicTitles}
+            version={base}
+          />
+          <PublicationSummary
+            label={`Version to publish v${target.versionNumber}`}
+            topicTitles={topicTitles}
+            version={target}
+          />
+        </div>
+        <div className="flex flex-col gap-1 border-l-2 border-azure-500 pl-4">
+          <p className="type-body-strong text-ink">Changed fields</p>
+          <p className="type-small text-ink">{changed.join(", ")}</p>
+        </div>
+        <div role="status" aria-live="polite">
+          {message ? (
+            <p className="type-small text-red-700">{message}</p>
+          ) : null}
+        </div>
+      </DialogBody>
+      <DialogFooter>
         <Button
           type="button"
-          disabled={active}
-          onClick={() => void onConfirm()}
-        >
-          {active ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {preview.action === "rollback"
-            ? "Confirm rollback publication"
-            : "Confirm publication"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
+          variant="ghost"
           disabled={active}
           onClick={onCancel}
         >
           Cancel
         </Button>
-      </div>
-    </section>
+        <Button
+          type="button"
+          loading={active}
+          onClick={() => void onConfirm()}
+        >
+          {preview.action === "rollback"
+            ? "Confirm rollback publication"
+            : "Confirm publication"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }
 
 function PublicationSummary({
   label,
+  topicTitles,
   version,
 }: {
   label: string;
+  topicTitles: Map<string, string>;
   version?: QuestionVersionDto;
 }) {
   if (!version) {
     return (
-      <div className="border border-border bg-background p-3 text-sm">
-        <p className="font-medium">{label}</p>
-        <p className="mt-2 text-muted-foreground">Nothing is published.</p>
+      <div className="flex flex-col gap-2 rounded-panel bg-surface-tint p-4">
+        <p className="type-label">{label}</p>
+        <p className="type-small text-ink-muted">Nothing is published.</p>
       </div>
     );
   }
   return (
-    <div className="space-y-2 border border-border bg-background p-3 text-sm">
-      <p className="font-medium">{label}</p>
-      <p>{version.title}</p>
-      <p className="text-muted-foreground">{version.prompt}</p>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt>Topic</dt>
-        <dd>{version.topicId}</dd>
-        <dt>Difficulty</dt>
-        <dd>{version.difficulty}</dd>
-        <dt>Final answer</dt>
-        <dd>{version.answer.acceptedAnswers.join(", ")}</dd>
-        <dt>Structure</dt>
-        <dd>
+    <div className="flex min-w-0 flex-col gap-2 rounded-panel bg-surface-tint p-4">
+      <p className="type-label">{label}</p>
+      <p className="type-body-strong text-ink">{version.title}</p>
+      <p className="type-small line-clamp-4 text-ink-muted">{version.prompt}</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 type-small">
+        <dt className="text-ink-muted">Topic</dt>
+        <dd className="text-ink">
+          {topicTitles.get(version.topicId) ?? version.topicId}
+        </dd>
+        <dt className="text-ink-muted">Difficulty</dt>
+        <dd className="text-ink">
+          {professorDifficultyLabel(version.difficulty)}
+        </dd>
+        <dt className="text-ink-muted">Final answer</dt>
+        <dd className="font-mono text-ink">
+          {version.answer.acceptedAnswers.join(", ")}
+        </dd>
+        <dt className="text-ink-muted">Structure</dt>
+        <dd className="text-ink">
           {version.solutionSteps.length} steps, {version.hints.length} hints,{" "}
           {version.misconceptions.length} misconception notes
         </dd>
@@ -1265,350 +1586,10 @@ function PublicationSummary({
   );
 }
 
-export function ProfessorQuestionVersionHistory({
-  activeKey,
-  dashboardReadOnly,
-  onTransition,
-  question,
-  topics,
-}: {
-  activeKey?: string;
-  dashboardReadOnly: boolean;
-  onTransition: (
-    action: "rollback" | "unpublish",
-    versionId: number,
-    expectedState: QuestionVersionState,
-  ) => void;
-  question: QuestionLifecycleDto;
-  topics: QuestionLifecycleDashboard["topics"];
-}) {
-  const versionsById = new Map(
-    question.versions.map((version) => [version.versionId, version]),
-  );
-  const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
-
-  return (
-    <div className="grid gap-5 py-3 lg:grid-cols-2">
-      <section>
-        <h3 className="mb-2 text-sm font-medium">Immutable versions</h3>
-        <div className="space-y-2">
-          {question.versions.map((version) => (
-            <div
-              key={version.versionId}
-              className="border border-border p-3 text-sm"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">v{version.versionNumber}</Badge>
-                <LifecycleBadge state={version.state} />
-                {version.versionId === question.workingVersion.versionId ? (
-                  <Badge variant="secondary">Working version</Badge>
-                ) : null}
-                {version.versionId === question.publishedVersion?.versionId ? (
-                  <Badge variant="success">Published version</Badge>
-                ) : null}
-              </div>
-              <p className="mt-2 font-medium">{version.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {versionLineageLabel(version, versionsById)}
-              </p>
-              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                <dt>Created by</dt>
-                <dd>
-                  {version.createdBy.displayName} · {version.createdAt}
-                </dd>
-                <dt>Creation</dt>
-                <dd>{version.creationMethod.replaceAll("_", " ")}</dd>
-                <dt>Topic</dt>
-                <dd>
-                  {topicTitles.get(version.topicId) ?? version.topicId}
-                  {topicTitles.has(version.topicId)
-                    ? ` (${version.topicId})`
-                    : ""}
-                </dd>
-                <dt>Difficulty</dt>
-                <dd>{version.difficulty}</dd>
-                <dt>Validation</dt>
-                <dd>{version.validationStatus}</dd>
-                <dt>Source</dt>
-                <dd>{version.source.sourceType.replaceAll("_", " ")}</dd>
-                {version.source.originalityNote ? (
-                  <>
-                    <dt>Originality</dt>
-                    <dd>{version.source.originalityNote}</dd>
-                  </>
-                ) : null}
-              </dl>
-              <p className="mt-1 font-mono text-xs text-muted-foreground">
-                Content SHA-256: {version.contentHash}
-              </p>
-              <VersionDiff
-                base={
-                  version.parentVersionId
-                    ? versionsById.get(version.parentVersionId)
-                    : undefined
-                }
-                version={version}
-              />
-              <details className="mt-3 border-t border-border pt-3">
-                <summary className="cursor-pointer font-medium">
-                  Inspect immutable content
-                </summary>
-                <VersionContent version={version} />
-              </details>
-              {version.versionId !== question.workingVersion.versionId
-                ? version.allowedActions
-                    .filter(
-                      (action) =>
-                        action === "rollback" || action === "unpublish",
-                    )
-                    .map((action) => (
-                      <Button
-                        key={action}
-                        type="button"
-                        size="sm"
-                        variant={
-                          action === "unpublish" ? "destructive" : "outline"
-                        }
-                        className="mt-3"
-                        disabled={dashboardReadOnly || Boolean(activeKey)}
-                        onClick={() =>
-                          onTransition(action, version.versionId, version.state)
-                        }
-                      >
-                        {action === "rollback" ? (
-                          <RotateCcw className="h-4 w-4" />
-                        ) : null}
-                        {action === "rollback"
-                          ? "Roll back to this version"
-                          : "Unpublish this version"}
-                      </Button>
-                    ))
-                : null}
-            </div>
-          ))}
-        </div>
-      </section>
-      <section>
-        <h3 className="mb-2 text-sm font-medium">Lifecycle timeline</h3>
-        <ol className="space-y-2">
-          {question.events.map((event) => (
-            <LifecycleTimelineEvent
-              key={event.id}
-              event={event}
-              version={versionsById.get(event.versionId)}
-            />
-          ))}
-        </ol>
-        {(question.reserveEvents?.length ?? 0) > 0 ? (
-          <>
-            <h3 className="mb-2 mt-5 text-sm font-medium">
-              Save for later history
-            </h3>
-            <ol className="space-y-2">
-              {question.reserveEvents?.map((event) => (
-                <li
-                  key={event.id}
-                  className="border-l-2 border-border pl-3 text-sm"
-                >
-                  <p className="font-medium">
-                    {RESERVE_EVENT_LABELS[event.action]}
-                    {event.reasonCode
-                      ? ` · ${questionReserveReasonLabel(event.reasonCode)}`
-                      : ""}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    v{versionsById.get(event.versionId)?.versionNumber ?? "?"}
-                    {" · "}
-                    {event.actor.displayName} · {event.actor.occurredAt}
-                  </p>
-                  {event.note ? <p className="mt-1">{event.note}</p> : null}
-                </li>
-              ))}
-            </ol>
-          </>
-        ) : null}
-      </section>
-    </div>
-  );
-}
-
-function VersionContent({ version }: { version: QuestionVersionDto }) {
-  return (
-    <div className="mt-3 space-y-3 text-xs">
-      <HistoryContentBlock label="Question wording">
-        <p>{version.prompt}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Accepted answers">
-        <p>{version.answer.acceptedAnswers.join(", ")}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Numeric grading">
-        <p>
-          {version.answer.numericValue === undefined
-            ? "No numeric value recorded."
-            : `Value ${version.answer.numericValue}; tolerance ${version.answer.tolerance ?? 0}.`}
-        </p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Answer explanation">
-        <p>{version.answer.explanation}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Solution steps">
-        <HistoryList items={version.solutionSteps} />
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Hints">
-        <HistoryList items={version.hints} />
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Misconceptions">
-        {version.misconceptions.length > 0 ? (
-          <ol className="list-decimal space-y-2 pl-5">
-            {version.misconceptions.map((item) => (
-              <li key={item.id}>
-                <p>{item.feedback}</p>
-                <p>
-                  Match terms: {item.matchTerms.join(", ") || "none recorded"}
-                </p>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>None recorded.</p>
-        )}
-      </HistoryContentBlock>
-    </div>
-  );
-}
-
-function HistoryContentBlock({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) {
-  return (
-    <div>
-      <p className="font-medium">{label}</p>
-      <div className="mt-1 text-muted-foreground">{children}</div>
-    </div>
-  );
-}
-
-function HistoryList({ items }: { items: string[] }) {
-  return items.length > 0 ? (
-    <ol className="list-decimal space-y-1 pl-5">
-      {items.map((item, index) => (
-        <li key={`${index}:${item}`}>{item}</li>
-      ))}
-    </ol>
-  ) : (
-    <p>None recorded.</p>
-  );
-}
-
-function LifecycleTimelineEvent({
-  event,
-  version,
-}: {
-  event: QuestionLifecycleEventDto;
-  version?: QuestionVersionDto;
-}) {
-  return (
-    <li className="border-l-2 border-border pl-3 text-sm">
-      <p>
-        <span className="font-medium">{EVENT_LABELS[event.action]}</span>
-        {version ? ` · v${version.versionNumber}` : ""}
-        {event.fromState || event.toState
-          ? `: ${event.fromState ?? "new"} → ${event.toState ?? "unchanged"}`
-          : ""}
-      </p>
-      <p className="text-muted-foreground">
-        {event.actor.displayName} ({event.actorRole}) · {event.actor.occurredAt}
-      </p>
-      {event.requestedBy &&
-      event.executedBy &&
-      event.requestedBy.userId !== event.executedBy.userId ? (
-        <p className="text-muted-foreground">
-          Requested by {event.requestedBy.displayName}; executed by{" "}
-          {event.executedBy.displayName}
-        </p>
-      ) : null}
-      {event.reasonCode ? (
-        <p>Reason: {professorReviewReasonLabel(event.reasonCode)}</p>
-      ) : null}
-      {event.action === "approve" && event.metadata?.selectedDifficulty ? (
-        <p>
-          Difficulty: {event.metadata.previousDifficulty ?? "previous"} →{" "}
-          {event.metadata.selectedDifficulty}
-        </p>
-      ) : null}
-      {event.note ? <p>Comment: {event.note}</p> : null}
-    </li>
-  );
-}
-
-function versionLineageLabel(
-  version: QuestionVersionDto,
-  versionsById: Map<number, QuestionVersionDto>,
-) {
-  const parent = version.parentVersionId
-    ? versionsById.get(version.parentVersionId)
-    : undefined;
-  if (!parent) {
-    if (version.creationMethod === "generated") {
-      return "Original generated draft";
-    }
-    if (version.creationMethod === "imported") return "Original import";
-    return "Original version";
-  }
-
-  const relationship =
-    version.creationMethod === "regenerated"
-      ? "Regenerated"
-      : version.creationMethod === "rollback_clone"
-        ? "Rollback clone"
-        : version.creationMethod === "manual"
-          ? "Professor edit"
-          : "Derived version";
-  return `${relationship} from v${parent.versionNumber}`;
-}
-
-function VersionDiff({
-  base,
-  version,
-}: {
-  base?: QuestionVersionDto;
-  version: QuestionVersionDto;
-}) {
-  if (!base) {
-    return (
-      <p className="mt-2 text-xs text-muted-foreground">Initial version</p>
-    );
-  }
-  const changed = changedQuestionVersionFields(base, version);
-
-  return (
-    <p className="mt-2 text-xs text-muted-foreground">
-      Compared with v{base.versionNumber}:{" "}
-      {changed.join(", ") || "no content changes"}
-    </p>
-  );
-}
-
-export function LifecycleBadge({
-  state,
-}: {
-  state: QuestionVersionState | "archived";
-}) {
-  return (
-    <Badge
-      variant={
-        state === "published"
-          ? "success"
-          : state === "rejected" || state === "archived"
-            ? "destructive"
-            : "secondary"
-      }
-    >
-      {state.replaceAll("_", " ")}
-    </Badge>
-  );
+/**
+ * Kept for callers that still import the badge by this name; it is the
+ * shared lifecycle StatusChip.
+ */
+export function LifecycleBadge({ state }: { state: QuestionDisplayState }) {
+  return <QuestionStateChip state={state} />;
 }

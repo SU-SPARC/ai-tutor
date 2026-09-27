@@ -3,27 +3,30 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * A native `<select>` styled to match `Input` and the rest of the system.
+ * A native `<select>` styled to match `Input`.
  *
- * This is deliberately NOT the Radix-based shadcn Select: several panels are
- * covered by tests that render them with `renderToStaticMarkup` and assert on
- * native `<option value="...">` markup, which a portal-and-listbox
- * implementation does not produce. Native semantics also give us mobile
- * pickers and form submission for free.
+ * Deliberately NOT a Radix listbox: several panels are covered by tests that
+ * render with `renderToStaticMarkup` and assert on native
+ * `<option value="...">` markup. Native semantics also give phones their own
+ * picker and forms their submission for free.
  *
- * The browser's own caret is kept rather than reproduced with a background
- * image, so it follows the `color-scheme` we set per theme in `globals.css`.
- * That also means this string works on its own, applied to a bare `<select>`.
+ * The browser's caret is kept, so it follows the per-theme `color-scheme`.
+ * The string works on its own, applied to a bare `<select>`.
  */
 const nativeSelectClassName =
-  "flex h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/30 disabled:cursor-not-allowed disabled:opacity-50"
+  "flex h-10 w-full min-w-0 rounded-control border border-input bg-sheet px-3 py-2 text-base text-ink transition-[border-color] duration-fast ease-out hover:border-ink-muted focus-visible:border-azure-500 focus-ring pointer-coarse:h-11 aria-invalid:border-red-500 disabled:cursor-not-allowed disabled:bg-surface-tint disabled:opacity-60"
 
-function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
+function NativeSelect({
+  className,
+  invalid,
+  ...props
+}: React.ComponentProps<"select"> & { invalid?: boolean }) {
   return (
     <select
       data-slot="native-select"
-      className={cn(nativeSelectClassName, className)}
       {...props}
+      aria-invalid={invalid ? true : props["aria-invalid"]}
+      className={cn(nativeSelectClassName, className)}
     />
   )
 }

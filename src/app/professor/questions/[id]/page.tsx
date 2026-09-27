@@ -1,19 +1,14 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
 
+import { QuestionReleaseRail } from "@/components/courses/question-release-rail";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorQuestionDetailSummary } from "@/components/professor/professor-question-detail-summary";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
 import { ProfessorQuestionSimilarityControls } from "@/components/professor/professor-question-similarity-controls";
 import { ProfessorQuestionSimilarityCoverage } from "@/components/professor/professor-question-similarity-coverage";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   requirePageAccess,
   requireProfessorReview,
@@ -23,11 +18,18 @@ import {
   listQuestionSimilarityCoverage,
   listQuestionSimilarityLinks,
 } from "@/lib/data/question-similarity-repository";
-import { isProfessorQuestionId } from "@/lib/professor/question-paths";
+import {
+  isProfessorQuestionId,
+  professorReviewQueuePagePath,
+} from "@/lib/professor/question-paths";
+
+export const metadata: Metadata = {
+  title: "Question",
+};
 
 /**
  * One question's lifecycle: its current fields, where it stands, and every
- * attributed action available to the professor. This is where "View Draft"
+ * attributed action available to the professor. This is where "View draft"
  * lands after a save from the AI question intake screen.
  */
 export default async function ProfessorQuestionPage({
@@ -65,57 +67,92 @@ export default async function ProfessorQuestionPage({
   const topicTitle = dashboard.topics.find(
     (topic) => topic.id === question.workingVersion.topicId,
   )?.title;
+  const working = question.workingVersion;
+  const inReviewQueue =
+    working.state === "needs_review" && question.recordState === "active";
 
   return (
     <ProfessorPageShell
-      title={question.workingVersion.title}
-      description="One question, every immutable version. Edit, approve, publish, or roll back from here; students only ever see a published version."
+      title={working.title}
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Questions", href: "/professor/questions" },
+        { label: working.title },
+      ]}
+      description={`${topicTitle ?? working.topicId} · version ${working.versionNumber} of ${question.versions.length}; students only ever see a published version.`}
+      notice={
+        dashboard.readOnly
+          ? (dashboard.readOnlyReason ??
+            "Demo mode is read-only: nothing here can be changed.")
+          : undefined
+      }
       aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <ShieldCheck className="h-4 w-4" />
-          professor only
-        </Badge>
+        inReviewQueue ? (
+          <Button asChild>
+            <Link
+              href={professorReviewQueuePagePath(
+                working.topicId,
+                question.questionId,
+              )}
+            >
+              Open in review queue
+            </Link>
+          </Button>
+        ) : undefined
       }
     >
-      <ProfessorQuestionDetailSummary
-        question={question}
-        topicTitle={topicTitle}
-      />
-      <ProfessorQuestionSimilarityControls
-        initialLinks={similarityLinks}
-        publishedOrigins={dashboard.questions.flatMap((candidate) =>
-          candidate.publishedVersion && candidate.recordState === "active"
-            ? [
-                {
-                  questionId: candidate.questionId,
-                  title: candidate.publishedVersion.title,
-                  versionId: candidate.publishedVersion.versionId,
-                },
-              ]
-            : [],
-        )}
-        question={question}
-      />
-      <ProfessorQuestionSimilarityCoverage
-        coverage={similarityCoverage}
-        topicTitle={topicTitle ?? question.workingVersion.topicId}
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>Question content and lifecycle actions</CardTitle>
-          <CardDescription>
-            The working version is opened below with every field, the revision
-            editor, and the attributed version history.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProfessorQuestionLifecyclePanel
-            focusQuestionId={question.questionId}
-            hideBulkControls
-            initialDashboard={{ ...dashboard, questions: [question] }}
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-8 lg:col-span-2">
+          <ProfessorQuestionDetailSummary
+            question={question}
+            topicTitle={topicTitle}
           />
-        </CardContent>
-      </Card>
+          <ProfessorQuestionSimilarityControls
+            initialLinks={similarityLinks}
+            publishedOrigins={dashboard.questions.flatMap((candidate) =>
+              candidate.publishedVersion && candidate.recordState === "active"
+                ? [
+                    {
+                      questionId: candidate.questionId,
+                      title: candidate.publishedVersion.title,
+                      versionId: candidate.publishedVersion.versionId,
+                    },
+                  ]
+                : [],
+            )}
+            question={question}
+          />
+          <ProfessorQuestionSimilarityCoverage
+            coverage={similarityCoverage}
+            topicTitle={topicTitle ?? working.topicId}
+          />
+          <section
+            aria-labelledby="question-lifecycle-heading"
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-1">
+              <h2 id="question-lifecycle-heading" className="type-h2 text-ink">
+                Versions and actions
+              </h2>
+              <p className="type-small max-w-prose text-ink-muted">
+                Every action is recorded against your account. Editing creates
+                a new draft version; the published version stays as it is until
+                you publish again.
+              </p>
+            </div>
+            <ProfessorQuestionLifecyclePanel
+              focusQuestionId={question.questionId}
+              hideBulkControls
+              initialDashboard={{ ...dashboard, questions: [question] }}
+            />
+          </section>
+        </div>
+        {/* Publishing a version does not move a section to it; the rail is
+            where that gap becomes visible. */}
+        <div className="lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:self-start">
+          <QuestionReleaseRail questionId={question.questionId} />
+        </div>
+      </div>
     </ProfessorPageShell>
   );
 }

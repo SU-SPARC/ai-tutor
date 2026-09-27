@@ -1,20 +1,18 @@
-import { ClipboardCheck } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorFriendlyReviewPanel } from "@/components/professor/professor-friendly-review-panel";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { getProfessorQuestionReviewDashboard } from "@/lib/data/data-store";
 import {
   requirePageAccess,
   requireProfessorReview,
 } from "@/lib/auth/authorization";
+
+export const metadata: Metadata = {
+  title: "Review queue",
+};
 
 type ProfessorReviewPageProps = {
   searchParams: Promise<{
@@ -63,33 +61,38 @@ export default async function ProfessorReviewPage({
         ],
       }
     : { ...loaded, candidates: [], selectedTopicId: undefined };
+  const waiting = loaded.topics.reduce(
+    (sum, topic) => sum + topic.needsReview,
+    0,
+  );
 
   return (
     <ProfessorPageShell
-      title="Review by syllabus topic"
-      description="Choose one topic before loading any question details. Approval records an editorial decision; publishing remains a separate lifecycle action."
+      title="Review queue"
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Review queue" },
+      ]}
+      description={
+        waiting > 0
+          ? `${waiting} ${waiting === 1 ? "question waits" : "questions wait"} for a decision; choose a topic to review its questions one at a time.`
+          : "Nothing is waiting for a decision; choose a topic to check its queue."
+      }
+      notice={
+        dashboard.mode === "demo"
+          ? "Demo data: decisions here are not recorded."
+          : undefined
+      }
       aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <ClipboardCheck className="h-4 w-4" />
-          one at a time
-        </Badge>
+        <Button asChild variant="secondary">
+          <Link href="/professor/questions">Question bank</Link>
+        </Button>
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Review and publication queue</CardTitle>
-          <CardDescription>
-            Topics follow the canonical syllabus order. Questions are shown one
-            at a time and only server-authorized review actions are available.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProfessorFriendlyReviewPanel
-            initialDashboard={dashboard}
-            initialTopicId={preselectedTopicId}
-          />
-        </CardContent>
-      </Card>
+      <ProfessorFriendlyReviewPanel
+        initialDashboard={dashboard}
+        initialTopicId={preselectedTopicId}
+      />
     </ProfessorPageShell>
   );
 }

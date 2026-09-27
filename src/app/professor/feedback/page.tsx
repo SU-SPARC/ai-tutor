@@ -1,13 +1,16 @@
-import { MessageSquareWarning } from "lucide-react";
+import type { Metadata } from "next";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorQuestionFeedbackPanel } from "@/components/professor/professor-question-feedback-panel";
-import { Badge } from "@/components/ui/badge";
 import {
   requirePageAccess,
   requireProfessorReview,
 } from "@/lib/auth/authorization";
 import { getProfessorQuestionFeedbackDashboard } from "@/lib/data/question-feedback-repository";
+
+export const metadata: Metadata = {
+  title: "Student reports",
+};
 
 export default async function ProfessorFeedbackPage() {
   const authorization = await requirePageAccess(
@@ -15,16 +18,22 @@ export default async function ProfessorFeedbackPage() {
     "/professor/feedback",
   );
   const dashboard = await getProfessorQuestionFeedbackDashboard(authorization);
+  const open = dashboard.counts.open;
 
   return (
     <ProfessorPageShell
-      title="Question feedback"
-      description="Review student-reported problems tied to an exact tutor session and immutable question version. Triage and resolution are operational records; they do not edit or republish question content."
-      aside={
-        <Badge variant="outline" className="h-10 gap-2 px-4">
-          <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
-          {dashboard.counts.open} open
-        </Badge>
+      title="Student reports"
+      breadcrumbs={[
+        { label: "Workspace", href: "/professor" },
+        { label: "Student reports" },
+      ]}
+      description="Problems students flagged on practice questions, for you to triage and resolve."
+      notice={
+        <>
+          <span className="font-mono tabular text-ink">{open}</span>{" "}
+          {open === 1 ? "report is" : "reports are"} open
+          {dashboard.mode === "demo" ? " · Demo data" : ""}
+        </>
       }
     >
       <ProfessorQuestionFeedbackPanel initialDashboard={dashboard} />

@@ -6,11 +6,13 @@ import * as ProgressPrimitive from "@radix-ui/react-progress"
 import { cn } from "@/lib/utils"
 
 /**
- * Radix supplies the `progressbar` role and aria-value* attributes, so callers
- * only pass `value` and `max`.
+ * A progress bar: brand-gradient fill on a `--rule` track. Radix supplies the
+ * `progressbar` role and aria-value*; give it an `aria-label` and show the
+ * fraction in text beside it.
  *
- * The indicator is sized with `width` rather than the usual `translateX` so
- * that `minPercent` can keep a small-but-nonzero value visible.
+ * The indicator is sized with `width` (not translateX) so `minPercent` can
+ * keep a small non-zero value visible, and the gradient is stretched over the
+ * full track so the colour at the tip reflects how far along it is.
  */
 function Progress({
   className,
@@ -31,7 +33,7 @@ function Progress({
     <ProgressPrimitive.Root
       data-slot="progress"
       className={cn(
-        "relative h-2 w-full overflow-hidden rounded-full bg-muted",
+        "relative h-1.5 w-full overflow-hidden rounded-full bg-rule",
         className,
       )}
       value={value}
@@ -41,10 +43,13 @@ function Progress({
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
         className={cn(
-          "h-full rounded-full bg-primary transition-[width] duration-300",
+          "brand-gradient-fill h-full rounded-full transition-[width] duration-base ease-out",
           indicatorClassName,
         )}
-        style={{ width: `${percent}%` }}
+        style={{
+          width: `${percent}%`,
+          backgroundSize: percent > 0 ? `${10000 / percent}% 100%` : undefined,
+        }}
       />
     </ProgressPrimitive.Root>
   )

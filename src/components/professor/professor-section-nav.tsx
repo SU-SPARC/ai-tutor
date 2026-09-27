@@ -1,54 +1,34 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
+import {
+  PROFESSOR_ADMIN_SECTIONS,
+  PROFESSOR_SECTIONS,
+  isSectionActive,
+} from "@/components/shell/nav-config";
 import { cn } from "@/lib/utils";
 
-type SectionItem = {
-  href: string;
-  label: string;
-  /**
-   * Rendering the Students page shows student usernames and records each
-   * display, so that page is fetched only when the professor actually opens it.
-   */
-  prefetch?: false;
-};
-
 /**
- * The professor sections, in workflow order rather than alphabetical: what
- * arrives, what needs a decision, what has been decided, what students can
- * reach. Import/export is deliberately not here — it is an occasional
- * administrative action, not a stop in the review workflow.
+ * The workspace sections as one horizontally scrolling row of links, from the
+ * same `nav-config` as the rail and the phone menu. The workspace layout no
+ * longer renders it (the phone menu carries the sections below 1024); it is
+ * kept for any page that wants an in-page strip.
  */
-const SECTIONS: SectionItem[] = [
-  { href: "/professor", label: "Overview" },
-  { href: "/professor/review", label: "Review queue" },
-  { href: "/professor/feedback", label: "Student reports" },
-  { href: "/professor/questions", label: "Question lifecycle" },
-  { href: "/professor/availability", label: "Student availability" },
-  { href: "/professor/students", label: "Students", prefetch: false },
-  { href: "/professor/upload", label: "Uploads" },
-  { href: "/professor/analytics", label: "Analytics" },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === "/professor") {
-    return pathname === "/professor";
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-export function ProfessorSectionNav() {
+export function ProfessorSectionNav({ className }: { className?: string }) {
   const pathname = usePathname() ?? "/professor";
 
   return (
     <nav
       aria-label="Professor sections"
-      className="flex flex-wrap items-center gap-1 border-b pb-3 text-sm"
+      className={cn(
+        "-mx-4 flex items-center gap-1 overflow-x-auto border-b border-rule px-4 pb-2 sm:-mx-6 sm:px-6",
+        className,
+      )}
     >
-      {SECTIONS.map((section) => {
-        const active = isActive(pathname, section.href);
+      {[...PROFESSOR_SECTIONS, ...PROFESSOR_ADMIN_SECTIONS].map((section) => {
+        const active = isSectionActive(pathname, section.href);
         return (
           <Link
             key={section.href}
@@ -56,30 +36,16 @@ export function ProfessorSectionNav() {
             prefetch={section.prefetch}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-1.5 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "inline-flex h-9 shrink-0 items-center rounded-control px-3 text-sm font-medium whitespace-nowrap transition-colors duration-fast focus-ring pointer-coarse:h-11",
               active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                ? "bg-azure-100 text-azure-700"
+                : "text-ink-muted hover:bg-hover hover:text-ink",
             )}
           >
             {section.label}
           </Link>
         );
       })}
-      <Link
-        href="/professor/content-transfer"
-        aria-current={
-          isActive(pathname, "/professor/content-transfer") ? "page" : undefined
-        }
-        className={cn(
-          "ml-auto inline-flex items-center gap-2 rounded-md px-3 py-1.5 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-          isActive(pathname, "/professor/content-transfer")
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-        )}
-      >
-        Import &amp; export
-      </Link>
     </nav>
   );
 }

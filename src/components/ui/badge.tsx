@@ -4,19 +4,25 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Legacy label chip, restyled to match `StatusChip` (6px, wash + dark text).
+ * Prefer `StatusChip` for lifecycle/verdict states and `MasteryChip` for
+ * mastery; keep Badge for neutral tags. Variants map onto the ramps:
+ * default azure, secondary neutral, success green, warning amber (hint
+ * colour: avoid for anything that is not a hint), destructive red, cta mint.
+ */
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-chip px-2 chip-text whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground",
-        secondary: "border-transparent bg-secondary text-secondary-foreground",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground",
-        outline: "border-border text-foreground",
-        success: "border-transparent bg-success text-success-foreground",
-        warning: "border-transparent bg-warning text-warning-foreground",
-        cta: "border-transparent bg-cta text-cta-foreground",
+        default: "bg-azure-100 text-azure-700",
+        secondary: "bg-surface-tint text-ink",
+        destructive: "bg-red-100 text-red-700",
+        outline: "border border-rule text-ink",
+        success: "bg-green-100 text-green-700",
+        warning: "bg-amber-100 text-amber-700",
+        cta: "bg-mint text-mint-foreground",
       },
     },
     defaultVariants: {

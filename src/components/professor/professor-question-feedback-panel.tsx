@@ -1,20 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  CheckCircle2,
-  Loader2,
-  MessageSquareWarning,
-  ShieldCheck,
-} from "lucide-react";
+import { Check } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { nativeSelectClassName } from "@/components/ui/native-select";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import { QUESTION_FEEDBACK_CATEGORY_LABELS } from "@/components/tutor/question-feedback-form";
+import { canonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
 import {
   QUESTION_FEEDBACK_CATEGORIES,
   QUESTION_FEEDBACK_STATUSES,
@@ -30,6 +26,25 @@ const STATUS_LABELS: Record<QuestionFeedbackStatus, string> = {
   resolved: "Resolved",
   triaged: "Triaged",
 };
+
+/** Open waits on a person; resolved is a settled, approved outcome. */
+const STATUS_TONES: Record<QuestionFeedbackStatus, StatusTone> = {
+  dismissed: "neutral",
+  open: "review",
+  resolved: "approved",
+  triaged: "draft",
+};
+
+const TOPIC_TITLES = new Map(
+  canonicalSyllabusTopics.map((topic) => [topic.id, topic.title]),
+);
+
+// UTC so the server render and the browser agree on the text.
+const RECEIVED = new Intl.DateTimeFormat("en", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "UTC",
+});
 
 export function ProfessorQuestionFeedbackPanel({
   initialDashboard,
@@ -52,6 +67,7 @@ export function ProfessorQuestionFeedbackPanel({
       ),
     [categoryFilter, dashboard.reports, statusFilter],
   );
+  const filtered = categoryFilter !== "all" || statusFilter !== "all";
 
   function replaceReport(updated: ProfessorQuestionFeedbackReport) {
     setDashboard((current) => {
@@ -63,101 +79,108 @@ export function ProfessorQuestionFeedbackPanel({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {QUESTION_FEEDBACK_STATUSES.map((status) => (
-          <Card key={status}>
-            <CardContent className="flex items-center justify-between py-4">
-              <span className="text-sm text-muted-foreground">
-                {STATUS_LABELS[status]}
-              </span>
-              <span className="text-2xl font-semibold">
+    <section
+      aria-labelledby="feedback-reports-heading"
+      className="flex flex-col gap-5"
+    >
+      <h2 id="feedback-reports-heading" className="sr-only">
+        Reports
+      </h2>
+      <p className="type-small max-w-prose text-ink-muted">
+        Each report is tied to the exact tutor session and question version.
+        Changing its status or adding resolution notes never alters published
+        content; content changes stay in the question lifecycle.
+      </p>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <Field label="Status" className="sm:w-48">
+            <NativeSelect
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(
+                  event.target.value as QuestionFeedbackStatus | "all",
+                )
+              }
+            >
+              <option value="all">All statuses</option>
+              {QUESTION_FEEDBACK_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABELS[status]}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Category" className="sm:w-64">
+            <NativeSelect
+              value={categoryFilter}
+              onChange={(event) =>
+                setCategoryFilter(
+                  event.target.value as QuestionFeedbackCategory | "all",
+                )
+              }
+            >
+              <option value="all">All categories</option>
+              {QUESTION_FEEDBACK_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {QUESTION_FEEDBACK_CATEGORY_LABELS[category]}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+        </div>
+        <dl
+          aria-label="Reports by status"
+          className="flex flex-wrap gap-x-5 gap-y-1 type-small"
+        >
+          {QUESTION_FEEDBACK_STATUSES.map((status) => (
+            <div key={status} className="flex items-baseline gap-2">
+              <dt className="text-ink-muted">{STATUS_LABELS[status]}</dt>
+              <dd className="font-mono tabular text-ink">
                 {dashboard.counts[status]}
-              </span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Alert variant="info">
-        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-        <AlertDescription>
-          Reports are tied to the exact tutor session and immutable question
-          version. Changing a report status or adding resolution notes never
-          alters published content; content changes stay in the separate
-          question lifecycle.
-        </AlertDescription>
-      </Alert>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-48 space-y-1 text-xs text-muted-foreground">
-          Status
-          <select
-            className={nativeSelectClassName}
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value as QuestionFeedbackStatus | "all",
-              )
-            }
-          >
-            <option value="all">All statuses</option>
-            {QUESTION_FEEDBACK_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="min-w-64 space-y-1 text-xs text-muted-foreground">
-          Category
-          <select
-            className={nativeSelectClassName}
-            value={categoryFilter}
-            onChange={(event) =>
-              setCategoryFilter(
-                event.target.value as QuestionFeedbackCategory | "all",
-              )
-            }
-          >
-            <option value="all">All categories</option>
-            {QUESTION_FEEDBACK_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {QUESTION_FEEDBACK_CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Badge variant="outline">{dashboard.mode}</Badge>
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       {visibleReports.length > 0 ? (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <ol className="flex flex-col divide-y divide-rule rounded-panel bg-sheet">
           {visibleReports.map((report) => (
-            <FeedbackReviewCard
-              key={report.id}
-              report={report}
-              onUpdated={replaceReport}
-            />
+            <li key={report.id}>
+              <FeedbackReviewItem report={report} onUpdated={replaceReport} />
+            </li>
           ))}
-        </div>
+        </ol>
+      ) : filtered ? (
+        <EmptyState
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStatusFilter("all");
+                setCategoryFilter("all");
+              }}
+            >
+              Show all reports
+            </Button>
+          }
+        >
+          No student reports match these filters.
+        </EmptyState>
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <MessageSquareWarning
-            className="mx-auto h-6 w-6 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <p className="mt-3 font-medium">No matching student reports</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            New reports will appear here without changing question content.
-          </p>
-        </div>
+        <EmptyState>
+          No student reports yet; a report sent from a practice question appears
+          here.
+        </EmptyState>
       )}
-    </div>
+    </section>
   );
 }
 
-function FeedbackReviewCard({
+function FeedbackReviewItem({
   onUpdated,
   report,
 }: {
@@ -171,6 +194,10 @@ function FeedbackReviewCard({
   const [active, setActive] = useState(false);
   const [message, setMessage] = useState<string>();
   const terminal = status === "resolved" || status === "dismissed";
+  const headingId = `feedback-report-${report.id}`;
+  const topicTitle = report.topicId
+    ? (TOPIC_TITLES.get(report.topicId) ?? report.topicId)
+    : undefined;
 
   async function save() {
     setActive(true);
@@ -197,62 +224,59 @@ function FeedbackReviewCard({
       }
       onUpdated(payload.report);
       setResolutionNotes(payload.report.resolutionNotes ?? "");
-      setMessage("Feedback status and resolution notes saved.");
+      setMessage("Status and resolution notes saved.");
     } catch {
-      setMessage("The report could not be updated.");
+      setMessage("The report could not be updated. Try again.");
     } finally {
       setActive(false);
     }
   }
 
   return (
-    <Card>
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-muted-foreground">
-              {report.topicId ? `${report.topicId} · ` : ""}
-              Question version {report.questionVersionNumber}
-            </p>
-            <CardTitle className="mt-1 text-base">
+    <article
+      aria-labelledby={headingId}
+      className="grid gap-5 p-4 sm:p-5 xl:grid-cols-5 xl:gap-8"
+    >
+      <div className="flex min-w-0 flex-col gap-3 xl:col-span-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h3 id={headingId} className="type-h3 min-w-0 text-ink">
               {report.questionTitle}
-            </CardTitle>
+            </h3>
+            <StatusChip
+              tone={STATUS_TONES[report.status]}
+              label={STATUS_LABELS[report.status]}
+            />
           </div>
-          <Badge
-            variant={
-              report.status === "resolved"
-                ? "success"
-                : report.status === "open"
-                  ? "warning"
-                  : "outline"
-            }
-          >
-            {STATUS_LABELS[report.status]}
-          </Badge>
+          <p className="type-caption">
+            {topicTitle ? `${topicTitle} · ` : ""}
+            Question version{" "}
+            <span className="font-mono tabular">
+              {report.questionVersionNumber}
+            </span>{" "}
+            · Tutor session linked
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">
-            {QUESTION_FEEDBACK_CATEGORY_LABELS[report.category]}
-          </Badge>
-          <Badge variant="outline">Tutor session linked</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-md border bg-muted/30 p-3 text-sm leading-6 whitespace-pre-wrap">
+        <p className="type-small font-medium text-ink">
+          {QUESTION_FEEDBACK_CATEGORY_LABELS[report.category]}
+        </p>
+        <blockquote className="type-body max-w-prose rounded-control bg-surface-tint px-3 py-2 break-words whitespace-pre-wrap text-ink">
           {report.message}
-        </div>
-        <p className="text-xs text-muted-foreground">
+        </blockquote>
+        <p className="type-caption">
           Received{" "}
-          <time dateTime={report.createdAt}>{formatUtc(report.createdAt)}</time>
+          <time dateTime={report.createdAt}>
+            {formatReceived(report.createdAt)}
+          </time>
           {report.assignedToDisplayName
             ? ` · Assigned to ${report.assignedToDisplayName}`
             : ""}
         </p>
+      </div>
 
-        <label className="block space-y-1 text-xs text-muted-foreground">
-          Review status
-          <select
-            className={nativeSelectClassName}
+      <div className="flex flex-col gap-4 xl:col-span-2">
+        <Field label="Review status">
+          <NativeSelect
             value={status}
             disabled={active}
             onChange={(event) => {
@@ -265,42 +289,44 @@ function FeedbackReviewCard({
                 {STATUS_LABELS[value]}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block space-y-1 text-xs text-muted-foreground">
-          Resolution notes {terminal ? "(required)" : "(optional)"}
+          </NativeSelect>
+        </Field>
+        <Field
+          label="Resolution notes"
+          optional={!terminal}
+          description={
+            terminal ? "Required to resolve or dismiss a report." : undefined
+          }
+        >
           <Textarea
             maxLength={1_000}
             rows={3}
             value={resolutionNotes}
             disabled={active}
-            placeholder="Record the review decision or follow-up."
+            placeholder="What you decided or will follow up…"
             onChange={(event) => {
               setResolutionNotes(event.target.value);
               setMessage(undefined);
             }}
           />
-        </label>
-        {message ? (
-          <p className="text-sm text-muted-foreground" role="status">
+        </Field>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            loading={active}
+            disabled={terminal && !resolutionNotes.trim()}
+            onClick={() => void save()}
+          >
+            <Check aria-hidden="true" />
+            Save review
+          </Button>
+          <p role="status" className="type-small text-ink-muted">
             {message}
           </p>
-        ) : null}
-        <Button
-          type="button"
-          size="sm"
-          disabled={active || (terminal && !resolutionNotes.trim())}
-          onClick={() => void save()}
-        >
-          {active ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          )}
-          Save review
-        </Button>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -315,9 +341,9 @@ function countsFor(reports: ProfessorQuestionFeedbackReport[]) {
   return counts;
 }
 
-function formatUtc(value: string) {
+function formatReceived(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? "Unknown time"
-    : `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    ? "at an unknown time"
+    : `${RECEIVED.format(date)} UTC`;
 }

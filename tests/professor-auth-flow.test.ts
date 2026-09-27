@@ -13,7 +13,9 @@ vi.mock("@clerk/nextjs", async () => {
 });
 
 import ForbiddenPage from "@/app/forbidden/page";
+import { CoursesStoreProvider } from "@/components/courses/courses-store";
 import ProfessorLayout from "@/app/professor/layout";
+import { ThreeColumn } from "@/components/shell/three-column";
 import ProfessorPage from "@/app/professor/page";
 import { GET as getReviewQueue } from "@/app/api/professor/review/route";
 import { AccountActions } from "@/components/auth/account-actions";
@@ -62,7 +64,7 @@ describe("professor page authorization", () => {
     expect(markup).toContain("does not have access to instructor tools");
     expect(markup).toContain("reload this page");
     expect(markup).not.toContain("sign out and sign in again");
-    expect(markup).toContain('href="/dashboard"');
+    expect(markup).toContain('href="/learn"');
     expect(markup).toContain('href="/account"');
     expect(markup).not.toContain("required application role");
   });
@@ -71,9 +73,13 @@ describe("professor page authorization", () => {
     mockPrincipal(TEST_PROFESSOR);
     const protectedChild = createElement("p", null, "protected");
 
-    await expect(ProfessorLayout({ children: protectedChild })).resolves.toBe(
-      protectedChild,
-    );
+    // The workspace is wrapped in the courses store so every professor page
+    // and the header's course switcher read the same client state; inside it,
+    // the shared ThreeColumn frame carries the workspace rail.
+    const layout = await ProfessorLayout({ children: protectedChild });
+    expect(layout.type).toBe(CoursesStoreProvider);
+    expect(layout.props.children.type).toBe(ThreeColumn);
+    expect(layout.props.children.props.children).toBe(protectedChild);
 
     const markup = renderToStaticMarkup(await ProfessorPage());
     expect(markup).toContain("Professor workspace");
@@ -147,7 +153,7 @@ describe("professor sign-in and navigation", () => {
     );
   });
 
-  it("shows the Professor Panel only for professor accounts", async () => {
+  it("shows the Professor workspace link only for professor accounts", async () => {
     mockPrincipal(undefined);
     const anonymousMarkup = renderToStaticMarkup(await AccountActions());
 
@@ -157,10 +163,10 @@ describe("professor sign-in and navigation", () => {
     mockPrincipal(TEST_PROFESSOR);
     const professorMarkup = renderToStaticMarkup(await AccountActions());
 
-    expect(anonymousMarkup).not.toContain("Professor Panel");
-    expect(studentMarkup).not.toContain("Professor Panel");
+    expect(anonymousMarkup).not.toContain("Professor workspace");
+    expect(studentMarkup).not.toContain("Professor workspace");
     expect(professorMarkup).toContain('href="/professor"');
-    expect(professorMarkup).toContain("Professor Panel");
+    expect(professorMarkup).toContain("Professor workspace");
     expect(professorMarkup).toContain("Account");
     expect(professorMarkup).toContain("Sign out");
   });

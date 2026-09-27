@@ -1,16 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { InstructorStudentIdentity } from "@/lib/types";
 
 const UNAVAILABLE: InstructorStudentIdentity = { status: "unavailable" };
@@ -19,6 +12,10 @@ const UNAVAILABLE: InstructorStudentIdentity = { status: "unavailable" };
  * Identity is hidden until an instructor asks for it, and the request is made
  * per page visit: nothing about a reveal is stored in the browser, so leaving
  * or reloading the page returns the record to its pseudonymous state.
+ *
+ * Rendered as a strip under the page header: what is hidden on the left, the
+ * one control on the right. The result replaces the text in the same status
+ * region, so it is announced.
  */
 export function InstructorStudentIdentityPanel({
   studentKey,
@@ -50,48 +47,50 @@ export function InstructorStudentIdentityPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Account identity</CardTitle>
-        <CardDescription>
-          Identity is shown only to authorized instructors. Names, usernames,
-          and email addresses are not stored in practice analytics.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {identity ? (
-          <IdentityResult identity={identity} />
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Identity hidden</p>
-              <p className="text-sm text-muted-foreground">
-                Practice analytics for {studentLabel} stay pseudonymous.
-              </p>
-            </div>
-            <Button disabled={pending} onClick={reveal} variant="outline">
-              {pending ? (
-                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-              ) : (
-                <Eye aria-hidden="true" className="h-4 w-4" />
-              )}
-              Reveal identity
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <section
+      aria-labelledby="account-identity-heading"
+      className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        <h2 id="account-identity-heading" className="type-h3 text-ink">
+          Account identity
+        </h2>
+        <div role="status">
+          {identity ? (
+            <IdentityResult identity={identity} />
+          ) : (
+            <p className="type-small max-w-prose text-ink-muted">
+              <span className="font-medium text-ink">Identity hidden.</span>{" "}
+              Practice analytics for {studentLabel} stay pseudonymous; names,
+              usernames and email addresses are not stored with them.
+            </p>
+          )}
+        </div>
+      </div>
+      {identity ? null : (
+        <Button
+          className="self-start sm:self-center"
+          loading={pending}
+          onClick={reveal}
+          variant="outline"
+        >
+          <Eye aria-hidden="true" />
+          Reveal identity
+        </Button>
+      )}
+    </section>
   );
 }
 
 function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
   if (identity.status === "identified") {
     return (
-      <dl aria-live="polite" className="grid gap-3 sm:grid-cols-3">
+      <dl className="mt-1 grid gap-x-8 gap-y-2 sm:grid-cols-3">
         <IdentityField label="Name" value={identity.displayName} />
         <IdentityField
           label="Username"
           missing="Username unavailable"
+          mono
           value={identity.username}
         />
         <IdentityField
@@ -104,7 +103,7 @@ function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
   }
 
   return (
-    <p aria-live="polite" className="text-sm text-muted-foreground">
+    <p className="type-small max-w-prose text-ink-muted">
       {MESSAGES[identity.status]}
     </p>
   );
@@ -118,20 +117,22 @@ function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
 function IdentityField({
   label,
   missing,
+  mono = false,
   value,
 }: {
   label: string;
   missing?: string;
+  mono?: boolean;
   value?: string;
 }) {
   return (
-    <div className="space-y-1">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="type-label">{label}</dt>
       <dd
         className={
           value
-            ? "text-sm font-medium break-words"
-            : "text-sm text-muted-foreground"
+            ? `type-body break-words text-ink${mono ? " font-mono" : ""}`
+            : "type-body text-ink-muted"
         }
       >
         {value ?? missing}
@@ -142,7 +143,7 @@ function IdentityField({
 
 const MESSAGES = {
   anonymous:
-    "This student practised without signing in, so there is no account to identify.",
-  unavailable: "Identity is temporarily unavailable. Please try again.",
+    "This student practiced without signing in, so there is no account to identify.",
+  unavailable: "Identity is temporarily unavailable. Try again in a moment.",
   unlinked: "This student no longer has an account with the course tutor.",
 } as const;

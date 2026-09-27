@@ -145,7 +145,7 @@ describe("safe authentication return paths", () => {
 });
 
 describe("student authentication routes", () => {
-  it("fails safely when Clerk is not configured", async () => {
+  it("fails safely when neither Clerk nor the demo sign-in is configured", async () => {
     const signIn = await SignInPage({
       searchParams: Promise.resolve({ callbackUrl: "/dashboard" }),
     });
@@ -158,6 +158,31 @@ describe("student authentication routes", () => {
       expect(markup).toContain("Account sign-in is not configured");
       expect(markup).toContain("will not simulate a real account");
       expect(markup).not.toContain("data-clerk-sign");
+    }
+  });
+
+  it("sends both demo entry points to the one join screen, keeping the requested page", async () => {
+    mocks.getServerEnv.mockReturnValue({
+      CLERK_ENABLED: false,
+      GHOST_LOGIN_ENABLED: true,
+      LEGACY_ANONYMOUS_MIGRATION_ENABLED: false,
+    });
+
+    for (const page of [SignInPage, SignUpPage]) {
+      await expect(
+        page({
+          searchParams: Promise.resolve({
+            callbackUrl: "/practice?questionId=dice-sum-eight",
+          }),
+        }),
+      ).rejects.toMatchObject({
+        destination:
+          "/join?callbackUrl=%2Fpractice%3FquestionId%3Ddice-sum-eight",
+      });
+
+      await expect(
+        page({ searchParams: Promise.resolve({}) }),
+      ).rejects.toMatchObject({ destination: "/join" });
     }
   });
 
@@ -203,7 +228,7 @@ describe("student authentication routes", () => {
     expect(JSON.stringify(mocks.signUpProps)).not.toMatch(/role|metadata/i);
   });
 
-  it("forces an unsafe callback to the student dashboard", async () => {
+  it("forces an unsafe callback to the learn page", async () => {
     mocks.getServerEnv.mockReturnValue({ CLERK_ENABLED: true });
 
     const element = await SignInPage({
@@ -214,7 +239,7 @@ describe("student authentication routes", () => {
     renderToStaticMarkup(element);
 
     expect(mocks.signInProps).toMatchObject({
-      forceRedirectUrl: "/onboarding?returnTo=%2Fdashboard",
+      forceRedirectUrl: "/onboarding?returnTo=%2Flearn",
     });
   });
 
@@ -311,7 +336,7 @@ describe("student onboarding and account routes", () => {
 
     await expect(
       acknowledgeStudentOnboardingAction("https://attacker.example/steal", {}),
-    ).rejects.toMatchObject({ destination: "/dashboard" });
+    ).rejects.toMatchObject({ destination: "/learn" });
 
     expect(mocks.acknowledgeStudentOnboarding).toHaveBeenCalledOnce();
     expect(mocks.acknowledgeStudentOnboarding).toHaveBeenCalledWith(

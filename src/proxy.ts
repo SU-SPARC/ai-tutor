@@ -2,6 +2,10 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import {
+  GHOST_SESSION_COOKIE,
+  parseGhostRole,
+} from "@/lib/auth/ghost-session";
 import { safeReturnPath, signInPath } from "@/lib/auth/return-path";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -33,6 +37,16 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
   }
 
   if (!isCoarselyProtectedPath(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  // The proxy only decides whether to send an unauthenticated visitor to the
+  // sign-in page; the pages themselves still resolve the principal, so a valid
+  // demo cookie merely stops the redirect.
+  if (
+    env.GHOST_LOGIN_ENABLED &&
+    parseGhostRole(request.cookies.get(GHOST_SESSION_COOKIE)?.value)
+  ) {
     return NextResponse.next();
   }
 

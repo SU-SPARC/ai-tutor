@@ -1,17 +1,10 @@
 import Link from "next/link";
 
 import { StudentUsername } from "@/components/professor/instructor-student-username";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -23,11 +16,15 @@ import type { InstructorStudentTopicRoster } from "@/lib/types";
 
 const NO_TOPIC_TITLE = "No topic practice yet";
 
+function studentCount(count: number) {
+  return `${count} ${count === 1 ? "student" : "students"}`;
+}
+
 /**
- * The Students page grouped by practised topic, rendered on the server with
+ * The Students page grouped by practiced topic, rendered on the server with
  * the usernames already resolved and recorded: nothing here fetches, stores,
- * or toggles anything in the browser. Students arrive in the order the server
- * put them in — username A–Z within each topic.
+ * or toggles anything in the browser (there is no button at all). Students
+ * arrive in the order the server put them in — username A–Z within each topic.
  */
 export function InstructorStudentTopicRoster({
   roster,
@@ -37,7 +34,6 @@ export function InstructorStudentTopicRoster({
   const labels = assignStudentLabels(rosterStudentKeys(roster));
   const groups = [
     ...roster.topics.map((group) => ({
-      description: "Students with recorded practice in this topic.",
       key: group.topicId,
       students: group.students,
       title: group.topicTitle,
@@ -45,8 +41,6 @@ export function InstructorStudentTopicRoster({
     ...(roster.unassigned.length > 0
       ? [
           {
-            description:
-              "Students who have signed in but not yet practised a topic.",
             key: "no-topic",
             students: roster.unassigned,
             title: NO_TOPIC_TITLE,
@@ -57,44 +51,58 @@ export function InstructorStudentTopicRoster({
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
-        {labels.size} {labels.size === 1 ? "student" : "students"}, listed
-        under every topic they have practised and sorted by username. Usernames
-        are read from the account provider for this visit and each display is
-        recorded; they are not stored in practice analytics.
+      <p className="type-small text-ink-muted">
+        <span className="font-mono tabular text-ink">
+          {studentCount(labels.size)}
+        </span>
+        , listed under every topic they have practiced, A–Z by username.
       </p>
 
-      {groups.map((group) => (
-        <Card key={group.key}>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div className="flex flex-col gap-1.5">
-              <CardTitle>{group.title}</CardTitle>
-              <CardDescription>{group.description}</CardDescription>
-            </div>
-            <Badge variant="outline" className="shrink-0">
-              {group.students.length}{" "}
-              {group.students.length === 1 ? "student" : "students"}
-            </Badge>
-          </CardHeader>
-          <CardContent className="px-0">
+      {groups.map((group) => {
+        const headingId = `roster-${group.key}`;
+        return (
+          <section
+            key={group.key}
+            aria-labelledby={headingId}
+            className="rounded-panel bg-sheet"
+          >
+            <header className="flex items-baseline justify-between gap-4 px-4 pt-4 pb-2">
+              <h2 id={headingId} className="type-h3 text-ink">
+                {group.title}
+              </h2>
+              <p className="type-caption shrink-0 font-mono tabular">
+                {studentCount(group.students.length)}
+              </p>
+            </header>
             <Table>
+              <TableCaption className="sr-only">
+                {group.key === "no-topic"
+                  ? "Students who have signed in but not yet practiced a topic"
+                  : `Students with recorded practice in ${group.title}`}
+              </TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="px-6">Username</TableHead>
-                  <TableHead className="px-6">Student</TableHead>
+                  <TableHead scope="col" className="w-1/2 pl-4">
+                    Username
+                  </TableHead>
+                  <TableHead scope="col" className="pr-4">
+                    Student
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {group.students.map((student) => (
                   <TableRow key={student.studentKey}>
-                    <TableCell className="px-6 py-3">
+                    <TableCell className="pl-4">
                       <StudentUsername
-                        identity={roster.revealed ? student.identity : undefined}
+                        identity={
+                          roster.revealed ? student.identity : undefined
+                        }
                       />
                     </TableCell>
-                    <TableCell className="px-6 py-3">
+                    <TableCell className="pr-4">
                       <Link
-                        className="font-medium text-primary hover:underline"
+                        className="relative rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-3"
                         href={`/professor/students/${student.studentKey}`}
                       >
                         {labels.get(student.studentKey)}
@@ -104,9 +112,9 @@ export function InstructorStudentTopicRoster({
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      ))}
+          </section>
+        );
+      })}
     </div>
   );
 }

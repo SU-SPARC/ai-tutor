@@ -1,17 +1,12 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { ProgressDashboard } from "@/components/student/progress-dashboard";
-import { requirePageAccess, requireStudent } from "@/lib/auth/authorization";
-import { getStudentProgress } from "@/lib/data/student-progress";
-
-export const metadata: Metadata = {
-  title: "Your practice progress | Suffolk Probability Tutor",
-};
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const authorization = await requirePageAccess(requireStudent, "/dashboard");
-  const progress = await getStudentProgress(authorization);
-
-  return <ProgressDashboard progress={progress} />;
+/**
+ * The dashboard and the topic index answered the same question — "what next?"
+ * — so they are one page now. The URL stays alive because it is in browser
+ * histories and in the header of every page shipped before the merge.
+ */
+export default function DashboardPage() {
+  redirect("/learn");
 }

@@ -1,11 +1,18 @@
 import "server-only";
 
+import { cookies } from "next/headers";
+
 import {
   CLERK_IDENTITY_PROVIDER,
   getApplicationUserAccessByExternalIdentity,
   syncClerkRoleProjection,
   upsertClerkAccount,
 } from "@/lib/auth/account-repository";
+import {
+  ghostPrincipalFor,
+  GHOST_SESSION_COOKIE,
+  parseGhostRole,
+} from "@/lib/auth/ghost-session";
 import { getServerEnv } from "@/lib/env/server";
 import {
   applicationRoleFromPublicMetadata,
@@ -43,7 +50,15 @@ export async function resolveAuthenticatedPrincipal(): Promise<
 
   const env = getServerEnv();
   if (!env.CLERK_ENABLED) {
-    return undefined;
+    if (!env.GHOST_LOGIN_ENABLED) {
+      return undefined;
+    }
+
+    // A demo session is the cookie and nothing else: no account row is read or
+    // written, so the workspace stays usable with no database reachable.
+    const cookieStore = await cookies();
+    const role = parseGhostRole(cookieStore.get(GHOST_SESSION_COOKIE)?.value);
+    return role ? ghostPrincipalFor(role) : undefined;
   }
 
   const { auth, currentUser } = await import("@clerk/nextjs/server");
