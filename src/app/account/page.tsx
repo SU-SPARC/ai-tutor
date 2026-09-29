@@ -19,6 +19,7 @@ import {
 } from "@/lib/auth/authorization";
 import { isGhostUserId } from "@/lib/auth/ghost-session";
 import { getServerEnv } from "@/lib/env/server";
+import { studentUsageDisclosure } from "@/lib/professor/student-usage";
 
 export const metadata: Metadata = {
   title: "Your account",
@@ -95,7 +96,10 @@ export default async function AccountPage() {
           </AccountRow>
           <AccountRow label="What your professor sees">
             Your professor sees you as a code (like Student 8F2A); your name is
-            shown only if they open your record, and that is logged.
+            shown only if they open your record, and that is logged.{" "}
+            {studentUsageDisclosure(
+              env.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
+            )}
           </AccountRow>
           {feedbackEmail && !isProfessor ? (
             <AccountRow label="Feedback">

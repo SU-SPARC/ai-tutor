@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAccuracy } from "@/lib/professor/student-pseudonym";
-import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
+import { formatActiveTime } from "@/lib/professor/student-usage";
 import { FULL_CREDIT_VALID_ATTEMPT_LIMIT } from "@/lib/tutor/practice-credit";
 import type {
   InstructorAttentionSignal,
@@ -29,6 +29,7 @@ import type {
   InstructorStudentActivityPoint,
   InstructorStudentAttempt,
   InstructorStudentDetail,
+  InstructorStudentSummary,
   InstructorStudentTopicPerformance,
 } from "@/lib/types";
 
@@ -478,12 +479,40 @@ function RecentActivity({
   );
 }
 
+/**
+ * Whether anything is recorded for this student. A student is listed from
+ * their first sign-in, so "nothing yet" is a real state. The record page's
+ * header uses the same test as the panel so the two never disagree.
+ */
+export function studentHasActivity(
+  summary: InstructorStudentSummary,
+  sketchpadMeasurementEnabled = false,
+) {
+  return (
+    summary.sessions > 0 ||
+    summary.extraPracticeSessions > 0 ||
+    summary.attempts > 0 ||
+    summary.aiHelpRequests > 0 ||
+    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0)
+  );
+}
+
 export function InstructorStudentDetailPanel({
+  aiEnabled = true,
   detail,
   sketchpadMeasurementEnabled = false,
 }: {
+  /**
+   * From the typed server environment (`AI_ENABLED`). With AI off for the
+   * deployment the AI tutor tile is hidden: nobody could have asked.
+   */
+  aiEnabled?: boolean;
   detail: InstructorStudentDetail;
-  /** From the typed server environment; see `sketchpadTimeDisplay`. */
+  /**
+   * From the typed server environment
+   * (`SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED`). While off, the sketchpad
+   * tile is not rendered at all: nothing is measured yet.
+   */
   sketchpadMeasurementEnabled?: boolean;
 }) {
   const {
@@ -495,15 +524,9 @@ export function InstructorStudentDetailPanel({
     summary,
     topics,
   } = detail;
-  // A student is listed from their first sign-in, so a record with nothing
-  // recorded is a real state rather than an error. Say so, and let the zero
-  // numbers below stay truthful zeros.
-  const hasActivity =
-    summary.sessions > 0 ||
-    summary.extraPracticeSessions > 0 ||
-    summary.attempts > 0 ||
-    summary.aiHelpRequests > 0 ||
-    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0);
+  // A record with nothing recorded is a real state rather than an error. Say
+  // so, and let the zero numbers below stay truthful zeros.
+  const hasActivity = studentHasActivity(summary, sketchpadMeasurementEnabled);
   const checkedAnswers =
     summary.correctAttempts + (summary.incorrectAttempts ?? 0);
   const now = requestTime();
@@ -519,8 +542,8 @@ export function InstructorStudentDetailPanel({
         </h2>
         {hasActivity ? null : (
           <p className="type-body max-w-prose text-ink">
-            No practice activity yet: this student has signed in but not
-            practiced, so every number below is zero.
+            This student has signed in but hasn’t practiced or asked for help
+            yet.
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -539,23 +562,28 @@ export function InstructorStudentDetailPanel({
             delta={`Plus ${plural(summary.extraPracticeSessions, "extra practice question", "extra practice questions")}`}
           />
           <Tile label="Hints used" value={count(summary.hintsUsed)} />
+          {aiEnabled ? (
+            <Tile
+              label="Asked the AI tutor"
+              value={count(summary.aiHelpRequests)}
+              delta={
+                summary.aiHelpRequests > 0
+                  ? "Times they asked the AI tutor for help, across all topics since they joined. Asking is a good sign, and it’s not part of any grade. See Students by topic for each topic."
+                  : "They haven’t asked the AI tutor yet."
+              }
+            />
+          ) : null}
           <Tile
             label="Solutions viewed"
             value={count(summary.solutionsRevealed)}
           />
-          <Tile
-            label="Time on sketchpad"
-            value={sketchpadTimeDisplay(
-              summary.sketchpadActiveSeconds,
-              sketchpadMeasurementEnabled,
-            )}
-            delta="About how long they spent drawing on the sketchpad"
-          />
-          <Tile
-            label="AI help requests"
-            value={count(summary.aiHelpRequests)}
-            delta="How many times they asked the AI tutor for help"
-          />
+          {sketchpadMeasurementEnabled ? (
+            <Tile
+              label="Time on sketchpad"
+              value={formatActiveTime(summary.sketchpadActiveSeconds)}
+              delta="About how long they spent drawing on the sketchpad, all topics, since they joined. An estimate."
+            />
+          ) : null}
         </div>
       </section>
 

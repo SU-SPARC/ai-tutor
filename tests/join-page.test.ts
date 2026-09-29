@@ -199,10 +199,14 @@ describe("join screen", () => {
     const markup = await renderJoin();
 
     expect(markup).toContain("What we keep:");
-    expect(markup).toContain("your attempts, hints and answers.");
     expect(markup).toContain(
-      "Your professor sees you as a code (like Student 8F2A); your name is shown only if they open your record, and that is logged.",
+      "your attempts, hints, answers, and how often you ask the AI tutor.",
     );
+    expect(markup).toContain(
+      "Your professor sees you as a code (like Student 8F2A); your name is shown only if they open your record, and that is logged. Your professor also sees how many times you asked the AI tutor, not what you wrote.",
+    );
+    // Sketchpad time is not measured by default, so it is not mentioned.
+    expect(markup).not.toContain("sketchpad");
     expect(markup).not.toContain("hashed key");
     expect(markup).not.toContain("never your name");
     // The demo has no sign-in to keep guest progress with, so none is promised.
@@ -210,6 +214,20 @@ describe("join screen", () => {
       "As a guest, your progress lives in this browser.",
     );
     expect(markup).not.toContain("import it");
+  });
+
+  it("adds sketchpad time to the join note once it is measured", async () => {
+    mocks.getServerEnv.mockReturnValue({
+      ...DEMO_ENV,
+      SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: true,
+    });
+
+    const markup = await renderJoin();
+
+    expect(markup).toContain(
+      "Your professor also sees how many times you asked the AI tutor and about how long you spent on the sketchpad, not what you wrote or drew.",
+    );
+    expect(markup).not.toContain("not what you wrote.");
   });
 
   it("carries the requested page through as a hidden field", async () => {

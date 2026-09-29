@@ -17,6 +17,7 @@ import { isGhostUserId } from "@/lib/auth/ghost-session";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import { hasAcknowledgedStudentOnboarding } from "@/lib/data/student-onboarding-repository";
 import { getServerEnv } from "@/lib/env/server";
+import { studentUsageDisclosure } from "@/lib/professor/student-usage";
 
 export const metadata: Metadata = {
   title: "Before you start",
@@ -78,7 +79,11 @@ export default async function OnboardingPage({
             We save your attempts, hints and answers so you can pick up where
             you left off. Your professor sees you as a code (like Student
             8F2A); your name is shown only if they open your record, and that
-            is logged. AI help is optional and can be wrong.
+            is logged.{" "}
+            {studentUsageDisclosure(
+              env.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
+            )}{" "}
+            AI help is optional and can be wrong.
           </p>
         </header>
 
@@ -115,9 +120,13 @@ export default async function OnboardingPage({
               <NoticeItem title="Activity that is saved">
                 Your account profile and practice activity are stored: questions
                 practiced, a short answer preview, results, hints and steps
-                used, timestamps, and limited usage counts. Your professor sees
-                you as a code (like Student 8F2A); your name is shown only if
-                they open your record, and that is logged.
+                used, timestamps, and how many times you used Ask AI for help.
+                Your professor sees you as a code (like Student 8F2A); your
+                name is shown only if they open your record, and that is
+                logged.
+                {env.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
+                  ? " Your professor sees about how long you spend on the sketchpad, not what you draw."
+                  : null}
               </NoticeItem>
               <NoticeItem title="Optional AI help">
                 Hints, feedback, and worked solutions come from
@@ -125,7 +134,8 @@ export default async function OnboardingPage({
                 <span className="font-medium">Ask AI for help</span> when it is
                 offered, the current question, your answer or message, limited
                 progress context, and selected course material may be sent to
-                an AI service. AI usage and responses may also be recorded.
+                an AI service. Your professor sees how many times you asked, not
+                your messages.
               </NoticeItem>
               <NoticeItem title="Check explanations">
                 Explanations can be incomplete or wrong. Compare them with your

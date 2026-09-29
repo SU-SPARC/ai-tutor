@@ -127,8 +127,8 @@ export function formatCorrect(correct: number, checked: number) {
  * the page has resolved and recorded username identities, each row leads
  * with the student's username and shows their code under it; without them
  * the row shows the code alone, as it does wherever the table is rendered
- * without an audited lookup. Hints, solutions, study sessions and extra
- * practice live on the student's record.
+ * without an audited lookup. Hints, solutions, study sessions, extra
+ * practice, AI tutor use and sketchpad time live on the student's record.
  */
 export function InstructorStudentTable({
   identities,
@@ -136,12 +136,6 @@ export function InstructorStudentTable({
 }: {
   identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
-  /**
-   * From the typed server environment. Accepted so the Students page can
-   * pass it, but the table keeps five plain columns: time on the sketchpad
-   * and AI help requests are shown on each student's record page instead.
-   */
-  sketchpadMeasurementEnabled?: boolean;
 }) {
   const labels = assignStudentLabels(
     list.students.map((student) => student.studentKey),

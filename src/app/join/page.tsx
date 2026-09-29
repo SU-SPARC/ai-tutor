@@ -71,6 +71,9 @@ export default async function JoinPage({ searchParams }: JoinPageProps) {
         clerkEnabled={env.CLERK_ENABLED}
         ghostLoginEnabled={env.GHOST_LOGIN_ENABLED}
         guestPracticeEnabled={env.ANONYMOUS_PILOT_ENABLED}
+        sketchpadMeasurementEnabled={
+          env.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
+        }
         ssoHref={ssoHref}
       />
     </main>

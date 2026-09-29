@@ -9,6 +9,7 @@ import { joinAsDemoProfessor, joinAsGuestStudent } from "@/app/join/actions";
 import { SectionCodeForm } from "@/components/auth/section-code-form";
 import { Logo } from "@/components/shell/logo";
 import { Button } from "@/components/ui/button";
+import { studentUsageDisclosure } from "@/lib/professor/student-usage";
 
 export {
   parseSectionCode,
@@ -23,6 +24,11 @@ export type JoinScreenProps = {
   clerkEnabled: boolean;
   ghostLoginEnabled: boolean;
   guestPracticeEnabled: boolean;
+  /**
+   * `SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED`, from the server: the notice
+   * mentions sketchpad time exactly when it is measured.
+   */
+  sketchpadMeasurementEnabled?: boolean;
   /** Pre-built `/sign-in?callbackUrl=…` for the Clerk door. */
   ssoHref: string;
 };
@@ -71,6 +77,7 @@ export function JoinScreen({
   clerkEnabled,
   ghostLoginEnabled,
   guestPracticeEnabled,
+  sketchpadMeasurementEnabled = false,
   ssoHref,
 }: JoinScreenProps) {
   const router = useRouter();
@@ -151,9 +158,10 @@ export function JoinScreen({
         <div className="flex flex-col gap-2 border-t border-rule pt-6">
           <p className="type-small text-ink-muted">
             <span className="font-medium text-ink">What we keep:</span> your
-            attempts, hints and answers. Your professor sees you as a code (like
-            Student 8F2A); your name is shown only if they open your record, and
-            that is logged.
+            attempts, hints, answers, and how often you ask the AI tutor. Your
+            professor sees you as a code (like Student 8F2A); your name is shown
+            only if they open your record, and that is logged.{" "}
+            {studentUsageDisclosure(sketchpadMeasurementEnabled)}
           </p>
           <p className="type-small text-ink-muted">
             {clerkEnabled

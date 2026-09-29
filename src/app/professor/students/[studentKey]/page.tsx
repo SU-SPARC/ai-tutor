@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
-import { InstructorStudentDetailPanel } from "@/components/professor/instructor-student-detail";
+import {
+  InstructorStudentDetailPanel,
+  studentHasActivity,
+} from "@/components/professor/instructor-student-detail";
 import { InstructorStudentIdentityPanel } from "@/components/professor/instructor-student-identity";
 import { RelativeTime } from "@/components/professor/instructor-student-table";
 import {
@@ -42,6 +45,14 @@ export default async function ProfessorStudentPage({
 
   const label = studentLabel(studentKey);
   const lastActiveAt = detail.summary.lastActiveAt;
+  const env = getServerEnv();
+  const sketchpadMeasurementEnabled =
+    env.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED;
+  // The header and the panel's "nothing yet" sentence use one test.
+  const hasActivity = studentHasActivity(
+    detail.summary,
+    sketchpadMeasurementEnabled,
+  );
   // Titled by the student code: identity lookups are confined to the
   // Students list and the explicit "Show name and email" reveal below (see
   // tests/professor-student-identity.test.ts).
@@ -57,13 +68,13 @@ export default async function ProfessorStudentPage({
       description="What this student has practiced and how it went."
       notice={
         <>
-          {lastActiveAt ? (
+          {!hasActivity ? (
+            "No practice yet"
+          ) : lastActiveAt ? (
             <>
               Last active <RelativeTime value={lastActiveAt} withDate />
             </>
-          ) : (
-            "No practice yet"
-          )}
+          ) : null}
         </>
       }
     >
@@ -72,10 +83,9 @@ export default async function ProfessorStudentPage({
         studentLabel={label}
       />
       <InstructorStudentDetailPanel
+        aiEnabled={env.AI_ENABLED}
         detail={detail}
-        sketchpadMeasurementEnabled={
-          getServerEnv().SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
-        }
+        sketchpadMeasurementEnabled={sketchpadMeasurementEnabled}
       />
     </ProfessorPageShell>
   );

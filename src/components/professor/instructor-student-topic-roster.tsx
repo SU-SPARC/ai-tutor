@@ -54,11 +54,16 @@ export function InstructorStudentTopicRoster({
     <div className="flex flex-col gap-6">
       <p className="type-body text-ink">
         <span className="tabular">{studentCount(labels.size)}</span>, listed
-        under every topic they have practiced, A to Z by username.
+        under every topic they have practiced, A to Z by username. The last
+        column counts how many times each student asked the AI tutor in that
+        topic.
       </p>
 
       {groups.map((group) => {
         const headingId = `roster-${group.key}`;
+        // Students with no topic practice have no AI tutor use in any topic
+        // either, so that group has no count column.
+        const showAiColumn = group.key !== "no-topic";
         return (
           <section
             key={group.key}
@@ -87,9 +92,11 @@ export function InstructorStudentTopicRoster({
                   <TableHead scope="col" className="pr-4">
                     Student record
                   </TableHead>
-                  <TableHead scope="col" numeric className="pr-4">
-                    AI Help Requests
-                  </TableHead>
+                  {showAiColumn ? (
+                    <TableHead scope="col" numeric className="pr-4">
+                      Asked the AI tutor
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -111,9 +118,11 @@ export function InstructorStudentTopicRoster({
                         {labels.get(student.studentKey)}
                       </Link>
                     </TableCell>
-                    <TableCell numeric className="pr-4">
-                      {student.aiHelpRequests ?? 0}
-                    </TableCell>
+                    {showAiColumn ? (
+                      <TableCell numeric className="pr-4">
+                        {student.aiHelpRequests ? student.aiHelpRequests : "—"}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

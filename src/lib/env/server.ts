@@ -251,7 +251,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
   );
   // Professor surfaces show estimated Sketchpad time only once the external
   // Sketchpad reports heartbeats through a reviewed bridge. Until then the
-  // display reads "Not yet measured" so a stored zero is never presented as a
+  // "Time on sketchpad" tile is hidden so a stored zero is never presented as a
   // measured zero. The flag never changes time accounting or the endpoint.
   const SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED = parseBoolean(
     "SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED",

@@ -99,6 +99,14 @@ function withFeedbackEnv() {
 const PRIVACY_SENTENCE =
   "Your professor sees you as a code (like Student 8F2A); your name is shown only if they open your record, and that is logged.";
 
+/** The usage disclosure while sketchpad time is not measured (the default). */
+const USAGE_SENTENCE =
+  "Your professor also sees how many times you asked the AI tutor, not what you wrote.";
+
+/** The same disclosure once sketchpad measurement is switched on. */
+const USAGE_SENTENCE_WITH_SKETCHPAD =
+  "Your professor also sees how many times you asked the AI tutor and about how long you spent on the sketchpad, not what you wrote or drew.";
+
 /** renderToStaticMarkup escapes apostrophes; assertions read plain text. */
 function plain(markup: string) {
   return markup.replaceAll("&#x27;", "'");
@@ -328,6 +336,8 @@ describe("student onboarding and account routes", () => {
       "We save your attempts, hints and answers so you can pick up where you left off.",
     );
     expect(markup).toContain(PRIVACY_SENTENCE);
+    expect(markup).toContain(`${PRIVACY_SENTENCE} ${USAGE_SENTENCE}`);
+    expect(markup).not.toContain("sketchpad");
     expect(markup).toContain("AI help is optional and can be wrong.");
     expect(markup).not.toMatch(/never your name|hashed key|pseudonymous/i);
     expect(markup).toContain("<details");
@@ -342,6 +352,12 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain("Activity that is saved");
     expect(markup).toContain("short answer preview");
     expect(markup).toContain("Optional AI help");
+    expect(markup).toContain("how many times you used Ask AI for help");
+    expect(markup).toContain(
+      "Your professor sees how many times you asked, not your messages.",
+    );
+    expect(markup).not.toContain("limited usage counts");
+    expect(markup).not.toContain("AI usage and responses may also be recorded");
     expect(markup).not.toMatch(/fallback|provider/i);
     expect(markup).toContain("Explanations can be incomplete or wrong");
     expect(markup).toContain("To report an error");
@@ -363,6 +379,31 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain("does not receive or store your password");
     expect(markup).not.toMatch(/application roles|issuer/i);
     expect(markup).not.toMatch(/university approved|approved by suffolk/i);
+  });
+
+  it("tells the student about sketchpad time exactly when it is measured", async () => {
+    mocks.getServerEnv.mockReturnValue({
+      CLERK_ENABLED: false,
+      LEGACY_ANONYMOUS_MIGRATION_ENABLED: false,
+      SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: true,
+    });
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+
+    const markup = plain(
+      renderToStaticMarkup(
+        await OnboardingPage({
+          searchParams: Promise.resolve({ returnTo: "/learn" }),
+        }),
+      ),
+    );
+
+    expect(markup).toContain(
+      `${PRIVACY_SENTENCE} ${USAGE_SENTENCE_WITH_SKETCHPAD} AI help is optional and can be wrong.`,
+    );
+    expect(markup).toContain(
+      "Your professor sees about how long you spend on the sketchpad, not what you draw.",
+    );
+    expect(markup).not.toContain(USAGE_SENTENCE);
   });
 
   it("offers one mint button and no import panel when there is no guest practice", async () => {
@@ -476,6 +517,8 @@ describe("student onboarding and account routes", () => {
       "To change your password or email, use your Suffolk account. Something wrong? Ask your professor.",
     );
     expect(markup).toContain(PRIVACY_SENTENCE);
+    expect(markup).toContain(`${PRIVACY_SENTENCE} ${USAGE_SENTENCE}`);
+    expect(markup).not.toContain("sketchpad");
     expect(markup).toContain("Back to Learn");
     expect(markup).toContain("Sign out");
     expect(markup).toContain('data-sign-out-redirect="/"');
@@ -501,6 +544,7 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain(
       "You're practicing as a guest in a demo. There is no account to manage.",
     );
+    expect(markup).toContain(`${PRIVACY_SENTENCE} ${USAGE_SENTENCE}`);
     // No made-up email for the guest; the configured feedback address is
     // the only address on the page.
     expect(markup).not.toContain(guest.email);
@@ -512,6 +556,20 @@ describe("student onboarding and account routes", () => {
     expect(markup).toContain("Sign out");
     expect(markup).toContain("Professor Example");
     expect(markup).toContain(FEEDBACK_HREF);
+  });
+
+  it("adds sketchpad time to the account disclosure only once it is measured", async () => {
+    mocks.getServerEnv.mockReturnValue({
+      CLERK_ENABLED: false,
+      SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: true,
+    });
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+    const markup = plain(renderToStaticMarkup(await AccountPage()));
+
+    expect(markup).toContain(
+      `${PRIVACY_SENTENCE} ${USAGE_SENTENCE_WITH_SKETCHPAD}`,
+    );
+    expect(markup).not.toContain(USAGE_SENTENCE);
   });
 
   it("omits the feedback row when no feedback address is configured", async () => {
