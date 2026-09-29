@@ -12,13 +12,14 @@ import {
 import type { ReactNode } from "react";
 
 import {
-  PROFESSOR_ADMIN_SECTIONS,
-  PROFESSOR_SECTIONS,
+  PROFESSOR_SECTION_GROUPS,
   isSectionActive,
+  waitingCountLabel,
   type WorkspaceCountKey,
   type WorkspaceSection,
 } from "@/components/shell/nav-config";
 import { MasteryPip } from "@/components/ui/mastery-chip";
+import { StatusChip } from "@/components/ui/status-chip";
 import { cn } from "@/lib/utils";
 
 export type RailGlyph =
@@ -52,6 +53,8 @@ export type RailItem = {
   prefetch?: false;
   /** Tooltip / title attribute. Defaults to `label`. */
   title?: string;
+  /** Onboarding guide anchor (`data-tour`) for this row. */
+  tourId?: string;
 };
 
 export type AppRailProps = {
@@ -99,13 +102,15 @@ function RailGlyphIcon({ glyph }: { glyph: RailGlyph }) {
         />
       );
     case "retired":
+    case "closed":
+      // A topic with nothing in it yet is slashed, so it never reads as an
+      // untouched topic waiting to be opened.
       return (
         <CircleSlash
           aria-hidden="true"
           className={cn(className, "text-ink-muted")}
         />
       );
-    case "closed":
     case "todo":
     default:
       return (
@@ -150,7 +155,14 @@ export function AppRail({
   );
 }
 
-function RailList({ items }: { items: RailItem[] }) {
+function RailList({
+  items,
+  rowClassName,
+}: {
+  items: RailItem[];
+  /** Extra row classes (the professor rail uses 44px rows everywhere). */
+  rowClassName?: string;
+}) {
   return (
     <ul className="flex flex-col">
       {items.map((item) => {
@@ -211,8 +223,10 @@ function RailList({ items }: { items: RailItem[] }) {
             {inert ? (
               <span
                 title={item.title ?? item.label}
+                data-tour={item.tourId}
                 className={cn(
                   ROW_CLASSES,
+                  rowClassName,
                   "cursor-default border-transparent text-ink-muted",
                 )}
               >
@@ -223,9 +237,11 @@ function RailList({ items }: { items: RailItem[] }) {
                 href={item.href}
                 prefetch={item.prefetch}
                 title={item.title ?? item.label}
+                data-tour={item.tourId}
                 aria-current={item.active ? "page" : undefined}
                 className={cn(
                   ROW_CLASSES,
+                  rowClassName,
                   "focus-ring -outline-offset-2",
                   item.active
                     ? "border-azure-500 bg-azure-100 font-medium text-azure-700"
@@ -246,24 +262,44 @@ function RailList({ items }: { items: RailItem[] }) {
 
 export type ProfessorRailCounts = Partial<Record<WorkspaceCountKey, number>>;
 
+// Onboarding guide anchors on the professor rail (see components/tour).
+const RAIL_TOUR_IDS: Record<string, string> = {
+  "/professor/review": "rail-review",
+  "/professor/questions": "rail-question-bank",
+  "/professor/courses": "rail-courses",
+};
+
 function sectionItems(
   sections: WorkspaceSection[],
   pathname: string,
   counts: ProfessorRailCounts | undefined,
 ): RailItem[] {
-  return sections.map((section) => ({
-    href: section.href,
-    label: section.label,
-    icon: section.icon,
-    prefetch: section.prefetch,
-    count: section.countKey ? counts?.[section.countKey] : undefined,
-    active: isSectionActive(pathname, section.href),
-  }));
+  return sections.map((section) => {
+    const count = section.countKey ? counts?.[section.countKey] : undefined;
+    return {
+      href: section.href,
+      label: section.label,
+      icon: section.icon,
+      prefetch: section.prefetch,
+      tourId: RAIL_TOUR_IDS[section.href],
+      // A count appears only when something is waiting, and always in words.
+      trailing:
+        count !== undefined && count > 0 ? (
+          <StatusChip
+            tone="review"
+            icon={false}
+            label={waitingCountLabel(count)}
+          />
+        ) : undefined,
+      active: isSectionActive(pathname, section.href),
+    };
+  });
 }
 
 /**
- * The professor workspace rail: every section from `nav-config`, with a live
- * count on the right where the layout could load one ("Review queue 264").
+ * The professor rail: the pages from `nav-config` in four small groups
+ * (Teach, Students, Courses, Less often). Only "Review questions" carries a
+ * count, and only when questions are waiting ("12 waiting").
  */
 export function ProfessorRail({
   footer,
@@ -278,16 +314,37 @@ export function ProfessorRail({
 
   return (
     <nav
-      aria-label="Workspace"
+      aria-label="Professor pages"
       data-slot="app-rail"
-      className={cn("flex flex-col gap-1", className)}
+      className={cn("flex flex-col gap-4", className)}
     >
-      <p className={cn("type-label px-4 pb-1", COLLAPSED_HIDDEN)}>Workspace</p>
-      <RailList items={sectionItems(PROFESSOR_SECTIONS, pathname, counts)} />
-      <hr className="mx-4 my-2 border-rule group-data-[collapsed=true]/rail:mx-2" />
-      <RailList
-        items={sectionItems(PROFESSOR_ADMIN_SECTIONS, pathname, counts)}
-      />
+      {PROFESSOR_SECTION_GROUPS.map((group) => {
+        const headingId = `professor-rail-${group.heading
+          .toLowerCase()
+          .replace(/[^a-z]+/g, "-")}`;
+        return (
+          <div
+            key={group.heading}
+            role="group"
+            aria-labelledby={headingId}
+            data-tour={
+              group.heading === "Students" ? "rail-students-group" : undefined
+            }
+            className="flex flex-col gap-1"
+          >
+            <p
+              id={headingId}
+              className={cn("type-small px-4 text-ink-muted", COLLAPSED_HIDDEN)}
+            >
+              {group.heading}
+            </p>
+            <RailList
+              items={sectionItems(group.sections, pathname, counts)}
+              rowClassName="min-h-11"
+            />
+          </div>
+        );
+      })}
       {footer ? (
         <div className={cn("px-4 pt-2", COLLAPSED_HIDDEN)}>{footer}</div>
       ) : null}
@@ -315,9 +372,9 @@ export type SyllabusRailProps = {
   className?: string;
 };
 
-/** "Wk 3 · Conditional Probability": the row's full name (title attribute). */
+/** "Week 3 · Conditional Probability": the row's full name (title attribute). */
 export function syllabusRowLabel(weekNumber: number, title: string) {
-  return `Wk ${weekNumber} · ${title}`;
+  return `Week ${weekNumber} · ${title}`;
 }
 
 /**

@@ -40,7 +40,14 @@ import JoinPage from "@/app/join/page";
 import {
   parseSectionCode,
   SECTION_CODE_ERROR,
+  SECTION_CODE_UNKNOWN_ERROR,
+  sectionCodeProblem,
 } from "@/components/auth/join-screen";
+import {
+  isKnownSectionCode,
+  sectionLabelForCode,
+  UNJOINED_SECTION_LABEL,
+} from "@/components/shell/use-student-section";
 
 class RedirectSignal extends Error {
   constructor(readonly destination: string) {
@@ -72,9 +79,10 @@ function callbackFormData(value?: string) {
 }
 
 async function renderJoin(callbackUrl?: string) {
+  // renderToStaticMarkup escapes apostrophes; assertions read plain text.
   return renderToStaticMarkup(
     await JoinPage({ searchParams: Promise.resolve({ callbackUrl }) }),
-  );
+  ).replaceAll("&#x27;", "'");
 }
 
 beforeEach(() => {
@@ -91,14 +99,28 @@ describe("join screen", () => {
     const markup = await renderJoin();
 
     expect(markup).toContain("Join MATH-255");
-    expect(markup).toContain("Continue with Suffolk (SSO)");
-    expect(markup).toContain("SSO is not configured in this demo");
+    // The demo has no SSO: one caption says so instead of a disabled button.
+    expect(markup).not.toContain("Continue with Suffolk (SSO)");
+    expect(markup).toContain("Suffolk sign-in isn't available in this demo.");
     expect(markup).toContain("Continue as guest");
     expect(markup).toContain("Section code");
     expect(markup).toContain('placeholder="K7Q-2M"');
     expect(markup).toContain("Join</button>");
-    expect(markup).toContain("Professor demo sign-in");
+    expect(markup).toContain("Teaching MATH-255?");
+    expect(markup).toContain("Professor sign-in");
+    expect(markup).not.toContain("Professor demo sign-in");
     expect(markup).toContain('id="professor"');
+  });
+
+  it("heads the sheet with the logo and wordmark, above the one h1", async () => {
+    const markup = await renderJoin();
+
+    expect(markup).toContain('data-slot="logo"');
+    expect(markup).toContain("ProbStat Tutor");
+    expect(markup.indexOf('data-slot="logo"')).toBeLessThan(
+      markup.indexOf("Join MATH-255"),
+    );
+    expect(markup.match(/<h1/g)).toHaveLength(1);
   });
 
   it("has one guest door, not a second unnamed Continue button", async () => {
@@ -111,7 +133,7 @@ describe("join screen", () => {
   it("leads with the section code in the demo and with SSO once it is configured", async () => {
     const demo = await renderJoin();
     expect(demo.indexOf("Section code")).toBeLessThan(
-      demo.indexOf("Continue with Suffolk (SSO)"),
+      demo.indexOf("Suffolk sign-in isn't available in this demo."),
     );
 
     mocks.getServerEnv.mockReturnValue({
@@ -133,8 +155,26 @@ describe("join screen", () => {
     expect(parseSectionCode("K7Q")).toBeNull();
     expect(parseSectionCode("K7Q-2MX")).toBeNull();
     expect(SECTION_CODE_ERROR).toBe(
-      "Enter the 6-character code from your professor",
+      "Enter the code from your professor, like K7Q-2M.",
     );
+  });
+
+  it("refuses a well-formed code that is not one of the course's sections", () => {
+    expect(sectionCodeProblem("k7q2m")).toBeNull();
+    expect(sectionCodeProblem("R4N-8X")).toBeNull();
+    expect(sectionCodeProblem("K7Q")).toBe(SECTION_CODE_ERROR);
+    expect(sectionCodeProblem("ABC-DE")).toBe(SECTION_CODE_UNKNOWN_ERROR);
+    expect(SECTION_CODE_UNKNOWN_ERROR).toBe(
+      "We don't recognise that code. Check it with your professor.",
+    );
+    expect(isKnownSectionCode("abc-de")).toBe(false);
+  });
+
+  it("names sections the way students say them, and a guest as a guest", () => {
+    expect(sectionLabelForCode("k7q-2m")).toBe("MATH-255 · Section 1");
+    expect(sectionLabelForCode("R4N-8X")).toBe("MATH-255 · Section 2");
+    expect(sectionLabelForCode("ABC-DE")).toBe(UNJOINED_SECTION_LABEL);
+    expect(UNJOINED_SECTION_LABEL).toBe("MATH-255 · Guest");
   });
 
   it("links the SSO door at Clerk once it is configured, and drops the demo doors", async () => {
@@ -149,22 +189,27 @@ describe("join screen", () => {
     expect(markup).toContain(
       'href="/sign-in?callbackUrl=%2Fpractice%3FquestionId%3Ddice-sum-eight"',
     );
-    expect(markup).not.toContain("SSO is not configured in this demo");
+    expect(markup).not.toContain("isn't available in this demo");
     // Guest practice is still open, so the guest door is a plain link.
     expect(markup).toContain('href="/practice"');
-    expect(markup).not.toContain("Professor demo sign-in");
+    expect(markup).not.toContain("Professor sign-in");
   });
 
   it("states what is kept, under whose name, and where guest progress lives", async () => {
     const markup = await renderJoin();
 
-    expect(markup).toContain("What we keep");
-    expect(markup).toContain("hashed key");
-    expect(markup).toContain("never your name");
-    expect(markup).toContain("Student 8F2A");
+    expect(markup).toContain("What we keep:");
+    expect(markup).toContain("your attempts, hints and answers.");
     expect(markup).toContain(
-      "Guest progress lives in this browser until you sign in and import it.",
+      "Your professor sees you as a code (like Student 8F2A); your name is shown only if they open your record, and that is logged.",
     );
+    expect(markup).not.toContain("hashed key");
+    expect(markup).not.toContain("never your name");
+    // The demo has no sign-in to keep guest progress with, so none is promised.
+    expect(markup).toContain(
+      "As a guest, your progress lives in this browser.",
+    );
+    expect(markup).not.toContain("import it");
   });
 
   it("carries the requested page through as a hidden field", async () => {
@@ -187,6 +232,31 @@ describe("join screen", () => {
     ).rejects.toMatchObject({
       destination: "/learn",
     });
+  });
+
+  it("gives a signed-in student the code form when they come to change section", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+
+    const markup = await renderJoin();
+
+    expect(markup).toContain("Join your section");
+    expect(markup).toContain("Section code");
+    expect(markup).toContain("Join</button>");
+    expect(markup).toContain('href="/learn"');
+    expect(markup).toContain("Back to Learn");
+    expect(markup).not.toContain("Continue as guest");
+    expect(markup).not.toContain("Suffolk");
+    expect(markup.match(/<h1/g)).toHaveLength(1);
+  });
+
+  it("still sends a signed-in professor on to Learn", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue({
+      ...student,
+      role: "professor" as const,
+      roles: ["student", "professor"] as const,
+    });
+
+    await expect(renderJoin()).rejects.toMatchObject({ destination: "/learn" });
   });
 
   it("still renders the guest door when identity storage is unreachable", async () => {

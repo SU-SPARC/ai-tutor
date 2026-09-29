@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const TRIGGER_CLASSES =
-  "h-8 min-w-0 max-w-full gap-1.5 bg-surface-tint px-2.5 text-sm font-normal hover:bg-hover";
+  "h-11 min-w-0 max-w-full gap-1.5 bg-surface-tint px-3 text-base font-normal hover:bg-hover";
 
 function courseLabel(code: string, term: string) {
   return `${code} · ${term}`;
@@ -54,7 +54,7 @@ export function CourseSwitcher({ className }: { className?: string }) {
     return (
       <span
         className={cn(
-          "inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control bg-surface-tint px-2.5 text-sm text-ink",
+          "inline-flex h-11 min-w-0 items-center gap-1.5 rounded-control bg-surface-tint px-3 text-base text-ink",
           className,
         )}
       >
@@ -69,7 +69,6 @@ export function CourseSwitcher({ className }: { className?: string }) {
         <Button
           aria-label={`Active course: ${label}. Switch course.`}
           className={cn(TRIGGER_CLASSES, className)}
-          size="sm"
           variant="ghost"
         >
           <CourseLabel label={label} />
@@ -77,7 +76,7 @@ export function CourseSwitcher({ className }: { className?: string }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
-        <DropdownMenuLabel>Active courses</DropdownMenuLabel>
+        <DropdownMenuLabel>Work in which course?</DropdownMenuLabel>
         {activeCourses.length === 0 ? (
           <DropdownMenuItem disabled>No active courses</DropdownMenuItem>
         ) : (
@@ -85,6 +84,7 @@ export function CourseSwitcher({ className }: { className?: string }) {
             const selected = course.id === active?.id;
             return (
               <DropdownMenuItem
+                className="min-h-11"
                 key={course.id}
                 onSelect={() =>
                   dispatch({ type: "course/setActive", courseId: course.id })
@@ -99,14 +99,16 @@ export function CourseSwitcher({ className }: { className?: string }) {
                 />
                 <span className="flex flex-col">
                   <span>{courseLabel(course.code, course.term)}</span>
-                  <span className="type-caption">{course.title}</span>
+                  <span className="type-small text-ink-muted">
+                    {course.title}
+                  </span>
                 </span>
               </DropdownMenuItem>
             );
           })
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className="min-h-11">
           <Link href="/professor/courses">
             <ArrowRight aria-hidden="true" />
             All courses

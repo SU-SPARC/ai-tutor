@@ -70,32 +70,40 @@ const dashboard: StudentContentAvailabilityDashboard = {
 };
 
 describe("professor content availability UI", () => {
-  it("shows ordered topic and question controls, scheduling, lifecycle gates, and audit attribution", () => {
+  it("shows ordered topics and questions in plain words, a way to courses, blocked questions with a link, and recent changes", () => {
     const markup = renderToStaticMarkup(
       createElement(ProfessorContentAvailabilityPanel, {
         initialDashboard: dashboard,
       }),
     );
 
-    expect(markup).toContain("Separate release gate");
-    expect(markup).toContain("unapproved or lifecycle-unpublished question");
-    expect(markup).toContain("no course, cohort, membership, or enrollment");
-    expect(markup).toContain("global only");
-    expect(markup).toContain("Syllabus topic 1");
-    expect(markup).toContain("Syllabus topic 2");
+    expect(markup).toContain("Students only see questions you have approved.");
+    expect(markup).toContain(
+      "To choose what one section sees and when, open Courses → your course → the section.",
+    );
+    expect(markup).toContain('href="/professor/courses"');
+    expect(markup).toContain("Go to my courses");
+    expect(markup).toContain("Topic 1");
+    expect(markup).toContain("Topic 2");
+    expect(markup).not.toContain("Syllabus topic");
     expect(markup.indexOf("Conditional Probability")).toBeLessThan(
       markup.indexOf("Binomial Models"),
     );
-    expect(markup).toContain("Published globally");
+    expect(markup).toContain("Students can see it");
     expect(markup).toContain("Scheduled");
-    expect(markup).toContain("Available from (optional)");
+    expect(markup).toContain("Students will see it on Thu 20 Aug");
+    expect(markup).toContain(">Change<");
     expect(markup).toContain("Approved working version");
-    expect(markup).toContain(
-      "Change it in Question lifecycle before changing student availability",
-    );
-    expect(markup).toContain("Availability audit");
+    expect(markup).toContain("Approve and publish this question first.");
+    expect(markup).toContain('href="/professor/questions/approved-not-published"');
+    expect(markup).toContain("Open question");
+    expect(markup).toContain("Recent changes");
+    expect(markup).toContain(">Hidden<");
     expect(markup).toContain("Professor Test");
     expect(markup).toContain("pilot_week_3");
+    expect(markup).not.toMatch(
+      /separate release gate|global only|lifecycle|availability audit|published globally|audit reason/i,
+    );
     expect(markup).not.toMatch(/canvas|blackboard|moodle|lms integration/i);
   });
 });

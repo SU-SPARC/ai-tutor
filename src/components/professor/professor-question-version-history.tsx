@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronRight, EyeOff, RotateCcw } from "lucide-react";
 
 import {
   creationMethodLabel,
@@ -18,6 +18,7 @@ import { questionReserveReasonLabel } from "@/lib/tutor/professor-question-reser
 import { professorReviewReasonLabel } from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type {
+  QuestionCreationMethod,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
   QuestionLifecycleEventAction,
@@ -29,30 +30,39 @@ import type {
 /** Past tense: these are things that happened. */
 const EVENT_LABELS: Record<QuestionLifecycleEventAction, string> = {
   approve: "Approved",
-  archive: "Archived",
-  create_version: "Version created",
-  migrate: "History migrated",
-  publish: "Published",
-  regenerate: "Version regenerated",
+  archive: "Removed from question bank",
+  create_version: "Changes saved",
+  migrate: "Brought over from the earlier system",
+  publish: "Shown to students",
+  regenerate: "Rewritten by AI",
   reject: "Rejected",
-  request_revision: "Revision requested",
-  restore: "Restored",
-  rollback: "Rolled back",
-  submit: "Submitted for review",
-  unpublish: "Unpublished",
+  request_revision: "Sent back for changes",
+  restore: "Put back",
+  rollback: "Went back to this version",
+  submit: "Sent for review",
+  unpublish: "Hidden from students",
 };
 
 const RESERVE_EVENT_LABELS = {
-  allow_practice: "Similar practice allowed",
-  disallow_practice: "Similar practice disabled",
-  release: "Reserve removed",
+  allow_practice: "Offered as extra practice",
+  disallow_practice: "No longer offered as extra practice",
+  release: "Taken out of Saved for later",
   reserve: "Saved for later",
 } as const;
 
+/** How a version came to be, as a verb for "Version 3 · edited by …". */
+const CREATION_VERBS: Record<QuestionCreationMethod, string> = {
+  generated: "written",
+  imported: "imported",
+  manual: "edited",
+  regenerated: "rewritten with AI",
+  rollback_clone: "restored",
+};
+
 /**
- * Every immutable version of one question and everything that happened to it,
- * as two vertical lists: versions (newest first) and the attributed timeline.
- * Two columns when the container is wide enough, one otherwise.
+ * "All changes": every version of one question (newest first) with what
+ * changed and two plain actions, then what happened to it and who did it.
+ * Hashes, validation, sources and lineage sit in a nested "Technical details".
  */
 export function ProfessorQuestionVersionHistory({
   activeKey,
@@ -77,126 +87,119 @@ export function ProfessorQuestionVersionHistory({
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
 
   return (
-    <div className="@container">
+    <section
+      id="all-changes"
+      aria-labelledby="all-changes-heading"
+      className="@container flex scroll-mt-24 flex-col gap-4"
+    >
+      <h3 id="all-changes-heading" className="type-h3 text-ink">
+        All changes
+      </h3>
       <div className="grid gap-8 @3xl:grid-cols-2">
         <section className="flex min-w-0 flex-col gap-3">
-          <h3 className="type-h3 text-ink">Versions</h3>
+          <h4 className="type-body-strong text-ink">Versions</h4>
           <ol className="flex flex-col gap-3">
-            {question.versions.map((version) => (
-              <li
-                key={version.versionId}
-                className="flex flex-col gap-3 rounded-panel bg-sheet p-4"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="type-mono text-ink">
-                    v{version.versionNumber}
-                  </span>
-                  <QuestionStateChip state={version.state} />
-                  {version.versionId === question.workingVersion.versionId ? (
-                    <StatusChip
-                      icon={false}
-                      label="Working version"
-                      tone="neutral"
-                    />
-                  ) : null}
-                  {version.versionId === question.publishedVersion?.versionId ? (
-                    <StatusChip
-                      icon={false}
-                      label="Published version"
-                      tone="neutral"
-                    />
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="type-body-strong text-ink">{version.title}</p>
-                  <p className="type-small text-ink-muted">
-                    {versionLineageLabel(version, versionsById)}
+            {question.versions.map((version) => {
+              const base = version.parentVersionId
+                ? versionsById.get(version.parentVersionId)
+                : undefined;
+              return (
+                <li
+                  key={version.versionId}
+                  className="flex flex-col gap-3 rounded-panel bg-sheet p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <QuestionStateChip state={version.state} />
+                    {version.versionId === question.workingVersion.versionId ? (
+                      <StatusChip
+                        icon={false}
+                        label="Latest version"
+                        tone="neutral"
+                      />
+                    ) : null}
+                    {version.versionId ===
+                    question.publishedVersion?.versionId ? (
+                      <StatusChip
+                        icon={false}
+                        label="Students see this version"
+                        tone="neutral"
+                      />
+                    ) : null}
+                  </div>
+                  <p className="type-body text-ink">
+                    <span className="type-body-strong">
+                      Version {version.versionNumber}
+                    </span>{" "}
+                    · {CREATION_VERBS[version.creationMethod] ?? "made"} by{" "}
+                    {version.createdBy.displayName} on{" "}
+                    <ProfessorTime dateOnly value={version.createdAt} /> ·{" "}
+                    {changedSummary(base, version)}
                   </p>
-                </div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 type-small">
-                  <HistoryTerm label="Created by">
-                    {version.createdBy.displayName} ·{" "}
-                    <ProfessorTime value={version.createdAt} />
-                  </HistoryTerm>
-                  <HistoryTerm label="Creation">
-                    {creationMethodLabel(version.creationMethod)}
-                  </HistoryTerm>
-                  <HistoryTerm label="Topic">
-                    {topicTitles.get(version.topicId) ?? version.topicId}
-                  </HistoryTerm>
-                  <HistoryTerm label="Difficulty">
-                    {professorDifficultyLabel(version.difficulty)}
-                  </HistoryTerm>
-                  <HistoryTerm label="Validation">
-                    {validationStatusLabel(version.validationStatus)}
-                  </HistoryTerm>
-                  <HistoryTerm label="Source">
-                    {sourceTypeLabel(version.source.sourceType)}
-                  </HistoryTerm>
-                  {version.source.originalityNote ? (
-                    <HistoryTerm label="Originality">
-                      {version.source.originalityNote}
-                    </HistoryTerm>
+                  {base && base.title !== version.title ? (
+                    <p className="type-body text-ink">
+                      Title: “{version.title}”
+                    </p>
                   ) : null}
-                </dl>
-                <VersionDiff
-                  base={
-                    version.parentVersionId
-                      ? versionsById.get(version.parentVersionId)
-                      : undefined
-                  }
-                  version={version}
-                />
-                <details className="group border-t border-rule pt-3">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control type-body-strong text-ink focus-ring [&::-webkit-details-marker]:hidden">
-                    <ChevronRight
-                      aria-hidden="true"
-                      className="size-4 text-ink-muted transition-transform duration-fast group-open:rotate-90"
+                  <details className="group border-t border-rule pt-3">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control type-body-strong text-ink focus-ring [&::-webkit-details-marker]:hidden">
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-4 text-ink-muted transition-transform duration-fast group-open:rotate-90"
+                      />
+                      See this version
+                    </summary>
+                    <VersionContent
+                      topicTitle={
+                        topicTitles.get(version.topicId) ?? version.topicId
+                      }
+                      version={version}
+                      versionsById={versionsById}
                     />
-                    Inspect immutable content
-                  </summary>
-                  <VersionContent version={version} />
-                </details>
-                {version.versionId !== question.workingVersion.versionId
-                  ? version.allowedActions
-                      .filter(
-                        (action) =>
-                          action === "rollback" || action === "unpublish",
-                      )
-                      .map((action) => (
-                        <Button
-                          key={action}
-                          type="button"
-                          size="sm"
-                          variant={
-                            action === "unpublish" ? "destructive" : "outline"
-                          }
-                          className="w-fit"
-                          disabled={dashboardReadOnly || Boolean(activeKey)}
-                          onClick={() =>
-                            onTransition(
-                              action,
-                              version.versionId,
-                              version.state,
-                            )
-                          }
-                        >
-                          {action === "rollback" ? (
-                            <RotateCcw aria-hidden="true" />
-                          ) : null}
-                          {action === "rollback"
-                            ? `Roll back to v${version.versionNumber}`
-                            : `Unpublish v${version.versionNumber}`}
-                        </Button>
-                      ))
-                  : null}
-              </li>
-            ))}
+                  </details>
+                  {version.versionId !== question.workingVersion.versionId
+                    ? version.allowedActions
+                        .filter(
+                          (action) =>
+                            action === "rollback" || action === "unpublish",
+                        )
+                        .map((action) => (
+                          <Button
+                            key={action}
+                            type="button"
+                            variant="outline"
+                            className={
+                              action === "unpublish"
+                                ? "h-11 w-fit border-red-300 text-red-700"
+                                : "h-11 w-fit"
+                            }
+                            disabled={dashboardReadOnly || Boolean(activeKey)}
+                            onClick={() =>
+                              onTransition(
+                                action,
+                                version.versionId,
+                                version.state,
+                              )
+                            }
+                          >
+                            {action === "rollback" ? (
+                              <RotateCcw aria-hidden="true" />
+                            ) : (
+                              <EyeOff aria-hidden="true" />
+                            )}
+                            {action === "rollback"
+                              ? "Go back to this version"
+                              : `Hide version ${version.versionNumber} from students`}
+                          </Button>
+                        ))
+                    : null}
+                </li>
+              );
+            })}
           </ol>
         </section>
 
         <section className="flex min-w-0 flex-col gap-3">
-          <h3 className="type-h3 text-ink">Timeline</h3>
+          <h4 className="type-body-strong text-ink">What happened</h4>
           {question.events.length > 0 ? (
             <ol className="flex flex-col">
               {question.events.map((event) => (
@@ -208,13 +211,13 @@ export function ProfessorQuestionVersionHistory({
               ))}
             </ol>
           ) : (
-            <p className="type-small text-ink-muted">
-              No lifecycle events are recorded yet.
-            </p>
+            <p className="type-body text-ink">Nothing has happened yet.</p>
           )}
           {(question.reserveEvents?.length ?? 0) > 0 ? (
             <>
-              <h3 className="mt-4 type-h3 text-ink">Save for later history</h3>
+              <h4 className="mt-4 type-body-strong text-ink">
+                Saved for later history
+              </h4>
               <ol className="flex flex-col">
                 {question.reserveEvents?.map((event) => (
                   <li
@@ -227,15 +230,15 @@ export function ProfessorQuestionVersionHistory({
                         ? ` · ${questionReserveReasonLabel(event.reasonCode)}`
                         : ""}
                     </p>
-                    <p className="type-caption">
-                      v
-                      {versionsById.get(event.versionId)?.versionNumber ?? "?"}
+                    <p className="type-small text-ink-muted">
+                      Version{" "}
+                      {versionsById.get(event.versionId)?.versionNumber ?? "—"}
                       {" · "}
                       {event.actor.displayName} ·{" "}
                       <ProfessorTime value={event.actor.occurredAt} />
                     </p>
                     {event.note ? (
-                      <p className="type-small text-ink">{event.note}</p>
+                      <p className="type-body text-ink">Note: {event.note}</p>
                     ) : null}
                   </li>
                 ))}
@@ -244,6 +247,107 @@ export function ProfessorQuestionVersionHistory({
           ) : null}
         </section>
       </div>
+    </section>
+  );
+}
+
+function changedSummary(
+  base: QuestionVersionDto | undefined,
+  version: QuestionVersionDto,
+) {
+  if (!base) return "first version";
+  const changed = changedQuestionVersionFields(base, version).map((field) =>
+    field.toLowerCase(),
+  );
+  return changed.length > 0
+    ? `changed: ${changed.join(", ")}`
+    : "no changes to the question";
+}
+
+function VersionContent({
+  topicTitle,
+  version,
+  versionsById,
+}: {
+  topicTitle: string;
+  version: QuestionVersionDto;
+  versionsById: Map<number, QuestionVersionDto>;
+}) {
+  return (
+    <div className="mt-3 flex flex-col gap-3 type-body">
+      <HistoryContentBlock label="Question text">
+        <p className="max-w-prose">{version.prompt}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Correct answers">
+        <p className="font-mono">{version.answer.acceptedAnswers.join(", ")}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Answer explanation">
+        <p className="max-w-prose">{version.answer.explanation}</p>
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Solution steps">
+        <HistoryList items={version.solutionSteps} />
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Hints">
+        <HistoryList items={version.hints} />
+      </HistoryContentBlock>
+      <HistoryContentBlock label="Common mistakes and what the tutor says">
+        {version.misconceptions.length > 0 ? (
+          <ol className="flex list-decimal flex-col gap-2 pl-5">
+            {version.misconceptions.map((item) => (
+              <li key={item.id}>{item.feedback}</li>
+            ))}
+          </ol>
+        ) : (
+          <p>None.</p>
+        )}
+      </HistoryContentBlock>
+      <details className="group/tech border-t border-rule pt-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control type-body-strong text-ink focus-ring [&::-webkit-details-marker]:hidden">
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 text-ink-muted transition-transform duration-fast group-open/tech:rotate-90"
+          />
+          Technical details
+        </summary>
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 type-small">
+          <HistoryTerm label="History">
+            {versionLineageLabel(version, versionsById)}
+          </HistoryTerm>
+          <HistoryTerm label="How it was made">
+            {creationMethodLabel(version.creationMethod)}
+          </HistoryTerm>
+          <HistoryTerm label="Topic">{topicTitle}</HistoryTerm>
+          <HistoryTerm label="Difficulty">
+            {professorDifficultyLabel(version.difficulty)}
+          </HistoryTerm>
+          <HistoryTerm label="Automatic checks">
+            {validationStatusLabel(version.validationStatus)}
+          </HistoryTerm>
+          <HistoryTerm label="Where it came from">
+            {sourceTypeLabel(version.source.sourceType)}
+          </HistoryTerm>
+          {version.source.originalityNote ? (
+            <HistoryTerm label="Source note">
+              {version.source.originalityNote}
+            </HistoryTerm>
+          ) : null}
+          <HistoryTerm label="Number checking">
+            {version.answer.numericValue === undefined
+              ? "No number recorded."
+              : `Value ${version.answer.numericValue}; allowed difference ${version.answer.tolerance ?? 0}.`}
+          </HistoryTerm>
+          {version.misconceptions.some((item) => item.matchTerms.length) ? (
+            <HistoryTerm label="Wrong answers matched">
+              {version.misconceptions
+                .flatMap((item) => item.matchTerms)
+                .join(", ")}
+            </HistoryTerm>
+          ) : null}
+          <HistoryTerm label="Content fingerprint">
+            <span className="break-all font-mono">{version.contentHash}</span>
+          </HistoryTerm>
+        </dl>
+      </details>
     </div>
   );
 }
@@ -263,54 +367,6 @@ function HistoryTerm({
   );
 }
 
-function VersionContent({ version }: { version: QuestionVersionDto }) {
-  return (
-    <div className="mt-3 flex flex-col gap-3 type-small">
-      <HistoryContentBlock label="Question wording">
-        <p className="max-w-prose">{version.prompt}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Accepted answers">
-        <p className="font-mono">{version.answer.acceptedAnswers.join(", ")}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Numeric grading">
-        <p>
-          {version.answer.numericValue === undefined
-            ? "No numeric value recorded."
-            : `Value ${version.answer.numericValue}; tolerance ${version.answer.tolerance ?? 0}.`}
-        </p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Answer explanation">
-        <p className="max-w-prose">{version.answer.explanation}</p>
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Solution steps">
-        <HistoryList items={version.solutionSteps} />
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Hints">
-        <HistoryList items={version.hints} />
-      </HistoryContentBlock>
-      <HistoryContentBlock label="Misconceptions">
-        {version.misconceptions.length > 0 ? (
-          <ol className="flex list-decimal flex-col gap-2 pl-5">
-            {version.misconceptions.map((item) => (
-              <li key={item.id}>
-                <p>{item.feedback}</p>
-                <p className="text-ink-muted">
-                  Match terms: {item.matchTerms.join(", ") || "none recorded"}
-                </p>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>None recorded.</p>
-        )}
-      </HistoryContentBlock>
-      <p className="break-all font-mono text-ink-muted">
-        Content SHA-256: {version.contentHash}
-      </p>
-    </div>
-  );
-}
-
 function HistoryContentBlock({
   children,
   label,
@@ -320,7 +376,7 @@ function HistoryContentBlock({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="type-label">{label}</p>
+      <p className="type-body-strong text-ink">{label}</p>
       <div className="text-ink">{children}</div>
     </div>
   );
@@ -334,7 +390,7 @@ function HistoryList({ items }: { items: string[] }) {
       ))}
     </ol>
   ) : (
-    <p>None recorded.</p>
+    <p>None.</p>
   );
 }
 
@@ -345,49 +401,39 @@ function LifecycleTimelineEvent({
   event: QuestionLifecycleEventDto;
   version?: QuestionVersionDto;
 }) {
-  const transition =
-    event.fromState || event.toState
-      ? `${event.fromState ? questionStateLabel(event.fromState) : "New"} → ${
-          event.toState ? questionStateLabel(event.toState) : "Unchanged"
-        }`
+  const change =
+    event.fromState && event.toState && event.fromState !== event.toState
+      ? `${questionStateLabel(event.fromState)} → ${questionStateLabel(event.toState)}`
       : undefined;
   const previousDifficulty = event.metadata?.previousDifficulty;
   const selectedDifficulty = event.metadata?.selectedDifficulty;
 
   return (
     <li className="flex flex-col gap-0.5 border-l-2 border-rule py-2 pl-4">
-      <p className="text-ink">
+      <p className="type-body text-ink">
         <span className="type-body-strong">{EVENT_LABELS[event.action]}</span>
-        {version ? (
-          <span className="font-mono text-ink-muted">
-            {" "}
-            v{version.versionNumber}
-          </span>
-        ) : null}
-        {transition ? (
-          <span className="type-small text-ink-muted"> · {transition}</span>
-        ) : null}
+        {version ? <span> · version {version.versionNumber}</span> : null}
       </p>
-      <p className="type-caption">
-        {event.actor.displayName}
-        {event.actorRole === "system" ? " (system)" : ""} ·{" "}
+      <p className="type-small text-ink-muted">
+        {event.actor.displayName} ·{" "}
         <ProfessorTime value={event.actor.occurredAt} />
+        {change ? ` · ${change}` : ""}
       </p>
       {event.requestedBy &&
       event.executedBy &&
       event.requestedBy.userId !== event.executedBy.userId ? (
-        <p className="type-caption">
-          Requested by {event.requestedBy.displayName}; executed by{" "}
+        <p className="type-small text-ink-muted">
+          Asked for by {event.requestedBy.displayName}, done by{" "}
           {event.executedBy.displayName}
         </p>
       ) : null}
       {event.reasonCode ? (
-        <p className="type-small text-ink">
-          Reason: {professorReviewReasonLabel(event.reasonCode)}
+        <p className="type-body text-ink">
+          Why: {professorReviewReasonLabel(event.reasonCode)}
         </p>
       ) : null}
       {event.action === "approve" && selectedDifficulty ? (
-        <p className="type-small text-ink">
+        <p className="type-body text-ink">
           Difficulty:{" "}
           {previousDifficulty
             ? professorDifficultyLabel(String(previousDifficulty))
@@ -396,9 +442,7 @@ function LifecycleTimelineEvent({
         </p>
       ) : null}
       {event.note ? (
-        <p className="type-small max-w-prose text-ink">
-          Comment: {event.note}
-        </p>
+        <p className="type-body max-w-prose text-ink">Note: {event.note}</p>
       ) : null}
     </li>
   );
@@ -413,39 +457,19 @@ function versionLineageLabel(
     : undefined;
   if (!parent) {
     if (version.creationMethod === "generated") {
-      return "Original generated draft";
+      return "First version, written by AI";
     }
-    if (version.creationMethod === "imported") return "Original import";
-    return "Original version";
+    if (version.creationMethod === "imported") return "First version, imported";
+    return "First version";
   }
 
   const relationship =
     version.creationMethod === "regenerated"
-      ? "Regenerated"
+      ? "Rewritten by AI from"
       : version.creationMethod === "rollback_clone"
-        ? "Rollback clone"
+        ? "Copy of"
         : version.creationMethod === "manual"
-          ? "Professor edit"
-          : "Derived version";
-  return `${relationship} from v${parent.versionNumber}`;
-}
-
-function VersionDiff({
-  base,
-  version,
-}: {
-  base?: QuestionVersionDto;
-  version: QuestionVersionDto;
-}) {
-  if (!base) {
-    return <p className="type-caption">Initial version</p>;
-  }
-  const changed = changedQuestionVersionFields(base, version);
-
-  return (
-    <p className="type-caption">
-      Compared with v{base.versionNumber}:{" "}
-      {changed.join(", ") || "no content changes"}
-    </p>
-  );
+          ? "Edited from"
+          : "Made from";
+  return `${relationship} version ${parent.versionNumber}`;
 }

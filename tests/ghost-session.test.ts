@@ -61,7 +61,7 @@ describe("ghost principals", () => {
     expect(principal).toEqual({
       kind: "user",
       userId: "ghost:student",
-      displayName: "Ghost Student",
+      displayName: "Guest",
       email: "ghost-student@example.invalid",
       role: "student",
       roles: ["student"],

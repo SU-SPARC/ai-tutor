@@ -33,10 +33,14 @@ describe("professor analytics page", () => {
 
     const markup = renderToStaticMarkup(await ProfessorAnalyticsPage());
 
-    expect(markup).toContain("Class practice");
-    expect(markup).toContain("Topic performance");
-    expect(markup).toContain("Question performance");
-    expect(markup).toContain("Answer attempts");
+    expect(markup).toContain("Class progress");
+    expect(markup).toContain("Topics students find hardest");
+    expect(markup).toContain("Questions students find hardest");
+    expect(markup).toContain("Answers checked");
+    expect(markup).toContain("More options");
+    expect(markup).not.toContain("LLM fallback");
+    expect(markup).not.toContain("Tutor path");
+    expect(markup).not.toContain("Answer attempts");
     expect(markup).not.toContain("Load analytics");
     expect(markup).not.toContain("Generated question review");
     expect(markup).not.toContain("Generated approved");
@@ -84,6 +88,18 @@ describe("professor analytics page", () => {
       "1 session by a professor account is excluded.",
     );
     expect(hidden).not.toContain("professor account");
+    // Who needs attention comes first, as a sentence with a way to act.
+    expect(visible).toContain("Needs your attention");
+    expect(visible).toContain("1 student has answered 4");
+    expect(visible).toContain('href="/professor/students?sort=lowest_accuracy"');
+    expect(visible).toContain("See these students");
+    expect(visible.indexOf("Needs your attention")).toBeLessThan(
+      visible.indexOf("Active students"),
+    );
+    expect(visible).toContain("have practiced so far this term");
+    expect(visible).toContain("More numbers");
+    expect(visible).not.toContain("Tutor path");
+    expect(visible).not.toContain("LLM fallback");
   });
 
   it("uses safe loading and error states without exposing an error message", () => {
@@ -97,10 +113,10 @@ describe("professor analytics page", () => {
       }),
     );
 
-    expect(loadingMarkup).toContain("Loading published-practice performance");
+    expect(loadingMarkup).toContain("Loading class progress");
     expect(loadingMarkup).toContain('aria-busy="true"');
-    expect(errorMarkup).toContain("Course analytics could not be loaded");
-    expect(errorMarkup).toContain("temporarily unavailable");
+    expect(errorMarkup).toContain("Class progress didn’t load");
+    expect(errorMarkup).toContain("Try again, or reload the page.");
     expect(errorMarkup).not.toMatch(/select secret|production_database/i);
   });
 });

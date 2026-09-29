@@ -26,7 +26,7 @@ export function CourseNotFound({
         The link may come from an older demo state, or the {what} was removed.
         Nothing was changed.
       </p>
-      <Button asChild variant="secondary">
+      <Button asChild className="min-h-11" variant="secondary">
         <Link href={coursesIndexPath()}>Back to courses</Link>
       </Button>
     </section>

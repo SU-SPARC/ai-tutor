@@ -21,12 +21,12 @@ export default function ProfessorReviewError({
 
   return (
     <ProfessorPageShell
-      title="Review queue"
+      title="Review questions"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Review queue" },
+        { label: "Home", href: "/professor" },
+        { label: "Review questions" },
       ]}
-      description="The queue could not be loaded."
+      description="Your questions didn't load."
     >
       <section
         role="alert"
@@ -34,19 +34,18 @@ export default function ProfessorReviewError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="review-error-heading" className="type-h3 text-ink">
-          The review queue could not be loaded
+          The questions waiting for you didn&apos;t load
         </h2>
-        <p className="type-body text-ink-muted">
-          No decision was recorded. Try loading it again, or open a question
-          from the bank.
+        <p className="type-body text-ink">
+          Nothing was changed. Try again, or open your question bank.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={reset}>
+          <Button type="button" className="min-h-11" onClick={reset}>
             <RotateCcw aria-hidden="true" />
             Try again
           </Button>
-          <Button asChild variant="secondary">
-            <Link href="/professor/questions">Open the question bank</Link>
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href="/professor/questions">Open question bank</Link>
           </Button>
         </div>
       </section>

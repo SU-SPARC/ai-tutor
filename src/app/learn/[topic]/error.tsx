@@ -18,7 +18,7 @@ export default function TopicError({
   return (
     <StatusPage
       title="This topic could not be loaded"
-      description="Its questions are temporarily unavailable. Try again, or go back to the syllabus and choose another topic."
+      description="That didn’t work and nothing changed. Try again, or go back to Learn and choose another topic."
       actions={
         <>
           <Button type="button" onClick={reset}>

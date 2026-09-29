@@ -22,8 +22,8 @@ export default function ProfessorWorkspaceError({
 
   return (
     <ProfessorPageShell
-      title="Professor workspace"
-      description="This page could not be loaded."
+      title="Something went wrong"
+      description="This page could not be opened."
     >
       <section
         role="alert"
@@ -31,19 +31,19 @@ export default function ProfessorWorkspaceError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="workspace-error-heading" className="type-h3 text-ink">
-          Something went wrong while loading this page
+          What you can do
         </h2>
-        <p className="type-body text-ink-muted">
-          Nothing was changed. Try loading it again, or open another section
-          from the rail.
+        <p className="type-body text-ink">
+          Nothing was changed. Try again, or choose another page from the list
+          on the left.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={reset}>
+          <Button type="button" className="min-h-11" onClick={reset}>
             <RotateCcw aria-hidden="true" />
             Try again
           </Button>
-          <Button asChild variant="secondary">
-            <Link href="/professor/review">Open the review queue</Link>
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href="/professor">Go to Home</Link>
           </Button>
         </div>
       </section>

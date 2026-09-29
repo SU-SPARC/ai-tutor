@@ -4,11 +4,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ProfessorContentTransferLoading() {
   return (
     <ProfessorPageShell
-      title="Import & export"
-      description="Move question content in and out as validated JSON; an import never publishes anything to students."
+      title="Copy questions in or out"
+      description="Bring in a question file someone sent you, or download your questions to share. Nothing you bring in is shown to students."
     >
       <p role="status" className="sr-only">
-        Loading import and export…
+        Loading this page…
       </p>
       <div aria-busy="true" className="flex flex-col gap-10">
         <div className="flex flex-col gap-4">

@@ -5,7 +5,10 @@ import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import { useId, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 
-import { professorDifficultyLabel } from "@/components/professor/professor-question-labels";
+import {
+  plainActionError,
+  professorDifficultyLabel,
+} from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -79,14 +82,12 @@ export function ProfessorQuestionRevisionEditor({
   async function saveRevision() {
     if (!revision) {
       setMessage(
-        "Complete the wording, final answer, explanation, and at least one solution step.",
+        "Please fill in the title, the question text, the correct answer, the explanation, and at least one solution step.",
       );
       return;
     }
     if (changedFields.length === 0) {
-      setMessage(
-        "Change at least one editable field before saving a revision.",
-      );
+      setMessage("Change something before saving.");
       return;
     }
 
@@ -111,12 +112,12 @@ export function ProfessorQuestionRevisionEditor({
         question?: QuestionLifecycleDto;
       };
       if (!response.ok || !payload.question) {
-        setMessage(payload.error ?? "Question revision could not be saved.");
+        setMessage(plainActionError(response.status));
         return;
       }
       onSaved(payload.question);
     } catch {
-      setMessage("Question revision could not be saved.");
+      setMessage(plainActionError());
     } finally {
       setIsSaving(false);
     }
@@ -129,12 +130,12 @@ export function ProfessorQuestionRevisionEditor({
     >
       <div className="flex max-w-prose flex-col gap-1">
         <h3 id={headingId} className="type-h3 text-ink">
-          {revisionHeading(question)}
+          Edit “{version.title}”
         </h3>
-        <p className="type-small text-ink-muted">
-          Saving creates a new attributed draft from version{" "}
-          {version.versionNumber}. The original version and any published
-          version remain unchanged. Only public fields can be edited.
+        <p className="type-body text-ink">
+          {question.publishedVersion
+            ? "Students keep seeing the current version until you choose Show my changes."
+            : "Students can't see this question yet. Your earlier wording is kept in its history."}
         </p>
       </div>
 
@@ -146,7 +147,7 @@ export function ProfessorQuestionRevisionEditor({
         />
       </Field>
       <div className="grid gap-5 @2xl:grid-cols-2">
-        <Field label="Syllabus topic">
+        <Field label="Topic">
           <NativeSelect
             value={form.topicId}
             onChange={(event) => updateForm("topicId", event.target.value)}
@@ -174,7 +175,7 @@ export function ProfessorQuestionRevisionEditor({
         </Field>
       </div>
 
-      <Field label="Question wording">
+      <Field label="Question text">
         <Textarea
           value={form.prompt}
           className="min-h-28 type-reading"
@@ -199,54 +200,21 @@ export function ProfessorQuestionRevisionEditor({
             ...current,
             spec: answer.spec,
             acceptedAnswers: answer.acceptedAnswers.join("\n"),
-            numericValue: answer.spec ? "" : current.numericValue,
-            tolerance: answer.spec ? "" : current.tolerance,
+            // With no typed spec the editor passes the older number fields
+            // through; keep whatever it emits so the payload is unchanged.
+            numericValue: answer.spec
+              ? ""
+              : answer.numericValue === undefined
+                ? current.numericValue
+                : String(answer.numericValue),
+            tolerance: answer.spec
+              ? ""
+              : answer.tolerance === undefined
+                ? current.tolerance
+                : String(answer.tolerance),
           }))
         }
       />
-      {!form.spec && (
-        <>
-          <Field
-            label="Accepted final answers"
-            description="One accepted answer per line."
-          >
-            <Textarea
-              value={form.acceptedAnswers}
-              className="min-h-24 font-mono"
-              onChange={(event) =>
-                updateForm("acceptedAnswers", event.target.value)
-              }
-            />
-          </Field>
-          <div className="grid gap-5 @2xl:grid-cols-2">
-            <Field label="Numeric answer" optional>
-              <Input
-                type="number"
-                step="any"
-                value={form.numericValue}
-                onChange={(event) =>
-                  updateForm("numericValue", event.target.value)
-                }
-              />
-            </Field>
-            <Field
-              label="Tolerance"
-              optional
-              description="Zero or more; how far a numeric answer may be off."
-            >
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={form.tolerance}
-                onChange={(event) =>
-                  updateForm("tolerance", event.target.value)
-                }
-              />
-            </Field>
-          </div>
-        </>
-      )}
 
       <Field label="Answer explanation">
         <Textarea
@@ -278,7 +246,11 @@ export function ProfessorQuestionRevisionEditor({
         </Field>
       </div>
 
-      <Field label="Misconception notes" description="One note per line.">
+      <Field
+        label="Notes on common mistakes"
+        optional
+        description="One note per line. The tutor shows a note when a student makes that mistake."
+      >
         <Textarea
           value={form.misconceptionNotes}
           className="min-h-28"
@@ -289,9 +261,9 @@ export function ProfessorQuestionRevisionEditor({
       </Field>
 
       <Field
-        label="Version comment"
+        label="Note about this change"
         optional
-        description="Why this version exists. Professors see it in the version history."
+        description="Only instructors see this."
       >
         <Textarea
           value={comment}
@@ -302,31 +274,31 @@ export function ProfessorQuestionRevisionEditor({
       </Field>
 
       <div className="flex flex-col gap-1 border-l-2 border-azure-500 pl-4">
-        <p className="type-body-strong text-ink">Revision summary</p>
-        <p className="type-small text-ink">
-          {changedFields.length > 0
-            ? changedFields.join(", ")
-            : "No content changes yet."}
+        <p className="type-body-strong text-ink">What you changed</p>
+        <p className="type-body text-ink">
+          {changedFields.length > 0 ? changedFields.join(", ") : "Nothing yet."}
         </p>
       </div>
 
       <div role="status" aria-live="polite">
-        {message ? <p className="type-small text-red-700">{message}</p> : null}
+        {message ? <p className="type-body text-red-700">{message}</p> : null}
       </div>
 
       <div className="flex flex-wrap gap-3">
         <Button
           type="button"
+          className="h-11"
           disabled={disabled || isSaving}
           loading={isSaving}
           onClick={saveRevision}
         >
           <Save aria-hidden="true" />
-          Save revision draft
+          Save changes
         </Button>
         <Button
           type="button"
           variant="ghost"
+          className="h-11"
           disabled={isSaving}
           onClick={onCancel}
         >
@@ -346,21 +318,10 @@ export function canEditQuestionVersion(question: QuestionLifecycleDto) {
   );
 }
 
+/** One label for every edit, whatever state the question is in. */
 export function revisionActionLabel(question: QuestionLifecycleDto) {
-  if (question.workingVersion.state === "published") {
-    return "Edit published question";
-  }
-  return ["generated_original", "pattern_derived_original"].includes(
-    question.workingVersion.source.sourceType,
-  )
-    ? "Edit generated draft"
-    : "Create revision draft";
-}
-
-function revisionHeading(question: QuestionLifecycleDto) {
-  return question.workingVersion.state === "published"
-    ? "Edit published question as a new draft"
-    : revisionActionLabel(question);
+  void question;
+  return "Edit question";
 }
 
 function revisionFormFromQuestion(
@@ -413,6 +374,7 @@ function revisionFromForm(
   const tolerance = optionalNumber(form.tolerance);
   if (numericValue === null || tolerance === null) return undefined;
   const previous = question.workingVersion.misconceptions;
+  const usedIds = new Set<string>();
   return {
     answer: {
       acceptedAnswers,
@@ -423,13 +385,24 @@ function revisionFromForm(
     },
     difficulty: form.difficulty,
     hints: lines(form.hints),
-    misconceptions: misconceptionNotes.map((feedback, index) => ({
-      feedback,
-      id: previous[index]?.id ?? `professor-note-${index + 1}`,
-      matchTerms: previous[index]?.matchTerms
-        ? [...previous[index].matchTerms]
-        : [],
-    })),
+    // A note keeps its id and matched wrong answers only while its text is
+    // unchanged; matching by line position would hand one note's matches to
+    // the next note after a deletion.
+    misconceptions: misconceptionNotes.map((feedback, index) => {
+      const same = previous.find(
+        (item) => item.feedback.trim() === feedback && !usedIds.has(item.id),
+      );
+      let id = same?.id ?? `professor-note-${index + 1}`;
+      for (let suffix = 2; usedIds.has(id); suffix += 1) {
+        id = `professor-note-${index + 1}-${suffix}`;
+      }
+      usedIds.add(id);
+      return {
+        feedback,
+        id,
+        matchTerms: same ? [...same.matchTerms] : [],
+      };
+    }),
     prompt: form.prompt.trim(),
     solutionSteps,
     title: form.title.trim(),

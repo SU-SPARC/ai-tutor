@@ -17,7 +17,7 @@ export default function LearnError({
   return (
     <StatusPage
       title="Your progress could not be loaded"
-      description="Your saved practice is temporarily unavailable. Nothing you have done has changed. Try loading it again in a moment."
+      description="That didn’t work and nothing changed. Try again, or reload the page."
       actions={
         <Button type="button" onClick={reset}>
           <RotateCcw aria-hidden="true" />

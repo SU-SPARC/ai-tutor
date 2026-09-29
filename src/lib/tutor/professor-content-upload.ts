@@ -9,7 +9,11 @@ import path from "node:path"
 import type { ReviewStatus } from "@/lib/types"
 import { canonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics"
 
+/** 500 KB (500 × 1024 bytes): the page and the server both say "500 KB". */
 export const PROFESSOR_CONTENT_UPLOAD_MAX_BYTES = 512_000
+
+const UNREADABLE_FILE_MESSAGE =
+  "This file isn't a PDF or .tex file we can read. Try exporting it again as PDF."
 
 export type ProfessorUploadKind = "pdf" | "tex"
 
@@ -85,12 +89,12 @@ export function validateProfessorContentUploadFile(
   file: Pick<UploadedFileInput, "bytes" | "name" | "size" | "type">,
 ): { kind: ProfessorUploadKind } | { error: string; status: 400 | 413 } {
   if (file.size <= 0) {
-    return { error: "Upload must include a non-empty file.", status: 400 }
+    return { error: "This file is empty. Choose another file.", status: 400 }
   }
 
   if (file.size > PROFESSOR_CONTENT_UPLOAD_MAX_BYTES) {
     return {
-      error: "Professor content uploads must be smaller than 512KB.",
+      error: "Files must be 500 KB or smaller; try saving a shorter PDF.",
       status: 413,
     }
   }
@@ -108,7 +112,7 @@ export function validateProfessorContentUploadFile(
       ].includes(file.type)
     ) {
       return {
-        error: "The .tex upload has an unsupported MIME type.",
+        error: UNREADABLE_FILE_MESSAGE,
         status: 400,
       }
     }
@@ -122,7 +126,7 @@ export function validateProfessorContentUploadFile(
       !["application/octet-stream", "application/pdf"].includes(file.type)
     ) {
       return {
-        error: "The .pdf upload has an unsupported MIME type.",
+        error: UNREADABLE_FILE_MESSAGE,
         status: 400,
       }
     }
@@ -130,7 +134,7 @@ export function validateProfessorContentUploadFile(
     const header = Buffer.from(file.bytes.slice(0, 5)).toString("ascii")
     if (header !== "%PDF-") {
       return {
-        error: "PDF uploads must start with a valid PDF header.",
+        error: UNREADABLE_FILE_MESSAGE,
         status: 400,
       }
     }
@@ -139,7 +143,7 @@ export function validateProfessorContentUploadFile(
   }
 
   return {
-    error: "Only .tex and small .pdf files are supported by this prototype.",
+    error: UNREADABLE_FILE_MESSAGE,
     status: 400,
   }
 }
@@ -440,7 +444,7 @@ function patternItems(
 
   if (labels.size === 0) {
     for (const title of sectionTitles.slice(0, 3)) {
-      labels.add(`Abstract practice pattern from topic: ${title}`)
+      labels.add(`Practice with ${title}`)
     }
   }
 

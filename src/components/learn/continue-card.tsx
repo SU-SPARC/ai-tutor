@@ -11,8 +11,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The one card on the page: the next question as a compact Sheet (the only
- * raised surface here), with one call to action and the alternative sitting
- * quietly beside it. No progress ring, no streak, no second Continue.
+ * raised surface here), with one call to action ("Start question 3" /
+ * "Continue question 3") and, when the next untouched question is in the
+ * same topic, a quiet "Skip to question 4" beside it. No progress ring, no
+ * streak, no second Continue. A finished course is never a dead end: it says
+ * so and offers more practice.
  *
  * `question` is the syllabus row the card points at (looked up by its href)
  * so the card can show the prompt and "Question 2 of 5"; `positionTotal` is
@@ -31,6 +34,23 @@ export function ContinueCard({
     return <EmptyState className="py-2">{card.message}</EmptyState>;
   }
 
+  if (card.kind === "complete") {
+    return (
+      <EmptyState
+        className="py-2"
+        action={
+          card.primary ? (
+            <Button asChild variant="cta" size="lg" className="w-full sm:w-auto">
+              <Link href={card.primary.href}>{card.primary.label}</Link>
+            </Button>
+          ) : undefined
+        }
+      >
+        {card.message}
+      </EmptyState>
+    );
+  }
+
   const positionLabel =
     question && positionTotal
       ? questionPositionLabel(question.position, positionTotal)
@@ -39,6 +59,7 @@ export function ContinueCard({
   return (
     <div
       data-slot="continue-card"
+      data-tour="learn-continue"
       className="sheet-shadow flex flex-col overflow-hidden rounded-panel bg-sheet text-sheet-foreground"
     >
       <QuestionSheet

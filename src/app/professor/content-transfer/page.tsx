@@ -6,9 +6,10 @@ import {
   requirePageAccess,
   requireProfessorReview,
 } from "@/lib/auth/authorization";
+import { getServerEnv } from "@/lib/env/server";
 
 export const metadata: Metadata = {
-  title: "Import & export",
+  title: "Copy questions in or out",
 };
 
 export default async function ProfessorContentTransferPage() {
@@ -16,18 +17,23 @@ export default async function ProfessorContentTransferPage() {
     requireProfessorReview,
     "/professor/content-transfer",
   );
+  const env = getServerEnv();
+  // Same rule the API uses: adding questions needs the real database.
+  const canAddQuestions = !env.APP_DEMO_MODE && Boolean(env.DATABASE_URL);
 
   return (
     <ProfessorPageShell
-      title="Import & export"
+      title="Copy questions in or out"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Import & export" },
+        { label: "Home", href: "/professor" },
+        { label: "Copy questions in or out" },
       ]}
-      description="Move question content in and out as validated JSON; an import never publishes anything to students."
-      notice="Files use content-transfer format version 1. Imports need database storage; demo mode allows exports and read-only previews."
+      description="Bring in a question file someone sent you, or download your questions to share. Nothing you bring in is shown to students."
+      notice={
+        canAddQuestions ? undefined : "Demo: changes on this page are not saved."
+      }
     >
-      <ProfessorContentTransferPanel />
+      <ProfessorContentTransferPanel canAddQuestions={canAddQuestions} />
     </ProfessorPageShell>
   );
 }

@@ -34,9 +34,9 @@ describe("professor question similarity workflow", () => {
       }),
     );
 
-    expect(html).toContain("Similar to: Origin title");
-    expect(html).toContain("slot 2 of 3");
-    expect(html).toContain("Revoke link");
+    expect(html).toContain("Offered as extra practice after “Origin title”");
+    expect(html).toContain("second of 3");
+    expect(html).toContain("Unlink");
   });
 
   it("shows published-origin coverage and only its dedicated siblings", () => {
@@ -48,9 +48,9 @@ describe("professor question similarity workflow", () => {
       }),
     );
 
-    expect(html).toContain("1 of 3 eligible");
-    expect(html).toContain("Slot 2 of 3 · Reserve title");
-    expect(html).not.toContain("Assign origin");
+    expect(html).toContain("1 of 3 extra-practice questions ready");
+    expect(html).toContain("Second: “Reserve title”");
+    expect(html).not.toContain("Offer this as extra practice after:");
   });
 
   it("renders the compact topic coverage view", () => {
@@ -71,9 +71,9 @@ describe("professor question similarity workflow", () => {
       }),
     );
 
-    expect(html).toContain("Dedicated sibling coverage");
+    expect(html).toContain("Extra practice in Probability");
     expect(html).toContain("Origin title");
-    expect(html).toContain("1/3");
+    expect(html).toContain("1 of 3 extra-practice questions ready");
   });
 
   it("uses a truthful generic label for an ineligible current link", () => {
@@ -85,7 +85,7 @@ describe("professor question similarity workflow", () => {
       }),
     );
 
-    expect(html).toContain("Not currently eligible");
+    expect(html).toContain("Not ready right now");
     expect(html).not.toContain("version changed");
   });
 
@@ -100,12 +100,13 @@ describe("professor question similarity workflow", () => {
       }),
     );
 
-    expect(html).toContain("Select an origin");
+    expect(html).toContain("Offer this as extra practice after:");
+    expect(html).toContain("Choose a question");
     expect(html).toContain("Origin title");
-    expect(html).toContain("1 of 3");
-    expect(html).toContain("2 of 3");
-    expect(html).toContain("3 of 3");
-    expect(html).toContain("Assign origin");
+    expect(html).toContain("First of 3");
+    expect(html).toContain("Second of 3");
+    expect(html).toContain("Third of 3");
+    expect(html).toContain("Link</button>");
   });
 
   it("denies similarity assignment and revocation to a student before touching storage", async () => {

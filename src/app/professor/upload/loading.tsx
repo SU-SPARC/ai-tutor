@@ -5,15 +5,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ProfessorUploadLoading() {
   return (
     <ProfessorPageShell
-      title="Uploads"
+      title="Upload notes"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Uploads" },
+        { label: "Home", href: "/professor" },
+        { label: "Upload notes" },
       ]}
-      description="Loading the upload preview…"
+      description="Getting the upload page ready…"
     >
       <p role="status" className="sr-only">
-        Loading uploads…
+        Loading the upload page…
       </p>
       <div
         aria-busy="true"

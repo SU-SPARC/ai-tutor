@@ -1,6 +1,12 @@
 "use client";
 
-import { ReleaseStatusChip } from "@/components/courses/course-status";
+import { useState } from "react";
+
+import { ConfirmDialog } from "@/components/courses/confirm-dialog";
+import {
+  ReleaseStatusChip,
+  sectionLabelText,
+} from "@/components/courses/course-status";
 import {
   useOptionalCoursesStore,
   type CoursesStoreValue,
@@ -19,41 +25,54 @@ function shortTerm(term: string) {
   return term.replace(/\b(\d{2})(\d{2})\b/, "$2");
 }
 
+type PendingUpdate = {
+  sectionId: string;
+  label: string;
+  version: number;
+  previousVersion: number | null;
+};
+
 function SectionRow({
   row,
-  onMove,
+  onUpdate,
 }: {
   row: QuestionReleaseSectionRow;
-  onMove: (sectionId: string, label: string, version: number) => void;
+  onUpdate: (request: PendingUpdate) => void;
 }) {
   const target = row.status === "older" ? row.publishedVersion : null;
+  const label = sectionLabelText(row.label);
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
-      <span className="type-small text-ink">{row.label}</span>
-      <span className="flex flex-wrap items-center gap-2">
-        <ReleaseStatusChip
-          releasedVersion={row.releasedVersion}
-          status={row.status}
-        />
-        {target !== null ? (
-          <Button
-            onClick={() => onMove(row.sectionId, row.label, target)}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            Move to v{target}
-          </Button>
-        ) : null}
-      </span>
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <span className="type-body text-ink">{label}</span>
+        <ReleaseStatusChip status={row.status} />
+      </div>
+      {target !== null ? (
+        <Button
+          className="min-h-11 w-fit whitespace-normal text-left"
+          onClick={() =>
+            onUpdate({
+              sectionId: row.sectionId,
+              label,
+              version: target,
+              previousVersion: row.releasedVersion,
+            })
+          }
+          type="button"
+          variant="secondary"
+        >
+          Update {label} to the newest version
+        </Button>
+      ) : null}
     </li>
   );
 }
 
 /**
- * "Where this is released": the rail beside the question editor. A section is
- * pinned to one published version, so a professor who publishes v4 has not
- * yet changed what Sec 02 sees — moving it is a separate, deliberate act.
+ * "Which sections see this": the rail beside the question editor. A section
+ * keeps the version it was shown, so editing a question does not change what
+ * Section 2 sees until the professor updates it — a separate, deliberate act
+ * that asks first and can be undone.
  */
 export function QuestionReleaseRail({ questionId }: { questionId: string }) {
   const store = useOptionalCoursesStore();
@@ -74,6 +93,7 @@ function ReleaseRail({
   store: CoursesStoreValue;
 }) {
   const { state, dispatch } = store;
+  const [pending, setPending] = useState<PendingUpdate | null>(null);
   const question = state.bank.find((candidate) => candidate.id === questionId);
 
   if (!question) {
@@ -83,10 +103,10 @@ function ReleaseRail({
         className="flex flex-col gap-2 rounded-panel bg-surface-tint p-5"
       >
         <h2 className="type-h3 text-ink" id="release-rail-title">
-          Where this is released
+          Which sections see this
         </h2>
-        <p className="type-small text-ink-muted">
-          Not part of the courses demo bank.
+        <p className="type-body text-ink-muted">
+          This question is not part of the courses demo.
         </p>
       </section>
     );
@@ -96,16 +116,31 @@ function ReleaseRail({
     (group) => group.sections.length > 0,
   );
 
-  function moveToVersion(sectionId: string, label: string, version: number) {
+  function updateToVersion(request: PendingUpdate) {
     dispatch({
       type: "section/moveToVersion",
-      sectionId,
+      sectionId: request.sectionId,
       questionId,
-      version,
+      version: request.version,
     });
+    const previous = request.previousVersion;
     toast({
-      title: `${label} now sees v${version}`,
+      title: `Students in ${request.label} now see the edited question.`,
       tone: "success",
+      action:
+        previous !== null
+          ? {
+              label: "Undo",
+              onClick: () =>
+                dispatch({
+                  type: "section/moveToVersion",
+                  sectionId: request.sectionId,
+                  questionId,
+                  version: previous,
+                }),
+            }
+          : undefined,
+      duration: 15_000,
     });
   }
 
@@ -116,33 +151,57 @@ function ReleaseRail({
     >
       <div className="flex flex-col gap-1">
         <h2 className="type-h3 text-ink" id="release-rail-title">
-          Where this is released
+          Which sections see this
         </h2>
-        <p className="type-small max-w-prose text-ink-muted">
-          Each section pins one published version. A newer version reaches a
-          section only when you move it.
+        <p className="type-body max-w-prose text-ink-muted">
+          When you edit a question, sections keep the version they have until
+          you update them.
         </p>
       </div>
       {groups.length === 0 ? (
-        <p className="type-small text-ink-muted">No course has a section yet.</p>
+        <p className="type-body text-ink-muted">No course has a section yet.</p>
       ) : null}
       {groups.map((group) => (
         <div className="flex flex-col gap-1" key={group.course.id}>
-          <h3 className="type-label">
+          <h3 className="type-body-strong text-ink">
             <span className="font-mono">{group.course.code}</span>{" "}
             {shortTerm(group.course.term)}
           </h3>
           <ul className="divide-y divide-rule">
             {group.sections.map((row) => (
-              <SectionRow
-                key={row.sectionId}
-                onMove={moveToVersion}
-                row={row}
-              />
+              <SectionRow key={row.sectionId} onUpdate={setPending} row={row} />
             ))}
           </ul>
         </div>
       ))}
+
+      <ConfirmDialog
+        cancelLabel="Keep the version they have"
+        confirmLabel={
+          pending ? `Update ${pending.label}` : "Update to the newest version"
+        }
+        description={
+          pending
+            ? `Students in ${pending.label} will see the edited question from now on.`
+            : ""
+        }
+        onConfirm={() => {
+          if (pending) {
+            updateToVersion(pending);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPending(null);
+          }
+        }}
+        open={pending !== null}
+        title={
+          pending
+            ? `Update ${pending.label} to the newest version?`
+            : "Update to the newest version?"
+        }
+      />
     </section>
   );
 }

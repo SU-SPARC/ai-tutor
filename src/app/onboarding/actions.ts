@@ -23,13 +23,14 @@ export async function acknowledgeStudentOnboardingAction(
     await acknowledgeStudentOnboarding(authorization.principal.userId);
   } catch {
     return {
-      error:
-        "Your acknowledgement could not be saved. Please try again before continuing.",
+      error: "That didn't work and nothing changed. Try again, or reload the page.",
     };
   }
 
-  // Continuing without importing keeps the two choices separate: the notice
-  // acknowledgement is saved, while browser practice is not linked.
+  // Continuing without bringing guest practice over starts the account fresh:
+  // the acknowledgement is saved and the guest cookie is cleared, so the
+  // practice saved in this browser is no longer reachable. The notice says so
+  // beside the button ("If you start fresh, …").
   await clearAnonymousSession();
   redirect(returnTo);
 }

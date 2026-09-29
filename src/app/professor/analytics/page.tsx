@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
-import { Download } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Download } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
-import { InstructorCohortPanel } from "@/components/professor/instructor-cohort-panel";
+import {
+  InstructorCohortPanel,
+  InstructorCommonMistakes,
+  STUDENTS_NEEDING_HELP_HREF,
+} from "@/components/professor/instructor-cohort-panel";
 import { InstructorPracticePerformance } from "@/components/professor/instructor-practice-performance";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   requireAnalyticsAccess,
   requirePageAccess,
@@ -15,7 +26,7 @@ import {
 } from "@/lib/data/data-store";
 
 export const metadata: Metadata = {
-  title: "Analytics",
+  title: "Class progress",
 };
 
 export default async function ProfessorAnalyticsPage() {
@@ -27,34 +38,57 @@ export default async function ProfessorAnalyticsPage() {
     getInstructorCohortAnalytics(authorization),
     getProfessorPracticeAnalytics(authorization),
   ]);
-  const demo = cohort.mode === "demo" || practice.mode === "demo";
+  const needsHelp =
+    cohort.mode !== "demo" && cohort.studentsNeedingAttention > 0;
 
   return (
     <ProfessorPageShell
-      title="Analytics"
+      title="Class progress"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Analytics" },
+        { label: "Home", href: "/professor" },
+        { label: "Class progress" },
       ]}
-      description="Published-practice performance and tutor use across the class, with no student named."
-      notice={
-        demo
-          ? "Demo data: nothing here comes from a recorded class."
-          : "Descriptive pilot metrics; they do not measure learning improvement."
-      }
+      description="How the class is doing on the questions students can see. No student is named."
       aside={
-        <Button asChild variant="secondary">
-          <a href="/api/professor/analytics/export">
-            <Download aria-hidden="true" />
-            Download research export
-          </a>
-        </Button>
+        needsHelp ? (
+          <Button asChild variant="primary" className="min-h-11">
+            <Link href={STUDENTS_NEEDING_HELP_HREF} prefetch={false}>
+              See students who need help
+            </Link>
+          </Button>
+        ) : undefined
       }
     >
       <div className="flex flex-col gap-10">
         <InstructorCohortPanel cohort={cohort} />
         <InstructorPracticePerformance practice={practice} />
+        <InstructorCommonMistakes cohort={cohort} />
+        <MoreOptions />
       </div>
     </ProfessorPageShell>
+  );
+}
+
+/** The rare action, out of the header: the spreadsheet for research. */
+function MoreOptions() {
+  return (
+    <div className="flex border-t border-rule pt-6">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="min-h-11">
+            More options
+            <ChevronDown aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem asChild className="min-h-11 type-body">
+            <a href="/api/professor/analytics/export">
+              <Download aria-hidden="true" />
+              Download spreadsheet (no student names)
+            </a>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

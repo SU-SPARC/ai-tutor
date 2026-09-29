@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Archive, ArchiveRestore, Copy } from "lucide-react";
+import Link from "next/link";
+import { useRef, useState } from "react";
+import { Archive, ChevronDown } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import {
   CourseFormDialog,
   type CourseFormRequest,
@@ -16,9 +18,15 @@ import { useCoursesStore } from "@/components/courses/courses-store";
 import { ReleasePipelineStrip } from "@/components/courses/release-pipeline-strip";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusChip } from "@/components/ui/status-chip";
 import { toast } from "@/components/ui/toast";
-import { coursesIndexPath } from "@/lib/courses/paths";
+import { courseTopicsPath, coursesIndexPath } from "@/lib/courses/paths";
 import {
   courseSummary,
   coursePipeline,
@@ -26,10 +34,17 @@ import {
 } from "@/lib/courses/selectors";
 import type { CourseId } from "@/lib/courses/types";
 
-/** S2. One offering: what is in flight, who it reaches, and what it covers. */
+/**
+ * S2. One course, in the order a professor needs it: the sections and their
+ * join codes, the one next step ("Choose questions for students"), the
+ * syllabus, and last, folded away, the question status counts. Copy and
+ * Archive are rare, so they live under "More options".
+ */
 export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
   const { state, dispatch, hydrated } = useCoursesStore();
   const [form, setForm] = useState<CourseFormRequest | null>(null);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const course = getCourse(state, courseId);
   const breadcrumbs = [
@@ -44,7 +59,7 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
       return (
         <CourseScreenSkeleton
           breadcrumbs={breadcrumbs}
-          description="Reading this browser's demo data."
+          description="Loading this course."
           shape="overview"
           title="Course"
         />
@@ -67,77 +82,143 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
   const summary = courseSummary(state, courseId);
   const pipeline = coursePipeline(state, courseId);
   const archived = course.status === "archived";
+  const name = `${course.code} ${course.term}`;
 
-  function toggleArchived() {
+  function setArchived(next: boolean) {
     if (!course) {
       return;
     }
-    const name = `${course.code} ${course.term}`;
     dispatch({
-      type: archived ? "course/unarchive" : "course/archive",
+      type: next ? "course/archive" : "course/unarchive",
       courseId: course.id,
     });
     toast({
-      title: archived ? `${name} is active again` : `${name} archived`,
+      title: next
+        ? `${name} is archived. Students can no longer join; their work is kept.`
+        : `${name} is restored. Students can join again.`,
+      tone: "success",
       action: {
         label: "Undo",
         onClick: () =>
           dispatch({
-            type: archived ? "course/archive" : "course/unarchive",
+            type: next ? "course/unarchive" : "course/archive",
             courseId: course.id,
           }),
       },
+      duration: 15_000,
     });
   }
 
   return (
     <ProfessorPageShell
       aside={
-        <>
-          <Button
-            onClick={() =>
-              setForm({ mode: "clone", sourceCourseId: course.id })
-            }
-            type="button"
-            variant="secondary"
-          >
-            <Copy aria-hidden="true" />
-            Clone
-          </Button>
-          <Button onClick={toggleArchived} type="button" variant="ghost">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              className="min-h-11"
+              ref={menuButtonRef}
+              type="button"
+              variant="outline"
+            >
+              More options
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-60">
+            <DropdownMenuItem
+              className="min-h-11"
+              onSelect={() =>
+                setForm({ mode: "clone", sourceCourseId: course.id })
+              }
+            >
+              Copy for a new term
+            </DropdownMenuItem>
             {archived ? (
-              <ArchiveRestore aria-hidden="true" />
+              <DropdownMenuItem
+                className="min-h-11"
+                onSelect={() => setArchived(false)}
+              >
+                Restore this course
+              </DropdownMenuItem>
             ) : (
-              <Archive aria-hidden="true" />
+              <DropdownMenuItem
+                className="min-h-11"
+                onSelect={() => setConfirmingArchive(true)}
+              >
+                Archive this course…
+              </DropdownMenuItem>
             )}
-            {archived ? "Unarchive" : "Archive"}
-          </Button>
-        </>
+          </DropdownMenuContent>
+        </DropdownMenu>
       }
       breadcrumbs={breadcrumbs}
       description={course.title}
       notice={
         <span className="flex flex-wrap items-center gap-2">
           {archived ? (
-            <StatusChip icon={Archive} label="Archived" tone="neutral" />
+            <StatusChip
+              icon={Archive}
+              label="Archived: students can't join"
+              tone="neutral"
+            />
           ) : null}
           <span>
             {plural(summary.sectionCount, "section")} ·{" "}
-            {summary.studentCount} joined · {summary.topicCount} topics
+            {plural(summary.studentCount, "student")} joined ·{" "}
+            {plural(summary.topicCount, "week")}
           </span>
         </span>
       }
       title={`${course.code} · ${course.term}`}
     >
       <div className="flex flex-col gap-10">
+        <CourseSectionsList courseId={course.id} />
+
+        <section
+          aria-labelledby="course-next-step"
+          className="flex flex-col items-start gap-3 rounded-panel bg-sheet p-5 sm:p-6"
+        >
+          <h2 className="type-h2 text-ink" id="course-next-step">
+            Choose questions for students
+          </h2>
+          <p className="type-body max-w-prose text-ink">
+            {summary.publishedNotReleased > 0
+              ? `${plural(summary.publishedNotReleased, "question")} ${
+                  summary.publishedNotReleased === 1 ? "is" : "are"
+                } ready but not shown to students yet.`
+              : "Pick which questions students in each section can see, week by week."}
+          </p>
+          <Button asChild className="min-h-11" variant="cta">
+            <Link href={courseTopicsPath(course.id)}>
+              Choose questions for students
+            </Link>
+          </Button>
+        </section>
+
+        <CourseSyllabusOverlay courseId={course.id} />
+
         <ReleasePipelineStrip
           courseId={course.id}
           pipeline={pipeline}
           summary={summary}
         />
-        <CourseSectionsList courseId={course.id} />
-        <CourseSyllabusOverlay courseId={course.id} />
       </div>
+
+      <ConfirmDialog
+        cancelLabel="Keep it active"
+        confirmLabel={`Archive ${course.code} ${course.term}`}
+        description="Students can no longer join; their work is kept. You can restore it later from the Courses page."
+        destructive
+        onConfirm={() => setArchived(true)}
+        onOpenChange={(open) => {
+          setConfirmingArchive(open);
+          if (!open) {
+            menuButtonRef.current?.focus();
+          }
+        }}
+        open={confirmingArchive}
+        title={`Archive ${name}?`}
+      />
 
       {form ? (
         <CourseFormDialog

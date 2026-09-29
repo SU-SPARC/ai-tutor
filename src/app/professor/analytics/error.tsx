@@ -20,8 +20,8 @@ export default function ProfessorAnalyticsError({
 
   return (
     <ProfessorPageShell
-      title="Analytics"
-      description="Published-practice performance and tutor use across the class, with no student named."
+      title="Class progress"
+      description="How the class is doing on the questions students can see. No student is named."
     >
       <section
         role="alert"
@@ -29,11 +29,10 @@ export default function ProfessorAnalyticsError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="analytics-error-heading" className="type-h3 text-ink">
-          Course analytics could not be loaded
+          Class progress didn’t load
         </h2>
-        <p className="type-body text-ink-muted">
-          Recorded practice information is temporarily unavailable. Try loading
-          the page again.
+        <p className="type-body text-ink">
+          This is usually temporary. Try again, or reload the page.
         </p>
         <Button type="button" variant="secondary" onClick={reset}>
           <RotateCcw aria-hidden="true" />

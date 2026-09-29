@@ -138,6 +138,11 @@ export function Math({ children, display = false, className }: MathProps) {
 type MathTextProps = {
   children: string
   className?: string
+  /**
+   * Flow inside a sentence (drops `block`). The root is always a `<span>`,
+   * so MathText is valid inside a `<p>` either way.
+   */
+  inline?: boolean
 }
 
 // Matches display math ($$...$$) before inline math ($...$) so `$$x$$`
@@ -151,7 +156,7 @@ const MATH_SEGMENT_PATTERN = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g
  * interpreted, so stray `**` or `-` from AI output shows up as-is instead of
  * being parsed and mis-rendered.
  */
-export function MathText({ children, className }: MathTextProps) {
+export function MathText({ children, className, inline = false }: MathTextProps) {
   const nodes: React.ReactNode[] = []
   let lastIndex = 0
   let matchIndex = 0
@@ -190,9 +195,17 @@ export function MathText({ children, className }: MathTextProps) {
     )
   }
 
+  // A span (phrasing content) styled as a block: valid inside a <p>, and
+  // laid out exactly like the div it replaced.
   return (
-    <div className={cn("[&_.katex-display]:overflow-x-auto", className)}>
+    <span
+      className={cn(
+        !inline && "block",
+        "[&_.katex-display]:overflow-x-auto",
+        className,
+      )}
+    >
       {nodes}
-    </div>
+    </span>
   )
 }

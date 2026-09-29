@@ -6,8 +6,8 @@
  * help — arrives here, which is what lets the Sheet stay a clean worksheet.
  *
  * The header says what the tutor can see, in one line, before the student
- * types anything; once a session exists the chips name exactly that context
- * (the question, the hint rung, the last answer).
+ * types anything; once a session exists the context row names exactly that
+ * (the question's first line, the hint rung, the answer in the field).
  *
  * The same body renders in the 1280+ drawer column (`variant="column"`, with
  * its own heading and collapse control) and inside the overlay below 1280
@@ -56,16 +56,39 @@ export const TUTOR_RULE_BASED_ONLY_PLACEHOLDER =
 export const SKETCHPAD_URL = "https://interactive-sketchpad.onrender.com/";
 
 export const TUTOR_EMPTY_TRANSCRIPT =
-  "Work out your answer on the sheet. You can ask for a hint at any time.";
+  "Stuck? Ask for a hint, or type a question like “Where do I start?”";
+
+/** Why the typed-question box is off until the first check. */
+export const TUTOR_ASK_AFTER_CHECK =
+  "Check an answer first, then you can ask the tutor.";
+
+/** Starter questions that fill the box (shown while AI help is on). */
+export const TUTOR_SUGGESTIONS = [
+  "Where do I start?",
+  "What does this question ask?",
+] as const;
+
+/** The first line of a prompt, for the tutor's context row. */
+export function promptFirstLine(prompt: string) {
+  return (
+    prompt
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0 && !line.startsWith("$$")) ??
+    prompt.trim()
+  );
+}
 
 /** The id the collapse control points at (`aria-controls`). */
 export const TUTOR_DRAWER_ID = "practice-tutor";
 
 export type TutorContext = {
-  questionCode: string;
+  /** The prompt's first line (KaTeX allowed), so the question stays in view. */
+  promptLine: string;
   hintsRevealed: number;
   hintTotal: number;
-  lastAnswer?: string;
+  /** What is in the answer field now (or the last answer checked). */
+  answer?: string;
 };
 
 export type TutorDrawerProps = {
@@ -74,7 +97,6 @@ export type TutorDrawerProps = {
   aiHelpEnabled: boolean;
   aiHelpOffered: boolean;
   busy: boolean;
-  canCheck: boolean;
   canHint: boolean;
   canStep: boolean;
   /** The collapse control, which receives focus when the drawer opens. */
@@ -88,7 +110,6 @@ export type TutorDrawerProps = {
   messages: ChatMessage[];
   notice?: ReactNode;
   onAskAi: () => void;
-  onCheck: () => void;
   onCollapse?: () => void;
   onHint: () => void;
   onPromptChange: (value: string) => void;
@@ -104,7 +125,6 @@ export function TutorDrawer({
   aiHelpEnabled,
   aiHelpOffered,
   busy,
-  canCheck,
   canHint,
   canStep,
   collapseButtonRef,
@@ -115,7 +135,6 @@ export function TutorDrawer({
   messages,
   notice,
   onAskAi,
-  onCheck,
   onCollapse,
   onHint,
   onPromptChange,
@@ -126,13 +145,18 @@ export function TutorDrawer({
 }: TutorDrawerProps) {
   const headingId = useId();
   const promptId = useId();
+  const promptNoteId = useId();
   const logRef = useRef<HTMLDivElement>(null);
-  const canSendPrompt =
-    aiHelpOffered &&
-    hasSession &&
-    !busy &&
-    !aiHelpAlreadyGiven &&
-    prompt.trim().length > 0;
+  // The box and Send share one gate: a box that takes typing always sends.
+  const canType = aiHelpOffered && hasSession && !busy && !aiHelpAlreadyGiven;
+  const canSendPrompt = canType && prompt.trim().length > 0;
+  const waitingForCheck = aiHelpEnabled && !aiHelpOffered;
+  const hintTotal = context?.hintTotal ?? 0;
+  const hintsRevealed = context?.hintsRevealed ?? 0;
+  const hintButtonLabel =
+    hintTotal > 0
+      ? `Hint ${Math.min(hintsRevealed + 1, hintTotal)} of ${hintTotal}`
+      : "Hint";
 
   // New entries scroll the transcript itself, never the window, in the
   // column and in the phone sheet alike.
@@ -162,6 +186,7 @@ export function TutorDrawer({
       aria-label={isColumn ? undefined : "Tutor"}
       className="flex h-full min-h-0 flex-col gap-4"
       data-slot="tutor-drawer"
+      data-tour={isColumn ? "practice-tutor" : undefined}
     >
       {isColumn ? (
         <header className="flex flex-col gap-1">
@@ -198,12 +223,10 @@ export function TutorDrawer({
           aria-label="What the tutor can see"
           className="flex flex-wrap gap-1.5"
         >
-          <li>
-            <StatusChip
-              tone="neutral"
-              icon={false}
-              label={<span className="font-mono">{context.questionCode}</span>}
-            />
+          <li className="w-full min-w-0 rounded-control bg-surface-tint px-2.5 py-1.5">
+            <MathText inline className="type-small line-clamp-1 text-ink">
+              {context.promptLine}
+            </MathText>
           </li>
           {context.hintTotal > 0 ? (
             <li>
@@ -218,7 +241,7 @@ export function TutorDrawer({
               />
             </li>
           ) : null}
-          {context.lastAnswer ? (
+          {context.answer ? (
             <li className="min-w-0 max-w-full">
               <StatusChip
                 tone="neutral"
@@ -226,8 +249,8 @@ export function TutorDrawer({
                 className="max-w-full"
                 label={
                   <span className="min-w-0 truncate">
-                    Last answer{" "}
-                    <span className="font-mono">{context.lastAnswer}</span>
+                    Your answer:{" "}
+                    <span className="font-mono">{context.answer}</span>
                   </span>
                 }
               />
@@ -241,7 +264,10 @@ export function TutorDrawer({
         role="log"
         aria-live="polite"
         aria-label="Tutor conversation"
-        className="flex min-h-32 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain"
+        className={cn(
+          "flex flex-1 flex-col gap-3 overflow-y-auto overscroll-contain",
+          isColumn ? "min-h-32" : "min-h-20",
+        )}
       >
         {loading ? (
           <div className="flex flex-col gap-2" aria-hidden="true">
@@ -266,34 +292,36 @@ export function TutorDrawer({
           aria-label="Tutor actions"
           className="flex flex-wrap gap-2"
         >
+          {hintTotal > 0 ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="pointer-coarse:h-11"
+              disabled={!canHint || busy}
+              loading={activeMode === "hint"}
+              onClick={onHint}
+            >
+              {hintButtonLabel}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            disabled={!canHint || busy}
-            onClick={onHint}
-          >
-            {activeMode === "hint" ? "Hint…" : "Hint"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
+            className="pointer-coarse:h-11"
             disabled={!canStep || busy}
+            loading={activeMode === "full_solution"}
             onClick={onStep}
           >
-            {activeMode === "full_solution" ? "Step…" : "Step"}
+            Show steps
           </Button>
           <Button
-            type="button"
+            asChild
             variant="secondary"
             size="sm"
-            disabled={!canCheck || busy}
-            onClick={onCheck}
+            className="pointer-coarse:h-11"
           >
-            {activeMode === "check" ? "Checking…" : "Check my work"}
-          </Button>
-          <Button asChild variant="secondary" size="sm">
             <a href={SKETCHPAD_URL} target="_blank" rel="noopener noreferrer">
               Sketchpad
               <ArrowUpRight aria-hidden="true" />
@@ -305,6 +333,7 @@ export function TutorDrawer({
               type="button"
               variant="secondary"
               size="sm"
+              className="pointer-coarse:h-11"
               disabled={busy || !hasSession || aiHelpAlreadyGiven}
               onClick={onAskAi}
             >
@@ -312,6 +341,26 @@ export function TutorDrawer({
             </Button>
           ) : null}
         </div>
+
+        {aiHelpEnabled ? (
+          <ul aria-label="Questions to ask" className="flex flex-wrap gap-1.5">
+            {TUTOR_SUGGESTIONS.map((suggestion) => (
+              <li key={suggestion}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-chip pointer-coarse:h-11"
+                  disabled={!canType}
+                  aria-describedby={waitingForCheck ? promptNoteId : undefined}
+                  onClick={() => onPromptChange(suggestion)}
+                >
+                  {suggestion}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="flex items-end gap-2">
           <label htmlFor={promptId} className="sr-only">
@@ -323,11 +372,14 @@ export function TutorDrawer({
             onChange={(event) => onPromptChange(event.target.value)}
             onKeyDown={handlePromptKeyDown}
             rows={2}
-            disabled={!aiHelpEnabled || !hasSession || busy}
+            disabled={!canType}
+            aria-describedby={waitingForCheck ? promptNoteId : undefined}
             placeholder={
-              aiHelpEnabled
-                ? "Ask the tutor…"
-                : TUTOR_RULE_BASED_ONLY_PLACEHOLDER
+              !aiHelpEnabled
+                ? TUTOR_RULE_BASED_ONLY_PLACEHOLDER
+                : waitingForCheck
+                  ? TUTOR_ASK_AFTER_CHECK
+                  : "Ask the tutor…"
             }
             className="min-h-0 resize-none"
           />
@@ -343,6 +395,12 @@ export function TutorDrawer({
             <Send aria-hidden="true" />
           </Button>
         </div>
+
+        {waitingForCheck ? (
+          <p id={promptNoteId} className="type-caption">
+            {TUTOR_ASK_AFTER_CHECK}
+          </p>
+        ) : null}
 
         {aiHelpOffered && aiHelpAlreadyGiven && activeMode !== "ai" ? (
           <p className="type-caption">{AI_HELP_REPEAT_NOTE}</p>
@@ -413,7 +471,9 @@ export function ChatBubble({ message }: { message: ChatMessage }) {
             TONE_LABEL[tone],
           )}
         >
-          {Icon ? <Icon className="size-4 shrink-0" aria-hidden="true" /> : null}
+          {Icon ? (
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+          ) : null}
           {message.label}
         </p>
       ) : null}

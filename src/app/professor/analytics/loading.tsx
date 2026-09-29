@@ -5,11 +5,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ProfessorAnalyticsLoading() {
   return (
     <ProfessorPageShell
-      title="Analytics"
-      description="Published-practice performance and tutor use across the class, with no student named."
+      title="Class progress"
+      description="How the class is doing on the questions students can see. No student is named."
     >
       <p role="status" className="sr-only">
-        Loading published-practice performance…
+        Loading class progress…
       </p>
       <div aria-busy="true" className="flex flex-col gap-10">
         <div className="flex flex-col gap-4">

@@ -12,6 +12,14 @@ import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -19,20 +27,17 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import {
-  professorQuestionPath,
-  professorReviewQueuePagePath,
-} from "@/lib/professor/question-paths";
+import { professorQuestionPath } from "@/lib/professor/question-paths";
 import type { QuestionIntakeAnalysis } from "@/lib/question-intake/provenance";
 import { questionIntakeModelDraftForSave } from "@/lib/question-intake/schema";
 import type {
   QuestionIntakeAnalysisResult,
-  QuestionIntakeAnswerType,
   QuestionIntakeDraft,
   QuestionIntakeDuplicate,
   QuestionIntakeInputMode,
   QuestionIntakeSourceKind,
 } from "@/lib/question-intake/types";
+import { parseRational } from "@/lib/tutor/answer/rational";
 import type {
   Difficulty,
   QuestionLifecycleDashboard,
@@ -63,8 +68,11 @@ export type QuestionIntakeSavedQuestion = {
   topicId: string;
 };
 
+/** The one sentence shown whenever this page cannot save (the demo). */
+export const DEMO_NOTICE = "Demo: changes on this page are not saved.";
+
 export const QUESTION_INTAKE_SAVE_FAILURE_MESSAGE =
-  "The draft could not be saved. Your generated question is still available on this page. Please try again.";
+  "Your question wasn't saved. Your draft is still here. Please try again.";
 
 const DIFFICULTIES = [
   "foundational",
@@ -75,17 +83,25 @@ const SOURCE_OPTIONS: Array<{
   label: string;
   value: QuestionIntakeSourceKind;
 }> = [
-  { label: "Professor authored", value: "professor_authored" },
+  { label: "I wrote it", value: "professor_authored" },
   {
-    label: "Professor-provided course material",
+    label: "My course materials",
     value: "professor_provided_course_material",
   },
   {
-    label: "Licensed / approved course material",
+    label: "A textbook or licensed source",
     value: "licensed_approved_course_material",
   },
-  { label: "Source unknown / needs review", value: "unknown_needs_review" },
+  { label: "Not sure", value: "unknown_needs_review" },
 ];
+
+/** What the professor asked for when a draft already exists. */
+type ReplaceRequest =
+  | { kind: "mode"; mode: QuestionIntakeInputMode }
+  | { kind: "analyze" }
+  | { kind: "manual" };
+
+const CONTROL = "min-h-11";
 
 export function ProfessorQuestionIntakePanel({
   readOnly,
@@ -102,22 +118,29 @@ export function ProfessorQuestionIntakePanel({
   const saveInFlightRef = useRef(false);
   const [analysis, setAnalysis] = useState<QuestionIntakeAnalysis>();
   const [draft, setDraft] = useState<QuestionIntakeDraft>();
+  const [draftByAi, setDraftByAi] = useState(false);
+  // Bumped for every new draft so the editor (and its answer options) starts
+  // fresh instead of carrying settings over from the replaced draft.
+  const [draftSerial, setDraftSerial] = useState(0);
   const [duplicates, setDuplicates] = useState<QuestionIntakeDuplicate[]>([]);
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
   const [inputMode, setInputMode] = useState<QuestionIntakeInputMode>("text");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [manualDraftAllowed, setManualDraftAllowed] = useState(false);
   const [message, setMessage] = useState<string>();
-  const [model, setModel] = useState<string>();
   const [questionText, setQuestionText] = useState("");
+  const [replaceRequest, setReplaceRequest] = useState<ReplaceRequest>();
   const [saved, setSaved] = useState<QuestionIntakeSavedQuestion>();
   const [saveError, setSaveError] = useState<string>();
   const [sourceKind, setSourceKind] =
     useState<QuestionIntakeSourceKind>("professor_authored");
 
+  // A draft the professor may have edited: replacing it needs a yes first.
+  const hasOpenDraft = Boolean(draft && !saved);
+
   function startNewDraft(next: QuestionIntakeDraft | undefined) {
     saveKeyRef.current = next ? newSaveKey() : undefined;
+    setDraftSerial((serial) => serial + 1);
     setDraft(next);
     setDuplicates([]);
     setDuplicateAcknowledged(false);
@@ -129,28 +152,40 @@ export function ProfessorQuestionIntakePanel({
     setInputMode(mode);
     startNewDraft(undefined);
     setAnalysis(undefined);
-    setManualDraftAllowed(false);
     setMessage(undefined);
   }
 
   function resetForAnotherQuestion() {
     startNewDraft(undefined);
     setAnalysis(undefined);
-    setManualDraftAllowed(false);
     setMessage(undefined);
-    setModel(undefined);
     setQuestionText("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function request(next: ReplaceRequest) {
+    if (next.kind === "mode" && next.mode === inputMode) return;
+    if (hasOpenDraft) {
+      setReplaceRequest(next);
+      return;
+    }
+    run(next);
+  }
+
+  function run(next: ReplaceRequest) {
+    if (next.kind === "mode") changeInputMode(next.mode);
+    else if (next.kind === "analyze") void analyzeQuestion();
+    else startManualDraft();
   }
 
   async function analyzeQuestion() {
     const file = fileInputRef.current?.files?.[0];
     if (inputMode === "text" && !questionText.trim()) {
-      setMessage("Paste or type the question before analyzing it.");
+      setMessage("Please type or paste a question first.");
       return;
     }
     if (inputMode === "image" && !file) {
-      setMessage("Choose one PNG, JPEG, or WEBP screenshot.");
+      setMessage("Please choose a photo of the question first.");
       return;
     }
 
@@ -169,22 +204,19 @@ export function ProfessorQuestionIntakePanel({
       });
       const payload = (await response.json()) as IntakeResponse;
       if (!response.ok || !payload.draft) {
-        setManualDraftAllowed(payload.manualDraftAllowed !== false);
-        setMessage(payload.error ?? "Question analysis failed.");
+        setMessage(analysisFailureMessage(response.status, inputMode));
         return;
       }
       startNewDraft(payload.draft);
+      setDraftByAi(true);
       setDuplicates(payload.duplicates ?? []);
-      setModel(payload.model);
       setAnalysis({ inputMode, model: payload.model });
-      setManualDraftAllowed(false);
       setMessage(
-        "AI question draft created. Nothing has been saved, approved, or published.",
+        "Your draft is ready. Check each part, then save it. Nothing is saved yet.",
       );
     } catch {
-      setManualDraftAllowed(true);
       setMessage(
-        "Question analysis is unavailable. Continue with a manual editable draft.",
+        "The AI couldn't make a draft this time. Try again, or fill in the details yourself.",
       );
     } finally {
       setIsAnalyzing(false);
@@ -193,11 +225,10 @@ export function ProfessorQuestionIntakePanel({
 
   function startManualDraft() {
     startNewDraft(manualQuestionDraft(questionText, topics));
+    setDraftByAi(false);
     setAnalysis({ inputMode });
-    setManualDraftAllowed(false);
-    setModel(undefined);
     setMessage(
-      "Manual draft opened. Complete the answer, solution, and progressive hints before saving.",
+      "Fill in the answer, the hints and the solution, then save your question.",
     );
   }
 
@@ -248,7 +279,7 @@ export function ProfessorQuestionIntakePanel({
         title: payload.question.workingVersion.title,
         topicId: payload.question.workingVersion.topicId,
       });
-      // The lifecycle table on this page is server-rendered; refresh it so
+      // The question list on this page is server-rendered; refresh it so
       // the saved question appears there without a manual reload.
       router.refresh();
     } catch (error) {
@@ -274,33 +305,33 @@ export function ProfessorQuestionIntakePanel({
         >
           <div className="flex flex-col gap-1">
             <h2 id={inputHeadingId} className="type-h3 text-ink">
-              Add a question with AI
+              Add a question
             </h2>
-            <p className="type-small max-w-prose text-ink-muted">
-              Analyze one pasted question or one screenshot. The result is an
-              editable preview; nothing is saved until you save it as a draft.
+            <p className="type-body max-w-prose text-ink">
+              Type or paste a question, or add a photo of one. We&apos;ll draft
+              the hints and solution for you to check. Nothing is saved until
+              you save it.
             </p>
           </div>
 
           <div
-            className="flex gap-1.5"
+            className="flex flex-wrap gap-2"
             role="group"
-            aria-label="Question input type"
+            aria-label="How to add the question"
           >
             {(
               [
-                { label: "Paste or type", value: "text" },
-                { label: "Screenshot", value: "image" },
+                { label: "Type or paste", value: "text" },
+                { label: "Photo", value: "image" },
               ] as const
             ).map((mode) => (
               <button
                 key={mode.value}
                 type="button"
                 aria-pressed={inputMode === mode.value}
-                onClick={() => changeInputMode(mode.value)}
+                onClick={() => request({ kind: "mode", mode: mode.value })}
                 className={cn(
-                  "relative inline-flex h-8 items-center rounded-chip px-3 type-small transition-colors duration-fast focus-ring",
-                  "pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5",
+                  "inline-flex h-11 items-center rounded-chip px-4 type-body transition-colors duration-fast focus-ring",
                   inputMode === mode.value
                     ? "bg-azure-100 font-medium text-azure-700"
                     : "bg-surface-tint text-ink hover:bg-hover",
@@ -312,7 +343,7 @@ export function ProfessorQuestionIntakePanel({
           </div>
 
           {inputMode === "text" ? (
-            <Field label="Paste or type the question">
+            <Field label="Question text">
               <Textarea
                 className="min-h-36 type-reading"
                 maxLength={8000}
@@ -323,11 +354,12 @@ export function ProfessorQuestionIntakePanel({
             </Field>
           ) : (
             <Field
-              label="Upload a screenshot or photo of the question"
-              description="One PNG, JPEG, or WEBP image, up to 5 MB. It is read once and never stored as a public asset."
+              label="Add a photo of the question"
+              description="One question per photo for now. For a whole worksheet, add one photo per question. PNG, JPEG or WEBP, up to 5 MB."
             >
               <Input
                 ref={fileInputRef}
+                className={CONTROL}
                 accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
                 type="file"
               />
@@ -337,26 +369,27 @@ export function ProfessorQuestionIntakePanel({
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
+              className={CONTROL}
               disabled={isAnalyzing}
               loading={isAnalyzing}
-              onClick={analyzeQuestion}
+              onClick={() => request({ kind: "analyze" })}
             >
-              Analyze question
+              Create draft with AI
             </Button>
-            {manualDraftAllowed ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={startManualDraft}
-              >
-                Continue manually
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              className={CONTROL}
+              disabled={isAnalyzing}
+              onClick={() => request({ kind: "manual" })}
+            >
+              Fill in the details myself
+            </Button>
           </div>
 
           <div role="status" aria-live="polite">
             {message ? (
-              <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+              <p className="type-body max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
                 {message}
               </p>
             ) : null}
@@ -368,7 +401,7 @@ export function ProfessorQuestionIntakePanel({
           className="flex min-w-0 flex-col gap-4"
         >
           <h2 id={previewHeadingId} className="sr-only">
-            Question draft
+            Your draft
           </h2>
 
           {saved ? (
@@ -384,18 +417,21 @@ export function ProfessorQuestionIntakePanel({
           {saveError ? (
             <Alert variant="destructive" role="alert">
               <AlertTriangle aria-hidden="true" />
-              <AlertTitle>Draft not saved</AlertTitle>
-              <AlertDescription>{saveError}</AlertDescription>
+              <AlertTitle>Not saved</AlertTitle>
+              <AlertDescription>
+                <p className="type-body text-ink">{saveError}</p>
+              </AlertDescription>
             </Alert>
           ) : null}
 
           {draft && !saved ? (
             <QuestionDraftEditor
+              key={draftSerial}
+              byAi={draftByAi}
               draft={draft}
               duplicateAcknowledged={duplicateAcknowledged}
               duplicates={duplicates}
               isSaving={isSaving}
-              model={model}
               readOnly={readOnly}
               sourceKind={sourceKind}
               topics={topics}
@@ -405,21 +441,71 @@ export function ProfessorQuestionIntakePanel({
               onSourceKindChange={setSourceKind}
             />
           ) : !saved ? (
-            <EmptyState className="rounded-panel bg-surface-tint px-5">
-              The draft appears here after you analyze a question. Every field
-              stays editable until you save it.
+            <EmptyState className="type-body rounded-panel bg-surface-tint px-5 text-ink">
+              Type or paste a question on the left, or add a photo. Your draft
+              appears here.
             </EmptyState>
           ) : null}
         </section>
       </div>
+
+      <Dialog
+        open={replaceRequest !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setReplaceRequest(undefined);
+        }}
+      >
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Replace your current draft?</DialogTitle>
+            <DialogDescription className="type-body text-ink">
+              Your edits will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              className={CONTROL}
+              onClick={() => setReplaceRequest(undefined)}
+            >
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className={CONTROL}
+              onClick={() => {
+                const next = replaceRequest;
+                setReplaceRequest(undefined);
+                if (next) run(next);
+              }}
+            >
+              Replace draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
+function analysisFailureMessage(
+  status: number,
+  inputMode: QuestionIntakeInputMode,
+) {
+  if (status === 413)
+    return "That photo is too large. Please use a photo under 5 MB.";
+  if (status === 429)
+    return "Too many tries in a row. Please wait a minute, then try again.";
+  if (status === 400 && inputMode === "image")
+    return "We couldn't read that photo. Please use a PNG, JPEG or WEBP photo of one question.";
+  return "The AI couldn't make a draft this time. Try again, or fill in the details yourself.";
+}
+
 /**
- * The post-save confirmation. It names the destination in the professor's own
- * vocabulary (review queue, approve, publish) and links straight to the saved
- * question so nobody has to hunt for it.
+ * The post-save confirmation. It says in one sentence that students cannot
+ * see the question yet and links straight to the saved question.
  */
 export function QuestionIntakeSavedNotice({
   onAddAnother,
@@ -433,30 +519,22 @@ export function QuestionIntakeSavedNotice({
   return (
     <Alert variant="success" role="status" aria-live="polite">
       <CheckCircle2 aria-hidden="true" />
-      <AlertTitle>Draft saved.</AlertTitle>
+      <AlertTitle>Question saved</AlertTitle>
       <AlertDescription>
-        <p>{questionIntakeSavedSummary(saved, topicTitle)}</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button asChild size="sm">
+        <p className="type-body text-ink">
+          {questionIntakeSavedSummary(saved, topicTitle)}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Button asChild variant="cta" className={CONTROL}>
             <Link href={professorQuestionPath(saved.questionId)}>
-              View draft
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="secondary">
-            <Link
-              href={professorReviewQueuePagePath(
-                saved.topicId,
-                saved.questionId,
-              )}
-            >
-              Open in review queue
+              Open this question
             </Link>
           </Button>
           {onAddAnother ? (
             <Button
               type="button"
-              size="sm"
-              variant="ghost"
+              variant="secondary"
+              className={CONTROL}
               onClick={onAddAnother}
             >
               <Plus aria-hidden="true" />
@@ -476,9 +554,9 @@ export function questionIntakeSavedSummary(
   const topic = topicTitle ?? saved.topicId;
   const location =
     saved.state === "needs_review"
-      ? `is waiting in your review queue under ${topic}.`
-      : `was filed under ${topic} in the question lifecycle.`;
-  return `“${saved.title}” ${location} Review and approve it before publishing to students. Students cannot see it yet.`;
+      ? `It's waiting for your review under ${topic}.`
+      : `You'll find it in your question list under ${topic}.`;
+  return `“${saved.title}” is saved. Students can't see it yet. ${location}`;
 }
 
 export function questionIntakeSaveFailureMessage(
@@ -489,9 +567,9 @@ export function questionIntakeSaveFailureMessage(
     .filter(Boolean)
     .join(" ");
   if (status >= 500 || !detail) return QUESTION_INTAKE_SAVE_FAILURE_MESSAGE;
-  // Client-correctable problems (duplicates, consistency checks) keep the
-  // server's actionable wording and the same reassurance about lost work.
-  return `${detail} Your generated question is still available on this page.`;
+  // Problems the professor can fix (duplicates, things to check) keep the
+  // server's wording and the same reassurance about lost work.
+  return `${detail} Your draft is still here.`;
 }
 
 export function saveDraftButtonLabel(input: {
@@ -499,7 +577,7 @@ export function saveDraftButtonLabel(input: {
   saved: boolean;
 }) {
   if (input.isSaving) return "Saving…";
-  return input.saved ? "Draft saved" : "Save draft";
+  return input.saved ? "Saved" : "Save question";
 }
 
 function newSaveKey() {
@@ -508,12 +586,56 @@ function newSaveKey() {
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
+/**
+ * The intake payload still carries `answerType`, `numericValue` and
+ * `tolerance`. They are derived from the answer the professor entered: a typed
+ * answer sets the type from its kind and drops the older number fields; an
+ * older-style answer reads the number from the first accepted answer.
+ */
+function withDerivedAnswerFields(
+  draft: QuestionIntakeDraft,
+  answer: QuestionIntakeDraft["answer"],
+): QuestionIntakeDraft {
+  if (answer.spec) {
+    const next = { ...answer };
+    delete next.numericValue;
+    delete next.tolerance;
+    return {
+      ...draft,
+      answer: next,
+      answerType: answer.spec.kind === "numeric" ? "numeric" : "text",
+    };
+  }
+  const first = answer.acceptedAnswers.find((entry) => entry.trim());
+  const value = first ? numberFromAnswer(first) : undefined;
+  if (value === undefined) {
+    const next = { ...answer };
+    delete next.numericValue;
+    delete next.tolerance;
+    return { ...draft, answer: next, answerType: "text" };
+  }
+  return {
+    ...draft,
+    answer: { ...answer, numericValue: value },
+    answerType: "numeric",
+  };
+}
+
+function numberFromAnswer(text: string) {
+  const direct = Number(text.trim());
+  if (text.trim() && Number.isFinite(direct)) return direct;
+  const parsed = parseRational(text.trim());
+  if (!parsed) return undefined;
+  const value = Number(parsed.n) / Number(parsed.d);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function QuestionDraftEditor({
+  byAi,
   draft,
   duplicateAcknowledged,
   duplicates,
   isSaving,
-  model,
   onDraftChange,
   onDuplicateAcknowledged,
   onSave,
@@ -522,11 +644,11 @@ function QuestionDraftEditor({
   sourceKind,
   topics,
 }: {
+  byAi: boolean;
   draft: QuestionIntakeDraft;
   duplicateAcknowledged: boolean;
   duplicates: QuestionIntakeDuplicate[];
   isSaving: boolean;
-  model?: string;
   onDraftChange: (draft: QuestionIntakeDraft) => void;
   onDuplicateAcknowledged: (checked: boolean) => void;
   onSave: () => void;
@@ -550,31 +672,16 @@ function QuestionDraftEditor({
   }
 
   const headingId = useId();
-  const misconceptionsHeadingId = useId();
   const checksHeadingId = useId();
-
-  function changeAnswerType(answerType: QuestionIntakeAnswerType) {
-    onDraftChange({
-      ...draft,
-      answer: {
-        ...draft.answer,
-        numericValue:
-          answerType === "numeric" ? draft.answer.numericValue : undefined,
-        tolerance:
-          answerType === "numeric" ? draft.answer.tolerance : undefined,
-      },
-      answerType,
-    });
-  }
 
   const checkTone = (status: "failed" | "passed" | "warning") =>
     status === "passed" ? "approved" : status === "failed" ? "wrong" : "hint";
   const checkLabel = (status: "failed" | "passed" | "warning") =>
     status === "passed"
-      ? "Passed"
+      ? "Looks right"
       : status === "failed"
-        ? "Failed"
-        : "Warning";
+        ? "Needs fixing"
+        : "Please check";
 
   return (
     <section
@@ -584,30 +691,33 @@ function QuestionDraftEditor({
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 id={headingId} className="type-h3 text-ink">
-            AI question draft
+            Your draft
           </h3>
-          <StatusChip icon={false} label="AI-generated draft" tone="hint" />
-          {model ? (
-            <span className="type-caption font-mono">{model}</span>
+          {byAi ? (
+            <StatusChip icon={false} label="Written by AI" tone="hint" />
           ) : null}
         </div>
-        <p className="type-small max-w-prose text-ink-muted">
-          Every field is unverified until you review it. Saving files the
-          question in your review queue; approving and publishing stay separate
-          steps.
+        <p className="type-body max-w-prose text-ink">
+          {byAi
+            ? "Check every part before you save it. You can change anything."
+            : "Fill in each part. You can change anything before you save it."}
         </p>
       </div>
 
       {draft.warnings.length > 0 || draft.unreadableSegments.length > 0 ? (
         <Alert variant="warning" role="note">
           <AlertTriangle aria-hidden="true" />
-          <AlertTitle>Needs professor review</AlertTitle>
+          <AlertTitle>Please check</AlertTitle>
           <AlertDescription>
             {[
               ...draft.warnings,
-              ...draft.unreadableSegments.map((item) => `Unreadable: ${item}`),
+              ...draft.unreadableSegments.map(
+                (item) => `We couldn't read: ${item}`,
+              ),
             ].map((warning) => (
-              <span key={warning}>{warning}</span>
+              <span key={warning} className="type-body text-ink">
+                {warning}
+              </span>
             ))}
           </AlertDescription>
         </Alert>
@@ -616,16 +726,22 @@ function QuestionDraftEditor({
       <div className="grid gap-5 @xl:grid-cols-2">
         <Field label="Title">
           <Input
+            className={CONTROL}
             maxLength={500}
             value={draft.title}
             onChange={(event) => update("title", event.target.value)}
           />
         </Field>
         <Field
-          label="Existing course topic"
-          description={confidenceText("Topic confidence", draft.confidence.topic)}
+          label="Topic"
+          description={
+            byAi && isLow(draft.confidence.topic)
+              ? "Please check: the AI was unsure about the topic."
+              : undefined
+          }
         >
           <NativeSelect
+            className={CONTROL}
             value={draft.topicId}
             onChange={(event) => update("topicId", event.target.value)}
           >
@@ -636,27 +752,9 @@ function QuestionDraftEditor({
             ))}
           </NativeSelect>
         </Field>
-        <Field
-          label="Question type"
-          description="Free response is the only question format the tutor supports today."
-        >
-          <NativeSelect value={draft.questionType} disabled>
-            <option value="free_response">Free response</option>
-          </NativeSelect>
-        </Field>
-        <Field label="Answer type">
-          <NativeSelect
-            value={draft.answerType}
-            onChange={(event) =>
-              changeAnswerType(event.target.value as QuestionIntakeAnswerType)
-            }
-          >
-            <option value="numeric">Numeric</option>
-            <option value="text">Text</option>
-          </NativeSelect>
-        </Field>
         <Field label="Difficulty">
           <NativeSelect
+            className={CONTROL}
             value={draft.difficulty}
             onChange={(event) =>
               update("difficulty", event.target.value as Difficulty)
@@ -670,10 +768,11 @@ function QuestionDraftEditor({
           </NativeSelect>
         </Field>
         <Field
-          label="Question source"
-          description="Stored as professor-provided provenance; no pattern ID is created."
+          label="Where is this question from?"
+          description="For your records. Students never see this."
         >
           <NativeSelect
+            className={CONTROL}
             value={sourceKind}
             onChange={(event) =>
               onSourceKindChange(event.target.value as QuestionIntakeSourceKind)
@@ -689,11 +788,12 @@ function QuestionDraftEditor({
       </div>
 
       <Field
-        label="Question wording"
-        description={confidenceText(
-          "Extraction confidence",
-          draft.confidence.extraction,
-        )}
+        label="Question text"
+        description={
+          byAi && isLow(draft.confidence.extraction)
+            ? "Please check: the AI had trouble reading parts of this question."
+            : undefined
+        }
       >
         <Textarea
           className="min-h-36 type-reading"
@@ -706,58 +806,17 @@ function QuestionDraftEditor({
       <AnswerCheckingEditor
         answer={draft.answer}
         onChange={(answer) =>
-          onDraftChange({
-            ...draft,
-            answer,
-            answerType:
-              answer.spec?.kind === "numeric"
-                ? "numeric"
-                : answer.spec
-                  ? "text"
-                  : draft.answerType,
-          })
+          onDraftChange(withDerivedAnswerFields(draft, answer))
         }
       />
-      {!draft.answer.spec && (
-        <Field label="Correct accepted answers (one per line)">
-          <LinesTextarea
-            className="min-h-28 font-mono"
-            values={draft.answer.acceptedAnswers}
-            onChange={(acceptedAnswers) =>
-              updateAnswer("acceptedAnswers", acceptedAnswers)
-            }
-          />
-        </Field>
-      )}
-      {draft.answerType === "numeric" && !draft.answer.spec ? (
-        <div className="grid gap-5 @xl:grid-cols-2">
-          <Field label="Numeric value">
-            <Input
-              type="number"
-              step="any"
-              value={draft.answer.numericValue ?? ""}
-              onChange={(event) =>
-                updateAnswer("numericValue", optionalNumber(event.target.value))
-              }
-            />
-          </Field>
-          <Field label="Tolerance">
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              value={draft.answer.tolerance ?? ""}
-              onChange={(event) =>
-                updateAnswer("tolerance", optionalNumber(event.target.value))
-              }
-            />
-          </Field>
-        </div>
-      ) : null}
 
       <Field
-        label="Answer explanation"
-        description={confidenceText("Answer confidence", draft.confidence.answer)}
+        label="Explanation of the answer"
+        description={
+          byAi && isLow(draft.confidence.answer)
+            ? "Please check: the AI was unsure about the answer."
+            : undefined
+        }
       >
         <Textarea
           className="min-h-32"
@@ -768,14 +827,17 @@ function QuestionDraftEditor({
       </Field>
 
       <div className="grid gap-5 @xl:grid-cols-2">
-        <Field label="Progressive hints (2–4, one per line)">
+        <Field
+          label="Hints (2 to 4, one per line)"
+          description="Students see them one at a time, in this order."
+        >
           <LinesTextarea
             className="min-h-44"
             values={draft.hints}
             onChange={(hints) => update("hints", hints)}
           />
         </Field>
-        <Field label="Full solution steps (one per line)">
+        <Field label="Solution steps (one per line)">
           <LinesTextarea
             className="min-h-44"
             values={draft.solutionSteps}
@@ -784,68 +846,33 @@ function QuestionDraftEditor({
         </Field>
       </div>
 
-      <section
-        aria-labelledby={misconceptionsHeadingId}
-        className="flex flex-col gap-3"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-col gap-0.5">
-            <h4 id={misconceptionsHeadingId} className="type-body-strong text-ink">
-              Likely student misconceptions
-            </h4>
-            <p className="type-caption">
-              Keep only recognizable incorrect patterns with targeted feedback.
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() =>
-              update("misconceptions", [
-                ...draft.misconceptions,
-                {
-                  feedback: "",
-                  id: `professor-intake-${draft.misconceptions.length + 1}`,
-                  matchTerms: [],
-                },
-              ])
-            }
-          >
-            <Plus aria-hidden="true" /> Add misconception
-          </Button>
-        </div>
-        {draft.misconceptions.length === 0 ? (
-          <p className="type-small text-ink-muted">
-            No meaningful misconception suggested.
+      <details className="rounded-panel bg-surface-tint">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 type-body-strong text-ink focus-ring">
+          Common wrong answers (optional)
+          {draft.misconceptions.length > 0
+            ? ` · ${draft.misconceptions.length} added`
+            : ""}
+        </summary>
+        <div className="flex flex-col gap-3 border-t border-rule p-4">
+          <p className="type-body max-w-prose text-ink">
+            When a student gives one of these wrong answers, the tutor replies
+            with your message.
           </p>
-        ) : (
-          <ol className="flex flex-col gap-3">
-            {draft.misconceptions.map((misconception, index) => (
-              <li
-                key={index}
-                className="grid gap-4 rounded-panel bg-surface-tint p-4 @xl:grid-cols-[1fr_1fr_auto]"
-              >
-                <div className="flex flex-col gap-4">
-                  <Field label={`Code / incorrect pattern ${index + 1}`}>
-                    <Input
-                      maxLength={500}
-                      value={misconception.id}
-                      onChange={(event) =>
-                        updateMisconception(
-                          draft,
-                          index,
-                          { id: event.target.value },
-                          onDraftChange,
-                        )
-                      }
-                    />
-                  </Field>
+          {draft.misconceptions.length === 0 ? (
+            <p className="type-body text-ink">None added yet.</p>
+          ) : (
+            <ol className="flex flex-col gap-3">
+              {draft.misconceptions.map((misconception, index) => (
+                <li
+                  key={index}
+                  className="grid gap-4 rounded-panel bg-sheet p-4 @xl:grid-cols-[1fr_1fr_auto]"
+                >
                   <Field
-                    label={`Match terms ${index + 1}`}
-                    description="Recognizable answer terms, comma separated."
+                    label={`Wrong answer students give (${index + 1})`}
+                    description="Separate several with commas, for example 0.5, 1/2."
                   >
                     <Input
+                      className={CONTROL}
                       value={misconception.matchTerms.join(", ")}
                       onChange={(event) =>
                         updateMisconception(
@@ -857,44 +884,61 @@ function QuestionDraftEditor({
                       }
                     />
                   </Field>
-                </div>
-                <Field label={`Targeted tutor feedback ${index + 1}`}>
-                  <Textarea
-                    className="min-h-24"
-                    maxLength={8000}
-                    value={misconception.feedback}
-                    onChange={(event) =>
-                      updateMisconception(
-                        draft,
-                        index,
-                        { feedback: event.target.value },
-                        onDraftChange,
+                  <Field label={`What the tutor should say (${index + 1})`}>
+                    <Textarea
+                      className="min-h-24"
+                      maxLength={8000}
+                      value={misconception.feedback}
+                      onChange={(event) =>
+                        updateMisconception(
+                          draft,
+                          index,
+                          { feedback: event.target.value },
+                          onDraftChange,
+                        )
+                      }
+                    />
+                  </Field>
+                  <Button
+                    aria-label={`Remove wrong answer ${index + 1}`}
+                    className="min-h-11 w-fit @xl:mt-8"
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      update(
+                        "misconceptions",
+                        draft.misconceptions.filter(
+                          (_, itemIndex) => itemIndex !== index,
+                        ),
                       )
                     }
-                  />
-                </Field>
-                <Button
-                  aria-label={`Remove misconception ${index + 1}`}
-                  className="@xl:mt-7"
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    update(
-                      "misconceptions",
-                      draft.misconceptions.filter(
-                        (_, itemIndex) => itemIndex !== index,
-                      ),
-                    )
-                  }
-                >
-                  <Trash2 aria-hidden="true" />
-                </Button>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+                  >
+                    <Trash2 aria-hidden="true" />
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-11 w-fit"
+            onClick={() =>
+              update("misconceptions", [
+                ...draft.misconceptions,
+                {
+                  feedback: "",
+                  id: `professor-intake-${draft.misconceptions.length + 1}`,
+                  matchTerms: [],
+                },
+              ])
+            }
+          >
+            <Plus aria-hidden="true" /> Add a wrong answer
+          </Button>
+        </div>
+      </details>
 
       <div className="grid gap-4 @xl:grid-cols-2">
         <section
@@ -902,9 +946,9 @@ function QuestionDraftEditor({
           className="flex flex-col gap-2 rounded-panel bg-surface-tint p-4"
         >
           <h4 id={checksHeadingId} className="type-body-strong text-ink">
-            Consistency checks
+            Things to check
           </h4>
-          <ul className="flex flex-col gap-2 type-small text-ink">
+          <ul className="flex flex-col gap-2 type-body text-ink">
             {draft.review.checks.length > 0 ? (
               draft.review.checks.map((check) => (
                 <li key={check.code} className="flex items-start gap-2">
@@ -917,9 +961,7 @@ function QuestionDraftEditor({
                 </li>
               ))
             ) : (
-              <li className="text-ink-muted">
-                Checks run when the completed draft is saved.
-              </li>
+              <li>We check these when you save.</li>
             )}
           </ul>
         </section>
@@ -931,15 +973,15 @@ function QuestionDraftEditor({
       </div>
 
       {readOnly ? (
-        <p className="type-small max-w-prose border-l-2 border-input pl-4 text-ink-muted">
-          This operating mode is read-only. You can analyze and edit the
-          preview, but saving needs configured database storage.
+        <p className="type-body max-w-prose border-l-2 border-input pl-4 text-ink">
+          {DEMO_NOTICE}
         </p>
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-rule pt-5 sm:flex-row sm:items-center">
         <Button
           type="button"
+          className={CONTROL}
           aria-busy={isSaving}
           disabled={readOnly || isSaving}
           loading={isSaving}
@@ -947,9 +989,9 @@ function QuestionDraftEditor({
         >
           {saveDraftButtonLabel({ isSaving, saved: false })}
         </Button>
-        <p className="type-caption max-w-prose">
-          Saving files a non-public draft in your review queue. Students see
-          nothing until you approve and publish it.
+        <p className="type-body max-w-prose text-ink">
+          Saving adds it to your question list. Students can&apos;t see it
+          until you choose to show it to them.
         </p>
       </div>
     </section>
@@ -959,7 +1001,7 @@ function QuestionDraftEditor({
 const DUPLICATE_REASON_LABELS: Record<QuestionIntakeDuplicate["reason"], string> =
   {
     exact_text: "Same text",
-    same_structure: "Same structure",
+    same_structure: "Same kind of problem",
     similar_wording: "Similar wording",
   };
 
@@ -979,17 +1021,17 @@ function DuplicateWarnings({
       className="flex flex-col gap-2 rounded-panel bg-surface-tint p-4"
     >
       <h4 id={headingId} className="type-body-strong text-ink">
-        Duplicate review
+        Possible duplicates
       </h4>
       {duplicates.length === 0 ? (
-        <p className="type-small text-ink-muted">
-          No similar question was found in the latest server check. Saving
-          checks again.
+        <p className="type-body text-ink">
+          We didn&apos;t find a similar question. We check again when you
+          save.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="type-small text-ink">
-            A similar question may already exist.
+          <p className="type-body text-ink">
+            A similar question may already be in your question bank.
           </p>
           <ul className="flex flex-col gap-2">
             {duplicates.map((duplicate) => (
@@ -997,21 +1039,19 @@ function DuplicateWarnings({
                 key={duplicate.questionId}
                 className="flex flex-col gap-0.5 rounded-control bg-sheet px-3 py-2"
               >
-                <span className="type-small font-medium text-ink">
+                <span className="type-body-strong text-ink">
                   {duplicate.title}
                 </span>
-                <span className="type-caption">
-                  <span className="font-mono">{duplicate.questionId}</span>
-                  {" · "}
+                <span className="type-small text-ink-muted">
                   {DUPLICATE_REASON_LABELS[duplicate.reason] ??
                     duplicate.reason}{" "}
-                  · {Math.round(duplicate.similarity * 100)}% similar
+                  · {Math.round(duplicate.similarity * 100)}% alike
                 </span>
               </li>
             ))}
           </ul>
           <CheckboxField
-            label="I reviewed these possible duplicates and want to save this legitimate variant."
+            label="I've looked at these. Save mine anyway."
             checked={acknowledged}
             onCheckedChange={(checked) => onAcknowledged(checked === true)}
           />
@@ -1021,9 +1061,8 @@ function DuplicateWarnings({
   );
 }
 
-function confidenceText(label: string, value: number) {
-  const level = value >= 0.85 ? "High" : value >= 0.7 ? "Medium" : "Low";
-  return `${label}: ${level} (${Math.round(value * 100)}%)`;
+function isLow(value: number) {
+  return value < 0.7;
 }
 
 function manualQuestionDraft(
@@ -1046,7 +1085,7 @@ function manualQuestionDraft(
     title: prompt.split(/\n|[.!?]/u)[0]?.slice(0, 100) || "Untitled question",
     topicId: topics[0]?.id ?? "",
     unreadableSegments: [],
-    warnings: ["Manual draft: all tutoring fields require professor review."],
+    warnings: [],
   };
 }
 
@@ -1069,10 +1108,4 @@ function commaSeparated(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function optionalNumber(value: string) {
-  if (!value.trim()) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }

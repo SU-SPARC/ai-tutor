@@ -35,12 +35,27 @@ describe("professor question intake panel", () => {
       }),
     );
 
-    expect(markup).toContain("Add a question with AI");
-    expect(markup).toContain("Paste or type the question");
-    expect(markup).toContain("Screenshot");
-    expect(markup).toContain("Analyze question");
-    expect(markup).not.toContain("Save draft");
-    expect(markup).not.toContain("Draft saved");
+    expect(markup).toContain("Add a question");
+    expect(markup).toContain("Question text");
+    expect(markup).toContain("Type or paste");
+    expect(markup).toContain("Photo");
+    expect(markup).toContain("Create draft with AI");
+    expect(markup).toContain("Fill in the details myself");
+    expect(markup).toContain(
+      "Type or paste a question on the left, or add a photo. Your draft appears here.",
+    );
+    expect(markup).not.toContain("Save question");
+    expect(markup).not.toContain("Question saved");
+    for (const jargon of [
+      "Analyze question",
+      "Screenshot",
+      "intake",
+      "Intake",
+      "lifecycle",
+      "provenance",
+      "canonical",
+    ])
+      expect(markup).not.toContain(jargon);
   });
 
   it("confirms a save with the destination and a direct link to the saved question", () => {
@@ -57,19 +72,18 @@ describe("professor question intake panel", () => {
       }),
     );
 
-    expect(markup).toContain("Draft saved.");
-    expect(markup).toContain("waiting in your review queue");
+    expect(markup).toContain("Question saved");
+    expect(markup).toContain(
+      "“Exactly one head in two tosses” is saved. Students can&#x27;t see it yet.",
+    );
+    expect(markup).toContain("waiting for your review under");
     expect(markup).toContain("Conditional Probability");
-    expect(markup).toContain("Review and approve it before publishing");
-    expect(markup).toContain("Students cannot see it yet");
     expect(markup).toContain(
       'href="/professor/questions/ai-intake-exactly-one-head-1234abcd"',
     );
-    expect(markup).toContain("View draft");
-    expect(markup).toContain(
-      'href="/professor/review?topic=conditional-probability&amp;question=ai-intake-exactly-one-head-1234abcd"',
-    );
-    expect(markup).toContain("Open in review queue");
+    expect(markup).toContain("Open this question");
+    expect(markup).not.toContain("/professor/review?");
+    expect(markup).not.toContain("review queue");
     expect(markup).toContain("Add another question");
     expect(markup).not.toContain("needs_review");
   });
@@ -79,10 +93,10 @@ describe("professor question intake panel", () => {
       "Saving…",
     );
     expect(saveDraftButtonLabel({ isSaving: false, saved: true })).toBe(
-      "Draft saved",
+      "Saved",
     );
     expect(saveDraftButtonLabel({ isSaving: false, saved: false })).toBe(
-      "Save draft",
+      "Save question",
     );
     expect(
       questionIntakeSavedSummary(
@@ -93,7 +107,9 @@ describe("professor question intake panel", () => {
         },
         "Conditional Probability",
       ),
-    ).toContain("was filed under Conditional Probability");
+    ).toBe(
+      "“Manual question” is saved. Students can't see it yet. You'll find it in your question list under Conditional Probability.",
+    );
 
     expect(
       questionIntakeSaveFailureMessage(503, { error: "storage down" }),
@@ -106,7 +122,7 @@ describe("professor question intake panel", () => {
         error: "A similar question may already exist.",
       }),
     ).toBe(
-      "A similar question may already exist. Your generated question is still available on this page.",
+      "A similar question may already exist. Your draft is still here.",
     );
     expect(
       questionIntakeSaveFailureMessage(422, {
@@ -161,16 +177,28 @@ describe("intake accepted answers multiline input", () => {
   });
 
   it("wires the accepted-answers field through the shared multiline component", () => {
-    const source = readFileSync(
+    // The intake draft edits its accepted answers inside the shared answer
+    // editor: "Other answers to accept" is a LinesField (a LinesTextarea).
+    const intake = readFileSync(
       "src/components/professor/professor-question-intake-panel.tsx",
       "utf8",
     );
-    const field = source.slice(
-      source.indexOf("Correct accepted answers (one per line)"),
-      source.indexOf("</Field>", source.indexOf("Correct accepted answers")),
+    expect(intake).toContain("<AnswerCheckingEditor");
+    expect(intake).toContain("answer={draft.answer}");
+    const source = readFileSync(
+      "src/components/professor/answer-checking-editor.tsx",
+      "utf8",
     );
-    expect(field).toContain("<LinesTextarea");
-    expect(field).toContain("values={draft.answer.acceptedAnswers}");
+    const start = source.indexOf(
+      "Other answers to accept (optional, one per line)",
+    );
+    expect(start).toBeGreaterThan(-1);
+    const field = source.slice(source.lastIndexOf("<LinesField", start), start + 200);
+    expect(field).toContain("<LinesField");
+    expect(field).toContain("values={others}");
+    expect(source.slice(source.indexOf("function LinesField"))).toContain(
+      "<LinesTextarea",
+    );
     expect(field).not.toContain("lines(event.target.value)");
   });
 });
@@ -236,8 +264,8 @@ describe("intake hints and solution steps multiline inputs", () => {
       "utf8",
     );
     for (const [label, values] of [
-      ["Progressive hints (2–4, one per line)", "values={draft.hints}"],
-      ["Full solution steps (one per line)", "values={draft.solutionSteps}"],
+      ["Hints (2 to 4, one per line)", "values={draft.hints}"],
+      ["Solution steps (one per line)", "values={draft.solutionSteps}"],
     ]) {
       const start = source.indexOf(label);
       expect(start).toBeGreaterThan(-1);

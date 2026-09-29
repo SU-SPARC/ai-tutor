@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
-import { ProfessorTime } from "@/components/professor/professor-question-labels";
+import { ProfessorHowItWorks } from "@/components/professor/professor-how-it-works";
+import {
+  formatProfessorDate,
+  formatProfessorDateTime,
+} from "@/components/professor/professor-question-labels";
+import { PROFESSOR_SECTIONS } from "@/components/shell/nav-config";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type {
@@ -10,43 +15,39 @@ import type {
 } from "@/lib/professor/workspace-overview";
 import { professorQuestionPath } from "@/lib/professor/question-paths";
 import type { QuestionLifecycleEventAction } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 /**
- * Past-tense phrasing for the decision history. The lifecycle panel labels the
- * same actions in the imperative because there they are buttons.
+ * Past-tense phrasing for the decision history, in the professor's words.
+ * `null` hides the event (system bookkeeping such as history migration).
  */
-const DECISION_LABELS: Record<QuestionLifecycleEventAction, string> = {
+const DECISION_LABELS: Record<QuestionLifecycleEventAction, string | null> = {
   approve: "Approved",
-  archive: "Archived",
-  create_version: "Created a version of",
-  migrate: "Migrated history for",
-  publish: "Published",
-  regenerate: "Regenerated",
+  archive: "Removed from question bank:",
+  create_version: "Edited",
+  migrate: null,
+  publish: "Showed to students",
+  regenerate: "Asked AI to rewrite",
   reject: "Rejected",
-  request_revision: "Requested a revision of",
-  restore: "Restored",
-  rollback: "Rolled back",
-  submit: "Submitted for review",
-  unpublish: "Unpublished",
+  request_revision: "Sent back for changes:",
+  restore: "Put back in question bank:",
+  rollback: "Restored an earlier copy of",
+  submit: "Sent for review:",
+  unpublish: "Hid from students",
 };
 
 const RELEASE_DECISION_LABELS = {
-  archived: "Archived student access to",
-  published: "Released to students",
-  unpublished: "Withheld from students",
+  archived: "Hid from students",
+  published: "Showed to students",
+  unpublished: "Hid from students",
 } as const;
 
 const TOPIC_PREVIEW_LIMIT = 3;
 
-const TOOLS = [
-  { href: "/professor/availability", label: "Student availability" },
-  { href: "/professor/students", label: "Students", prefetch: false },
-  { href: "/professor/analytics", label: "Analytics" },
-  { href: "/professor/feedback", label: "Student reports" },
-  { href: "/professor/upload", label: "Uploads" },
-  { href: "/professor/content-transfer", label: "Import & export" },
-] as const;
+const REVIEW_HREF = "/professor/review";
+const ADD_QUESTION_HREF = "/professor/questions?tab=intake";
+// The question bank already filters by `?view=` (its "approved" filter).
+const APPROVED_HREF = "/professor/questions?view=approved";
+const STUDENTS_SEE_HREF = "/professor/availability";
 
 function decisionLabel(decision: ProfessorWorkspaceDecision) {
   return decision.kind === "lifecycle"
@@ -54,64 +55,83 @@ function decisionLabel(decision: ProfessorWorkspaceDecision) {
     : RELEASE_DECISION_LABELS[decision.releaseState];
 }
 
+function plural(count: number, one: string, many: string) {
+  return count === 1 ? one : many;
+}
+
 /**
- * One stage of the pipeline strip: the count, the stage name, one line that
- * says what the count means, and the one action for that stage. `emphasis`
- * marks the stage that is waiting on a person.
+ * A usable date or nothing: a missing value, an unparseable one, or the
+ * epoch placeholder (Dec 31 1969 / Jan 1 1970) is never shown.
  */
-function PipelineStage({
-  action,
-  caption,
+function realDate(value: string | undefined) {
+  if (!value) return undefined;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time) || new Date(time).getUTCFullYear() <= 1970) {
+    return undefined;
+  }
+  return value;
+}
+
+/**
+ * Home's one next step: review what is waiting, or (when nothing waits) add
+ * a question. The header button and the "Next step" card both use it, so
+ * they always say the same thing.
+ */
+export function professorHomeNextStep(overview?: ProfessorWorkspaceOverview) {
+  if (!overview) {
+    return {
+      href: REVIEW_HREF,
+      label: "Review questions",
+      sentence:
+        "We couldn't count your questions just now. You can still open Review questions.",
+    };
+  }
+  const waiting = overview.totalNeedsReview;
+  if (waiting > 0) {
+    return {
+      href: REVIEW_HREF,
+      label: `Review ${waiting} ${plural(waiting, "question", "questions")}`,
+      sentence: `${waiting} ${plural(waiting, "question is", "questions are")} waiting for your review.`,
+    };
+  }
+  return {
+    href: ADD_QUESTION_HREF,
+    label: "Add a question",
+    sentence:
+      "Nothing is waiting for your review. You can add a question to your question bank.",
+  };
+}
+
+/** One worded count that links to where the professor acts on it. */
+function CountLink({
   count,
-  emphasis,
-  label,
+  href,
+  text,
 }: {
-  action: React.ReactNode;
-  caption: string;
-  count?: number;
-  emphasis?: boolean;
-  label: string;
+  count: number;
+  href: string;
+  text: string;
 }) {
   return (
-    <li
-      className={cn(
-        "flex min-w-0 flex-1 flex-col gap-2 rounded-panel p-4",
-        emphasis ? "bg-azure-100" : "bg-sheet",
-      )}
-    >
-      <p className="type-label">{label}</p>
-      <p
-        className={cn(
-          "type-metric",
-          emphasis ? "text-azure-700" : "text-ink",
-        )}
+    <li>
+      <Link
+        href={href}
+        className="flex min-h-11 items-center justify-between gap-3 rounded-panel bg-sheet px-4 py-3 type-body text-ink underline-offset-4 transition-colors duration-fast hover:bg-hover hover:underline focus-ring"
       >
-        {count === undefined ? "—" : count}
-      </p>
-      <p className="type-small text-ink">{caption}</p>
-      <div className="mt-auto pt-1">{action}</div>
+        <span>
+          <span className="type-body-strong tabular">{count}</span> {text}
+        </span>
+        <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-ink-muted" />
+      </Link>
     </li>
   );
 }
 
-function StageLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex min-h-8 items-center gap-1 rounded-control type-small text-azure-500 underline-offset-4 transition-colors duration-fast hover:text-azure-700 hover:underline focus-ring"
-    >
-      {label}
-      <ChevronRight aria-hidden="true" className="size-4" />
-    </Link>
-  );
-}
-
 /**
- * The overview's content in the order a professor needs it: the pipeline
- * strip (what needs you, with one action per stage), the topics waiting on
- * review, recent decisions, then the tools. Without an overview (a failed
- * read) the strip still stands, with dashes for the counts, so every section
- * stays one click away.
+ * Home's content in the order a professor needs it: how it works (until
+ * hidden), the next step with three worded counts, the topics waiting for
+ * review, recent decisions, and (below 1024, where the page list is in the
+ * menu) links to the other pages.
  */
 export function ProfessorWorkspaceOverviewPanel({
   overview,
@@ -121,145 +141,140 @@ export function ProfessorWorkspaceOverviewPanel({
   const pipeline = overview?.pipeline;
   const availability = overview?.availability;
   const reviewTopics = overview?.reviewTopics ?? [];
-  const recentDecisions = overview?.recentDecisions ?? [];
+  const recentDecisions = (overview?.recentDecisions ?? []).filter(
+    (decision) => decisionLabel(decision) !== null,
+  );
   const previewTopics = reviewTopics.slice(0, TOPIC_PREVIEW_LIMIT);
   const remainingTopics = reviewTopics.length - previewTopics.length;
+  const next = professorHomeNextStep(overview);
+  const nextScheduledAt = realDate(availability?.nextScheduledAt);
 
   return (
     <div className="flex flex-col gap-10">
+      <ProfessorHowItWorks />
+
       <section
-        aria-labelledby="overview-pipeline-heading"
+        aria-labelledby="overview-next-heading"
         className="flex flex-col gap-4"
       >
-        <div className="flex flex-col gap-1">
-          <h2 id="overview-pipeline-heading" className="type-h2 text-ink">
-            Question pipeline
+        <div
+          data-tour="professor-next-step"
+          className="flex flex-col items-start gap-4 rounded-panel bg-sheet p-5 sm:p-6"
+        >
+          <h2 id="overview-next-heading" className="type-h2 text-ink">
+            Next step
           </h2>
-          <p className="type-small max-w-prose text-ink-muted">
-            Approval and student release are separate gates: approving a
-            question does not show it to anyone.
-          </p>
+          <p className="type-body max-w-prose text-ink">{next.sentence}</p>
+          <Button asChild variant="secondary" size="lg" className="min-h-11">
+            <Link href={next.href}>{next.label}</Link>
+          </Button>
         </div>
-        <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          <PipelineStage
-            label="Drafts"
-            count={pipeline?.drafts}
-            caption="Not yet submitted"
-            action={
-              <StageLink
-                href="/professor/questions?view=draft"
-                label="Open drafts"
+
+        {pipeline && availability ? (
+          <>
+            <ul
+              aria-label="Your questions"
+              className="grid gap-2 md:grid-cols-3"
+            >
+              <CountLink
+                count={pipeline.needsReview}
+                href={REVIEW_HREF}
+                text="waiting for your review"
               />
-            }
-          />
-          <PipelineStage
-            label="Needs review"
-            count={pipeline?.needsReview}
-            caption="Waiting on you"
-            emphasis={(pipeline?.needsReview ?? 0) > 0}
-            action={
-              <Button asChild size="sm">
-                <Link href="/professor/review">Start reviewing</Link>
-              </Button>
-            }
-          />
-          <PipelineStage
-            label="Approved"
-            count={pipeline?.approvedNotPublished}
-            caption="Not published yet"
-            action={
-              <StageLink
-                href="/professor/questions?view=approved"
-                label="Publish approved"
+              <CountLink
+                count={pipeline.approvedNotPublished}
+                href={APPROVED_HREF}
+                text="approved, not yet shown to students"
               />
-            }
-          />
-          <PipelineStage
-            label="Published"
-            count={pipeline?.published}
-            caption="Immutable versions in the bank"
-            action={
-              <StageLink
-                href="/professor/questions?view=published"
-                label="See published"
+              <CountLink
+                count={availability.available}
+                href={STUDENTS_SEE_HREF}
+                text="students can see"
               />
-            }
-          />
-          <PipelineStage
-            label="Released"
-            count={availability?.available}
-            caption="Available to students"
-            action={
-              <StageLink
-                href="/professor/availability"
-                label="Manage availability"
-              />
-            }
-          />
-        </ol>
-        <p className="type-caption tabular">
-          {pipeline
-            ? `${pipeline.reserved} saved for later · ${pipeline.archived} archived`
-            : "Counts could not be loaded; every section is still one click away."}
-          {availability
-            ? ` · ${availability.scheduled} scheduled · ${availability.heldBack} held back`
-            : ""}
-          {availability?.nextScheduledAt ? (
-            <>
-              {" · next release "}
-              <ProfessorTime value={availability.nextScheduledAt} />
-            </>
-          ) : null}
-        </p>
+            </ul>
+            {pipeline.drafts > 0 ? (
+              <p className="type-body text-ink">
+                <span className="tabular">{pipeline.drafts}</span> being written
+              </p>
+            ) : null}
+            {availability.scheduled > 0 ? (
+              <p className="type-body text-ink">
+                {nextScheduledAt
+                  ? `Next: ${availability.scheduled} ${plural(availability.scheduled, "question becomes", "questions become")} visible to students on ${formatProfessorDate(nextScheduledAt)}.`
+                  : `Next: ${availability.scheduled} ${plural(availability.scheduled, "question is", "questions are")} set to become visible to students.`}
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </section>
 
       <section
         aria-labelledby="overview-review-heading"
         className="flex flex-col gap-4"
       >
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-col gap-1">
           <h2 id="overview-review-heading" className="type-h2 text-ink">
-            Waiting on your review
+            Waiting for you
           </h2>
           {overview && overview.totalNeedsReview > 0 ? (
-            <p className="type-small tabular text-ink-muted">
-              {overview.totalNeedsReview} open
-              {remainingTopics > 0
-                ? ` · ${remainingTopics} more ${remainingTopics === 1 ? "topic" : "topics"} in the queue`
-                : ""}
+            <p className="type-body tabular text-ink">
+              {overview.totalNeedsReview} waiting in {reviewTopics.length}{" "}
+              {plural(reviewTopics.length, "topic", "topics")}
             </p>
           ) : null}
         </div>
         {previewTopics.length > 0 ? (
-          <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
-            {previewTopics.map((topic) => (
-              <li
-                key={topic.topicId}
-                className="flex items-center justify-between gap-4 py-3"
+          <>
+            <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
+              {previewTopics.map((topic) => (
+                <li
+                  key={topic.topicId}
+                  className="flex flex-wrap items-center justify-between gap-4 py-3"
+                >
+                  <div className="flex min-w-0 flex-col">
+                    <span className="type-body-strong text-ink">
+                      {topic.title}
+                    </span>
+                    <span className="type-body tabular text-ink">
+                      {topic.needsReview}{" "}
+                      {plural(topic.needsReview, "question", "questions")}{" "}
+                      waiting
+                    </span>
+                  </div>
+                  <Button asChild variant="secondary" className="min-h-11">
+                    <Link
+                      href={`${REVIEW_HREF}?topic=${encodeURIComponent(topic.topicId)}`}
+                    >
+                      Review this topic
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {remainingTopics > 0 ? (
+              <Link
+                href={REVIEW_HREF}
+                className="inline-flex min-h-11 w-fit items-center gap-1 rounded-control type-body text-azure-700 underline underline-offset-4 hover:text-ink focus-ring"
               >
-                <div className="flex min-w-0 flex-col">
-                  <span className="type-body-strong truncate text-ink">
-                    {topic.title}
-                  </span>
-                  <span className="type-caption tabular">
-                    {topic.needsReview}{" "}
-                    {topic.needsReview === 1 ? "draft" : "drafts"} awaiting a
-                    decision
-                  </span>
-                </div>
-                <Button asChild variant="secondary" size="sm">
-                  <Link href={`/professor/review?topic=${topic.topicId}`}>
-                    Review
-                  </Link>
-                </Button>
-              </li>
-            ))}
-          </ul>
+                See all {reviewTopics.length} topics in Review questions
+                <ChevronRight aria-hidden="true" className="size-4" />
+              </Link>
+            ) : null}
+          </>
         ) : (
-          <EmptyState className="py-0">
+          <EmptyState
+            className="py-0"
+            action={
+              overview ? undefined : (
+                <Button asChild variant="secondary" className="min-h-11">
+                  <Link href={REVIEW_HREF}>Review questions</Link>
+                </Button>
+              )
+            }
+          >
             {overview
-              ? "Nothing is waiting on your review right now."
-              : "The review queue could not be loaded. Open it to try again."}
+              ? "Nothing is waiting for your review right now. New questions will be listed here."
+              : "We couldn't load this list just now. Open Review questions to see what is waiting."}
           </EmptyState>
         )}
       </section>
@@ -273,56 +288,70 @@ export function ProfessorWorkspaceOverviewPanel({
         </h2>
         {recentDecisions.length > 0 ? (
           <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
-            {recentDecisions.map((decision) => (
-              <li
-                key={decision.id}
-                className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
-              >
-                <span className="min-w-0 type-body text-ink">
-                  <span className="font-medium">{decisionLabel(decision)}</span>{" "}
-                  {decision.kind === "lifecycle" ? (
-                    <Link
-                      href={professorQuestionPath(decision.questionId)}
-                      className="rounded-xs underline-offset-4 hover:underline focus-ring"
-                    >
-                      {decision.targetTitle}
-                    </Link>
-                  ) : (
-                    decision.targetTitle
-                  )}
-                </span>
-                <span className="shrink-0 type-caption">
-                  {decision.actorDisplayName} ·{" "}
-                  <ProfessorTime value={decision.occurredAt} />
-                </span>
-              </li>
-            ))}
+            {recentDecisions.map((decision) => {
+              const when = realDate(decision.occurredAt);
+              return (
+                <li
+                  key={decision.id}
+                  className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                >
+                  <span className="min-w-0 type-body text-ink">
+                    <span className="font-medium">
+                      {decisionLabel(decision)}
+                    </span>{" "}
+                    {decision.kind === "lifecycle" ? (
+                      <Link
+                        href={professorQuestionPath(decision.questionId)}
+                        className="rounded-xs underline underline-offset-4 focus-ring"
+                      >
+                        {decision.targetTitle}
+                      </Link>
+                    ) : (
+                      decision.targetTitle
+                    )}
+                  </span>
+                  <span className="shrink-0 type-small text-ink-muted">
+                    by {decision.actorDisplayName}
+                    {when ? (
+                      <>
+                        ,{" "}
+                        <time dateTime={when}>
+                          {formatProfessorDateTime(when)}
+                        </time>
+                      </>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <EmptyState className="py-0">
             {overview
-              ? "No decisions have been recorded yet."
-              : "Decisions could not be loaded."}
+              ? "Your approvals and other decisions will be listed here."
+              : "We couldn't load your recent decisions just now. Reload the page to try again."}
           </EmptyState>
         )}
       </section>
 
       <section
-        aria-labelledby="overview-tools-heading"
-        className="flex flex-col gap-3"
+        aria-labelledby="overview-pages-heading"
+        className="flex flex-col gap-3 lg:hidden"
       >
-        <h2 id="overview-tools-heading" className="type-h2 text-ink">
-          Tools
+        <h2 id="overview-pages-heading" className="type-h2 text-ink">
+          Other pages
         </h2>
-        <ul className="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-          {TOOLS.map((tool) => (
-            <li key={tool.href}>
+        <ul className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+          {PROFESSOR_SECTIONS.filter(
+            (section) => section.href !== "/professor",
+          ).map((section) => (
+            <li key={section.href}>
               <Link
-                href={tool.href}
-                prefetch={"prefetch" in tool ? tool.prefetch : undefined}
-                className="flex min-h-10 items-center justify-between gap-2 rounded-control text-ink underline-offset-4 transition-colors duration-fast hover:text-azure-700 hover:underline focus-ring"
+                href={section.href}
+                prefetch={section.prefetch}
+                className="flex min-h-11 items-center justify-between gap-2 rounded-control type-body text-ink underline-offset-4 transition-colors duration-fast hover:text-azure-700 hover:underline focus-ring"
               >
-                {tool.label}
+                {section.label}
                 <ChevronRight
                   aria-hidden="true"
                   className="size-4 text-ink-muted"
@@ -331,10 +360,6 @@ export function ProfessorWorkspaceOverviewPanel({
             </li>
           ))}
         </ul>
-        <p className="type-caption max-w-prose">
-          Uploaded source files stay on the server; students never see them
-          and they are excluded from exports and analytics.
-        </p>
       </section>
     </div>
   );

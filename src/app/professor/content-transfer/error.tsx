@@ -20,8 +20,8 @@ export default function ProfessorContentTransferError({
 
   return (
     <ProfessorPageShell
-      title="Import & export"
-      description="Move question content in and out as validated JSON; an import never publishes anything to students."
+      title="Copy questions in or out"
+      description="Bring in a question file someone sent you, or download your questions to share. Nothing you bring in is shown to students."
     >
       <section
         role="alert"
@@ -29,12 +29,18 @@ export default function ProfessorContentTransferError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="content-transfer-error-heading" className="type-h3 text-ink">
-          Import & export could not be loaded
+          This page didn&apos;t load
         </h2>
-        <p className="type-body text-ink-muted">
-          Nothing was imported. Try loading the page again.
+        <p className="type-body text-ink">
+          That didn&apos;t work and nothing changed. Try again, or reload the
+          page.
         </p>
-        <Button type="button" variant="secondary" onClick={reset}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-11"
+          onClick={reset}
+        >
           <RotateCcw aria-hidden="true" />
           Try again
         </Button>

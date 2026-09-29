@@ -9,6 +9,7 @@ import { AppHeader, type AppHeaderRole } from "@/components/shell/app-header";
 import { SkipLink } from "@/components/shell/skip-link";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AccountActions } from "@/components/auth/account-actions";
+import { TourProvider } from "@/components/tour/tour-provider";
 import { Toaster } from "@/components/ui/toast";
 import {
   currentAuthenticatedUser,
@@ -99,8 +100,10 @@ export default async function RootLayout({
   const operatingMode = operatingModePolicyFor(env);
   const authenticationEnabled = env.CLERK_ENABLED;
   const role = await resolveHeaderRole();
+  // The onboarding guide gets the same server-resolved role; signed-out
+  // visitors (no role) never see a tour.
   const shell = (
-    <>
+    <TourProvider role={role ?? null}>
       <SkipLink />
       <AppHeader
         accountControl={
@@ -111,7 +114,7 @@ export default async function RootLayout({
       />
       {children}
       <Toaster />
-    </>
+    </TourProvider>
   );
   // Professors get the courses store above the header so its course switcher
   // is live on every page, not only under /professor.

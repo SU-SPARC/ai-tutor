@@ -11,7 +11,7 @@ import {
 } from "@/lib/auth/authorization";
 
 export const metadata: Metadata = {
-  title: "Review queue",
+  title: "Review questions",
 };
 
 type ProfessorReviewPageProps = {
@@ -39,57 +39,64 @@ export default async function ProfessorReviewPage({
     authorization,
     requestedTopicId,
   );
-  // Only a real syllabus topic may preselect the queue; anything else falls
-  // back to the untouched topic chooser.
-  const preselectedTopicId = loaded.topics.some(
+  // Only a real syllabus topic may preselect the queue. Without one, open on
+  // the first topic in syllabus order that has questions waiting, so the
+  // professor lands on a question instead of an empty chooser.
+  const requestedIsRealTopic = loaded.topics.some(
     (topic) => topic.topicId === requestedTopicId,
-  )
+  );
+  const firstWaitingTopicId = [...loaded.topics]
+    .sort((left, right) => left.order - right.order)
+    .find((topic) => topic.needsReview > 0)?.topicId;
+  const preselectedTopicId = requestedIsRealTopic
     ? requestedTopicId
-    : undefined;
+    : firstWaitingTopicId;
+  const source =
+    preselectedTopicId && preselectedTopicId !== loaded.selectedTopicId
+      ? await getProfessorQuestionReviewDashboard(
+          authorization,
+          preselectedTopicId,
+        )
+      : loaded;
   const dashboard = preselectedTopicId
     ? {
-        ...loaded,
+        ...source,
         // A link from "Draft saved" names the question it just created; show
         // that one first so the professor lands on it.
         candidates: [
-          ...loaded.candidates.filter(
+          ...source.candidates.filter(
             (candidate) => candidate.questionId === requestedQuestionId,
           ),
-          ...loaded.candidates.filter(
+          ...source.candidates.filter(
             (candidate) => candidate.questionId !== requestedQuestionId,
           ),
         ],
       }
-    : { ...loaded, candidates: [], selectedTopicId: undefined };
-  const waiting = loaded.topics.reduce(
-    (sum, topic) => sum + topic.needsReview,
-    0,
-  );
+    : { ...source, candidates: [], selectedTopicId: undefined };
 
   return (
     <ProfessorPageShell
-      title="Review queue"
+      title="Review questions"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Review queue" },
+        { label: "Home", href: "/professor" },
+        { label: "Review questions" },
       ]}
-      description={
-        waiting > 0
-          ? `${waiting} ${waiting === 1 ? "question waits" : "questions wait"} for a decision; choose a topic to review its questions one at a time.`
-          : "Nothing is waiting for a decision; choose a topic to check its queue."
-      }
+      description="Read each question, then approve it or send it back. Students never see a question until you show it to them."
       notice={
         dashboard.mode === "demo"
-          ? "Demo data: decisions here are not recorded."
+          ? "Demo: changes on this page are not saved."
           : undefined
       }
       aside={
-        <Button asChild variant="secondary">
+        <Button asChild variant="secondary" className="min-h-11">
           <Link href="/professor/questions">Question bank</Link>
         </Button>
       }
     >
+      {/* Keyed by topic so following a [Review] link to another topic
+          starts the panel fresh on that topic's first question. */}
       <ProfessorFriendlyReviewPanel
+        key={preselectedTopicId ?? "no-topic"}
         initialDashboard={dashboard}
         initialTopicId={preselectedTopicId}
       />

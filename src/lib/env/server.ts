@@ -30,6 +30,8 @@ type ServerEnvBase = {
   CLERK_SECRET_KEY?: string;
   DATABASE_URL?: string;
   ERROR_TRACKING_DSN?: string;
+  FEEDBACK_CONTACT_NAME?: string;
+  FEEDBACK_EMAIL?: string;
   GHOST_LOGIN_ENABLED: boolean;
   IS_DEPLOYED_ENVIRONMENT: boolean;
   IS_PRODUCTION: boolean;
@@ -79,10 +81,13 @@ const DEFAULTS = {
   AI_USAGE_HMAC_SECRET: "development-ai-usage-hmac-key-not-for-deployment",
   ANONYMOUS_COOKIE_DAYS: 30,
   APP_URL: "http://localhost:3000",
+  FEEDBACK_CONTACT_NAME: "your professor",
   MAX_LLM_OUTPUT_TOKENS: 400,
   RATE_LIMIT_MAX_REQUESTS: 20,
   RATE_LIMIT_WINDOW_SECONDS: 60,
 } as const;
+
+const EMAIL_ADDRESS_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const STRICT_ENVIRONMENTS = new Set<AppEnvironment>(["staging", "production"]);
 
@@ -213,6 +218,17 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
       required: false,
     },
   );
+  // Where students send feedback. Contact details are deployment
+  // configuration, never code, so no address is hard-coded in src.
+  const FEEDBACK_EMAIL = parseEmailAddress(
+    "FEEDBACK_EMAIL",
+    input.FEEDBACK_EMAIL,
+    issues,
+  );
+  const FEEDBACK_CONTACT_NAME = FEEDBACK_EMAIL
+    ? (optionalString(input.FEEDBACK_CONTACT_NAME) ??
+      DEFAULTS.FEEDBACK_CONTACT_NAME)
+    : undefined;
   const APP_DEMO_MODE = parseBoolean(
     "APP_DEMO_MODE",
     input.APP_DEMO_MODE,
@@ -428,6 +444,8 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     CLERK_SECRET_KEY,
     DATABASE_URL,
     ERROR_TRACKING_DSN,
+    FEEDBACK_CONTACT_NAME,
+    FEEDBACK_EMAIL,
     GHOST_LOGIN_ENABLED,
     IS_DEPLOYED_ENVIRONMENT: deployed,
     IS_PRODUCTION: production,
@@ -537,6 +555,25 @@ function parseString(
     issues.push(
       `${name} must be at least ${options.minimumLength} characters long.`,
     );
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function parseEmailAddress(
+  name: string,
+  value: string | undefined,
+  issues: string[],
+) {
+  const parsed = optionalString(value);
+
+  if (!parsed) {
+    return undefined;
+  }
+
+  if (!EMAIL_ADDRESS_PATTERN.test(parsed)) {
+    issues.push(`${name} must be a single email address.`);
     return undefined;
   }
 

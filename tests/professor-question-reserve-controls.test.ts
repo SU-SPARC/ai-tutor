@@ -27,6 +27,8 @@ describe("ProfessorQuestionReserveControls", () => {
       expect(html).toContain(label);
     }
     expect(html).toContain("Keep this good, approved question");
+    expect(html).toContain("Why?");
+    expect(html).toContain("Only instructors see this.");
   });
 
   it("labels a reserve and offers an explicit removal action", () => {
@@ -54,10 +56,11 @@ describe("ProfessorQuestionReserveControls", () => {
     expect(html).toContain("Saved for later");
     expect(html).toContain("Future topic");
     expect(html).toContain("Useful after the midterm.");
-    expect(html).toContain("Remove reserve");
-    expect(html).toContain("Eligible for similar practice");
-    expect(html).toContain("Disable similar practice");
-    expect(html).toContain("never shown in student listings");
+    expect(html).toContain("Take out of Saved for later");
+    expect(html).toContain("Saved for later · extra practice");
+    expect(html).toContain("Stop offering as extra practice");
+    expect(html).toContain("never shown in the students&#x27; question list");
+    expect(html).not.toMatch(/reserve|similar practice/i);
   });
 
   it("labels every Reserve ledger action in the professor timeline", () => {
@@ -85,9 +88,9 @@ describe("ProfessorQuestionReserveControls", () => {
     );
 
     expect(html).toContain("Saved for later");
-    expect(html).toContain("Similar practice allowed");
-    expect(html).toContain("Similar practice disabled");
-    expect(html).toContain("Reserve removed");
+    expect(html).toContain("Offered as extra practice");
+    expect(html).toContain("No longer offered as extra practice");
+    expect(html).toContain("Taken out of Saved for later");
   });
 });
 

@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
-import { ProfessorQuestionIntakePanel } from "@/components/professor/professor-question-intake-panel";
+import {
+  DEMO_NOTICE,
+  ProfessorQuestionIntakePanel,
+} from "@/components/professor/professor-question-intake-panel";
 import { ProfessorQuestionLifecyclePanel } from "@/components/professor/professor-question-lifecycle-panel";
-import { professorQuestionsTabFromParam } from "@/components/professor/professor-questions-tab";
+import {
+  ADD_QUESTION_HREF,
+  professorQuestionsTabFromParam,
+} from "@/components/professor/professor-questions-tab";
 import { ProfessorQuestionsTabs } from "@/components/professor/professor-questions-tabs";
 import { Button } from "@/components/ui/button";
 import { getQuestionLifecycleDashboard } from "@/lib/data/data-store";
@@ -14,7 +21,7 @@ import {
 } from "@/lib/auth/authorization";
 
 export const metadata: Metadata = {
-  title: "Questions",
+  title: "Question bank",
 };
 
 type ProfessorQuestionsPageProps = {
@@ -45,27 +52,24 @@ export default async function ProfessorQuestionsPage({
 
   return (
     <ProfessorPageShell
-      title="Questions"
+      title="Question bank"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Questions" },
+        { label: "Home", href: "/professor" },
+        { label: "Question bank" },
       ]}
-      description={`${activeQuestions} ${activeQuestions === 1 ? "question" : "questions"} in the bank; every version is immutable and students see only what you publish.`}
-      notice={
-        initialDashboard.readOnly
-          ? (initialDashboard.readOnlyReason ??
-            "Demo mode is read-only: nothing here can be changed.")
-          : undefined
-      }
+      description={`${activeQuestions} ${activeQuestions === 1 ? "question" : "questions"}. Students only see questions you choose to show them.`}
+      notice={initialDashboard.readOnly ? DEMO_NOTICE : undefined}
       aside={
-        <Button asChild variant="secondary">
-          <Link href="/professor/review">Review queue</Link>
+        <Button asChild variant="cta" className="min-h-11">
+          <Link href={ADD_QUESTION_HREF}>
+            <Plus aria-hidden="true" />
+            Add a question
+          </Link>
         </Button>
       }
     >
       <ProfessorQuestionsTabs
         defaultTab={professorQuestionsTabFromParam(singleParam(params.tab))}
-        bankCount={activeQuestions}
         bank={
           <ProfessorQuestionLifecyclePanel
             initialDashboard={initialDashboard}

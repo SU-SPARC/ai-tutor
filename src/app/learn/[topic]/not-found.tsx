@@ -8,7 +8,7 @@ export default function TopicNotFound() {
     <StatusPage
       code="404"
       title="Topic not found"
-      description="That topic is not part of this course, or it has been renamed. Every topic is listed on the syllabus."
+      description="That topic isn't in your syllabus."
       actions={
         <Button asChild>
           <Link href="/learn">Back to Learn</Link>

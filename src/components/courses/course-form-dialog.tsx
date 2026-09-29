@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 
+import { nextSectionId } from "@/components/courses/course-sections-list";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ export type CourseFormRequest = {
 
 const DEFAULT_CODE = "MATH-255";
 const DEFAULT_TITLE = "Probability & Statistics";
+const DEFAULT_FIRST_SECTION = "Section 1";
 
 /**
  * `math-255-fall-2027`. The id is derived from what the professor typed so a
@@ -55,8 +57,10 @@ export function nextCourseId(code: string, term: string, taken: Set<string>) {
 }
 
 /**
- * One dialog for both "New course" and "Clone course", because the fields are
- * the same three and only the consequence differs. Built on the shared
+ * One dialog for both "New course" and "Copy for a new term", because the
+ * fields are the same and only the consequence differs. A new course also
+ * gets a first section (optional, "Section 1" by default) so a join code
+ * exists the moment the course does. Built on the shared
  * `Dialog` (focus trap, inert page, Escape), with focus returned to the button
  * that opened it.
  *
@@ -81,12 +85,13 @@ export function CourseFormDialog({
   const [code, setCode] = useState(source?.code ?? DEFAULT_CODE);
   const [title, setTitle] = useState(source?.title ?? DEFAULT_TITLE);
   const [term, setTerm] = useState("");
+  const [firstSection, setFirstSection] = useState(DEFAULT_FIRST_SECTION);
   const [showErrors, setShowErrors] = useState(false);
 
   const cloning = mode === "clone";
   const codeError =
     showErrors && code.trim().length === 0
-      ? "Enter the course code, for example MATH-255."
+      ? "Enter the course number, for example MATH-255."
       : undefined;
   const termError =
     showErrors && term.trim().length === 0
@@ -134,6 +139,23 @@ export function CourseFormDialog({
         includeAllTopics: true,
         now: SEED_NOW,
       });
+      const sectionLabel = firstSection.trim();
+      if (sectionLabel.length > 0) {
+        dispatch({
+          type: "section/create",
+          section: {
+            id: nextSectionId(
+              id,
+              new Set(state.sections.map((section) => section.id)),
+              0,
+            ),
+            courseId: id,
+            label: sectionLabel,
+            meetingTime: "",
+          },
+          now: SEED_NOW,
+        });
+      }
     }
     dispatch({ type: "course/setActive", courseId: id });
     onClose();
@@ -159,63 +181,79 @@ export function CourseFormDialog({
       >
         <form className="flex min-h-0 flex-1 flex-col" noValidate onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{cloning ? "Clone course" : "New course"}</DialogTitle>
+            <DialogTitle>
+              {cloning ? "Copy for a new term" : "New course"}
+            </DialogTitle>
             <DialogDescription>
               {cloning
-                ? "A clone copies topics and sections with new join codes. The question bank stays shared."
-                : `One course per offering. It starts with all ${state.topics.length} syllabus topics in their usual order.`}
+                ? "The copy keeps the weeks and sections, with new join codes. Students of the old term are not moved."
+                : `One course for one term. It starts with all ${state.topics.length} weeks of the standard syllabus.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-5">
             {cloning && source ? (
               <p className="type-small max-w-prose rounded-control bg-surface-tint px-3 py-2 text-ink">
-                Cloning {source.code} · {source.term}. Released questions come
-                across as held, so you release them again on purpose.
+                Copying {source.code} · {source.term}. Questions come across
+                paused, so you choose again what students see.
               </p>
             ) : null}
-            <Field error={codeError} label="Course code">
+            <Field error={codeError} label="Course number (required), e.g. MATH-255">
               <Input
                 autoComplete="off"
                 name="code"
                 onChange={(event) => setCode(event.target.value)}
-                placeholder={`${DEFAULT_CODE}…`}
+                placeholder={DEFAULT_CODE}
                 ref={codeRef}
                 spellCheck={false}
                 value={code}
               />
             </Field>
-            <Field label="Title">
+            <Field label="Course name, e.g. Probability & Statistics">
               <Input
                 autoComplete="off"
                 name="title"
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder={`${DEFAULT_TITLE}…`}
+                placeholder={DEFAULT_TITLE}
                 value={title}
               />
             </Field>
             <Field
-              description="Required. It tells two offerings of the same course apart."
+              description="It tells two terms of the same course apart."
               error={termError}
-              label="Term"
+              label="Term (required), e.g. Spring 2027"
             >
               <Input
                 autoComplete="off"
                 name="term"
                 onChange={(event) => setTerm(event.target.value)}
-                placeholder="Spring 2027…"
+                placeholder="Spring 2027"
                 ref={termRef}
                 value={term}
               />
             </Field>
+            {cloning ? null : (
+              <Field
+                description="Students join a section with its code. Leave it empty to add sections later."
+                label="First section, e.g. Section 1 or Tue/Thu 10am"
+                optional
+              >
+                <Input
+                  autoComplete="off"
+                  name="firstSection"
+                  onChange={(event) => setFirstSection(event.target.value)}
+                  value={firstSection}
+                />
+              </Field>
+            )}
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="ghost">
+              <Button className="min-h-11" type="button" variant="ghost">
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit">
-              {cloning ? "Clone course" : "Create course"}
+            <Button className="min-h-11" type="submit">
+              {cloning ? "Copy for a new term" : "Create course"}
             </Button>
           </DialogFooter>
         </form>

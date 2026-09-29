@@ -3,7 +3,10 @@ import Link from "next/link";
 
 import { CoursesHubCard } from "@/components/courses/courses-hub-card";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
-import { ProfessorWorkspaceOverviewPanel } from "@/components/professor/professor-workspace-overview";
+import {
+  ProfessorWorkspaceOverviewPanel,
+  professorHomeNextStep,
+} from "@/components/professor/professor-workspace-overview";
 import { Button } from "@/components/ui/button";
 import {
   requirePageAccess,
@@ -20,7 +23,7 @@ import {
 } from "@/lib/professor/workspace-overview";
 
 export const metadata: Metadata = {
-  title: "Workspace",
+  title: "Home",
 };
 
 /**
@@ -47,35 +50,27 @@ async function loadOverview(): Promise<ProfessorWorkspaceOverview | undefined> {
 
 export default async function ProfessorPage() {
   const overview = await loadOverview();
-  const needsReview = overview?.totalNeedsReview ?? 0;
+  const next = professorHomeNextStep(overview);
 
   return (
     <ProfessorPageShell
-      title="Professor workspace"
-      description={
-        overview
-          ? needsReview > 0
-            ? `${needsReview} ${needsReview === 1 ? "question is" : "questions are"} waiting on your review.`
-            : "Nothing is waiting on your review."
-          : "The workspace summary could not be loaded."
-      }
+      title="Home"
+      description="Approving a question does not show it to students. You decide when students see it."
       notice={
-        overview
-          ? undefined
-          : "Counts are unavailable until the next load; every section still opens."
+        overview ? undefined : (
+          <p className="type-body text-ink">
+            Some numbers on this page couldn&apos;t be loaded. Every page
+            still opens; reload to try again.
+          </p>
+        )
       }
       aside={
-        <>
-          <Button asChild variant="secondary">
-            <Link href="/professor/upload">Upload material</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href="/professor/questions?tab=intake">Add question</Link>
-          </Button>
-        </>
+        <Button asChild variant="cta" size="lg" className="min-h-11">
+          <Link href={next.href}>{next.label}</Link>
+        </Button>
       }
     >
-      <div className="flex flex-col gap-10">
+      <div data-tour="professor-home-title" className="flex flex-col gap-10">
         <ProfessorWorkspaceOverviewPanel overview={overview} />
         <section
           aria-labelledby="overview-courses-heading"

@@ -234,15 +234,44 @@ describe("professor question feedback workflow", () => {
       resolved: 1,
     });
 
-    const markup = renderToStaticMarkup(
+    const defaultMarkup = renderToStaticMarkup(
       createElement(ProfessorQuestionFeedbackPanel, {
         initialDashboard: finalPayload.dashboard,
       }),
     );
+    expect(defaultMarkup).toContain("New (0)");
+    expect(defaultMarkup).toContain("Fixed (1)");
+    expect(defaultMarkup).toContain("No new reports.");
+    expect(defaultMarkup).toContain("Show all reports");
+
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionFeedbackPanel, {
+        initialDashboard: finalPayload.dashboard,
+        initialStatusFilter: "all",
+      }),
+    );
     expect(markup).toContain("Solution-step issue");
-    expect(markup).toContain("Resolution notes");
-    expect(markup).toContain("never alters published content");
-    expect(markup).toContain("Tutor session linked");
+    expect(markup).toContain("Note to yourself (what you did)");
+    expect(markup).toContain(">Fixed<");
+    expect(markup).toContain(`href="/professor/questions/${QUESTION_ID}"`);
+    expect(markup).toContain("Open question");
+    expect(markup).toContain(
+      `Reported on version ${report.questionVersionNumber} of this question`,
+    );
+    expect(markup).not.toMatch(/Resolution notes|Tutor session linked|lifecycle|Triaged|Resolved/);
+
+    const emptyMarkup = renderToStaticMarkup(
+      createElement(ProfessorQuestionFeedbackPanel, {
+        initialDashboard: {
+          counts: { dismissed: 0, open: 0, resolved: 0, triaged: 0 },
+          mode: "database",
+          reports: [],
+        },
+      }),
+    );
+    expect(emptyMarkup).toContain(
+      "No reports yet. When a student flags a question, it appears here.",
+    );
   });
 });
 

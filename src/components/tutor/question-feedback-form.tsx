@@ -1,6 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { Send } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -35,15 +41,20 @@ export const QUESTION_FEEDBACK_CATEGORY_LABELS: Record<
  * returns focus to its summary.
  */
 export function QuestionFeedbackForm({
+  questionCode,
   questionTitle,
   sessionId,
 }: {
+  /**
+   * The question code ("Q-A638"). This caption is the one student surface
+   * that shows it, so a report can be matched to the question.
+   */
+  questionCode?: string;
   questionTitle: string;
   sessionId?: string;
 }) {
-  const [category, setCategory] = useState<QuestionFeedbackCategory>(
-    "answer_appears_incorrect",
-  );
+  // No category is picked for the student: they choose one.
+  const [category, setCategory] = useState<QuestionFeedbackCategory | "">("");
   const [details, setDetails] = useState("");
   const [error, setError] = useState<string>();
   const [receipt, setReceipt] = useState<QuestionFeedbackReceipt>();
@@ -62,6 +73,7 @@ export function QuestionFeedbackForm({
         variant="link"
         size="sm"
         className="h-auto px-0 text-ink-muted"
+        title="Available once the question loads"
         disabled
       >
         {REPORT_A_PROBLEM_LABEL}
@@ -82,6 +94,10 @@ export function QuestionFeedbackForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!sessionId || submitting) return;
+    if (!category) {
+      setError("Choose what went wrong first.");
+      return;
+    }
 
     setSubmitting(true);
     setError(undefined);
@@ -106,7 +122,10 @@ export function QuestionFeedbackForm({
         receipt?: QuestionFeedbackReceipt;
       };
       if (!response.ok || !payload.receipt) {
-        setError(payload.error ?? "The report could not be sent.");
+        setError(
+          payload.error ??
+            "That didn't work and nothing was sent. Try again, or reload the page.",
+        );
         return;
       }
 
@@ -114,7 +133,9 @@ export function QuestionFeedbackForm({
       setDetails("");
       idempotencyKey.current = null;
     } catch {
-      setError("The report could not be sent. Please try again.");
+      setError(
+        "Your connection dropped and the report was not sent. Try again, or reload the page.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +158,11 @@ export function QuestionFeedbackForm({
           <h2 id={headingId} className="type-h3 text-ink">
             Report a problem
           </h2>
-          <p className="type-caption line-clamp-2">{questionTitle}</p>
+          <p className="type-caption line-clamp-2">
+            {questionCode
+              ? `${questionTitle} · ${questionCode}`
+              : questionTitle}
+          </p>
         </div>
 
         <form className="flex flex-col gap-4" onSubmit={submit}>
@@ -148,12 +173,17 @@ export function QuestionFeedbackForm({
             <NativeSelect
               id={categoryId}
               value={category}
+              required
               disabled={submitting}
               onChange={(event) => {
                 setCategory(event.target.value as QuestionFeedbackCategory);
                 setReceipt(undefined);
+                setError(undefined);
               }}
             >
+              <option value="" disabled>
+                Choose one…
+              </option>
               {QUESTION_FEEDBACK_CATEGORIES.map((value) => (
                 <option key={value} value={value}>
                   {QUESTION_FEEDBACK_CATEGORY_LABELS[value]}

@@ -3,53 +3,75 @@ import Link from "next/link";
 import type { SavedPracticeRow } from "@/components/learn/learn-model";
 
 /**
- * Saved practice as a plain list: the question title is the link, the line
- * under it says where it sits and how far it got. Anything the professor
- * retired stays below under its own label rather than being deleted — the
- * attempts still happened.
+ * Recent practice as a plain list: the question title is the link, the line
+ * under it says where it sits and how far it got. The model puts in-progress
+ * rows first. With `limit`, the first rows show and the rest sit behind a
+ * "Show all" disclosure (no script needed). Anything your professor removed
+ * stays below under "No longer available" rather than being deleted: the
+ * answers still happened.
  */
 export function SavedPractice({
   active,
+  limit,
   retired,
 }: {
   active: SavedPracticeRow[];
+  /** Rows shown before "Show all"; omit to show every row. */
+  limit?: number;
   retired: SavedPracticeRow[];
 }) {
   if (active.length === 0 && retired.length === 0) {
     return (
       <p className="type-small text-ink-muted">
-        No saved practice yet. Answer a question and it will be waiting here.
+        Nothing yet. Answer a question and it will be waiting here.
       </p>
     );
   }
 
+  const shown = limit === undefined ? active : active.slice(0, limit);
+  const hidden = limit === undefined ? [] : active.slice(limit);
+  const hiddenCount = hidden.length + (limit === undefined ? 0 : retired.length);
+
+  const removed =
+    retired.length > 0 ? (
+      <section className="flex flex-col gap-1">
+        <h3 className="type-label">
+          No longer available <span className="tabular">{retired.length}</span>
+        </h3>
+        <RowList rows={retired} />
+      </section>
+    ) : null;
+
   return (
     <div className="flex flex-col gap-4">
-      {active.length > 0 ? (
-        <ul className="flex flex-col">
-          {active.map((row) => (
-            <li key={row.sessionId}>
-              <SavedPracticeItem row={row} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {shown.length > 0 ? <RowList rows={shown} /> : null}
 
-      {retired.length > 0 ? (
-        <section className="flex flex-col gap-1">
-          <h3 className="type-label">
-            Retired <span className="tabular">{retired.length}</span>
-          </h3>
-          <ul className="flex flex-col">
-            {retired.map((row) => (
-              <li key={row.sessionId}>
-                <SavedPracticeItem row={row} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {limit !== undefined && hiddenCount > 0 ? (
+        <details className="group/all flex flex-col gap-4">
+          <summary className="type-small w-fit cursor-pointer rounded-xs text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring">
+            {`Show all (${active.length + retired.length})`}
+          </summary>
+          <div className="mt-2 flex flex-col gap-4">
+            {hidden.length > 0 ? <RowList rows={hidden} /> : null}
+            {removed}
+          </div>
+        </details>
+      ) : (
+        removed
+      )}
     </div>
+  );
+}
+
+function RowList({ rows }: { rows: SavedPracticeRow[] }) {
+  return (
+    <ul className="flex flex-col">
+      {rows.map((row) => (
+        <li key={row.sessionId}>
+          <SavedPracticeItem row={row} />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -60,10 +82,10 @@ function statusWords(row: SavedPracticeRow) {
       : undefined;
 
   if (row.status === "unavailable") {
-    return ["retired by your professor", "your attempts are kept"];
+    return ["removed by your professor", "your answers are kept"];
   }
 
-  return [row.status === "completed" ? "completed" : "in progress", hints];
+  return [row.status === "completed" ? "solved" : "In progress", hints];
 }
 
 function SavedPracticeItem({ row }: { row: SavedPracticeRow }) {

@@ -9,6 +9,11 @@ import {
   SUMMER_2026_SECTION_ID,
   createSeedState,
 } from "@/lib/courses/demo-seed";
+import {
+  friendlySectionLabel,
+  stateLabel,
+  topicShortLabel,
+} from "@/lib/courses/format";
 import { coursesReducer } from "@/lib/courses/reducer";
 import {
   bankQuestionsForTopic,
@@ -28,6 +33,28 @@ import {
 import type { CoursesState } from "@/lib/courses/types";
 
 const state: CoursesState = createSeedState();
+
+describe("professor display labels", () => {
+  it("writes weeks and sections out in words", () => {
+    expect(topicShortLabel({ title: "Bayes", weekNumber: 3 })).toBe(
+      "Week 3 · Bayes",
+    );
+    expect(friendlySectionLabel("Sec 01")).toBe("Section 1");
+    expect(friendlySectionLabel("Section 2")).toBe("Section 2");
+    expect(friendlySectionLabel("Tue/Thu 10am")).toBe("Tue/Thu 10am");
+    expect(
+      state.sections.find((section) => section.id === FALL_2026_SECTION_01_ID)
+        ?.label,
+    ).toBe("Section 1");
+  });
+
+  it("names lifecycle states the way a professor says them", () => {
+    expect(stateLabel("draft")).toBe("Being written");
+    expect(stateLabel("needs_review")).toBe("Waiting for your review");
+    expect(stateLabel("published")).toBe("Ready to use");
+    expect(stateLabel("unpublished")).toBe("Hidden from students");
+  });
+});
 
 function released(sectionId: string) {
   return state.questionAvailability.filter(
@@ -55,7 +82,7 @@ describe("course-level selectors", () => {
     expect(fall.map((entry) => entry.overlay.position)).toEqual([
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     ]);
-    expect(fall[2].label).toBe("Wk3 — Bayes");
+    expect(fall[2].label).toBe("Week 3 — Bayes");
 
     const summer = courseTopicsOrdered(state, SUMMER_2026_COURSE_ID);
     const excluded = summer.filter((entry) => !entry.overlay.included);
@@ -123,7 +150,7 @@ describe("sectionSummary and sectionBuilder", () => {
         (entry) => entry.topic.id,
       ),
     );
-    expect(builder[2].label).toBe("Wk3 — Bayes");
+    expect(builder[2].label).toBe("Week 3 — Bayes");
     expect(builder[6].availability.state).toBe("scheduled");
     expect(builder[6].availability.opensAt).not.toBeNull();
     expect(builder[7].availability.state).toBe("closed");
@@ -176,12 +203,12 @@ describe("release gates", () => {
       state.bank.find((question) => question.state === lifecycle)!;
     expect(releaseBlockReason(byState("published"))).toBeNull();
     expect(releaseBlockReason(byState("approved"))).toBe(
-      "Approved — publish first",
+      "Approved: make it ready",
     );
-    expect(releaseBlockReason(byState("needs_review"))).toBe("Needs review");
-    expect(releaseBlockReason(byState("draft"))).toBe("Draft");
+    expect(releaseBlockReason(byState("needs_review"))).toBe("Not approved yet: review it");
+    expect(releaseBlockReason(byState("draft"))).toBe("Draft: not submitted for review");
     expect(releaseBlockReason(byState("unpublished"))).toBe(
-      "Unpublished — republish first",
+      "Withdrawn: make it ready again",
     );
   });
 
@@ -232,11 +259,11 @@ describe("release gates", () => {
       },
     ]);
     expect(preview.blocked).toEqual([
-      { kind: "add", question: approved, reason: "Approved — publish first" },
+      { kind: "add", question: approved, reason: "Approved: make it ready" },
       {
         kind: "remove",
         question: notReleased,
-        reason: "Not released to this section",
+        reason: "Not shown to this section",
       },
     ]);
     expect(preview.warnings).toEqual([
@@ -270,7 +297,7 @@ describe("release gates", () => {
       }
     }
 
-    // Applying them makes Sec 02's released set a superset of the staged adds.
+    // Applying them makes Section 2's released set a superset of the staged adds.
     const applied = coursesReducer(state, {
       type: "section/applyReleaseChanges",
       sectionId: FALL_2026_SECTION_02_ID,

@@ -12,6 +12,7 @@
 import { anonymousTutorSessionStorageKey } from "@/lib/auth/anonymous-student";
 import { signInPath } from "@/lib/auth/return-path";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
+import type { AnswerEntry } from "@/lib/math/answer-notation";
 import type {
   StudentPracticeQuestion,
   TutorMode,
@@ -317,7 +318,7 @@ export async function requestTutorResponse(input: {
     throw tutorClientError(
       result,
       payload,
-      "The tutor could not complete this request. Please try again.",
+      "The tutor could not complete this request, and nothing changed. Try again, or reload the page.",
     );
   }
 
@@ -342,7 +343,7 @@ async function retryTutorRequest(request: () => Promise<Response>) {
     } catch {
       if (attempt === 1) {
         throw new TutorClientRequestError(
-          "The connection was interrupted. We could not confirm whether the request reached the tutor. Reopen this session before resubmitting so any saved progress can be recovered.",
+          "Your connection dropped. Reload the page to see what was saved, then check again.",
           { code: "NETWORK_INTERRUPTED", status: 0 },
         );
       }
@@ -361,7 +362,7 @@ async function readTutorSessionPayload(result: Response) {
     throw tutorClientError(
       result,
       payload,
-      "The tutor session could not be loaded safely. Please try again.",
+      "This question could not load. Try again.",
     );
   }
 
@@ -382,7 +383,7 @@ export function tutorClientError(
   }
   const message =
     response.status >= 500
-      ? "The tutor is temporarily unavailable. Nothing was saved from that request. Please try again shortly."
+      ? "The tutor is temporarily unavailable. That didn't work and nothing changed. Try again, or reload the page."
       : response.status >= 400 &&
           payload.code &&
           SAFE_TUTOR_ERROR_CODES.has(payload.code) &&
@@ -496,6 +497,11 @@ export function clientInputFingerprint(value: string) {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+/**
+ * Where a tutor reply came from, in student words. Not rendered anywhere yet;
+ * kept so a future "where this came from" line uses plain words, never system
+ * vocabulary ("fallback", "retrieval", "generated").
+ */
 export function responseUsageStatusText(
   response: Pick<TutorResponse, "responseLabel" | "source">,
 ) {
@@ -504,19 +510,18 @@ export function responseUsageStatusText(
     response.source === "cache" ||
     response.responseLabel === "general_ai_help"
   ) {
-    return "Using AI fallback";
-  }
-
-  if (response.responseLabel === "generated_approved_content") {
-    return "Using approved generated content";
+    return "Answered with AI help";
   }
 
   if (response.responseLabel === "private_reference_grounded_explanation") {
-    return "Using private reference grounded explanation";
+    return "From your course notes";
   }
 
-  if (response.responseLabel === "approved_course_content") {
-    return "Using saved course content";
+  if (
+    response.responseLabel === "generated_approved_content" ||
+    response.responseLabel === "approved_course_content"
+  ) {
+    return "From your professor's questions";
   }
 
   return undefined;
@@ -643,16 +648,23 @@ export function sessionErrorFor(error: unknown): SessionErrorState {
   }
   return {
     message:
-      "The tutor could not be reached. Please check your connection and try again.",
+      "That didn't work and nothing changed. Try again, or reload the page.",
   };
 }
 
 export type ParsedAnswerPreview = {
-  /** KaTeX source for the interpretation: "\frac{1}{4} = 0.25". */
+  /** KaTeX source for the interpretation: "\frac{1}{4} = 0.25". Empty with `hint`. */
   latex: string;
   /** Plain words for the same thing: "0.25", "about 0.3333". */
   text: string;
   value: number;
+  /**
+   * What is sent and graded when the field evaluated an expression
+   * ("(1/2)^3" is checked as "1/8"). Absent for entries sent as typed.
+   */
+  checkedAs?: string;
+  /** A plain sentence instead of a reading ("Use a point for decimals."). */
+  hint?: string;
 };
 
 const PLAIN_NUMBER = String.raw`[+-]?(?:\d+\.?\d*|\.\d+)`;
@@ -677,12 +689,40 @@ function latexNumber(raw: string) {
 /**
  * How the answer field reads what the student typed, shown under the field
  * while they type: "1/4" and "25%" both read as 0.25. Only a plain number, an
- * a/b fraction or a percentage is interpreted; anything else (an expression, a
- * word, half-typed input) returns null, so the preview never shows an error.
+ * a/b fraction or a percentage is interpreted; anything else (a word,
+ * half-typed input) returns null, so the preview never shows an error.
  * Pure and client-only: nothing is sent and nothing is graded. Returns null
  * when the reading would only repeat what was typed ("0.25" → 0.25).
+ *
+ * `entry` is what the math field made of the entry (`answer-notation.ts`):
+ * an evaluated expression reads as "<notation> = <value>" with `checkedAs`
+ * set to the string that is sent; a refused entry (decimal comma, mixed
+ * number) returns its one-sentence `hint`.
  */
-export function parsedAnswerPreview(raw: string): ParsedAnswerPreview | null {
+export function parsedAnswerPreview(
+  raw: string,
+  entry?: AnswerEntry | null,
+): ParsedAnswerPreview | null {
+  if (entry?.status === "rejected" && entry.hint) {
+    return { latex: "", text: entry.hint, value: Number.NaN, hint: entry.hint };
+  }
+  if (
+    entry?.status === "evaluated" &&
+    entry.notation &&
+    entry.valueLatex &&
+    entry.value !== undefined
+  ) {
+    // "Reads as (1/2)^3 = 1/8 · checked as 1/8": the student always sees
+    // the value that is graded.
+    const relation = entry.approximate ? "\\approx" : "=";
+    return {
+      latex: `${entry.notation} ${relation} ${entry.valueLatex}`,
+      text: entry.approximate ? `about ${entry.sent}` : entry.sent,
+      value: entry.value,
+      checkedAs: entry.sent,
+    };
+  }
+
   const input = raw.trim();
   if (input.length === 0 || input.length > 40) {
     return null;

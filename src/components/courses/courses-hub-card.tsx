@@ -37,11 +37,11 @@ export function CoursesHubCard() {
           <h3 className="type-h3 text-ink" id="courses-hub-title">
             No active course
           </h3>
-          <p className="type-small text-ink-muted">
-            Pick one to scope the course tools.
+          <p className="type-body text-ink-muted">
+            Choose a course to work in.
           </p>
         </div>
-        <Button asChild variant="secondary">
+        <Button asChild className="min-h-11" variant="secondary">
           <Link href={coursesIndexPath()}>
             All courses
             <ArrowRight aria-hidden="true" />
@@ -64,21 +64,23 @@ export function CoursesHubCard() {
           <span className="type-mono mr-2 text-ink-muted">{course.code}</span>
           {course.term}
         </h3>
-        <p className="type-small tabular text-ink-muted">
-          {plural(summary.sectionCount, "section")} · {summary.studentCount}{" "}
-          joined ·{" "}
+        <p className="type-body tabular text-ink-muted">
+          {plural(summary.sectionCount, "section")} ·{" "}
+          {plural(summary.studentCount, "student")} joined ·{" "}
           {waiting > 0 ? (
-            <span className="text-ink">{waiting} waiting to release</span>
+            <span className="text-ink">
+              {waiting} approved, not yet shown to students
+            </span>
           ) : (
-            "nothing waiting to release"
+            "nothing waiting to be shown to students"
           )}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="ghost">
+        <Button asChild className="min-h-11" variant="ghost">
           <Link href={coursesIndexPath()}>All courses</Link>
         </Button>
-        <Button asChild variant="secondary">
+        <Button asChild className="min-h-11" variant="secondary">
           <Link href={coursePath(course.id)}>
             Open course
             <ArrowRight aria-hidden="true" />

@@ -10,12 +10,14 @@ import {
   revisionActionLabel,
 } from "@/components/professor/professor-question-revision-editor";
 import {
+  ProfessorQuestionActionConfirmation,
   ProfessorQuestionLifecyclePanel,
   ProfessorQuestionVersionHistory,
 } from "@/components/professor/professor-question-lifecycle-panel";
 import {
   PROFESSOR_LIFECYCLE_REASONS,
   PROFESSOR_REVIEW_REASONS,
+  professorReviewReasonLabel,
 } from "@/lib/tutor/professor-review-reasons";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
@@ -37,22 +39,26 @@ describe("professor question revision panel", () => {
     );
 
     for (const label of [
-      "Question wording",
+      "Question text",
       "Difficulty",
-      "Accepted final answers",
+      "Correct answer",
       "Answer explanation",
       "Solution steps",
       "Hints",
-      "Misconception notes",
-      "Syllabus topic",
-      "Version comment",
+      "Notes on common mistakes",
+      "Topic",
+      "Note about this change",
     ]) {
       expect(markup).toContain(label);
     }
-    expect(markup).toContain("Save revision draft");
+    expect(markup).toContain("Edit “Generated probability draft”");
+    expect(markup).toContain("Save changes");
+    expect(markup).not.toContain("Save revision draft");
     expect(markup).toContain(
-      "original version and any published version remain unchanged",
+      "Students can&#x27;t see this question yet. Your earlier wording is kept in its history.",
     );
+    // No second copy of the answer fields next to the answer-checking editor.
+    expect(markup).not.toContain("Accepted final answers");
     expect(markup).not.toContain("private-pattern-secret");
   });
 
@@ -81,7 +87,8 @@ describe("professor question revision panel", () => {
           state: "published",
         },
       }),
-    ).toBe("Edit published question");
+    ).toBe("Edit question");
+    expect(revisionActionLabel(question)).toBe("Edit question");
     expect(
       canEditQuestionVersion({
         ...question,
@@ -122,9 +129,14 @@ describe("professor question revision panel", () => {
       ),
       "utf8",
     );
-    expect(lifecycleSource).toContain("Review and publish");
-    expect(lifecycleSource).toContain("Review before publishing");
-    expect(lifecycleSource).toContain("Confirm publication");
+    expect(lifecycleSource).toContain("Show to students");
+    expect(lifecycleSource).toContain("Show this to students?");
+    expect(lifecycleSource).toContain("What students see now");
+    expect(lifecycleSource).toContain("What they will see");
+    expect(lifecycleSource).toContain("Show my changes to students");
+    expect(lifecycleSource).toContain(
+      "Your changes are saved. Students still see the old wording.",
+    );
     expect(lifecycleSource).toContain("changedQuestionVersionFields");
   });
 
@@ -164,15 +176,22 @@ describe("professor question revision panel", () => {
       versions: [workingVersion],
       workingVersion,
     };
+    const dashboard = {
+      inspections: [],
+      mode: "database" as const,
+      questions: [question],
+      readOnly: false,
+      topics: [{ id: "basic-probability", title: "Basic probability" }],
+    };
     const markup = renderToStaticMarkup(
       createElement(ProfessorQuestionLifecyclePanel, {
-        initialDashboard: {
-          inspections: [],
-          mode: "database",
-          questions: [question],
-          readOnly: false,
-          topics: [{ id: "basic-probability", title: "Basic probability" }],
-        },
+        hideBulkControls: true,
+        initialDashboard: dashboard,
+      }),
+    );
+    const bankMarkup = renderToStaticMarkup(
+      createElement(ProfessorQuestionLifecyclePanel, {
+        initialDashboard: dashboard,
       }),
     );
     const source = readFileSync(
@@ -190,7 +209,10 @@ describe("professor question revision panel", () => {
       source.indexOf("}),", correctionBodyStart) + 3,
     );
 
-    expect(markup).toContain("Correct provenance");
+    expect(markup).toContain("Fix source record");
+    expect(bankMarkup).toContain(
+      "The source record needs fixing before students can see it.",
+    );
     expect(correctionBody).toContain("baseVersionId");
     expect(correctionBody).toContain("expectedWorkingVersionId");
     expect(correctionBody).not.toMatch(
@@ -198,8 +220,8 @@ describe("professor question revision panel", () => {
     );
   });
 
-  it("offers stable review reasons and retains a separate optional audit note", () => {
-    const markup = renderToStaticMarkup(
+  it("asks for the reason inside each action's dialog, never in a standing panel", () => {
+    const bankMarkup = renderToStaticMarkup(
       createElement(ProfessorQuestionLifecyclePanel, {
         initialDashboard: {
           inspections: [],
@@ -210,9 +232,32 @@ describe("professor question revision panel", () => {
         },
       }),
     );
+    expect(bankMarkup).not.toContain("Reason for your next decision");
+    expect(bankMarkup).not.toContain("Why?");
+    expect(bankMarkup).not.toContain("Revision method");
 
-    expect(markup).toContain("Decision reason");
-    expect(markup).toContain("Audit note (optional)");
+    const question = lifecycleFixture();
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorQuestionActionConfirmation, {
+        active: false,
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+        pending: {
+          action: "reject",
+          expectedState: question.workingVersion.state,
+          kind: "transition",
+          question,
+          versionId: question.workingVersion.versionId,
+        },
+      }),
+    );
+
+    expect(markup).toContain("Reject this question?");
+    expect(markup).toContain("Reject question");
+    expect(markup).toContain("Why?");
+    expect(markup).toContain("Note (optional)");
+    expect(markup).toContain("Only instructors see this.");
+    expect(markup).toMatch(/<option value="duplicate_repetition" selected="">/);
     expect(markup).not.toContain("Reason code for revision");
     for (const { code, label } of PROFESSOR_REVIEW_REASONS) {
       expect(markup).toContain(`value="${code}"`);
@@ -316,18 +361,27 @@ describe("professor question revision panel", () => {
       }),
     );
 
-    expect(markup).toContain("Original generated draft");
-    expect(markup).toContain("Professor edit from v1");
-    expect(markup).toContain("Working version");
-    expect(markup).toContain("Published version");
-    expect(markup).toContain("Inspect immutable content");
+    expect(markup).toContain("All changes");
+    expect(markup).toContain("First version, written by AI");
+    expect(markup).toContain("Edited from version 1");
+    expect(markup).toContain("Latest version");
+    expect(markup).toContain("Students see this version");
+    expect(markup).toContain("See this version");
+    expect(markup).toContain("Technical details");
+    expect(markup).toContain("changed: title, wording");
+    expect(markup).not.toContain("Inspect immutable content");
+    expect(markup).not.toContain("(system)");
     expect(markup).toContain("Two of four outcomes are favorable");
     expect(markup).toContain("Lifecycle Professor");
     expect(markup).toContain("2026-08-09T14:30:00.000Z");
     expect(markup).toContain("Clarify the ambiguous wording.");
-    expect(markup).toContain("Working version superseded");
-    expect(markup).toContain("Professor rejected");
-    expect(markup).toContain("Imported review state");
+    expect(markup).toContain(
+      professorReviewReasonLabel("working_version_superseded"),
+    );
+    expect(markup).toContain(professorReviewReasonLabel("professor_rejected"));
+    expect(markup).toContain(
+      professorReviewReasonLabel("imported_review_state"),
+    );
     expect(markup).toContain("Difficulty: Foundational → Intermediate");
     expect(markup).not.toContain("professor_rejected");
     expect(markup).not.toContain("imported_review_state");

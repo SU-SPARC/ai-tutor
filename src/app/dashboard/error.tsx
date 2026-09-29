@@ -17,7 +17,7 @@ export default function DashboardError({
   return (
     <StatusPage
       title="Your progress could not be loaded"
-      description="Your saved practice is temporarily unavailable. No progress has been changed. Try loading it again in a moment."
+      description="That didn’t work and nothing changed. Try again, or reload the page."
       actions={
         <Button type="button" onClick={reset}>
           <RotateCcw aria-hidden="true" />

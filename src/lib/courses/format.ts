@@ -47,14 +47,14 @@ function truncateTitle(title: string, maxLength: number) {
 }
 
 /**
- * "Wk 3 · Conditional Probability, Independence…" — the week number is what a
- * professor scans by, so it always survives truncation.
+ * "Week 3 · Conditional Probability, Independence…" — the week number is what
+ * a professor scans by, so it always survives truncation.
  */
 export function topicShortLabel(
   topic: Pick<CanonicalTopic, "title" | "weekNumber">,
   maxLength = 34,
 ): string {
-  return `Wk ${topic.weekNumber} · ${truncateTitle(topic.title, maxLength)}`;
+  return `Week ${topic.weekNumber} · ${truncateTitle(topic.title, maxLength)}`;
 }
 
 /** Normalize anything typed or pasted into the printed `XXX-XX` shape. */
@@ -132,15 +132,29 @@ export function formatRelativeTime(iso: string, now: string | Date): string {
   return suffix(`${Math.floor(magnitude / (30 * DAY_MS))}mo`);
 }
 
+/**
+ * The professor's words for each lifecycle state. "Published" means ready to
+ * use, not visible: a section still has to be chosen before students see it.
+ */
 const STATE_LABELS: Record<QuestionLifecycleState, string> = {
-  draft: "Draft",
-  needs_review: "Needs review",
+  draft: "Being written",
+  needs_review: "Waiting for your review",
   approved: "Approved",
-  published: "Published",
-  unpublished: "Unpublished",
+  published: "Ready to use",
+  unpublished: "Hidden from students",
 };
 
 /** Lifecycle state as the professor panel says it, everywhere. */
 export function stateLabel(state: QuestionLifecycleState): string {
   return STATE_LABELS[state] ?? "Unknown";
+}
+
+/**
+ * Section labels read as words in prose: "Sec 01" → "Section 1". Anything the
+ * professor typed that is not the short form ("Tue/Thu 10am") is kept as is.
+ */
+export function friendlySectionLabel(label: string): string {
+  const trimmed = (label ?? "").trim();
+  const match = /^sec(?:tion)?\.?\s*0*(\d+)$/i.exec(trimmed);
+  return match ? `Section ${match[1]}` : trimmed;
 }

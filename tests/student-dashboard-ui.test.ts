@@ -230,8 +230,21 @@ describe("the learn page and the dashboard redirect", () => {
     expect(mocks.getStudentProgress).toHaveBeenCalledOnce();
     expect(markup).toContain("Continue");
     expect(markup).toContain("Five-question quiz");
-    expect(markup).not.toContain("practicing as a guest");
+    expect(markup).not.toContain("Guest · your progress lives in this browser.");
     expect(markup).not.toMatch(/leaderboard|class rank|percentile/i);
+  });
+
+  it("tells a browser with anonymous practice that its progress lives in this browser", async () => {
+    mockPrincipal(undefined);
+    mockStudentOwner({ anonymousId: "anonymous-browser", kind: "anonymous" });
+
+    const markup = renderToStaticMarkup(await LearnPage());
+
+    expect(mocks.getStudentProgress).toHaveBeenCalledOnce();
+    expect(markup).toContain("Five-question quiz");
+    expect(markup).toContain("Guest · your progress lives in this browser.");
+    expect(markup).toContain("Sign in to keep it");
+    expect(markup).toContain('href="/join"');
   });
 
   it("renders the guest view instead of reading a stranger's progress", async () => {
@@ -241,7 +254,7 @@ describe("the learn page and the dashboard redirect", () => {
     const markup = renderToStaticMarkup(await LearnPage());
 
     expect(mocks.getStudentProgress).not.toHaveBeenCalled();
-    expect(markup).toContain("practicing as a guest");
+    expect(markup).toContain("Guest · your progress lives in this browser.");
     expect(markup).not.toContain("Five-question quiz");
   });
 });
@@ -256,7 +269,9 @@ describe("dashboard loading and error states", () => {
       }),
     );
 
-    expect(loadingMarkup).toContain("Loading your practice progress");
+    // The same label as /learn, which is where /dashboard lands.
+    expect(loadingMarkup).toContain("Loading your syllabus");
+    expect(loadingMarkup).not.toContain("Loading your practice progress");
     expect(errorMarkup).toContain("Your progress could not be loaded");
     expect(errorMarkup).toContain("Try again");
     expect(errorMarkup).not.toContain("private database detail");

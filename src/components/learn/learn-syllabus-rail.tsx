@@ -11,12 +11,13 @@ import {
 
 /**
  * The learn model's syllabus rows as rail rows: week number, title, and a
- * mastery pip (a topic with nothing published keeps its closed glyph and is
- * not a link). "You are here" becomes the rail's left rule; the topic whose
- * page is open, if any, gets the active wash.
+ * mastery pip. A topic with nothing published keeps its closed glyph (a
+ * slashed circle, distinct from "not started"), says "none yet", and is not a
+ * link. "Up next" becomes the rail's left rule; the topic whose page is open,
+ * if any, gets the active wash.
  *
- * No right-hand meta: the rail is 264px and the titles are long, so the
- * counts live in the syllabus list and the topic header instead.
+ * No counts in the rail: it is 264px and the titles are long, so "2 of 6
+ * solved" lives in the syllabus list and the topic header instead.
  */
 export function toSyllabusRailTopics(
   topics: LearnTopicRow[],
@@ -27,6 +28,7 @@ export function toSyllabusRailTopics(
     href: topic.href,
     id: topic.id,
     masteryLevel: topicMasteryLevel(topic),
+    meta: topic.total === 0 ? "none yet" : undefined,
     title: topic.title,
     weekNumber: topic.weekNumber,
   }));

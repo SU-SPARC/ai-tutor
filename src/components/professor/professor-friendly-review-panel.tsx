@@ -1,8 +1,15 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, RotateCcw, Save, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
 import {
@@ -11,9 +18,17 @@ import {
 } from "@/components/professor/professor-question-labels";
 import { QuestionSheet } from "@/components/sheet/question-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
-import { MetricTile } from "@/components/ui/metric-tile";
 import { NativeSelect } from "@/components/ui/native-select";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -29,6 +44,7 @@ import { toast } from "@/components/ui/toast";
 import { questionCode, studentDifficultyLabel } from "@/lib/labels";
 import { professorReviewQueuePath } from "@/lib/tutor/professor-review-mode";
 import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
+import { cn } from "@/lib/utils";
 import type {
   Difficulty,
   ProfessorQuestionReviewCandidateDto,
@@ -42,7 +58,42 @@ type ReviewAction =
   | "request_edit"
   | "request_regeneration";
 
+/** The decisions that need a reason before they can be sent. */
+type ReasonedAction = Exclude<ReviewAction, "approve">;
+
 type TopicSummary = ProfessorQuestionReviewDashboard["topics"][number];
+
+const ADD_QUESTION_HREF = "/professor/questions?tab=intake";
+const GENERIC_ERROR =
+  "That didn't work and nothing changed. Try again, or reload the page.";
+const LOAD_ERROR =
+  "The questions for this topic didn't load. Nothing changed. Try again, or reload the page.";
+
+/** What each decision button does, in one plain sentence. */
+const CONSEQUENCES: Record<ReviewAction, string> = {
+  approve:
+    "It moves to your approved questions. Students won't see it until you show it to them.",
+  request_edit: "It goes back to drafts so it can be edited, then returns here.",
+  request_regeneration:
+    "A new draft is written for you and comes back here for review.",
+  reject: "It is set aside and never shown to students.",
+};
+
+/** The reason error for each decision that needs one. */
+const MISSING_REASON: Record<ReasonedAction, string> = {
+  request_edit: "Choose why you're sending this back.",
+  request_regeneration: "Choose why this should be rewritten.",
+  reject: "Choose why you're rejecting this question.",
+};
+
+const MISSING_NOTE = "Please add a short note when you choose Something else.";
+
+/** The confirm button under the reason fields restates the action. */
+const CONFIRM_LABELS: Record<ReasonedAction, string> = {
+  request_edit: "Send back",
+  request_regeneration: "Rewrite with AI",
+  reject: "Reject question",
+};
 
 /**
  * How the answer is checked, as one header word. The spec is optional on older
@@ -68,11 +119,32 @@ const DIFFICULTIES = [
 ] as const satisfies readonly Difficulty[];
 
 /**
- * The review queue for one syllabus topic: choose a topic, then work through
- * its questions in a split view (the list on the left, the question as a
- * student meets it on the right, with the decision underneath). Questions
- * load only for the chosen topic, and each decision is a server-authorized
- * transition; approving never publishes.
+ * A date worth printing: missing, unreadable and epoch-0 values (which
+ * would read as Dec 31 1969 / Jan 1 1970) render nothing.
+ */
+function knownDate(value: string | undefined) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() <= 1970) {
+    return undefined;
+  }
+  return value;
+}
+
+function bySyllabusOrder(topics: TopicSummary[]) {
+  return [...topics].sort((left, right) => left.order - right.order);
+}
+
+function waitingLabel(count: number) {
+  return count === 0 ? "none waiting" : `${count} waiting`;
+}
+
+/**
+ * The review queue for one syllabus topic, opened straight on its first
+ * question: the list on the left, the question as a student meets it on the
+ * right, with the decision underneath. Choosing a topic loads it at once.
+ * Each decision is a server-authorized transition; approving never shows a
+ * question to students.
  */
 export function ProfessorFriendlyReviewPanel({
   initialDashboard,
@@ -80,8 +152,9 @@ export function ProfessorFriendlyReviewPanel({
 }: {
   initialDashboard: ProfessorQuestionReviewDashboard;
   /**
-   * A topic the server already loaded candidates for (from `?topic=`), so a
-   * link into the queue opens on its first question instead of an empty form.
+   * A topic the server already loaded candidates for (from `?topic=`, or the
+   * first topic with questions waiting), so the page opens on its first
+   * question instead of an empty form.
    */
   initialTopicId?: string;
 }) {
@@ -90,7 +163,12 @@ export function ProfessorFriendlyReviewPanel({
       ? initialTopicId
       : "";
   const [activeAction, setActiveAction] = useState<ReviewAction | null>(null);
+  const [chosenAction, setChosenAction] = useState<ReasonedAction | null>(
+    null,
+  );
+  const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
   const [dashboard, setDashboard] = useState(initialDashboard);
+  const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadedTopicId, setLoadedTopicId] = useState<string | null>(
     preloadedTopicId || null,
@@ -102,19 +180,26 @@ export function ProfessorFriendlyReviewPanel({
   );
   const [message, setMessage] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState<string | undefined>();
   const [reasonCode, setReasonCode] = useState("");
+  const [reasonError, setReasonError] = useState<string | undefined>();
   const [reviewedCount, setReviewedCount] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState(preloadedTopicId);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(
     initialDashboard.candidates[0]?.difficulty ?? "foundational",
   );
   const previewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reasonFieldsRef = useRef<HTMLDivElement>(null);
   const listHeadingId = useId();
   const previewHeadingId = useId();
   const decisionHeadingId = useId();
   const topicsHeadingId = useId();
 
   const current = dashboard.candidates[0];
+  const topicsInOrder = useMemo(
+    () => bySyllabusOrder(dashboard.topics),
+    [dashboard.topics],
+  );
   const selectedTopic = useMemo(
     () => dashboard.topics.find((topic) => topic.topicId === selectedTopicId),
     [dashboard.topics, selectedTopicId],
@@ -127,7 +212,22 @@ export function ProfessorFriendlyReviewPanel({
         (position.get(right.questionId) ?? Number.MAX_SAFE_INTEGER),
     );
   }, [dashboard.candidates, listOrder]);
-  const counts = selectedTopic ?? totalsFor(dashboard.topics);
+  const totalWaiting = dashboard.topics.reduce(
+    (sum, topic) => sum + topic.needsReview,
+    0,
+  );
+  const nextTopic = nextWaitingTopic(topicsInOrder, selectedTopicId);
+  const currentIndex = current ? orderedCandidates.indexOf(current) : -1;
+
+  function clearDecision() {
+    setChosenAction(null);
+    setConfirmRejectOpen(false);
+    setDecisionMessage(null);
+    setNote("");
+    setNoteError(undefined);
+    setReasonCode("");
+    setReasonError(undefined);
+  }
 
   function adoptDashboard(nextDashboard: ProfessorQuestionReviewDashboard) {
     setDashboard(nextDashboard);
@@ -146,7 +246,7 @@ export function ProfessorFriendlyReviewPanel({
       error?: string;
     };
     if (!result.ok || !payload.dashboard) {
-      throw new Error(payload.error ?? "Review queue could not load.");
+      throw new Error(payload.error ?? "The questions could not load.");
     }
     return payload.dashboard;
   }
@@ -161,39 +261,74 @@ export function ProfessorFriendlyReviewPanel({
       adoptDashboard(nextDashboard);
       setLoadedTopicId(topicId);
       setReviewedCount(0);
-      setNote("");
-      setReasonCode("");
+      clearDecision();
       const topic = nextDashboard.topics.find(
         (item) => item.topicId === topicId,
       );
+      const count = nextDashboard.candidates.length;
+      // An empty topic speaks through its empty state instead.
       setMessage(
-        nextDashboard.candidates.length > 0
-          ? `Loaded ${nextDashboard.candidates.length} review candidate(s) for ${topic?.title ?? "this topic"}.`
-          : topic?.total === 0
-            ? "This topic has no question records yet."
-            : "No versions need a review decision for this topic right now.",
+        count > 0
+          ? `${count} ${count === 1 ? "question" : "questions"} to review in ${topic?.title ?? "this topic"}.`
+          : null,
       );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Review queue could not load.",
-      );
+    } catch {
+      setMessage(LOAD_ERROR);
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function reviewCurrent(action: ReviewAction) {
-    if (!current || !loadedTopicId) return;
-    if (action !== "approve" && !reasonCode) {
-      setMessage("Choose a reason before requesting revision or rejection.");
+  function focusReasonField(field: "reason" | "note" = "reason") {
+    requestAnimationFrame(() => {
+      reasonFieldsRef.current
+        ?.querySelector<HTMLElement>(field === "note" ? "textarea" : "select")
+        ?.focus();
+    });
+  }
+
+  /** Checks the reason fields; says what to fix next to the field if not. */
+  function reasonIsComplete(action: ReasonedAction) {
+    if (!reasonCode) {
+      setReasonError(MISSING_REASON[action]);
+      setNoteError(undefined);
+      setDecisionMessage(MISSING_REASON[action]);
+      focusReasonField("reason");
+      return false;
+    }
+    if (professorReviewReasonRequiresNote(reasonCode) && !note.trim()) {
+      setReasonError(undefined);
+      setNoteError(MISSING_NOTE);
+      setDecisionMessage(MISSING_NOTE);
+      focusReasonField("note");
+      return false;
+    }
+    setReasonError(undefined);
+    setNoteError(undefined);
+    return true;
+  }
+
+  function chooseAction(action: ReasonedAction) {
+    setChosenAction(action);
+    setDecisionMessage(null);
+    setReasonError(undefined);
+    setNoteError(undefined);
+    focusReasonField("reason");
+  }
+
+  function confirmChosenAction() {
+    if (!chosenAction || !reasonIsComplete(chosenAction)) return;
+    if (chosenAction === "reject") {
+      // Rejection is final, so it always passes through one more question.
+      setConfirmRejectOpen(true);
       return;
     }
-    if (
-      action !== "approve" &&
-      professorReviewReasonRequiresNote(reasonCode) &&
-      !note.trim()
-    ) {
-      setMessage("Other requires an audit note.");
+    void reviewCurrent(chosenAction);
+  }
+
+  async function reviewCurrent(action: ReviewAction) {
+    if (!current || !loadedTopicId) return;
+    if (action !== "approve" && !reasonIsComplete(action)) {
       return;
     }
 
@@ -202,7 +337,7 @@ export function ProfessorFriendlyReviewPanel({
     const difficultyChanged =
       action === "approve" && approvedDifficulty !== current.difficulty;
     setActiveAction(action);
-    setMessage(null);
+    setDecisionMessage(null);
 
     try {
       const result = await fetch(
@@ -224,28 +359,21 @@ export function ProfessorFriendlyReviewPanel({
           }),
         },
       );
-      const payload = (await result.json()) as {
-        error?: string;
-        question?: {
-          workingVersion: { versionNumber: number };
-        };
-      };
       if (!result.ok) {
-        throw new Error(payload.error ?? "Review action failed.");
+        throw new DecisionError(result.status);
       }
 
+      const done = decisionToastText({
+        action,
+        difficulty: difficultyChanged ? approvedDifficulty : undefined,
+        title: current.title,
+      });
       setReviewedCount((count) => count + 1);
-      setNote("");
-      setReasonCode("");
+      clearDecision();
       try {
         const nextDashboard = await requestTopicDashboard(loadedTopicId);
         adoptDashboard(nextDashboard);
-        toast({
-          title: difficultyChanged
-            ? `${current.title} was revised to ${professorDifficultyLabel(approvedDifficulty).toLowerCase()} as working version ${payload.question?.workingVersion.versionNumber ?? "new"} and approved (not published).`
-            : `${current.title} was ${transition.successLabel}.`,
-          tone: "success",
-        });
+        toast({ title: done, tone: "success" });
         // The next question replaces this one in place; bring its title into
         // view (and focus) so it is read from the top.
         if (nextDashboard.candidates.length > 0) {
@@ -261,12 +389,14 @@ export function ProfessorFriendlyReviewPanel({
         );
         setLoadedTopicId(null);
         setMessage(
-          `${current.title} was ${transition.successLabel}. Counts could not refresh; reload this topic before the next decision.`,
+          `${done} The list didn't refresh; choose the topic again to see the next question.`,
         );
       }
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Review action failed.",
+      setDecisionMessage(
+        error instanceof DecisionError && error.status === 409
+          ? "Someone already made a decision on this question, so nothing changed. Reload the page to see the latest."
+          : GENERIC_ERROR,
       );
     } finally {
       setActiveAction(null);
@@ -282,10 +412,14 @@ export function ProfessorFriendlyReviewPanel({
       selectedTopicId: undefined,
     }));
     setMessage(null);
-    setNote("");
-    setReasonCode("");
+    clearDecision();
     setSelectedDifficulty("foundational");
     setReviewedCount(0);
+  }
+
+  function openTopic(topicId: string) {
+    selectTopic(topicId);
+    void loadQueue(topicId);
   }
 
   function focusCandidate(questionId: string) {
@@ -303,92 +437,77 @@ export function ProfessorFriendlyReviewPanel({
       ],
     }));
     setSelectedDifficulty(next.difficulty);
-    setNote("");
-    setReasonCode("");
+    clearDecision();
     setMessage(null);
   }
 
+  function step(offset: -1 | 1) {
+    const target = orderedCandidates[currentIndex + offset];
+    if (!target) return;
+    focusCandidate(target.questionId);
+    requestAnimationFrame(() => previewHeadingRef.current?.focus());
+  }
+
   const busy = dashboard.readOnly || Boolean(activeAction);
+  const showSendBack = current?.allowedActions.includes("request_revision");
 
   return (
     <div className="flex flex-col gap-6">
-      {dashboard.readOnly ? (
-        <p className="type-small max-w-prose border-l-2 border-input pl-4 text-ink-muted">
-          {dashboard.readOnlyReason ?? "This review queue is read-only."}
+      {dashboard.readOnly && dashboard.mode !== "demo" ? (
+        <p className="type-body max-w-prose border-l-2 border-input pl-4 text-ink">
+          You can read these questions, but decisions can&apos;t be saved right
+          now.
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <Field label="Syllabus topic" className="min-w-0 sm:max-w-md sm:flex-1">
-          <NativeSelect
-            value={selectedTopicId}
-            disabled={isLoading}
-            onChange={(event) => selectTopic(event.target.value)}
-          >
-            <option value="">Choose a topic</option>
-            {dashboard.topics.map((topic) => (
-              <option key={topic.topicId} value={topic.topicId}>
-                {topic.title} — {topic.needsReview} need review
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
-        <Button
-          type="button"
-          disabled={!selectedTopicId || isLoading}
-          onClick={() => void loadQueue()}
+      {totalWaiting === 0 && !current && !selectedTopicId ? (
+        <EmptyState
+          className="rounded-panel bg-sheet px-5"
+          action={
+            <Button asChild className="min-h-11">
+              <Link href={ADD_QUESTION_HREF}>Add a question</Link>
+            </Button>
+          }
         >
-          {isLoading ? "Loading…" : "Load review queue"}
-        </Button>
-      </div>
+          You&apos;re all caught up. No questions are waiting for you.
+        </EmptyState>
+      ) : (
+        <>
+          <Field label="Topic" className="min-w-0 sm:max-w-md">
+            <NativeSelect
+              className="min-h-11"
+              value={selectedTopicId}
+              disabled={isLoading}
+              onChange={(event) => {
+                const topicId = event.target.value;
+                selectTopic(topicId);
+                if (topicId) void loadQueue(topicId);
+              }}
+            >
+              {selectedTopicId ? null : (
+                <option value="">Choose a topic</option>
+              )}
+              {topicsInOrder.map((topic) => (
+                <option key={topic.topicId} value={topic.topicId}>
+                  {topic.title} ({waitingLabel(topic.needsReview)})
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
 
-      <section aria-label={`Review counts for ${counts.title}`}>
-        <p className="mb-2 type-label">{counts.title}</p>
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <MetricTile
-            label="Needs review"
-            value={counts.needsReview}
-            delta="Waiting on a decision"
-          />
-          <MetricTile
-            label="Approved"
-            value={counts.approved}
-            delta={
-              <Link
-                href="/professor/questions?view=approved"
-                className="text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
-              >
-                Publish from the bank
-              </Link>
-            }
-          />
-          <MetricTile
-            label="Rejected / revision"
-            value={counts.rejectedOrRevisionRequested}
-            delta={
-              <Link
-                href="/professor/questions?view=revision_requested"
-                className="text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
-              >
-                See revisions
-              </Link>
-            }
-          />
-          <MetricTile
-            label="Remaining"
-            value={counts.remaining}
-            delta="Drafts and revisions in progress"
-          />
-        </div>
-      </section>
-
-      <div role="status" aria-live="polite">
-        {message ? (
-          <p className="type-small max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
-            {message}
-          </p>
-        ) : null}
-      </div>
+          <div role="status" aria-live="polite">
+            {isLoading ? (
+              <p className="type-body max-w-prose text-ink">
+                Opening {selectedTopic?.title ?? "this topic"}…
+              </p>
+            ) : message ? (
+              <p className="type-body max-w-prose border-l-2 border-azure-500 py-1 pl-4 text-ink">
+                {message}
+              </p>
+            ) : null}
+          </div>
+        </>
+      )}
 
       {current ? (
         <div className="grid gap-6 lg:grid-cols-5 lg:items-start">
@@ -398,16 +517,17 @@ export function ProfessorFriendlyReviewPanel({
           >
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <h2 id={listHeadingId} className="type-h3 text-ink">
-                Waiting on review
+                Waiting for you
               </h2>
-              <p className="type-caption tabular">
-                {dashboard.candidates.length} left
-                {reviewedCount > 0 ? ` · ${reviewedCount} decided` : ""}
+              <p className="type-body text-ink">
+                {dashboard.candidates.length} waiting
+                {reviewedCount > 0 ? ` · ${reviewedCount} done` : ""}
               </p>
             </div>
             <ol className="flex flex-col overflow-y-auto rounded-panel bg-sheet lg:max-h-[calc(100svh-var(--header-h)-8rem)]">
               {orderedCandidates.map((candidate) => {
                 const isCurrent = candidate === current;
+                const added = knownDate(candidate.createdAt);
                 return (
                   <li
                     key={candidate.questionId}
@@ -418,28 +538,29 @@ export function ProfessorFriendlyReviewPanel({
                       aria-current={isCurrent ? "true" : undefined}
                       disabled={Boolean(activeAction)}
                       onClick={() => focusCandidate(candidate.questionId)}
-                      className="flex w-full flex-col gap-1.5 border-l-2 border-transparent px-4 py-3 text-left transition-colors duration-fast hover:bg-surface-tint focus-ring aria-[current=true]:border-azure-500 aria-[current=true]:bg-azure-100 disabled:cursor-not-allowed"
+                      className="flex min-h-11 w-full flex-col gap-1.5 border-l-2 border-transparent px-4 py-3 text-left transition-colors duration-fast hover:bg-surface-tint focus-ring aria-[current=true]:border-azure-500 aria-[current=true]:bg-azure-100 disabled:cursor-not-allowed"
                     >
-                      <span className="type-caption">
-                        <span className="font-mono">
-                          {questionCode(candidate.questionId)}
-                        </span>
-                        {" · "}
-                        {professorDifficultyLabel(candidate.difficulty)}
-                      </span>
                       <span className="type-body-strong text-ink">
                         {candidate.title}
                       </span>
-                      <span className="flex flex-wrap gap-1.5">
-                        <StatusChip label="Needs review" tone="review" />
-                        {candidate.review.reviewPriority === "priority" ? (
-                          <StatusChip
-                            icon={false}
-                            label="Priority"
-                            tone="neutral"
-                          />
+                      <span className="type-small text-ink-muted">
+                        {professorDifficultyLabel(candidate.difficulty)}
+                        {added ? (
+                          <>
+                            {" · added "}
+                            <ProfessorTime dateOnly value={added} />
+                          </>
                         ) : null}
                       </span>
+                      {candidate.review.reviewPriority === "priority" ? (
+                        <span className="flex flex-wrap gap-1.5">
+                          <StatusChip
+                            icon={false}
+                            label="Flagged by a student"
+                            tone="neutral"
+                          />
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 );
@@ -451,19 +572,38 @@ export function ProfessorFriendlyReviewPanel({
             aria-labelledby={previewHeadingId}
             className="flex min-w-0 flex-col gap-6 lg:col-span-3"
           >
-            <header className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                <StatusChip
-                  icon={false}
-                  label={`Working version ${current.versionNumber}`}
-                  tone="neutral"
-                />
-                {current.publishedVersionId ? (
-                  <StatusChip
-                    label="Published version remains live"
-                    tone="published"
-                  />
-                ) : null}
+            <header className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="type-body text-ink">
+                  Question {reviewedCount + currentIndex + 1} of{" "}
+                  {reviewedCount + orderedCandidates.length} in{" "}
+                  {selectedTopic?.title ?? "this topic"}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="min-h-11"
+                    disabled={currentIndex <= 0 || Boolean(activeAction)}
+                    onClick={() => step(-1)}
+                  >
+                    <ChevronLeft aria-hidden="true" />
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="min-h-11"
+                    disabled={
+                      currentIndex >= orderedCandidates.length - 1 ||
+                      Boolean(activeAction)
+                    }
+                    onClick={() => step(1)}
+                  >
+                    Next
+                    <ChevronRight aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
               <h2
                 id={previewHeadingId}
@@ -473,9 +613,21 @@ export function ProfessorFriendlyReviewPanel({
               >
                 {current.title}
               </h2>
-              <p className="type-caption">
-                Created by {current.createdBy.displayName} ·{" "}
-                <ProfessorTime value={current.createdAt} />
+              {current.publishedVersionId ? (
+                <p className="type-body max-w-prose border-l-2 border-azure-500 pl-4 text-ink">
+                  This is an edit. Students still see the earlier wording
+                  until you approve this one and show it to them.
+                </p>
+              ) : null}
+              <p className="type-small text-ink-muted">
+                Added by {current.createdBy.displayName}
+                {knownDate(current.createdAt) ? (
+                  <>
+                    {" · "}
+                    <ProfessorTime value={current.createdAt} />
+                  </>
+                ) : null}
+                {" · "}Question code {questionCode(current.questionId)}
               </p>
             </header>
 
@@ -490,7 +642,7 @@ export function ProfessorFriendlyReviewPanel({
                 onCheck: () => {},
                 disabled: true,
                 helper:
-                  "Students see an empty field; this is the accepted answer",
+                  "Students see an empty box. This is the correct answer.",
               }}
               header={{
                 topicLabel: selectedTopic?.title ?? "",
@@ -510,15 +662,13 @@ export function ProfessorFriendlyReviewPanel({
                 values={[current.answer.explanation]}
               />
               <ReviewBlock
-                title="Misconceptions"
+                title="Common student mistakes"
                 values={current.misconceptions.map((item) => item.feedback)}
               />
               <ReviewBlock
-                title="Source and originality"
-                values={[
-                  current.source.originalityNote ??
-                    "No public-safe originality note is recorded.",
-                ]}
+                title="Where this question came from"
+                empty="No source noted."
+                values={[current.source.originalityNote ?? ""]}
               />
             </div>
 
@@ -531,10 +681,11 @@ export function ProfessorFriendlyReviewPanel({
               </h3>
               <Field
                 label="Difficulty"
-                description="AI or an import may suggest a difficulty; you have final authority. Changing it creates a new immutable manual revision before approval. Approval still does not publish the question."
+                description="Change this if the suggested level is wrong. Your choice is saved when you approve."
                 className="max-w-md"
               >
                 <NativeSelect
+                  className="min-h-11"
                   disabled={busy}
                   value={selectedDifficulty}
                   onChange={(event) =>
@@ -549,100 +700,206 @@ export function ProfessorFriendlyReviewPanel({
                 </NativeSelect>
               </Field>
 
-              <ProfessorReviewReasonFields
-                disabled={busy}
-                note={note}
-                onNoteChange={setNote}
-                onReasonCodeChange={setReasonCode}
-                reasonCode={reasonCode}
-              />
-              <p className="-mt-2 type-caption">
-                Approve needs no reason. Request edit, Request regeneration and
-                Reject do.
-              </p>
-
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-5">
                 {current.allowedActions.includes("approve") ? (
-                  <Button
-                    type="button"
-                    disabled={busy}
-                    loading={activeAction === "approve"}
-                    onClick={() => void reviewCurrent("approve")}
-                  >
-                    <Check aria-hidden="true" />
-                    Approve
-                  </Button>
+                  <DecisionChoice consequence={CONSEQUENCES.approve}>
+                    <Button
+                      type="button"
+                      variant="cta"
+                      className="min-h-11"
+                      disabled={busy}
+                      loading={activeAction === "approve"}
+                      onClick={() => void reviewCurrent("approve")}
+                    >
+                      <Check aria-hidden="true" />
+                      Approve
+                    </Button>
+                  </DecisionChoice>
                 ) : null}
-                {current.allowedActions.includes("request_revision") ? (
+                {showSendBack ? (
                   <>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={busy}
-                      loading={activeAction === "request_edit"}
-                      onClick={() => void reviewCurrent("request_edit")}
+                    <DecisionChoice consequence={CONSEQUENCES.request_edit}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-11"
+                        disabled={busy}
+                        aria-expanded={chosenAction === "request_edit"}
+                        onClick={() => chooseAction("request_edit")}
+                      >
+                        <Pencil aria-hidden="true" />
+                        Send back for changes
+                      </Button>
+                    </DecisionChoice>
+                    <DecisionChoice
+                      consequence={CONSEQUENCES.request_regeneration}
                     >
-                      <Save aria-hidden="true" />
-                      Request edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={busy}
-                      loading={activeAction === "request_regeneration"}
-                      onClick={() => void reviewCurrent("request_regeneration")}
-                    >
-                      <RotateCcw aria-hidden="true" />
-                      Request regeneration
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-11"
+                        disabled={busy}
+                        aria-expanded={chosenAction === "request_regeneration"}
+                        onClick={() => chooseAction("request_regeneration")}
+                      >
+                        <Sparkles aria-hidden="true" />
+                        Rewrite with AI
+                      </Button>
+                    </DecisionChoice>
                   </>
                 ) : null}
                 {current.allowedActions.includes("reject") ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={busy}
-                    loading={activeAction === "reject"}
-                    onClick={() => void reviewCurrent("reject")}
+                  <DecisionChoice
+                    className="ml-auto"
+                    consequence={CONSEQUENCES.reject}
                   >
-                    <X aria-hidden="true" />
-                    Reject
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="min-h-11"
+                      disabled={busy}
+                      aria-expanded={chosenAction === "reject"}
+                      onClick={() => chooseAction("reject")}
+                    >
+                      <X aria-hidden="true" />
+                      Reject
+                    </Button>
+                  </DecisionChoice>
+                ) : null}
+              </div>
+
+              {chosenAction ? (
+                <div
+                  ref={reasonFieldsRef}
+                  className="flex flex-col gap-4 rounded-panel border border-rule bg-sheet p-4"
+                >
+                  <p className="type-body-strong text-ink">
+                    {chosenActionHeading(chosenAction)}
+                  </p>
+                  <ProfessorReviewReasonFields
+                    disabled={busy}
+                    note={note}
+                    noteError={noteError}
+                    onNoteChange={(value) => {
+                      setNote(value);
+                      setNoteError(undefined);
+                    }}
+                    onReasonCodeChange={(value) => {
+                      setReasonCode(value);
+                      setReasonError(undefined);
+                    }}
+                    reasonCode={reasonCode}
+                    reasonError={reasonError}
+                  />
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant={
+                        chosenAction === "reject" ? "destructive" : "primary"
+                      }
+                      className="min-h-11"
+                      disabled={busy}
+                      loading={activeAction === chosenAction}
+                      onClick={confirmChosenAction}
+                    >
+                      {CONFIRM_LABELS[chosenAction]}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="min-h-11"
+                      disabled={Boolean(activeAction)}
+                      onClick={clearDecision}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Validation and server problems appear here, right under the
+                  buttons that caused them, not at the top of the page. */}
+              <div role="status" aria-live="polite">
+                {decisionMessage ? (
+                  <p className="type-body max-w-prose border-l-2 border-red-500 py-1 pl-4 text-ink">
+                    {decisionMessage}
+                  </p>
                 ) : null}
               </div>
             </section>
+
+            <Dialog
+              open={confirmRejectOpen}
+              onOpenChange={setConfirmRejectOpen}
+            >
+              <DialogContent size="sm">
+                <DialogHeader>
+                  <DialogTitle>Reject “{current.title}”?</DialogTitle>
+                  <DialogDescription className="text-ink">
+                    It will be set aside and never shown to students.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="min-h-11"
+                    >
+                      Keep reviewing
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="min-h-11"
+                    onClick={() => {
+                      setConfirmRejectOpen(false);
+                      void reviewCurrent("reject");
+                    }}
+                  >
+                    Reject question
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </article>
         </div>
-      ) : (
+      ) : totalWaiting === 0 && !selectedTopicId ? null : (
         <div className="flex flex-col gap-6">
-          <ReviewQueueEmptyState
-            loaded={loadedTopicId === selectedTopicId && Boolean(loadedTopicId)}
-            selectedTopic={selectedTopic}
-          />
+          {selectedTopicId ? (
+            <div role="status" aria-live="polite">
+              <ReviewQueueEmptyState
+                loaded={
+                  loadedTopicId === selectedTopicId && Boolean(loadedTopicId)
+                }
+                nextTopic={nextTopic}
+                onOpenTopic={openTopic}
+                selectedTopic={selectedTopic}
+              />
+            </div>
+          ) : null}
           <section
             aria-labelledby={topicsHeadingId}
             className="flex flex-col gap-3"
           >
             <h2 id={topicsHeadingId} className="type-h3 text-ink">
-              Topics in syllabus order
+              {selectedTopicId ? "All topics" : "Choose a topic to review"}
             </h2>
             <div className="rounded-panel bg-sheet">
               <Table>
                 <TableCaption className="sr-only">
-                  Review counts for every syllabus topic. Choose a topic to
-                  load its queue.
+                  How many questions wait for you in each topic, in syllabus
+                  order.
                 </TableCaption>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Topic</TableHead>
-                    <TableHead numeric>Needs review</TableHead>
-                    <TableHead numeric>Approved</TableHead>
-                    <TableHead numeric>Rejected / revision</TableHead>
-                    <TableHead numeric>Remaining</TableHead>
+                    <TableHead>Waiting for you</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dashboard.topics.map((topic) => (
+                  {topicsInOrder.map((topic) => (
                     <TableRow
                       key={topic.topicId}
                       data-state={
@@ -651,26 +908,32 @@ export function ProfessorFriendlyReviewPanel({
                           : undefined
                       }
                     >
-                      <TableCell className="min-w-56">
-                        <button
-                          type="button"
-                          disabled={isLoading}
-                          aria-label={`Review ${topic.title}`}
-                          className="rounded-control text-left text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring disabled:text-ink-muted"
-                          onClick={() => {
-                            selectTopic(topic.topicId);
-                            void loadQueue(topic.topicId);
-                          }}
-                        >
-                          {topic.title}
-                        </button>
+                      <TableCell className="type-body min-w-56 text-ink">
+                        {topic.title}
                       </TableCell>
-                      <TableCell numeric>{topic.needsReview}</TableCell>
-                      <TableCell numeric>{topic.approved}</TableCell>
-                      <TableCell numeric>
-                        {topic.rejectedOrRevisionRequested}
+                      <TableCell>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <span className="type-body text-ink">
+                            {topic.needsReview === 0
+                              ? "Nothing waiting"
+                              : `${topic.needsReview} waiting`}
+                          </span>
+                          {topic.needsReview > 0 ? (
+                            <Button
+                              asChild
+                              variant="secondary"
+                              className="min-h-11"
+                            >
+                              <Link
+                                href={`/professor/review?topic=${encodeURIComponent(topic.topicId)}`}
+                                aria-label={`Review ${topic.title}`}
+                              >
+                                Review
+                              </Link>
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell numeric>{topic.remaining}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -683,24 +946,83 @@ export function ProfessorFriendlyReviewPanel({
   );
 }
 
-function totalsFor(topics: TopicSummary[]) {
-  return topics.reduce(
-    (sum, topic) => ({
-      approved: sum.approved + topic.approved,
-      needsReview: sum.needsReview + topic.needsReview,
-      rejectedOrRevisionRequested:
-        sum.rejectedOrRevisionRequested + topic.rejectedOrRevisionRequested,
-      remaining: sum.remaining + topic.remaining,
-      title: sum.title,
-    }),
-    {
-      approved: 0,
-      needsReview: 0,
-      rejectedOrRevisionRequested: 0,
-      remaining: 0,
-      title: "All topics",
-    },
+/** A server refusal, kept apart so the message can stay in plain words. */
+class DecisionError extends Error {
+  constructor(readonly status: number) {
+    super(`Decision failed with ${status}`);
+  }
+}
+
+function chosenActionHeading(action: ReasonedAction) {
+  switch (action) {
+    case "request_edit":
+      return "Why are you sending this back?";
+    case "request_regeneration":
+      return "What should the new draft fix?";
+    case "reject":
+      return "Why are you rejecting this question?";
+  }
+}
+
+/** A decision button with its consequence printed underneath. */
+function DecisionChoice({
+  children,
+  className,
+  consequence,
+}: {
+  children: ReactNode;
+  className?: string;
+  consequence: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex max-w-[15rem] basis-56 flex-col items-start gap-2",
+        className,
+      )}
+    >
+      {children}
+      <p className="type-body text-ink">{consequence}</p>
+    </div>
   );
+}
+
+/** The first topic after `topicId` in syllabus order that has questions waiting. */
+function nextWaitingTopic(
+  topicsInOrder: TopicSummary[],
+  topicId: string,
+): TopicSummary | undefined {
+  const start = topicsInOrder.findIndex((topic) => topic.topicId === topicId);
+  const rotated = [
+    ...topicsInOrder.slice(start + 1),
+    ...topicsInOrder.slice(0, Math.max(start, 0)),
+  ];
+  return rotated.find(
+    (topic) => topic.topicId !== topicId && topic.needsReview > 0,
+  );
+}
+
+/** The toast after a decision: what happened, and what students see. */
+export function decisionToastText({
+  action,
+  difficulty,
+  title,
+}: {
+  action: ReviewAction;
+  /** Set only when the professor changed the difficulty while approving. */
+  difficulty?: Difficulty;
+  title: string;
+}) {
+  switch (action) {
+    case "approve":
+      return `Approved “${title}”${difficulty ? `, marked ${professorDifficultyLabel(difficulty)}` : ""}. Students can't see it until you show it to them.`;
+    case "request_edit":
+      return `“${title}” was sent back for changes.`;
+    case "request_regeneration":
+      return `“${title}” will be rewritten and will come back here.`;
+    case "reject":
+      return `“${title}” was rejected.`;
+  }
 }
 
 function advanceDashboardAfterDecision(
@@ -733,39 +1055,60 @@ function advanceDashboardAfterDecision(
 function transitionForAction(action: ReviewAction): {
   action: "approve" | "reject" | "request_revision";
   revisionMethod?: QuestionRevisionMethod;
-  successLabel: string;
 } {
   if (action === "approve") {
-    return { action: "approve", successLabel: "approved (not published)" };
+    return { action: "approve" };
   }
   if (action === "reject") {
-    return {
-      action: "reject",
-      successLabel: "rejected",
-    };
+    return { action: "reject" };
   }
   return {
     action: "request_revision",
     revisionMethod:
       action === "request_regeneration" ? "regeneration" : "manual",
-    successLabel:
-      action === "request_regeneration"
-        ? "sent for regeneration"
-        : "sent for revision",
   };
 }
 
 function ReviewQueueEmptyState({
   loaded,
+  nextTopic,
+  onOpenTopic,
   selectedTopic,
 }: {
   loaded: boolean;
+  nextTopic?: TopicSummary;
+  onOpenTopic: (topicId: string) => void;
   selectedTopic?: TopicSummary;
 }) {
+  if (!loaded) return null;
   const text = professorReviewEmptyStateText({ loaded, selectedTopic });
+  const noQuestionsYet = selectedTopic?.total === 0;
 
   return (
-    <EmptyState className="rounded-panel bg-sheet px-5">{text}</EmptyState>
+    <EmptyState
+      className="rounded-panel bg-sheet px-5"
+      action={
+        noQuestionsYet ? (
+          <Button asChild className="min-h-11">
+            <Link href={ADD_QUESTION_HREF}>Add a question</Link>
+          </Button>
+        ) : nextTopic ? (
+          <Button
+            type="button"
+            className="min-h-11"
+            onClick={() => onOpenTopic(nextTopic.topicId)}
+          >
+            Review {nextTopic.title} ({nextTopic.needsReview} waiting)
+          </Button>
+        ) : (
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href={ADD_QUESTION_HREF}>Add a question</Link>
+          </Button>
+        )
+      }
+    >
+      {text}
+    </EmptyState>
   );
 }
 
@@ -776,20 +1119,31 @@ export function professorReviewEmptyStateText({
   loaded: boolean;
   selectedTopic?: TopicSummary;
 }) {
-  let text = "Select one syllabus topic, then load its review queue.";
-  if (selectedTopic && !loaded) {
-    text = `Load ${selectedTopic.title} to view only that topic's review candidates.`;
-  } else if (selectedTopic && selectedTopic.total === 0) {
-    text = `${selectedTopic.title} has no question records yet.`;
-  } else if (selectedTopic && selectedTopic.remaining === 0) {
-    text = `Review complete for ${selectedTopic.title}. Nothing remains in its working queue.`;
-  } else if (selectedTopic && loaded) {
-    text = `No versions currently need review for ${selectedTopic.title}. ${selectedTopic.remaining} draft or revision ${selectedTopic.remaining === 1 ? "item remains" : "items remain"}.`;
+  if (!selectedTopic) {
+    return "Choose a topic to start reviewing.";
   }
-  return text;
+  if (!loaded) {
+    return `Opening ${selectedTopic.title}…`;
+  }
+  if (selectedTopic.total === 0) {
+    return `${selectedTopic.title} has no questions yet.`;
+  }
+  if (selectedTopic.remaining === 0) {
+    return `All done with ${selectedTopic.title}.`;
+  }
+  const beingWritten = selectedTopic.remaining;
+  return `Nothing to review in ${selectedTopic.title}. ${beingWritten} ${beingWritten === 1 ? "question is" : "questions are"} still being written.`;
 }
 
-function ReviewBlock({ title, values }: { title: string; values: string[] }) {
+function ReviewBlock({
+  empty = "None written yet.",
+  title,
+  values,
+}: {
+  empty?: string;
+  title: string;
+  values: string[];
+}) {
   const safeValues = values.filter(Boolean);
   return (
     <section className="flex flex-col gap-2">
@@ -803,7 +1157,7 @@ function ReviewBlock({ title, values }: { title: string; values: string[] }) {
       ) : safeValues.length === 1 ? (
         <p className="type-body max-w-prose text-ink">{safeValues[0]}</p>
       ) : (
-        <p className="type-small text-ink-muted">Nothing recorded.</p>
+        <p className="type-body text-ink-muted">{empty}</p>
       )}
     </section>
   );

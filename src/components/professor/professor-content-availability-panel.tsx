@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { CalendarClock } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -22,21 +31,20 @@ import {
 import { toast } from "@/components/ui/toast";
 import type {
   StudentContentAvailabilityDashboard,
+  StudentContentAvailabilityEvent,
   StudentContentAvailabilityTarget,
   StudentContentEffectiveAvailability,
-  StudentContentPublicationState,
   StudentContentReleaseState,
 } from "@/lib/types";
 
-const RELEASE_LABELS: Record<StudentContentReleaseState, string> = {
-  archived: "Archived",
-  published: "Published globally",
-  unpublished: "Unpublished",
-};
-const RELEASE_STATES: StudentContentReleaseState[] = [
-  "published",
-  "unpublished",
-  "archived",
+const GENERIC_ERROR =
+  "That didn't work and nothing changed. Try again, or reload the page.";
+
+/** "Who can see this" choices. The values are the API's release states. */
+const WHO_CAN_SEE: { label: string; value: StudentContentReleaseState }[] = [
+  { label: "Students can see it", value: "published" },
+  { label: "Hidden from students", value: "unpublished" },
+  { label: "Archived (hidden, kept for records)", value: "archived" },
 ];
 
 /** What students experience right now, as a chip: label always shown. */
@@ -45,24 +53,79 @@ const EFFECTIVE: Record<
   Pick<StatusChipProps, "icon" | "label" | "tone">
 > = {
   archived: { label: "Archived", tone: "retired" },
-  available: { label: "Available now", tone: "released" },
-  expired: { icon: CalendarClock, label: "Schedule ended", tone: "neutral" },
+  available: { label: "Students can see it", tone: "released" },
+  expired: { icon: CalendarClock, label: "Stopped showing", tone: "neutral" },
   scheduled: { icon: CalendarClock, label: "Scheduled", tone: "neutral" },
-  unpublished: { icon: false, label: "Unavailable", tone: "neutral" },
+  unpublished: { icon: false, label: "Hidden from students", tone: "neutral" },
 };
 
-const LIFECYCLE_WORDS: Record<StudentContentPublicationState, string> = {
-  archived: "archived",
-  published: "published",
-  unpublished: "not published",
+type AvailabilityChange = {
+  availableFrom?: string;
+  availableUntil?: string;
+  reason?: string;
+  releaseState: StudentContentReleaseState;
+  targetId: string;
+  targetType: "topic" | "question";
 };
 
-// UTC so the server render and the browser agree on the text.
-const AUDIT_TIME = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
+type FieldErrors = Partial<
+  Record<"fromDate" | "fromTime" | "untilDate" | "untilTime" | "note", string>
+>;
+
+class AvailabilityRequestError extends Error {
+  constructor(
+    message: string,
+    readonly fieldErrors: FieldErrors = {},
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Sends the change exactly as the API expects it and returns the new
+ * dashboard. Server messages are developer wording, so they are turned into
+ * a plain sentence (next to the field when one is to blame).
+ */
+async function patchAvailability(
+  change: AvailabilityChange,
+): Promise<StudentContentAvailabilityDashboard> {
+  let response: Response;
+  try {
+    response = await fetch("/api/professor/availability", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(change),
+    });
+  } catch {
+    throw new AvailabilityRequestError(GENERIC_ERROR);
+  }
+  const payload = (await response.json().catch(() => ({}))) as {
+    dashboard?: StudentContentAvailabilityDashboard;
+    error?: string;
+  };
+  if (response.ok && payload.dashboard) return payload.dashboard;
+
+  const serverMessage = payload.error ?? "";
+  if (/end must be later/i.test(serverMessage)) {
+    throw new AvailabilityRequestError(GENERIC_ERROR, {
+      untilDate: "Pick a time after the start time.",
+    });
+  }
+  if (/reason must be between/i.test(serverMessage)) {
+    throw new AvailabilityRequestError(GENERIC_ERROR, {
+      note: "Write at least 3 characters, or leave the note blank.",
+    });
+  }
+  if (/lifecycle|professor-approved/i.test(serverMessage)) {
+    throw new AvailabilityRequestError(
+      "Approve and publish this question first.",
+    );
+  }
+  throw new AvailabilityRequestError(GENERIC_ERROR);
+}
 
 export function ProfessorContentAvailabilityPanel({
   initialDashboard,
@@ -71,307 +134,486 @@ export function ProfessorContentAvailabilityPanel({
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
 
+  /** Saves a change, then says what students now see, with Undo. */
+  function announce(
+    target: StudentContentAvailabilityTarget,
+    change: AvailabilityChange,
+    next: StudentContentAvailabilityDashboard,
+  ) {
+    setDashboard(next);
+    const previous: AvailabilityChange = {
+      availableFrom: target.availableFrom,
+      availableUntil: target.availableUntil,
+      reason: "Undo",
+      releaseState: target.releaseState,
+      targetId: target.id,
+      targetType: target.targetType,
+    };
+    toast({
+      title: toastSentence(target.title, change),
+      tone: "success",
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void patchAvailability(previous)
+            .then((restored) => {
+              setDashboard(restored);
+              toast({
+                title: `Change to “${target.title}” undone.`,
+                tone: "success",
+              });
+            })
+            .catch(() => {
+              toast({ title: GENERIC_ERROR, tone: "error" });
+            });
+        },
+      },
+    });
+  }
+
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <p className="type-small max-w-prose text-ink-muted">
-          <span className="font-medium text-ink">Separate release gate.</span>{" "}
-          This controls student availability only; review approval and
-          publication stay separate requirements, so an unapproved or
-          lifecycle-unpublished question cannot be exposed by this setting.
-          Scope is global only: there are no course, cohort, membership, or
-          enrollment records to narrow it.
+      <div className="flex max-w-prose flex-col items-start gap-3">
+        <p className="type-body text-ink">
+          To choose what one section sees and when, open Courses → your course
+          → the section.
         </p>
-        {dashboard.readOnlyReason ? (
-          <Alert role="note">
-            <AlertDescription>
-              {dashboard.readOnly ? "Read-only. " : ""}
-              {dashboard.readOnlyReason}
-            </AlertDescription>
-          </Alert>
+        <Button asChild variant="cta" className="min-h-11">
+          <Link href="/professor/courses">Go to my courses</Link>
+        </Button>
+        <p className="type-body text-ink">
+          Students only see questions you have approved.
+        </p>
+        {dashboard.readOnly && dashboard.mode !== "demo" ? (
+          <p role="note" className="type-body text-ink">
+            You can look at this page, but changes can&apos;t be made right
+            now.
+          </p>
         ) : null}
       </div>
 
       <AvailabilitySection
-        description="Topic rules apply to every student-facing question and retrieval item in the topic, in syllabus order."
-        emptyText="No syllabus topics are eligible yet."
-        heading="Syllabus topics"
+        emptyText="No topics yet."
+        heading="Topics"
         sectionId="topic-availability"
         readOnly={dashboard.readOnly}
         targets={dashboard.topics}
-        onUpdated={(next) => {
-          setDashboard(next);
-          toast({
-            title: "Topic availability saved and audited.",
-            tone: "success",
-          });
-        }}
+        onSaved={announce}
       />
 
       <AvailabilitySection
-        description="Question rules apply only after the approved version is published in the question lifecycle."
-        emptyText="No approved questions yet; they appear here once approved in review."
+        emptyAction={
+          <Button asChild variant="outline" className="min-h-11">
+            <Link href="/professor/review">Review questions</Link>
+          </Button>
+        }
+        emptyText="No approved questions yet. They appear here after you approve them."
         heading="Approved questions"
         sectionId="question-availability"
         readOnly={dashboard.readOnly}
         targets={dashboard.questions}
-        onUpdated={(next) => {
-          setDashboard(next);
-          toast({
-            title: "Question availability saved and audited.",
-            tone: "success",
-          });
-        }}
+        onSaved={announce}
       />
 
-      <AvailabilityAudit dashboard={dashboard} />
+      <RecentChanges dashboard={dashboard} />
     </div>
   );
 }
 
 function AvailabilitySection({
-  description,
+  emptyAction,
   emptyText,
   heading,
-  onUpdated,
+  onSaved,
   readOnly,
   sectionId,
   targets,
 }: {
-  description: string;
+  emptyAction?: ReactNode;
   emptyText: string;
   heading: string;
-  onUpdated: (dashboard: StudentContentAvailabilityDashboard) => void;
+  onSaved: (
+    target: StudentContentAvailabilityTarget,
+    change: AvailabilityChange,
+    next: StudentContentAvailabilityDashboard,
+  ) => void;
   readOnly: boolean;
   sectionId: string;
   targets: StudentContentAvailabilityTarget[];
 }) {
   return (
     <section aria-labelledby={sectionId} className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 id={sectionId} className="type-h2 text-ink">
-          {heading}
-        </h2>
-        <p className="type-small max-w-prose text-ink-muted">{description}</p>
-      </div>
+      <h2 id={sectionId} className="type-h2 text-ink">
+        {heading}
+      </h2>
       {targets.length > 0 ? (
         <ol className="flex flex-col divide-y divide-rule rounded-panel bg-sheet">
           {targets.map((target, index) => (
             <li
               key={`${target.targetType}:${target.id}:${target.releaseState}:${target.availableFrom ?? ""}:${target.availableUntil ?? ""}`}
             >
-              <AvailabilityEditor
+              <AvailabilityRow
                 index={index}
                 readOnly={readOnly}
                 target={target}
-                onUpdated={onUpdated}
+                onSaved={onSaved}
               />
             </li>
           ))}
         </ol>
       ) : (
-        <EmptyState className="py-2">{emptyText}</EmptyState>
+        <EmptyState className="py-2" action={emptyAction}>
+          {emptyText}
+        </EmptyState>
       )}
     </section>
   );
 }
 
-function AvailabilityEditor({
+/** One read-only row: what students see now, and one [Change] button. */
+function AvailabilityRow({
   index,
-  onUpdated,
+  onSaved,
   readOnly,
   target,
 }: {
   index: number;
-  onUpdated: (dashboard: StudentContentAvailabilityDashboard) => void;
+  onSaved: (
+    target: StudentContentAvailabilityTarget,
+    change: AvailabilityChange,
+    next: StudentContentAvailabilityDashboard,
+  ) => void;
   readOnly: boolean;
   target: StudentContentAvailabilityTarget;
 }) {
-  const [active, setActive] = useState(false);
-  const [availableFrom, setAvailableFrom] = useState(() =>
-    toLocalDateTime(target.availableFrom),
-  );
-  const [availableUntil, setAvailableUntil] = useState(() =>
-    toLocalDateTime(target.availableUntil),
-  );
-  const [error, setError] = useState<string>();
-  const [reason, setReason] = useState("");
-  const [releaseState, setReleaseState] = useState<StudentContentReleaseState>(
-    target.releaseState,
-  );
-  const lifecycleBlocksChanges = target.publicationState !== "published";
-  const disabled = readOnly || lifecycleBlocksChanges || active;
+  const [open, setOpen] = useState(false);
+  const isClient = useIsClient();
+  const blocked = target.publicationState !== "published";
   const headingId = `availability-${target.targetType}-${target.id}`;
-  const effective = EFFECTIVE[target.effectiveAvailability];
-
-  async function save() {
-    let startIso: string | undefined;
-    let endIso: string | undefined;
-    try {
-      startIso =
-        releaseState === "published" ? localToIso(availableFrom) : undefined;
-      endIso =
-        releaseState === "published" ? localToIso(availableUntil) : undefined;
-    } catch {
-      setError("Enter the schedule as a full date and time.");
-      return;
-    }
-
-    setActive(true);
-    setError(undefined);
-    try {
-      const response = await fetch("/api/professor/availability", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
-        },
-        body: JSON.stringify({
-          availableFrom: startIso,
-          availableUntil: endIso,
-          reason: reason.trim() || undefined,
-          releaseState,
-          targetId: target.id,
-          targetType: target.targetType,
-        }),
-      });
-      const payload = (await response.json()) as {
-        dashboard?: StudentContentAvailabilityDashboard;
-        error?: string;
-      };
-      if (!response.ok || !payload.dashboard) {
-        setError(
-          payload.error ?? "Availability could not be saved. Try again.",
-        );
-        return;
-      }
-      onUpdated(payload.dashboard);
-    } catch {
-      setError("Availability could not be saved. Try again.");
-    } finally {
-      setActive(false);
-    }
-  }
+  const summary = scheduleSentence(target, isClient);
 
   return (
     <article
       aria-labelledby={headingId}
-      className="grid gap-4 p-4 sm:p-5 lg:grid-cols-3 lg:gap-8"
+      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:p-5"
     >
       <div className="flex min-w-0 flex-col items-start gap-1.5">
         {target.targetType === "topic" ? (
-          <p className="type-label">Syllabus topic {index + 1}</p>
+          <p className="type-body text-ink-muted">Topic {index + 1}</p>
         ) : target.topicTitle ? (
-          <p className="type-label">{target.topicTitle}</p>
+          <p className="type-body text-ink-muted">{target.topicTitle}</p>
         ) : null}
         <h3 id={headingId} className="type-h3 text-ink">
           {target.title}
         </h3>
-        <StatusChip {...effective} />
-        {lifecycleBlocksChanges ? (
-          <p className="type-small max-w-prose text-ink-muted">
-            This item is {LIFECYCLE_WORDS[target.publicationState]} in its
-            content lifecycle. Change it in Question lifecycle before changing
-            student availability.
-          </p>
+        <StatusChip {...EFFECTIVE[target.effectiveAvailability]} />
+        {summary ? <p className="type-body text-ink">{summary}</p> : null}
+        {blocked ? (
+          <div className="flex flex-col items-start gap-1">
+            <p className="type-body text-ink">
+              {target.targetType === "question"
+                ? "Approve and publish this question first."
+                : "This topic is turned off, so students can't see it."}
+            </p>
+            {target.targetType === "question" ? (
+              <Link
+                href={`/professor/questions/${encodeURIComponent(target.id)}`}
+                className="type-body inline-flex min-h-11 items-center font-medium text-azure-500 underline underline-offset-4 hover:text-azure-700 focus-ring"
+              >
+                Open question
+              </Link>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
-      {readOnly ? (
-        <dl className="grid content-start gap-x-6 gap-y-2 type-small sm:grid-cols-3 lg:col-span-2">
-          <div className="flex flex-col gap-0.5">
-            <dt className="type-label">Student release state</dt>
-            <dd className="text-ink">{RELEASE_LABELS[target.releaseState]}</dd>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <dt className="type-label">Available from</dt>
-            <dd className="tabular text-ink">
-              {formatScheduleTime(target.availableFrom)}
-            </dd>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <dt className="type-label">Available until</dt>
-            <dd className="tabular text-ink">
-              {formatScheduleTime(target.availableUntil)}
-            </dd>
-          </div>
-        </dl>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2">
-          <Field label="Student release state">
-            <NativeSelect
-              value={releaseState}
-              disabled={disabled}
-              onChange={(event) => {
-                const next = event.target.value as StudentContentReleaseState;
-                setReleaseState(next);
-                if (next !== "published") {
-                  setAvailableFrom("");
-                  setAvailableUntil("");
-                }
-              }}
-            >
-              {RELEASE_STATES.map((value) => (
-                <option key={value} value={value}>
-                  {RELEASE_LABELS[value]}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field label="Audit reason (optional)">
-            <Input
-              maxLength={240}
-              placeholder="e.g. Opening week 3…"
-              value={reason}
-              disabled={disabled}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </Field>
-          <Field label="Available from (optional)">
-            <Input
-              type="datetime-local"
-              className="tabular"
-              value={availableFrom}
-              disabled={disabled || releaseState !== "published"}
-              onChange={(event) => setAvailableFrom(event.target.value)}
-            />
-          </Field>
-          <Field label="Available until (optional)">
-            <Input
-              type="datetime-local"
-              className="tabular"
-              value={availableUntil}
-              disabled={disabled || releaseState !== "published"}
-              onChange={(event) => setAvailableUntil(event.target.value)}
-            />
-          </Field>
-          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-            <Button
-              type="button"
-              variant="secondary"
-              loading={active}
-              disabled={readOnly || lifecycleBlocksChanges}
-              onClick={() => void save()}
-            >
-              Save availability
-            </Button>
-            {error ? (
-              <p role="alert" className="type-small font-medium text-red-700">
-                {error}
-              </p>
+      {!readOnly && !blocked ? (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 self-start"
+            aria-label={`Change who can see “${target.title}”`}
+            onClick={() => setOpen(true)}
+          >
+            Change
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            {open ? (
+              <ChangeDialog
+                target={target}
+                onDone={(change, next) => {
+                  setOpen(false);
+                  onSaved(target, change, next);
+                }}
+              />
             ) : null}
-          </div>
-        </div>
-      )}
+          </Dialog>
+        </>
+      ) : null}
     </article>
   );
 }
 
-function AvailabilityAudit({
+/**
+ * The fields, then (when what students see changes) one consequence
+ * sentence with [Cancel] and the action restated.
+ */
+function ChangeDialog({
+  onDone,
+  target,
+}: {
+  onDone: (
+    change: AvailabilityChange,
+    next: StudentContentAvailabilityDashboard,
+  ) => void;
+  target: StudentContentAvailabilityTarget;
+}) {
+  const [releaseState, setReleaseState] = useState(target.releaseState);
+  const [fromDate, setFromDate] = useState(() => toLocalParts(target.availableFrom).date);
+  const [fromTime, setFromTime] = useState(() => toLocalParts(target.availableFrom).time);
+  const [untilDate, setUntilDate] = useState(() => toLocalParts(target.availableUntil).date);
+  const [untilTime, setUntilTime] = useState(() => toLocalParts(target.availableUntil).time);
+  const [note, setNote] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState<AvailabilityChange>();
+  const [saving, setSaving] = useState(false);
+  const showing = releaseState === "published";
+
+  function buildChange(): AvailabilityChange | undefined {
+    const errors: FieldErrors = {};
+    const trimmedNote = note.trim();
+    if (trimmedNote && trimmedNote.length < 3) {
+      errors.note = "Write at least 3 characters, or leave the note blank.";
+    }
+    let availableFrom: string | undefined;
+    let availableUntil: string | undefined;
+    if (showing) {
+      availableFrom = partsToIso(fromDate, fromTime, errors, "from");
+      availableUntil = partsToIso(untilDate, untilTime, errors, "until");
+      if (
+        availableFrom &&
+        availableUntil &&
+        Date.parse(availableUntil) <= Date.parse(availableFrom)
+      ) {
+        errors.untilDate = "Pick a time after the start time.";
+      }
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return undefined;
+    return {
+      availableFrom,
+      availableUntil,
+      reason: trimmedNote || undefined,
+      releaseState,
+      targetId: target.id,
+      targetType: target.targetType,
+    };
+  }
+
+  function changesWhatStudentsSee(change: AvailabilityChange) {
+    return (
+      change.releaseState !== target.releaseState ||
+      (change.availableFrom ?? "") !== normalizeIso(target.availableFrom) ||
+      (change.availableUntil ?? "") !== normalizeIso(target.availableUntil)
+    );
+  }
+
+  async function save(change: AvailabilityChange) {
+    setSaving(true);
+    setError(undefined);
+    try {
+      const next = await patchAvailability(change);
+      onDone(change, next);
+    } catch (cause) {
+      if (cause instanceof AvailabilityRequestError) {
+        setFieldErrors(cause.fieldErrors);
+        setError(cause.message);
+      } else {
+        setError(GENERIC_ERROR);
+      }
+      setPending(undefined);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (pending) {
+    const show = pending.releaseState === "published";
+    return (
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>
+            {show ? "Show this to students?" : "Hide this from students?"}
+          </DialogTitle>
+          <DialogDescription className="text-ink">
+            {consequenceSentence(target.title, pending)}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-11"
+            disabled={saving}
+            onClick={() => setPending(undefined)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant={show ? "cta" : "primary"}
+            className="min-h-11"
+            loading={saving}
+            onClick={() => void save(pending)}
+          >
+            {show ? "Show to students" : "Hide from students"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    );
+  }
+
+  return (
+    <DialogContent size="md">
+      <form
+        className="flex min-h-0 flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const change = buildChange();
+          if (!change) return;
+          if (changesWhatStudentsSee(change)) {
+            setPending(change);
+          } else {
+            void save(change);
+          }
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>{target.title}</DialogTitle>
+          <DialogDescription>
+            Choose who can see this and when.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-5">
+          <Field label="Who can see this">
+            <NativeSelect
+              value={releaseState}
+              className="min-h-11"
+              onChange={(event) =>
+                setReleaseState(event.target.value as StudentContentReleaseState)
+              }
+            >
+              {WHO_CAN_SEE.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+
+          {showing ? (
+            <>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="type-body-strong text-ink">
+                  Show starting
+                </legend>
+                <p className="type-body text-ink-muted">
+                  Leave blank to show right away. Times are in your time zone
+                  ({localZoneName()}).
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Date" error={fieldErrors.fromDate}>
+                    <Input
+                      type="date"
+                      className="min-h-11"
+                      value={fromDate}
+                      onChange={(event) => setFromDate(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Time" error={fieldErrors.fromTime}>
+                    <Input
+                      type="time"
+                      className="min-h-11"
+                      value={fromTime}
+                      onChange={(event) => setFromTime(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="type-body-strong text-ink">
+                  Hide after{" "}
+                  <span className="font-normal text-ink-muted">(optional)</span>
+                </legend>
+                <p className="type-body text-ink-muted">
+                  Leave blank to keep showing it.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Date" error={fieldErrors.untilDate}>
+                    <Input
+                      type="date"
+                      className="min-h-11"
+                      value={untilDate}
+                      onChange={(event) => setUntilDate(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Time" error={fieldErrors.untilTime}>
+                    <Input
+                      type="time"
+                      className="min-h-11"
+                      value={untilTime}
+                      onChange={(event) => setUntilTime(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+            </>
+          ) : null}
+
+          <Field
+            label="Note"
+            optional
+            description="Only instructors see this."
+            error={fieldErrors.note}
+          >
+            <Input
+              maxLength={240}
+              className="min-h-11"
+              placeholder="For example: Opening Week 3"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </Field>
+
+          {error ? (
+            <p role="alert" className="type-body font-medium text-red-700">
+              {error}
+            </p>
+          ) : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="submit"
+            variant="primary"
+            className="min-h-11"
+            loading={saving}
+          >
+            Save changes
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function RecentChanges({
   dashboard,
 }: {
   dashboard: StudentContentAvailabilityDashboard;
 }) {
+  const isClient = useIsClient();
   const events = dashboard.auditEvents;
   const titles = new Map(
     [...dashboard.topics, ...dashboard.questions].map((target) => [
@@ -382,65 +624,65 @@ function AvailabilityAudit({
 
   return (
     <section
-      aria-labelledby="availability-audit-heading"
+      aria-labelledby="availability-changes-heading"
       className="flex flex-col gap-3"
     >
-      <div className="flex flex-col gap-1">
-        <h2 id="availability-audit-heading" className="type-h2 text-ink">
-          Availability audit
-        </h2>
-        <p className="type-small text-ink-muted">
-          Recent attributed changes to global student availability. Times are
-          UTC.
-        </p>
-      </div>
+      <h2 id="availability-changes-heading" className="type-h2 text-ink">
+        Recent changes
+      </h2>
       {events.length > 0 ? (
         <div className="rounded-panel bg-sheet">
           <Table containerClassName="rounded-panel">
             <TableCaption className="sr-only">
-              Recent availability changes
+              Recent changes to what students see
             </TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead scope="col" className="pl-4">
-                  Content
+                <TableHead scope="col" className="type-small pl-4 text-ink">
+                  What
                 </TableHead>
-                <TableHead scope="col">Change</TableHead>
-                <TableHead scope="col">Professor</TableHead>
-                <TableHead scope="col">Time</TableHead>
-                <TableHead scope="col" className="pr-4">
-                  Reason
+                <TableHead scope="col" className="type-small text-ink">
+                  Change
+                </TableHead>
+                <TableHead scope="col" className="type-small text-ink">
+                  Who
+                </TableHead>
+                <TableHead scope="col" className="type-small text-ink">
+                  When
+                </TableHead>
+                <TableHead scope="col" className="type-small pr-4 text-ink">
+                  Note
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {events.map((event) => (
                 <TableRow key={event.id}>
-                  <TableCell className="min-w-48 py-2.5 pl-4">
+                  <TableCell className="type-body min-w-48 py-2.5 pl-4">
                     <div className="flex flex-col">
                       <span className="font-medium">
                         {titles.get(`${event.targetType}:${event.targetId}`) ??
-                          event.targetId}
+                          (event.targetType === "topic"
+                            ? "A topic"
+                            : "A question")}
                       </span>
-                      <span className="type-caption">
+                      <span className="type-small text-ink-muted">
                         {event.targetType === "topic" ? "Topic" : "Question"}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="min-w-56">
-                    {RELEASE_LABELS[event.fromReleaseState]} →{" "}
-                    {RELEASE_LABELS[event.toReleaseState]}
-                    {event.toAvailableFrom || event.toAvailableUntil
-                      ? " (scheduled)"
-                      : ""}
+                  <TableCell className="type-body min-w-48">
+                    {changeInWords(event, isClient)}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell className="type-body whitespace-nowrap">
                     {event.actorDisplayName}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap tabular text-ink-muted">
-                    {formatAuditTime(event.occurredAt)}
+                  <TableCell className="type-small whitespace-nowrap tabular text-ink">
+                    {formatLocalTime(event.occurredAt, isClient)}
                   </TableCell>
-                  <TableCell className="pr-4">{event.reason ?? "—"}</TableCell>
+                  <TableCell className="type-body pr-4">
+                    {event.reason ?? "—"}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -448,38 +690,180 @@ function AvailabilityAudit({
         </div>
       ) : (
         <EmptyState className="py-2">
-          No availability changes have been recorded yet.
+          Changes you make on this page will be listed here.
         </EmptyState>
       )}
     </section>
   );
 }
 
-function toLocalDateTime(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+/* ------------------------------------------------------------------ */
+/* Words                                                               */
+/* ------------------------------------------------------------------ */
+
+function scheduleSentence(
+  target: StudentContentAvailabilityTarget,
+  isClient: boolean,
+) {
+  const from = formatLocalTime(target.availableFrom, isClient);
+  const until = formatLocalTime(target.availableUntil, isClient);
+  switch (target.effectiveAvailability) {
+    case "scheduled":
+      return from ? `Students will see it on ${from}.` : undefined;
+    case "available": {
+      const since = from ? `Visible since ${from}.` : "";
+      const end = until ? ` Students stop seeing it after ${until}.` : "";
+      return `${since}${end}`.trim() || undefined;
+    }
+    case "expired":
+      return until ? `Students stopped seeing it after ${until}.` : undefined;
+    default:
+      return undefined;
+  }
 }
 
-function localToIso(value: string) {
+function consequenceSentence(title: string, change: AvailabilityChange) {
+  if (change.releaseState !== "published") {
+    return `Students will no longer see “${title}”. Hide it?`;
+  }
+  const start = change.availableFrom
+    ? formatLocalTime(change.availableFrom, true)
+    : "now";
+  const until = change.availableUntil
+    ? `, until ${formatLocalTime(change.availableUntil, true)}`
+    : "";
+  return `All students will see “${title}” starting ${start}${until}. Show it?`;
+}
+
+function toastSentence(title: string, change: AvailabilityChange) {
+  if (change.releaseState === "archived") {
+    return `“${title}” is archived and hidden from students.`;
+  }
+  if (change.releaseState === "unpublished") {
+    return `“${title}” is hidden from students.`;
+  }
+  if (change.availableFrom && Date.parse(change.availableFrom) > Date.now()) {
+    return `“${title}” will be visible to students on ${formatLocalTime(change.availableFrom, true)}.`;
+  }
+  return `“${title}” is now visible to students.`;
+}
+
+function changeInWords(
+  event: StudentContentAvailabilityEvent,
+  isClient: boolean,
+) {
+  if (event.toReleaseState === "archived") return "Archived";
+  if (event.toReleaseState === "unpublished") return "Hidden";
+  if (
+    event.toAvailableFrom &&
+    Date.parse(event.toAvailableFrom) > Date.parse(event.occurredAt)
+  ) {
+    return `Scheduled to show ${formatLocalDate(event.toAvailableFrom, isClient)}`;
+  }
+  return "Shown to students";
+}
+
+/* ------------------------------------------------------------------ */
+/* Time: always the browser's local zone, with its short name.          */
+/* The server (and the first client render) uses UTC so the markup      */
+/* matches; the browser then swaps in local time.                       */
+/* ------------------------------------------------------------------ */
+
+const noopSubscribe = () => () => {};
+
+function useIsClient() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+function validDate(value?: string) {
   if (!value) return undefined;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
-  return date.toISOString();
+  // Missing or epoch-0 dates render as nothing, never 1969/1970.
+  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) return undefined;
+  return date;
 }
 
-/** A schedule bound in UTC, or "—" when there is none. */
-function formatScheduleTime(value?: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return `${AUDIT_TIME.format(date)} UTC`;
+function formatLocalDate(value: string | undefined, isClient: boolean) {
+  const date = validDate(value);
+  if (!date) return "";
+  const timeZone = isClient ? undefined : "UTC";
+  const now = new Date();
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
+    timeZone,
+  }).format(date);
 }
 
-function formatAuditTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return AUDIT_TIME.format(date);
+/** "Mon 6 Oct, 9:00 AM EDT" in the browser's time zone. */
+function formatLocalTime(value: string | undefined, isClient: boolean) {
+  const date = validDate(value);
+  if (!date) return "";
+  const timeZone = isClient ? undefined : "UTC";
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+    timeZone,
+  }).format(date);
+  return `${formatLocalDate(value, isClient)}, ${time}`;
+}
+
+function localZoneName() {
+  const part = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
+    .formatToParts(new Date())
+    .find((item) => item.type === "timeZoneName");
+  return part?.value ?? "local time";
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+/** An ISO time split into the local date and time inputs. */
+function toLocalParts(value?: string) {
+  const date = validDate(value);
+  if (!date) return { date: "", time: "" };
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+
+function normalizeIso(value?: string) {
+  const date = validDate(value);
+  return date ? date.toISOString() : "";
+}
+
+/** Local date + time inputs to ISO; field errors when only half is filled. */
+function partsToIso(
+  date: string,
+  time: string,
+  errors: FieldErrors,
+  which: "from" | "until",
+) {
+  if (!date && !time) return undefined;
+  if (!date) {
+    errors[which === "from" ? "fromDate" : "untilDate"] =
+      "Add a date, or clear the time.";
+    return undefined;
+  }
+  if (!time) {
+    errors[which === "from" ? "fromTime" : "untilTime"] =
+      "Add a time, for example 9:00 AM.";
+    return undefined;
+  }
+  const parsed = new Date(`${date}T${time}`);
+  if (Number.isNaN(parsed.getTime())) {
+    errors[which === "from" ? "fromDate" : "untilDate"] =
+      "Enter a real date.";
+    return undefined;
+  }
+  return parsed.toISOString();
 }

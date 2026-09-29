@@ -11,26 +11,33 @@ import {
 } from "@/lib/tutor/professor-review-reasons";
 
 /**
- * The reason and audit note that go with a reject, a revision request or an
- * archive. Two labelled fields; the caller decides the grid (pass
- * `className="contents"` to drop them into a wider row).
+ * "Why?" and "Note (optional)" for a send-back, a rejection or a removal:
+ * two labelled fields in one column. The caller decides the surrounding grid
+ * (pass `className="contents"` to drop them into a wider row). The optional
+ * `reasonError` / `noteError` lines say what to fix, next to the field.
  */
 export function ProfessorReviewReasonFields({
   className,
   disabled,
   includeLifecycleReasons = false,
   note,
+  noteError,
   onNoteChange,
   onReasonCodeChange,
   reasonCode,
+  reasonError,
 }: {
   className?: string;
   disabled?: boolean;
   includeLifecycleReasons?: boolean;
   note: string;
+  /** Shown under the note, e.g. "Please add a short note when you choose Something else." */
+  noteError?: string;
   onNoteChange: (note: string) => void;
   onReasonCodeChange: (reasonCode: string) => void;
   reasonCode: string;
+  /** Shown under "Why?", e.g. "Choose why you're sending this back." */
+  reasonError?: string;
 }) {
   const noteRequired = professorReviewReasonRequiresNote(reasonCode);
   const reasons = includeLifecycleReasons
@@ -38,9 +45,10 @@ export function ProfessorReviewReasonFields({
     : PROFESSOR_REVIEW_REASONS;
 
   return (
-    <div className={cn("grid gap-4 md:grid-cols-2", className)}>
-      <Field label="Decision reason">
+    <div className={cn("grid max-w-prose gap-4", className)}>
+      <Field label="Why?" error={reasonError}>
         <NativeSelect
+          className="min-h-11"
           disabled={disabled}
           value={reasonCode}
           onChange={(event) => onReasonCodeChange(event.target.value)}
@@ -54,16 +62,22 @@ export function ProfessorReviewReasonFields({
         </NativeSelect>
       </Field>
       <Field
-        label={`Audit note ${noteRequired ? "(required for Other)" : "(optional)"}`}
+        label={noteRequired ? "Note" : "Note (optional)"}
+        description={
+          noteRequired
+            ? "Please explain in a few words. Only instructors see this."
+            : "Only instructors see this."
+        }
+        error={noteError}
       >
         <Textarea
-          className="min-h-10"
+          className="min-h-11"
           disabled={disabled}
           maxLength={1000}
           placeholder={
             noteRequired
-              ? "Say why you made this decision…"
-              : "Context for the version history…"
+              ? "For example: the hints give the answer away."
+              : "For example: the answer should be 1/4, not 1/3."
           }
           required={noteRequired}
           rows={2}

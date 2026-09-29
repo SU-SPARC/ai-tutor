@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import {
-  TopicStateChip,
   plural,
+  sectionLabelText,
+  topicVisibilityText,
 } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
@@ -21,28 +23,48 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import { courseTopicPath } from "@/lib/courses/paths";
 import {
   courseTopicsOrdered,
   listSections,
   type CourseTopicView,
 } from "@/lib/courses/selectors";
-import type {
-  CourseId,
-  CoursesState,
-  SectionTopicAvailability,
-  TopicId,
-} from "@/lib/courses/types";
+import type { CourseId, CoursesState, TopicId } from "@/lib/courses/types";
 
 /**
- * Only published questions can be released, so the count next to a topic is the
- * count of what is releasable — not everything that exists in the bank.
+ * Only questions that are ready to use can be shown, so the count next to a
+ * week is that count — not everything that exists in the bank.
  */
 function publishedCount(state: CoursesState, topicId: TopicId) {
   return state.bank.filter(
     (question) =>
       question.topicId === topicId && question.state === "published",
   ).length;
+}
+
+/** Distinct questions shown to any section of this course in this week. */
+function shownCount(state: CoursesState, courseId: CourseId, topicId: TopicId) {
+  const sectionIds = new Set(
+    state.sections
+      .filter((section) => section.courseId === courseId)
+      .map((section) => section.id),
+  );
+  const questionIds = new Set(
+    state.bank
+      .filter((question) => question.topicId === topicId)
+      .map((question) => question.id),
+  );
+  return new Set(
+    state.questionAvailability
+      .filter(
+        (row) =>
+          row.state === "released" &&
+          sectionIds.has(row.sectionId) &&
+          questionIds.has(row.questionId),
+      )
+      .map((row) => row.questionId),
+  ).size;
 }
 
 function displayLabel(row: CourseTopicView) {
@@ -57,11 +79,12 @@ function isRenamed(row: CourseTopicView) {
 }
 
 /**
- * The course's opinion about the canonical syllabus: which topics it includes,
- * in what order, under what label. The overview shows it as a read list (each
- * topic opens its question page); ordering, renaming and excluding happen in a
- * dialog with keyboard move buttons. The canonical topic itself is never
- * touched, which is why the original title stays visible under a renamed row.
+ * The course's version of the standard syllabus: which weeks it includes, in
+ * what order, under what name. The overview shows it as a read list (each
+ * week opens its question page) with, per section, whether students can see
+ * the week; ordering, renaming and removing happen in a dialog. The standard
+ * syllabus itself never changes, which is why the original name stays
+ * visible under a renamed row.
  */
 export function CourseSyllabusOverlay({ courseId }: { courseId: CourseId }) {
   const { state } = useCoursesStore();
@@ -70,17 +93,24 @@ export function CourseSyllabusOverlay({ courseId }: { courseId: CourseId }) {
   const rows = courseTopicsOrdered(state, courseId);
   const included = rows.filter((row) => row.overlay.included);
   const excluded = rows.filter((row) => !row.overlay.included);
-  const firstSection = listSections(state, courseId).find(
+  const activeSections = listSections(state, courseId).filter(
     (section) => section.status === "active",
   );
 
-  const availabilityFor = (
-    topicId: TopicId,
-  ): Pick<SectionTopicAvailability, "state" | "opensAt"> =>
-    (firstSection &&
-      state.topicAvailability.find(
-        (row) => row.sectionId === firstSection.id && row.topicId === topicId,
-      )) || { state: "closed", opensAt: null };
+  /** "Section 1: Yes · Section 2: From Sep 22" for one week. */
+  const visibilityLine = (topicId: TopicId) =>
+    activeSections
+      .map((section) => {
+        const row = state.topicAvailability.find(
+          (candidate) =>
+            candidate.sectionId === section.id && candidate.topicId === topicId,
+        );
+        return `${sectionLabelText(section)}: ${topicVisibilityText(
+          row?.state ?? "closed",
+          row?.opensAt ?? null,
+        )}`;
+      })
+      .join(" · ");
 
   const canonical =
     included.length === rows.length &&
@@ -94,20 +124,17 @@ export function CourseSyllabusOverlay({ courseId }: { courseId: CourseId }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="type-h2 text-ink" id="course-syllabus">
-            Syllabus{" "}
-            <span className="type-mono align-middle text-ink-muted">
-              {included.length}
-            </span>
+            Syllabus
           </h2>
-          <p className="type-small max-w-prose text-ink-muted">
-            {canonical ? "Canonical order. " : "Reordered for this course. "}
-            Counts are published questions; open and closed are for{" "}
-            {firstSection ? firstSection.label : "the first section"}.
+          <p className="type-body max-w-prose text-ink-muted">
+            {plural(included.length, "week")} in{" "}
+            {canonical ? "the standard order" : "your own order"}. Under each
+            week: whether students in each section can see it.
           </p>
         </div>
         <Button
+          className="min-h-11"
           onClick={() => setEditing(true)}
-          size="sm"
           type="button"
           variant="secondary"
         >
@@ -118,45 +145,48 @@ export function CourseSyllabusOverlay({ courseId }: { courseId: CourseId }) {
 
       <ol className="flex flex-col divide-y divide-rule rounded-panel bg-sheet">
         {included.map((row) => {
-          const availability = availabilityFor(row.topic.id);
+          const visibility = visibilityLine(row.topic.id);
           return (
             <li
               className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2"
               key={row.topic.id}
             >
-              <span className="type-mono w-12 shrink-0 text-ink-muted">
-                Wk {row.topic.weekNumber}
+              <span className="type-body w-20 shrink-0 text-ink-muted">
+                Week {row.topic.weekNumber}
               </span>
               <div className="flex min-w-40 flex-1 flex-col">
                 <Link
-                  className="type-body w-fit rounded-xs text-ink underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
+                  className="type-body inline-flex min-h-11 w-fit items-center rounded-xs text-ink underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
                   href={courseTopicPath(courseId, row.topic.id)}
                 >
                   {displayLabel(row)}
                 </Link>
                 {isRenamed(row) ? (
-                  <span className="type-caption">{row.topic.title}</span>
+                  <span className="type-small text-ink-muted">
+                    Original name: {row.topic.title}
+                  </span>
+                ) : null}
+                {visibility ? (
+                  <span className="type-small text-ink">
+                    Students can see this week: {visibility}
+                  </span>
                 ) : null}
               </div>
               <span className="type-small shrink-0 tabular text-ink-muted">
-                {publishedCount(state, row.topic.id)} published
+                {publishedCount(state, row.topic.id)} ready to use
               </span>
-              <TopicStateChip
-                opensAt={availability.opensAt}
-                state={availability.state}
-              />
             </li>
           );
         })}
         {included.length === 0 ? (
           <li className="type-body px-4 py-4 text-ink-muted">
-            Every topic is excluded. Edit the syllabus to include one.
+            No weeks are in this course. Edit the syllabus to add one back.
           </li>
         ) : null}
       </ol>
 
       {excluded.length > 0 ? (
-        <p className="type-small text-ink-muted">
+        <p className="type-body text-ink-muted">
           Not in this course ({excluded.length}):{" "}
           {excluded.map((row) => displayLabel(row)).join(", ")}.
         </p>
@@ -172,10 +202,11 @@ export function CourseSyllabusOverlay({ courseId }: { courseId: CourseId }) {
 }
 
 /**
- * The editor. Changes dispatch as they happen (the reducer has no draft), so
- * the footer says so and the only exit is "Done". Move buttons stay focusable
- * at the ends of the list (`aria-disabled`), focus follows the moved row, and
- * each move is announced.
+ * The editor. Changes save as they happen (the reducer has no draft), so the
+ * top and the footer say so and the only exit is "Done". Move buttons stay
+ * focusable at the ends of the list (`aria-disabled`), focus follows the
+ * moved row, and each move is announced. Removing a week asks first, because
+ * its questions disappear for every section.
  */
 function SyllabusEditorDialog({
   courseId,
@@ -188,6 +219,8 @@ function SyllabusEditorDialog({
 }) {
   const { state, dispatch } = useCoursesStore();
   const [announcement, setAnnouncement] = useState("");
+  const [confirmingRemove, setConfirmingRemove] =
+    useState<CourseTopicView | null>(null);
   const [pendingFocus, setPendingFocus] = useState<{
     target: string;
     nonce: number;
@@ -278,9 +311,31 @@ function SyllabusEditorDialog({
       patch: { included: next },
     });
     setAnnouncement(
-      `${displayLabel(row)} ${next ? "included in" : "excluded from"} this course.`,
+      `Week ${row.topic.weekNumber} ${next ? "added back to" : "removed from"} this course.`,
     );
+    if (!next) {
+      toast({
+        title: `Week ${row.topic.weekNumber} is removed from this course.`,
+        description: "Its questions are hidden from every section.",
+        tone: "success",
+        action: {
+          label: "Undo",
+          onClick: () =>
+            dispatch({
+              type: "course/updateTopic",
+              courseId,
+              topicId: row.topic.id,
+              patch: { included: true },
+            }),
+        },
+        duration: 15_000,
+      });
+    }
   }
+
+  const removingShown = confirmingRemove
+    ? shownCount(state, courseId, confirmingRemove.topic.id)
+    : 0;
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -303,8 +358,8 @@ function SyllabusEditorDialog({
         <DialogHeader>
           <DialogTitle>Edit syllabus</DialogTitle>
           <DialogDescription>
-            Order and labels belong to this course. The canonical topics never
-            change.
+            Changes save as you make them. The order and names are for this
+            course only; the standard syllabus does not change.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-6">
@@ -312,7 +367,9 @@ function SyllabusEditorDialog({
             {announcement}
           </p>
           <div className="flex flex-col gap-2">
-            <h3 className="type-label">In this course ({included.length})</h3>
+            <h3 className="type-body-strong text-ink">
+              In this course ({included.length})
+            </h3>
             <ol className="flex flex-col divide-y divide-rule">
               {included.map((row, index) => {
                 const label = displayLabel(row);
@@ -327,40 +384,46 @@ function SyllabusEditorDialog({
                       <Button
                         aria-disabled={first || undefined}
                         aria-label={`Move ${label} up`}
+                        className="min-h-11"
                         data-move={`up-${row.topic.id}`}
                         onClick={() => {
                           if (!first) {
                             move(row, "up");
                           }
                         }}
-                        size="icon-sm"
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                       >
-                        <ChevronUp aria-hidden="true" />
+                        Up
                       </Button>
                       <Button
                         aria-disabled={last || undefined}
                         aria-label={`Move ${label} down`}
+                        className="min-h-11"
                         data-move={`down-${row.topic.id}`}
                         onClick={() => {
                           if (!last) {
                             move(row, "down");
                           }
                         }}
-                        size="icon-sm"
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                       >
-                        <ChevronDown aria-hidden="true" />
+                        Down
                       </Button>
                     </div>
-                    <span className="type-mono w-12 shrink-0 text-ink-muted">
-                      Wk {row.topic.weekNumber}
+                    <span className="type-body w-20 shrink-0 text-ink-muted">
+                      Week {row.topic.weekNumber}
                     </span>
                     <div className="flex min-w-48 flex-1 flex-col gap-1">
+                      <label
+                        className="type-small text-ink"
+                        htmlFor={`syllabus-name-${row.topic.id}`}
+                      >
+                        Name shown to students
+                      </label>
                       <Input
-                        aria-label={`Display label for ${row.topic.title}`}
+                        id={`syllabus-name-${row.topic.id}`}
                         autoComplete="off"
                         data-saved={label}
                         data-syllabus-label=""
@@ -383,18 +446,18 @@ function SyllabusEditorDialog({
                         }}
                       />
                       {isRenamed(row) ? (
-                        <span className="type-caption">
-                          Canonical title: {row.topic.title}
+                        <span className="type-small text-ink-muted">
+                          Original name: {row.topic.title}
                         </span>
                       ) : null}
                     </div>
                     <Button
-                      onClick={() => setIncluded(row, false)}
-                      size="sm"
+                      className="min-h-11"
+                      onClick={() => setConfirmingRemove(row)}
                       type="button"
                       variant="ghost"
                     >
-                      Exclude
+                      Remove from course
                     </Button>
                   </li>
                 );
@@ -404,15 +467,17 @@ function SyllabusEditorDialog({
 
           {excluded.length > 0 ? (
             <div className="flex flex-col gap-2">
-              <h3 className="type-label">Excluded ({excluded.length})</h3>
+              <h3 className="type-body-strong text-ink">
+                Not in this course ({excluded.length})
+              </h3>
               <ul className="flex flex-col divide-y divide-rule">
                 {excluded.map((row) => (
                   <li
                     className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
                     key={row.topic.id}
                   >
-                    <span className="type-mono w-12 shrink-0 text-ink-muted">
-                      Wk {row.topic.weekNumber}
+                    <span className="type-body w-20 shrink-0 text-ink-muted">
+                      Week {row.topic.weekNumber}
                     </span>
                     <span className="type-body min-w-40 flex-1 text-ink-muted">
                       {displayLabel(row)}
@@ -420,16 +485,17 @@ function SyllabusEditorDialog({
                     <span className="type-small tabular text-ink-muted">
                       {plural(
                         publishedCount(state, row.topic.id),
-                        "published question",
-                      )}
+                        "question",
+                      )}{" "}
+                      ready to use
                     </span>
                     <Button
+                      className="min-h-11"
                       onClick={() => setIncluded(row, true)}
-                      size="sm"
                       type="button"
                       variant="secondary"
                     >
-                      Include
+                      Add back to course
                     </Button>
                   </li>
                 ))}
@@ -438,12 +504,48 @@ function SyllabusEditorDialog({
           ) : null}
         </DialogBody>
         <DialogFooter className="sm:justify-between">
-          <p className="type-caption">Changes save as you make them.</p>
+          <p className="type-body text-ink-muted">
+            Changes save as you make them.
+          </p>
           <DialogClose asChild>
-            <Button type="button">Done</Button>
+            <Button className="min-h-11" type="button">
+              Done
+            </Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>
+      <ConfirmDialog
+        cancelLabel="Keep it"
+        confirmLabel={
+          confirmingRemove
+            ? `Remove Week ${confirmingRemove.topic.weekNumber}`
+            : "Remove"
+        }
+        description={
+          confirmingRemove
+            ? removingShown > 0
+              ? `Its ${plural(removingShown, "shown question")} will be hidden from all sections.`
+              : "No questions from it are shown to students now."
+            : ""
+        }
+        destructive
+        onConfirm={() => {
+          if (confirmingRemove) {
+            setIncluded(confirmingRemove, false);
+          }
+        }}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirmingRemove(null);
+          }
+        }}
+        open={confirmingRemove !== null}
+        title={
+          confirmingRemove
+            ? `Remove Week ${confirmingRemove.topic.weekNumber} from this course?`
+            : "Remove this week?"
+        }
+      />
     </Dialog>
   );
 }

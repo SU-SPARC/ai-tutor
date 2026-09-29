@@ -239,9 +239,11 @@ describe("signed-in students on the professor Students page", () => {
     );
 
     expect(markup).toContain("No practice activity yet");
-    expect(markup).toContain("Accuracy");
-    // An accuracy with no scored attempts is shown as absent, never as 0%.
-    expect(markup).not.toContain("0%");
+    expect(markup).toContain("Correct");
+    expect(markup).toContain("No answers checked yet");
+    // A share correct with no checked answers is shown as absent, never as 0%.
+    // (The credit rules mention "90%", so match a standalone 0% only.)
+    expect(markup).not.toMatch(/(?<![0-9])0%/);
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -257,10 +259,11 @@ describe("signed-in students on the professor Students page", () => {
 
     expect(markup).toContain(studentLabel(NEW_KEY));
     expect(markup).toContain(`href="/professor/students/${NEW_KEY}"`);
-    // Sessions, extra practice, attempts, correct, topics, hints, solutions.
-    expect(markup.match(/<td[^>]*>0<\/td>/g)).toHaveLength(6);
-    expect(markup).toContain("(—)");
-    expect(markup).toContain(">—</td>");
+    // Topics practiced reads "0 of 11"; last active, correct answers and
+    // needs attention are dashes, never 0% or a 1970 date.
+    expect(markup).toMatch(/<td[^>]*>0 of \d+<\/td>/);
+    expect(markup.match(/<td[^>]*>—<\/td>/g)).toHaveLength(3);
+    expect(markup).toContain("View record");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -283,8 +286,8 @@ describe("signed-in students on the professor Students page", () => {
 
     expect(markup).toContain(studentLabel(NEW_KEY));
     expect(markup).toContain("No practice activity yet");
-    expect(markup).toContain("Identity hidden");
-    expect(markup).toContain("Reveal identity");
+    expect(markup).toContain("Names and emails are hidden to protect student privacy.");
+    expect(markup).toContain("Show name and email");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -591,8 +594,8 @@ describe("signed-in students on the professor Students page", () => {
       }),
     );
 
-    expect(markup).toContain("Identity hidden");
-    expect(markup).toContain("Reveal identity");
+    expect(markup).toContain("Names and emails are hidden to protect student privacy.");
+    expect(markup).toContain("Show name and email");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }

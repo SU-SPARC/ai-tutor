@@ -94,18 +94,17 @@ export function QuestionAction({
     return (
       <div className={cn("flex flex-col items-end gap-1", className)}>
         <Button
+          className="min-h-11"
           onClick={() => onPublish(question.id)}
-          size="sm"
           type="button"
           variant="secondary"
         >
-          {question.state === "approved" ? "Publish" : "Republish"} v
-          {question.latestVersion}
-        </Button>
-        <span className="type-caption">
           {question.state === "approved"
-            ? "Publishing makes it releasable"
-            : "Republish to make it releasable"}
+            ? "Make ready to use"
+            : "Make ready to use again"}
+        </Button>
+        <span className="type-small text-ink-muted">
+          Then choose it for a section
         </span>
       </div>
     );
@@ -113,9 +112,9 @@ export function QuestionAction({
 
   if (question.state === "needs_review") {
     return (
-      <Button asChild className={className} size="sm" variant="secondary">
+      <Button asChild className={cn("min-h-11", className)} variant="secondary">
         <Link href={professorReviewQueuePagePath(topicId, question.id)}>
-          Review
+          Review it
         </Link>
       </Button>
     );
@@ -123,39 +122,37 @@ export function QuestionAction({
 
   if (question.state === "draft") {
     return (
-      <span className={cn("type-caption", className)}>
-        <span aria-hidden="true">—</span>
-        <span className="sr-only">No action while in draft</span>
+      <span className={cn("type-small text-ink-muted", className)}>
+        Not submitted for review yet
       </span>
     );
   }
 
   if (hasLegacyEditor(question.id)) {
     return (
-      <Button asChild className={className} size="sm" variant="ghost">
-        <Link href={professorQuestionPath(question.id)}>Open editor</Link>
+      <Button asChild className={cn("min-h-11", className)} variant="ghost">
+        <Link href={professorQuestionPath(question.id)}>Edit question</Link>
       </Button>
     );
   }
 
   return (
     <Button
-      className={className}
+      className={cn("min-h-11", className)}
       onClick={() => onPreview(question.id)}
-      size="sm"
       type="button"
       variant="ghost"
     >
-      Preview
+      See it as students do
     </Button>
   );
 }
 
-/** The just-published confirmation, shown under the action and announced. */
+/** The "ready to use" confirmation, shown under the action and announced. */
 export function PublishedNote({ version }: { version: number }) {
   return (
-    <p className="type-caption text-green-700" role="status">
-      Published v{version}. It can be released now.
+    <p className="type-small text-green-700" data-version={version} role="status">
+      Ready to use. Now choose it for a section on Choose questions.
     </p>
   );
 }
@@ -169,7 +166,7 @@ export function TopicQuestionTable({
   onPublish,
   onPreview,
 }: {
-  /** Names what the table lists, for screen readers ("Published questions in Bayes"). */
+  /** Names what the table lists, for screen readers ("Ready to use questions in Bayes"). */
   caption?: string;
   rows: QuestionRow[];
   topicId: string;
@@ -188,10 +185,10 @@ export function TopicQuestionTable({
           <TableRow>
             <TableHead scope="col">Question</TableHead>
             <TableHead scope="col">Answer type</TableHead>
-            <TableHead scope="col">State</TableHead>
-            <TableHead scope="col">Released to</TableHead>
+            <TableHead scope="col">Status</TableHead>
+            <TableHead scope="col">Shown to</TableHead>
             <TableHead className="text-right" scope="col">
-              Action
+              Next step
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -199,7 +196,7 @@ export function TopicQuestionTable({
           {rows.length === 0 ? (
             <TableRow>
               <TableCell className="py-4 text-ink-muted" colSpan={5}>
-                No questions in this topic match this filter.
+                No questions in this week match this list.
               </TableCell>
             </TableRow>
           ) : null}
@@ -213,7 +210,7 @@ export function TopicQuestionTable({
                 <TableCell className="min-w-56">
                   <button
                     aria-haspopup="dialog"
-                    className="rounded-xs text-left text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
+                    className="type-body inline-flex min-h-11 items-center rounded-xs text-left text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
                     onClick={() => onPreview(question.id)}
                     type="button"
                   >
@@ -229,7 +226,7 @@ export function TopicQuestionTable({
                   <QuestionStateChip state={question.state} />
                 </TableCell>
                 <TableCell className="text-ink-muted">
-                  {releasedTo.length > 0 ? releasedTo.join(", ") : "—"}
+                  {releasedTo.length > 0 ? releasedTo.join(", ") : "No section"}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col items-end gap-1">

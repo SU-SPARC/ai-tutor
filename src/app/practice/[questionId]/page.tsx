@@ -12,6 +12,8 @@ import {
 import { getServerEnv } from "@/lib/env/server";
 import { studentQuestionTitle } from "@/lib/labels";
 
+import { inSyllabusOrder, readSolvedQuestionIds } from "../practice-progress";
+
 export const dynamic = "force-dynamic";
 
 type PracticeQuestionPageProps = {
@@ -57,16 +59,19 @@ export default async function PracticeQuestionPage({
     notFound();
   }
 
-  const [topics, questions] = await Promise.all([
+  const [allTopics, allQuestions, solvedQuestionIds] = await Promise.all([
     getTopics(),
     getApprovedQuestions(),
+    readSolvedQuestionIds(),
   ]);
+  const { questions, topics } = inSyllabusOrder(allTopics, allQuestions);
 
   return (
     <PracticeWorkspace
       aiHelpEnabled={env.AI_ENABLED}
       initialQuestionId={question.id}
       initialSessionId={initialSessionId}
+      initialSolvedQuestionIds={solvedQuestionIds}
       topics={topics}
       questions={questions.map(normalizeSummary)}
     />

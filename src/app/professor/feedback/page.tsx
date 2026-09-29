@@ -9,7 +9,7 @@ import {
 import { getProfessorQuestionFeedbackDashboard } from "@/lib/data/question-feedback-repository";
 
 export const metadata: Metadata = {
-  title: "Student reports",
+  title: "Reports from students",
 };
 
 export default async function ProfessorFeedbackPage() {
@@ -18,22 +18,19 @@ export default async function ProfessorFeedbackPage() {
     "/professor/feedback",
   );
   const dashboard = await getProfessorQuestionFeedbackDashboard(authorization);
-  const open = dashboard.counts.open;
 
   return (
     <ProfessorPageShell
-      title="Student reports"
+      title="Reports from students"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Student reports" },
+        { label: "Home", href: "/professor" },
+        { label: "Reports from students" },
       ]}
-      description="Problems students flagged on practice questions, for you to triage and resolve."
+      description="Problems students flagged on practice questions."
       notice={
-        <>
-          <span className="font-mono tabular text-ink">{open}</span>{" "}
-          {open === 1 ? "report is" : "reports are"} open
-          {dashboard.mode === "demo" ? " · Demo data" : ""}
-        </>
+        dashboard.mode === "demo"
+          ? "Demo: changes on this page are not saved."
+          : undefined
       }
     >
       <ProfessorQuestionFeedbackPanel initialDashboard={dashboard} />

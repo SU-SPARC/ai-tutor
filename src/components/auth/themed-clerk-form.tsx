@@ -102,3 +102,4 @@ export function ThemedSignUp(props: React.ComponentProps<typeof SignUp>) {
   const appearance = useClerkAppearance();
   return <SignUp appearance={appearance} {...props} />;
 }
+

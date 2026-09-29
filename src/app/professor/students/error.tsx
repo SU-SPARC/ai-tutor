@@ -21,7 +21,7 @@ export default function ProfessorStudentsError({
   return (
     <ProfessorPageShell
       title="Students"
-      description="Everyone who has signed in to the tutor, with the practice they have recorded."
+      description="Everyone who has practiced, with what they’ve done so far."
     >
       <section
         role="alert"
@@ -29,11 +29,10 @@ export default function ProfessorStudentsError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="students-error-heading" className="type-h3 text-ink">
-          Student records could not be loaded
+          Students didn’t load
         </h2>
-        <p className="type-body text-ink-muted">
-          Recorded practice is temporarily unavailable. Try loading the page
-          again.
+        <p className="type-body text-ink">
+          This is usually temporary. Try again, or reload the page.
         </p>
         <Button type="button" variant="secondary" onClick={reset}>
           <RotateCcw aria-hidden="true" />

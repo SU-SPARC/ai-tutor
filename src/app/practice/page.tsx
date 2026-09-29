@@ -6,6 +6,8 @@ import { requirePracticePageAccess } from "@/lib/auth/practice-page-access";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 
+import { inSyllabusOrder, readSolvedQuestionIds } from "./practice-progress";
+
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Practice" };
@@ -36,10 +38,12 @@ export default async function PracticePage({
     }),
   );
 
-  const [topics, questions] = await Promise.all([
+  const [allTopics, allQuestions, solvedQuestionIds] = await Promise.all([
     getTopics(),
     getApprovedQuestions(),
+    readSolvedQuestionIds(),
   ]);
+  const { questions, topics } = inSyllabusOrder(allTopics, allQuestions);
   const initialQuestionId =
     typeof requestedQuestionId === "string" &&
     questions.some((question) => question.id === requestedQuestionId)
@@ -61,6 +65,7 @@ export default async function PracticePage({
       aiHelpEnabled={env.AI_ENABLED}
       initialQuestionId={initialQuestionId}
       initialSessionId={initialSessionId}
+      initialSolvedQuestionIds={solvedQuestionIds}
       initialTopicId={initialTopicId}
       topics={topics}
       questions={questions.map(normalizeSummary)}

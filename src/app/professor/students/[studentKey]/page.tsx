@@ -41,27 +41,28 @@ export default async function ProfessorStudentPage({
 
   const label = studentLabel(studentKey);
   const lastActiveAt = detail.summary.lastActiveAt;
+  // Titled by the student code: identity lookups are confined to the
+  // Students list and the explicit "Show name and email" reveal below (see
+  // tests/professor-student-identity.test.ts).
 
   return (
     <ProfessorPageShell
       title={label}
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
+        { label: "Home", href: "/professor" },
         { label: "Students", href: "/professor/students" },
         { label },
       ]}
-      description="Practice recorded for one student, from the same sessions as their own dashboard."
+      description="What this student has practiced and how it went."
       notice={
         <>
           {lastActiveAt ? (
             <>
-              Last active <RelativeTime value={lastActiveAt} />
+              Last active <RelativeTime value={lastActiveAt} withDate />
             </>
           ) : (
-            "No practice recorded yet"
+            "No practice yet"
           )}
-          {" · "}A pseudonymous record: no name, email address or device
-          identifier is stored with it.
         </>
       }
     >

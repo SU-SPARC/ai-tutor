@@ -6,9 +6,8 @@ import { useState } from "react";
 
 import { NavLink } from "@/components/shell/nav-link";
 import {
-  PROFESSOR_ADMIN_SECTIONS,
   PROFESSOR_NAV,
-  PROFESSOR_SECTIONS,
+  PROFESSOR_SECTION_GROUPS,
   STUDENT_NAV,
 } from "@/components/shell/nav-config";
 import { ThemeChoice } from "@/components/theme-toggle";
@@ -23,8 +22,9 @@ import {
 
 /**
  * The phone/tablet menu (< 1024): the header's nav words, and for professors
- * every workspace section (the rail is hidden at these widths), then the
- * theme choice and the environment line. A right-hand sheet dialog.
+ * every professor page in the rail's groups (the rail is hidden at these
+ * widths), then the theme choice and the environment line. A right-hand sheet
+ * dialog. The trigger says "Menu" in words, not only with an icon.
  */
 export function MobileNav({
   role,
@@ -41,13 +41,27 @@ export function MobileNav({
     setOpen(false);
   }
 
-  const primary = role === "professor" ? PROFESSOR_NAV : STUDENT_NAV;
+  // A professor's "Home" is already the first row of the page list below.
+  const primary =
+    role === "professor"
+      ? PROFESSOR_NAV.filter(
+          (item) =>
+            !PROFESSOR_SECTION_GROUPS.some((group) =>
+              group.sections.some((section) => section.href === item.href),
+            ),
+        )
+      : STUDENT_NAV;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Open menu" className="lg:hidden">
-          <Menu aria-hidden="true" />
+        <Button
+          variant="ghost"
+          className="min-h-11 px-3 lg:hidden"
+          data-tour={role === "professor" ? "professor-menu" : undefined}
+        >
+          <Menu aria-hidden="true" className="size-5" />
+          Menu
         </Button>
       </DialogTrigger>
       <DialogContent side="right" className="gap-6 overflow-y-auto px-4 pt-5 pb-6">
@@ -71,17 +85,21 @@ export function MobileNav({
         </nav>
 
         {role === "professor" ? (
-          <nav aria-label="Workspace" className="flex flex-col gap-1">
-            <p className="type-label px-3 pb-1">Workspace</p>
-            {[...PROFESSOR_SECTIONS, ...PROFESSOR_ADMIN_SECTIONS].map((section) => (
-              <NavLink
-                key={section.href}
-                href={section.href}
-                label={section.label}
-                prefetch={section.prefetch}
-                layout="row"
-                match="section"
-              />
+          <nav aria-label="Professor pages" className="flex flex-col gap-4">
+            {PROFESSOR_SECTION_GROUPS.map((group) => (
+              <div key={group.heading} className="flex flex-col gap-1">
+                <p className="type-small px-3 text-ink-muted">{group.heading}</p>
+                {group.sections.map((section) => (
+                  <NavLink
+                    key={section.href}
+                    href={section.href}
+                    label={section.label}
+                    prefetch={section.prefetch}
+                    layout="row"
+                    match="section"
+                  />
+                ))}
+              </div>
             ))}
           </nav>
         ) : null}

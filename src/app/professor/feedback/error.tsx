@@ -20,8 +20,8 @@ export default function ProfessorFeedbackError({
 
   return (
     <ProfessorPageShell
-      title="Student reports"
-      description="Problems students flagged on practice questions, for you to triage and resolve."
+      title="Reports from students"
+      description="Problems students flagged on practice questions."
     >
       <section
         role="alert"
@@ -29,13 +29,18 @@ export default function ProfessorFeedbackError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="feedback-error-heading" className="type-h3 text-ink">
-          Student reports could not be loaded
+          This page didn&apos;t load
         </h2>
-        <p className="type-body text-ink-muted">
-          The report list is temporarily unavailable. Try loading the page
-          again.
+        <p className="type-body text-ink">
+          That didn&apos;t work and nothing changed. Try again, or reload the
+          page.
         </p>
-        <Button type="button" variant="secondary" onClick={reset}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-11"
+          onClick={reset}
+        >
           <RotateCcw aria-hidden="true" />
           Try again
         </Button>

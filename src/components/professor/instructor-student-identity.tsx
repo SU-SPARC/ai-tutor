@@ -9,9 +9,10 @@ import type { InstructorStudentIdentity } from "@/lib/types";
 const UNAVAILABLE: InstructorStudentIdentity = { status: "unavailable" };
 
 /**
- * Identity is hidden until an instructor asks for it, and the request is made
- * per page visit: nothing about a reveal is stored in the browser, so leaving
- * or reloading the page returns the record to its pseudonymous state.
+ * Name and email are hidden until an instructor asks for them, and the
+ * request is made per page visit: nothing about a reveal is stored in the
+ * browser, so leaving or reloading the page hides them again. A reveal that
+ * did not complete keeps the button, so the instructor can try again.
  *
  * Rendered as a strip under the page header: what is hidden on the left, the
  * one control on the right. The result replaces the text in the same status
@@ -53,29 +54,29 @@ export function InstructorStudentIdentityPanel({
     >
       <div className="flex min-w-0 flex-col gap-1">
         <h2 id="account-identity-heading" className="type-h3 text-ink">
-          Account identity
+          Name and email
         </h2>
         <div role="status">
           {identity ? (
             <IdentityResult identity={identity} />
           ) : (
-            <p className="type-small max-w-prose text-ink-muted">
-              <span className="font-medium text-ink">Identity hidden.</span>{" "}
-              Practice analytics for {studentLabel} stay pseudonymous; names,
-              usernames and email addresses are not stored with them.
+            <p className="type-body max-w-prose text-ink">
+              Names and emails are hidden to protect student privacy. Showing
+              them is recorded in the course log.
             </p>
           )}
         </div>
       </div>
-      {identity ? null : (
+      {identity && identity.status !== "unavailable" ? null : (
         <Button
-          className="self-start sm:self-center"
+          aria-label={`Show name and email for ${studentLabel}`}
+          className="min-h-11 self-start sm:self-center"
           loading={pending}
           onClick={reveal}
           variant="outline"
         >
           <Eye aria-hidden="true" />
-          Reveal identity
+          Show name and email
         </Button>
       )}
     </section>
@@ -103,7 +104,7 @@ function IdentityResult({ identity }: { identity: InstructorStudentIdentity }) {
   }
 
   return (
-    <p className="type-small max-w-prose text-ink-muted">
+    <p className="type-body max-w-prose text-ink">
       {MESSAGES[identity.status]}
     </p>
   );
@@ -127,7 +128,7 @@ function IdentityField({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="type-label">{label}</dt>
+      <dt className="type-small font-medium text-ink">{label}</dt>
       <dd
         className={
           value
@@ -143,7 +144,8 @@ function IdentityField({
 
 const MESSAGES = {
   anonymous:
-    "This student practiced without signing in, so there is no account to identify.",
-  unavailable: "Identity is temporarily unavailable. Try again in a moment.",
-  unlinked: "This student no longer has an account with the course tutor.",
+    "This student practiced without signing in, so there is no name or email to show.",
+  unavailable:
+    "That didn’t work and nothing changed. Try again, or reload the page.",
+  unlinked: "This student no longer has an account, so there is no name or email to show.",
 } as const;

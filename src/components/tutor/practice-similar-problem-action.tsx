@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Shuffle } from "lucide-react";
+import { Shuffle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { SimilarPracticeSessionDto } from "@/lib/types";
@@ -27,7 +27,7 @@ export function similarProblemStatusMessage(state: SimilarProblemState) {
 }
 
 export const SIMILAR_PROBLEM_DESCRIPTION =
-  "Optional extra practice on a professor-approved problem like this one. Solving it can count toward partial practice credit under your instructor's policy.";
+  "Optional: one more problem like this one, checked by your professor. Your professor decides if it counts.";
 
 export function PracticeSimilarProblemAction({
   disabled,
@@ -57,7 +57,8 @@ export function PracticeSimilarProblemAction({
       };
       if (!response.ok) {
         setState(
-          response.status === 409 && payload.code === "TUTOR_SESSION_NOT_COMPLETE"
+          response.status === 409 &&
+            payload.code === "TUTOR_SESSION_NOT_COMPLETE"
             ? "not_qualified"
             : "error",
         );
@@ -87,12 +88,8 @@ export function PracticeSimilarProblemAction({
         }
         onClick={() => void findSimilarProblem()}
       >
-        {state === "loading" ? (
-          <Loader2 className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Shuffle aria-hidden="true" />
-        )}
-        {state === "loading" ? "Looking for a problem…" : "Try a similar problem"}
+        <Shuffle aria-hidden="true" />
+        {state === "loading" ? "Finding a problem…" : "Try a similar problem"}
       </Button>
       <p
         className={

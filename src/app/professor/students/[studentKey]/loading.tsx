@@ -1,12 +1,12 @@
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Shaped like a student's record: identity strip, metric row, tables. */
+/** Shaped like a student's record: name and email strip, number row, tables. */
 export default function ProfessorStudentLoading() {
   return (
     <ProfessorPageShell
       title="Student record"
-      description="Practice recorded for one student, from the same sessions as their own dashboard."
+      description="What this student has practiced and how it went."
     >
       <p role="status" className="sr-only">
         Loading the student record…

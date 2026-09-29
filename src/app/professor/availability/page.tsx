@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth/authorization";
 
 export const metadata: Metadata = {
-  title: "Student availability",
+  title: "What students see",
 };
 
 export default async function ProfessorAvailabilityPage() {
@@ -21,16 +21,16 @@ export default async function ProfessorAvailabilityPage() {
 
   return (
     <ProfessorPageShell
-      title="Student availability"
+      title="What students see"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Student availability" },
+        { label: "Home", href: "/professor" },
+        { label: "What students see" },
       ]}
-      description="Publish, schedule, unpublish or archive what students can reach, topic by topic and question by question."
+      description="Choose when students can see each topic or question."
       notice={
         initialDashboard.mode === "demo"
-          ? "Demo data · Private source material is never exposed here."
-          : "Private source material is never exposed here."
+          ? "Demo: changes on this page are not saved."
+          : undefined
       }
     >
       <ProfessorContentAvailabilityPanel initialDashboard={initialDashboard} />

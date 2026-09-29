@@ -1,61 +1,45 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AtAGlance } from "@/components/learn/at-a-glance";
 import { ContinueCard } from "@/components/learn/continue-card";
+import { GuestNotice } from "@/components/learn/guest-notice";
 import type { LearnModel } from "@/components/learn/learn-model";
-import { LearnSyllabusRail } from "@/components/learn/learn-syllabus-rail";
-import {
-  LearnToolbar,
-  matchesLearnFilter,
-  type LearnFilter,
-} from "@/components/learn/learn-toolbar";
+import { LearnToolbar } from "@/components/learn/learn-toolbar";
 import { SavedPractice } from "@/components/learn/saved-practice";
 import { SyllabusList } from "@/components/learn/syllabus-list";
 import { WeekStrip } from "@/components/learn/week-strip";
 import { ThreeColumn } from "@/components/shell/three-column";
-import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 
+/** Recent practice rows shown before "Show all" below 1280px. */
+const RECENT_LIMIT_NARROW = 3;
+
 /**
- * The student's home: the old dashboard and the old topic index in one page,
- * because both existed to answer "what next?". One Continue card, then the
- * syllabus; the record of the week, saved practice and the month sit in a
- * right column from 1280px and follow the syllabus below that.
+ * The student's home: one Continue card, then the syllabus. There is no
+ * syllabus rail here: the syllabus is the page, and a second copy beside it
+ * would only disagree about the current topic.
+ *
+ * From 1280px "This week", "Recent practice" and "At a glance" sit in a
+ * right column. Below that, "This week" is one line under the Continue card,
+ * "Recent practice" (three rows and "Show all") comes before the syllabus,
+ * and "At a glance" comes last. A guest who has solved nothing sees only the
+ * Continue card, the syllabus and the guest note: empty trackers are noise.
  */
 export function LearnScreen({ model }: { model: LearnModel }) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<LearnFilter>("all");
 
   const visibleTopics = useMemo(() => {
     const query = search.trim().toLowerCase();
-
-    return model.topics.filter((topic) => {
-      if (query.length > 0 && !topic.title.toLowerCase().includes(query)) {
-        return false;
-      }
-      if (filter === "all") {
-        return true;
-      }
-      return model.questions.some(
-        (question) =>
-          question.topicId === topic.id && matchesLearnFilter(question, filter),
-      );
-    });
-  }, [filter, model.questions, model.topics, search]);
-
-  const unsolvedHrefs = useMemo(() => {
-    const visible = new Set(visibleTopics.map((topic) => topic.id));
-    return model.questions
-      .filter(
-        (question) =>
-          visible.has(question.topicId) && question.status === "todo",
-      )
-      .map((question) => question.href);
-  }, [model.questions, visibleTopics]);
+    if (query.length === 0) {
+      return model.topics;
+    }
+    return model.topics.filter((topic) =>
+      topic.title.toLowerCase().includes(query),
+    );
+  }, [model.topics, search]);
 
   // The question the Continue card points at, for its prompt and position.
   const continueHref = model.continueCard.primary?.href;
@@ -68,17 +52,15 @@ export function LearnScreen({ model }: { model: LearnModel }) {
       ).length
     : undefined;
 
-  const savedCount = model.saved.active.length;
-  const filtering = search.trim().length > 0 || filter !== "all";
+  const recentCount = model.saved.active.length + model.saved.retired.length;
+  const showTrackers = !(model.isGuest && model.glance.solved === 0);
+  const filtering = search.trim().length > 0;
 
   return (
-    <ThreeColumn
-      drawerOpen={false}
-      rail={<LearnSyllabusRail topics={model.topics} />}
-    >
+    <ThreeColumn drawerOpen={false}>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 xl:max-w-6xl">
         <PageHeader title="Learn">
-          {model.isGuest ? <GuestNotice /> : null}
+          {model.isGuest ? <GuestNotice returnTo="/learn" /> : null}
         </PageHeader>
 
         <div className="grid grid-cols-1 gap-12 xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-12">
@@ -95,24 +77,43 @@ export function LearnScreen({ model }: { model: LearnModel }) {
                 positionTotal={continueTotal}
                 question={continueQuestion}
               />
+              {showTrackers ? (
+                <p className="type-small tabular text-ink xl:hidden">
+                  <span className="type-label">This week: </span>
+                  {model.week.summary}
+                </p>
+              ) : null}
             </section>
+
+            {recentCount > 0 ? (
+              <section
+                aria-labelledby="learn-recent-narrow"
+                className="flex flex-col gap-2 xl:hidden"
+              >
+                <h2 id="learn-recent-narrow" className="type-label">
+                  Recent practice
+                </h2>
+                <SavedPractice
+                  active={model.saved.active}
+                  limit={RECENT_LIMIT_NARROW}
+                  retired={model.saved.retired}
+                />
+              </section>
+            ) : null}
 
             <section
               aria-labelledby="learn-syllabus"
+              data-tour="learn-syllabus"
               className="flex flex-col gap-3"
             >
               <h2 id="learn-syllabus" className="type-label">
                 Syllabus
               </h2>
               <LearnToolbar
-                filter={filter}
-                filterLabel="Filter topics"
-                onFilterChange={setFilter}
                 onSearchChange={setSearch}
                 search={search}
                 searchLabel="Search topics"
                 searchPlaceholder="Search topics…"
-                unsolvedHrefs={unsolvedHrefs}
               />
               <p role="status" className="sr-only">
                 {filtering
@@ -124,76 +125,62 @@ export function LearnScreen({ model }: { model: LearnModel }) {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => {
-                      setSearch("");
-                      setFilter("all");
-                    }}
+                    onClick={() => setSearch("")}
                   >
                     Show all topics
                   </Button>
                 }
-                emptyMessage="No topic matches that search or filter."
+                emptyMessage="No topic matches that search."
                 topics={visibleTopics}
               />
             </section>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-10">
-            <section
-              aria-labelledby="learn-week"
-              className="flex flex-col gap-3"
-            >
-              <h2 id="learn-week" className="type-label">
-                This week
-              </h2>
-              <WeekStrip week={model.week} />
-            </section>
+          {showTrackers || recentCount > 0 ? (
+            <div className="flex min-w-0 flex-col gap-10">
+              {showTrackers ? (
+                <section
+                  aria-labelledby="learn-week"
+                  className="hidden flex-col gap-3 xl:flex"
+                >
+                  <h2 id="learn-week" className="type-label">
+                    This week
+                  </h2>
+                  <WeekStrip week={model.week} />
+                </section>
+              ) : null}
 
-            <section
-              aria-labelledby="learn-saved"
-              className="flex flex-col gap-2"
-            >
-              <h2 id="learn-saved" className="type-label">
-                Saved practice{" "}
-                {savedCount > 0 ? (
-                  <span className="tabular">{savedCount}</span>
-                ) : null}
-              </h2>
-              <SavedPractice
-                active={model.saved.active}
-                retired={model.saved.retired}
-              />
-            </section>
+              <section
+                aria-labelledby="learn-recent"
+                className="hidden flex-col gap-2 xl:flex"
+              >
+                <h2 id="learn-recent" className="type-label">
+                  Recent practice{" "}
+                  {recentCount > 0 ? (
+                    <span className="tabular">{recentCount}</span>
+                  ) : null}
+                </h2>
+                <SavedPractice
+                  active={model.saved.active}
+                  retired={model.saved.retired}
+                />
+              </section>
 
-            <section
-              aria-labelledby="learn-glance"
-              className="flex flex-col gap-3"
-            >
-              <h2 id="learn-glance" className="type-label">
-                At a glance
-              </h2>
-              <AtAGlance glance={model.glance} />
-            </section>
-          </div>
+              {showTrackers ? (
+                <section
+                  aria-labelledby="learn-glance"
+                  className="flex flex-col gap-3"
+                >
+                  <h2 id="learn-glance" className="type-label">
+                    At a glance
+                  </h2>
+                  <AtAGlance glance={model.glance} />
+                </section>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </ThreeColumn>
-  );
-}
-
-function GuestNotice() {
-  return (
-    <Alert role="note" variant="info" className="mt-2 max-w-prose">
-      <p className="type-body col-start-2 text-ink">
-        You&rsquo;re practicing as a guest.{" "}
-        <Link
-          href="/join"
-          className="rounded-xs text-azure-500 underline underline-offset-4 hover:text-azure-700 focus-ring"
-        >
-          Join with a code or sign in
-        </Link>{" "}
-        to keep your progress.
-      </p>
-    </Alert>
   );
 }

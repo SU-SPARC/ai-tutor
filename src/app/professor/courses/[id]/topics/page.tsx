@@ -4,7 +4,7 @@ import { TopicsBuilderScreen } from "@/components/courses/topics-builder-screen"
 import { isCourseEntityId } from "@/lib/courses/paths";
 
 export const metadata = {
-  title: "Topic builder",
+  title: "Choose questions",
 };
 
 /**

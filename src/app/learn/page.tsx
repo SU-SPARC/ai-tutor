@@ -34,7 +34,7 @@ export const metadata: Metadata = {
  * than an empty progress column.
  */
 export default async function LearnPage() {
-  const [topics, questions, progress] = await Promise.all([
+  const [topics, questions, { isGuest, progress }] = await Promise.all([
     getTopics(),
     getApprovedQuestions(),
     readOwnProgress(),
@@ -43,6 +43,7 @@ export default async function LearnPage() {
   const orderedTopics = sortTopicsForSyllabus(topics);
   const orderedQuestions = sortQuestionsForSyllabus(questions);
   const model = buildLearnModel({
+    isGuest,
     nowIso: new Date().toISOString(),
     progress,
     questions: orderedQuestions.map(normalizeSummary),
@@ -53,21 +54,30 @@ export default async function LearnPage() {
 }
 
 /**
- * The student's own progress, or `null` for a true guest. `requireStudentAccess`
- * throws when there is neither a session nor an anonymous cookie; that is the
- * guest case, not an error.
+ * The student's own progress (`null` for a visitor with no identity yet) and
+ * whether they are a guest. Guest is decided by the owner kind, not by the
+ * absence of progress: a browser with anonymous practice has progress that
+ * lives only in this browser. `requireStudentAccess` throws when there is
+ * neither a session nor an anonymous cookie; that is the guest case, not an
+ * error.
  */
-async function readOwnProgress(): Promise<StudentProgressDashboard | null> {
+async function readOwnProgress(): Promise<{
+  isGuest: boolean;
+  progress: StudentProgressDashboard | null;
+}> {
   let authorization;
 
   try {
     authorization = await requireStudentAccess({ allowAnonymous: true });
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return null;
+      return { isGuest: true, progress: null };
     }
     throw error;
   }
 
-  return getStudentProgress(authorization);
+  return {
+    isGuest: authorization.owner.kind !== "user",
+    progress: await getStudentProgress(authorization),
+  };
 }

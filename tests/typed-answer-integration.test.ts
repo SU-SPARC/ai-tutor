@@ -248,13 +248,29 @@ describe("professor checker preview", () => {
         onChange: () => {},
       }),
     );
-    expect(html).toContain("Answer checking");
-    expect(html).toContain("Try an answer");
-    expect(html).toContain("No student session or attempt is recorded");
+    expect(html).toContain("Answer checking options (advanced)");
+    expect(html).toContain("Try a student answer");
+    expect(html).toContain("This is only a test: nothing is saved.");
+    if (spec?.kind === "number_list")
+      expect(html).toContain("Correct values (one per line)");
+    else {
+      expect(html).toContain("Correct answer");
+      expect(html).toContain(
+        "For example 0.25 or 1/4. Equivalent forms like 25% are accepted.",
+      );
+    }
+    expect(html).toContain("Other answers to accept (optional, one per line)");
+    // The advanced block is closed by default.
+    expect(html).toContain("<details");
+    expect(html).not.toMatch(/<details[^>]*\sopen/);
+    for (const jargon of ["Canonical", "canonical", "Aliases", "aliases"])
+      expect(html).not.toContain(jargon);
     if (spec?.kind === "numeric")
-      expect(html).toContain("Percent interpretation");
+      expect(html).toContain("How to read percentages");
+    if (spec?.kind === "numeric")
+      expect(html).toContain("How close counts as correct");
     if (spec?.kind === "categorical")
-      expect(html).toContain("Forbidden phrases");
+      expect(html).toContain("Phrases that make an answer wrong");
     if (spec?.kind === "number_list")
       expect(html).toContain("Require this order");
   });
@@ -471,21 +487,25 @@ describe("professor editor input hygiene", () => {
           onChange: () => {},
         }),
       );
-    const legacyControl = "Accepted answers (one complete answer per line)";
+    // Every kind shows exactly one list of other accepted answers; for a
+    // categorical spec that list is its aliases, so there is no second one.
+    const otherAnswers = "Other answers to accept (optional, one per line)";
+    const count = (markup: string) => markup.split(otherAnswers).length - 1;
     const categorical = html(category);
-    expect(categorical).not.toContain(legacyControl);
-    expect(categorical).toContain("accepted equivalent answers");
-    expect(categorical).toContain(
-      "canonical answer and its aliases are the accepted answers",
+    expect(count(categorical)).toBe(1);
+    expect(categorical).not.toContain(
+      "Accepted answers (one complete answer per line)",
     );
-    expect(html(numeric)).toContain(legacyControl);
+    expect(count(html(numeric))).toBe(1);
     expect(
-      html({
-        kind: "number_list",
-        values: ["1"],
-        ordered: true,
-        tolerance: { mode: "exact" },
-      }),
-    ).toContain(legacyControl);
+      count(
+        html({
+          kind: "number_list",
+          values: ["1"],
+          ordered: true,
+          tolerance: { mode: "exact" },
+        }),
+      ),
+    ).toBe(1);
   });
 });

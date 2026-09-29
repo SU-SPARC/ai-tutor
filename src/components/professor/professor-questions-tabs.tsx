@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { replaceSearchParam } from "@/components/professor/professor-question-labels";
 import {
@@ -10,22 +11,30 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
- * Bank · Intake on the questions page. The tab lives in the URL (`?tab=`)
- * so a reload or a shared link opens the same one. Both panels stay mounted:
- * a half-written intake draft survives a look at the bank.
+ * "All questions" · "Add a question" on the question bank page. The tab lives
+ * in the URL (`?tab=bank|intake`) so a reload, a shared link or the page's
+ * "Add a question" button opens the same one. Both panels stay mounted: a
+ * half-written draft survives a look at the list.
  */
 export function ProfessorQuestionsTabs({
   bank,
-  bankCount,
   defaultTab,
   intake,
 }: {
   bank: ReactNode;
-  bankCount: number;
   defaultTab: ProfessorQuestionsTab;
   intake: ReactNode;
 }) {
+  const searchParams = useSearchParams();
+  const param = searchParams?.get("tab") ?? null;
   const [tab, setTab] = useState<ProfessorQuestionsTab>(defaultTab);
+  const [seenParam, setSeenParam] = useState(param);
+  // A link to ?tab=intake (the "Add a question" button) switches the tab even
+  // when this component is already on screen.
+  if (param !== seenParam) {
+    setSeenParam(param);
+    setTab(professorQuestionsTabFromParam(param));
+  }
 
   return (
     <Tabs
@@ -37,18 +46,20 @@ export function ProfessorQuestionsTabs({
       }}
       className="gap-6"
     >
-      <TabsList aria-label="Question views">
-        <TabsTrigger value="bank" count={bankCount}>
-          Bank
+      <TabsList aria-label="Question bank views">
+        <TabsTrigger value="bank">
+          All questions
         </TabsTrigger>
-        <TabsTrigger value="intake">Intake</TabsTrigger>
+        <TabsTrigger value="intake">
+          Add a question
+        </TabsTrigger>
       </TabsList>
       <TabsContent
         value="bank"
         forceMount
         className="data-[state=inactive]:hidden"
       >
-        <h2 className="sr-only">Question bank</h2>
+        <h2 className="sr-only">All questions</h2>
         {bank}
       </TabsContent>
       <TabsContent

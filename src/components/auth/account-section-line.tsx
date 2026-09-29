@@ -7,6 +7,8 @@ import { useStudentSection } from "@/components/shell/use-student-section";
 import { cn } from "@/lib/utils";
 
 const LINE_CLASSES = "type-body";
+const LINK_CLASSES =
+  "rounded-xs font-medium text-azure-500 underline underline-offset-4 hover:text-azure-700 focus-ring";
 
 /**
  * `useStudentSection` remembers which section a student joined but not when —
@@ -64,8 +66,10 @@ function formatJoined(iso: string) {
 }
 
 /**
- * One line on the account page: which section this browser is joined to, or
- * the way in if it is joined to none. Section membership lives in the browser
+ * One line on the account page: which section this browser is joined to with
+ * "Change section" beside it, or "Have a section code? Enter it" when it is
+ * joined to none. Both links open `/join`, which shows the code form to a
+ * signed-in student. Section membership lives in the browser
  * for this demo, so it cannot be rendered on the server — everything above
  * this line can.
  */
@@ -103,12 +107,9 @@ export function AccountSectionLine({ className }: { className?: string }) {
   if (!section) {
     return (
       <p className={cn(LINE_CLASSES, "text-ink-muted", className)}>
-        No section joined ·{" "}
-        <Link
-          href="/join"
-          className="rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
-        >
-          Join with a code
+        No section yet. Have a section code?{" "}
+        <Link href="/join" className={LINK_CLASSES}>
+          Enter it
         </Link>
       </p>
     );
@@ -122,6 +123,12 @@ export function AccountSectionLine({ className }: { className?: string }) {
       {joined ? (
         <span className="text-ink-muted"> · joined {joined}</span>
       ) : null}
+      <span className="text-ink-muted" aria-hidden="true">
+        {" · "}
+      </span>
+      <Link href="/join" className={LINK_CLASSES}>
+        Change section
+      </Link>
     </p>
   );
 }

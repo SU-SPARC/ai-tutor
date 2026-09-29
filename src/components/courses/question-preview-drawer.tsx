@@ -22,20 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { QuestionReleaseCourseGroup } from "@/lib/courses/selectors";
-import type { BankQuestion, Difficulty } from "@/lib/courses/types";
+import { DIFFICULTY_LABELS as STUDENT_DIFFICULTY } from "@/components/courses/bank-question-row";
+import { sectionLabelText } from "@/components/courses/course-status";
+import type { BankQuestion } from "@/lib/courses/types";
 import { questionCode } from "@/lib/labels";
-
-/**
- * The course bank grades questions "foundational / core / challenge" while the
- * tutor's own records use "foundational / intermediate / challenge", so the
- * shared `studentDifficultyLabel` cannot be reused here. Three lines is
- * cheaper than making the two enums agree for a preview header.
- */
-const STUDENT_DIFFICULTY: Record<Difficulty, string> = {
-  foundational: "Intro",
-  core: "Core",
-  challenge: "Stretch",
-};
 
 /**
  * The read-only preview: the question exactly as a student meets it (the real
@@ -93,7 +83,7 @@ export function QuestionPreviewDrawer({
           <DialogDescription asChild>
             <div className="flex flex-wrap items-center gap-2">
               <QuestionStateChip state={question.state} />
-              <span className="type-caption">
+              <span className="type-small text-ink-muted">
                 {ANSWER_TYPE_LABELS[question.answerType] ?? question.answerType}{" "}
                 · {STUDENT_DIFFICULTY[question.difficulty]}
               </span>
@@ -114,7 +104,7 @@ export function QuestionPreviewDrawer({
               helper: "Correct answer (professor view)",
             }}
             header={{
-              topicLabel: weekNumber ? `Wk ${weekNumber}` : "",
+              topicLabel: weekNumber ? `Week ${weekNumber}` : "",
               questionCode: questionCode(question.id),
               answerType:
                 ANSWER_TYPE_LABELS[question.answerType] ?? question.answerType,
@@ -131,8 +121,8 @@ export function QuestionPreviewDrawer({
 
           {question.misconceptions.length > 0 ? (
             <section aria-labelledby="preview-misconceptions" className="flex flex-col gap-2">
-              <h3 className="type-label" id="preview-misconceptions">
-                Misconceptions
+              <h3 className="type-body-strong text-ink" id="preview-misconceptions">
+                Common mistakes (only you see these)
               </h3>
               <ul className="type-small flex max-w-prose list-disc flex-col gap-1 pl-5 text-ink">
                 {question.misconceptions.map((entry, index) => (
@@ -142,25 +132,13 @@ export function QuestionPreviewDrawer({
             </section>
           ) : null}
 
-          <section aria-labelledby="preview-versions" className="flex flex-col gap-1">
-            <h3 className="type-label" id="preview-versions">
-              Versions
-            </h3>
-            <p className="type-small tabular text-ink">
-              {question.publishedVersion === null
-                ? "Not published"
-                : `v${question.publishedVersion} published`}{" "}
-              · v{question.latestVersion} latest
-            </p>
-          </section>
-
           <section aria-labelledby="preview-released" className="flex flex-col gap-2">
-            <h3 className="type-label" id="preview-released">
-              Released to
+            <h3 className="type-body-strong text-ink" id="preview-released">
+              Shown to
             </h3>
             {released.length === 0 ? (
-              <p className="type-small text-ink-muted">
-                Not released to any section of this course.
+              <p className="type-body text-ink-muted">
+                Not shown to any section of this course.
               </p>
             ) : (
               <ul className="flex flex-col divide-y divide-rule">
@@ -169,7 +147,9 @@ export function QuestionPreviewDrawer({
                     className="flex items-center justify-between gap-3 py-2"
                     key={row.sectionId}
                   >
-                    <span className="type-small text-ink">{row.label}</span>
+                    <span className="type-body text-ink">
+                      {sectionLabelText(row.label)}
+                    </span>
                     <ReleaseStatusChip
                       releasedVersion={row.releasedVersion}
                       status={row.status}
@@ -179,6 +159,19 @@ export function QuestionPreviewDrawer({
               </ul>
             )}
           </section>
+
+          <details className="flex flex-col gap-1">
+            <summary className="type-body inline-flex min-h-11 cursor-pointer items-center rounded-control text-ink focus-ring">
+              Technical details
+            </summary>
+            <p className="type-small tabular text-ink">
+              {question.publishedVersion === null
+                ? "No version is ready to use yet"
+                : `Version ${question.publishedVersion} is ready to use`}{" "}
+              · newest version: {question.latestVersion} · code{" "}
+              {questionCode(question.id)}
+            </p>
+          </details>
         </DialogBody>
 
         {hasAction || publishedNote !== undefined ? (

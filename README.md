@@ -29,3 +29,7 @@ test identities, recovery, and privacy decisions are documented in
 Professor review, immutable question versions, publication, takedown,
 regeneration, rollback, and audit are specified in
 [`docs/content-lifecycle.md`](docs/content-lifecycle.md).
+The words and interaction patterns every professor-facing screen must use are
+specified in [`docs/professor-vocabulary.md`](docs/professor-vocabulary.md).
+The student-facing words and patterns are in
+[`docs/student-vocabulary.md`](docs/student-vocabulary.md).

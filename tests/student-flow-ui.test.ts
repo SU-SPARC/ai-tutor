@@ -53,6 +53,11 @@ import {
   PracticeSimilarProblemAction,
   similarProblemStatusMessage,
 } from "@/components/tutor/practice-similar-problem-action";
+import { topicCompleteSentence } from "@/components/tutor/practice-sheet";
+import {
+  draftStorageKey,
+  nextTopicWithWork,
+} from "@/components/tutor/use-practice-workspace";
 import {
   chatMessageForResponse,
   nextQuestionAfter,
@@ -284,7 +289,7 @@ describe("topic selection", () => {
 
     const markup = renderToStaticMarkup(await LearnPage());
 
-    expect(markup).toContain("practicing as a guest");
+    expect(markup).toContain("Guest · your progress lives in this browser.");
     expect(markup).toContain('href="/join"');
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -405,7 +410,19 @@ describe("question screen", () => {
       "Enter a decimal, fraction, or percentage, for example 0.25, 1/4, or 25%.",
     );
     expect(markup).toContain("Check answer");
-    expect(markup).toContain("Reveal hint 1 of 3");
+    // Hints are counted in words on every width ("Hint 1/3" on phones) and
+    // the hint → steps order is a visible sequence before any hint is open.
+    expect(markup).toContain("Show hint 1 of 3");
+    expect(markup).toContain("Hint 1/3");
+    expect(markup).not.toContain("Reveal hint");
+    expect(markup).toContain('data-slot="hint-sequence"');
+    expect(markup).toContain("Steps unlock after hint 3");
+    expect(markup).not.toContain("Available once every hint is shown.");
+    // The orientation line: week and topic in words, the position, no code.
+    expect(markup).toContain(
+      "Week 3 · Conditional Probability · Question 1 of 2",
+    );
+    expect(markup).not.toMatch(/Q-[0-9A-F]{4}/);
     // The way back out of practice: the shell header owns the app nav, and the
     // question screen keeps a link to the topic it belongs to.
     expect(markup).toContain('href="/learn/conditional-probability"');
@@ -419,6 +436,123 @@ describe("question screen", () => {
     expect(
       renderWorkspace({ initialQuestionId: "dice-sum-eight" }),
     ).not.toContain("Ask AI for help");
+  });
+
+  it("gates the tutor box with Send and offers starter questions when AI is on", () => {
+    const markup = renderWorkspace({
+      aiHelpEnabled: true,
+      initialQuestionId: "dice-sum-eight",
+    });
+
+    expect(markup).toContain(
+      'placeholder="Check an answer first, then you can ask the tutor."',
+    );
+    expect(markup).toContain("Where do I start?");
+    expect(markup).toContain("What does this question ask?");
+    expect(markup).not.toContain("Check my work");
+  });
+
+  it("marks questions solved on an earlier visit from the server", async () => {
+    vi.stubEnv("ANONYMOUS_PILOT_ENABLED", "true");
+    mockPrincipal(TEST_STUDENT);
+    mocks.getStudentProgress.mockResolvedValue({
+      mode: "demo",
+      questions: [
+        {
+          attemptCount: 1,
+          available: true,
+          hintsUsed: 0,
+          lastActiveAt: "2026-09-28T10:00:00.000Z",
+          needsAnotherAttempt: false,
+          questionId: "spinner-coin",
+          questionTitle: "Spinner and Coin Condition",
+          status: "completed",
+          topicId: "conditional-probability",
+          topicTitle: "Conditional Probability",
+        },
+      ],
+      recentSessions: [],
+      summary: {},
+    });
+
+    const markup = renderToStaticMarkup(
+      await PracticePage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(mocks.getStudentProgress).toHaveBeenCalled();
+    expect(markup).toContain("2. Spinner and Coin Condition (solved)");
+    expect(markup).not.toContain("1. Dice Sum Condition (solved)");
+  });
+
+  it("still renders practice when progress cannot be read", async () => {
+    vi.stubEnv("ANONYMOUS_PILOT_ENABLED", "true");
+    mockPrincipal(TEST_STUDENT);
+    mocks.getStudentProgress.mockRejectedValue(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const markup = renderToStaticMarkup(
+      await PracticePage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(markup).toContain("Dice Sum Condition");
+    expect(markup).not.toContain("(solved)");
+    warn.mockRestore();
+  });
+});
+
+describe("topic end", () => {
+  it("sends a finished topic to the next topic with work, in syllabus order", () => {
+    const syllabus = [
+      { id: "counting", title: "Counting", weekNumber: 1 },
+      { id: "conditional", title: "Conditional probability", weekNumber: 3 },
+      { id: "bayes", title: "Bayes' rule", weekNumber: 4 },
+    ];
+    const pool = [
+      { id: "c1", topicId: "counting" },
+      { id: "k1", topicId: "conditional" },
+      { id: "b1", topicId: "bayes" },
+    ];
+
+    expect(
+      nextTopicWithWork({
+        currentTopicId: "conditional",
+        questions: pool,
+        solvedQuestionIds: new Set(["k1"]),
+        topics: syllabus,
+      }),
+    ).toEqual({
+      href: "/practice?topicId=bayes",
+      label: "Next topic: Week 4 · Bayes' rule",
+      topicId: "bayes",
+    });
+    // Later topics done: wrap to the earliest topic that still has work.
+    expect(
+      nextTopicWithWork({
+        currentTopicId: "conditional",
+        questions: pool,
+        solvedQuestionIds: new Set(["k1", "b1"]),
+        topics: syllabus,
+      })?.label,
+    ).toBe("Next topic: Week 1 · Counting");
+    // Everything solved: no next topic (the strip says "Back to Learn").
+    expect(
+      nextTopicWithWork({
+        currentTopicId: "conditional",
+        questions: pool,
+        solvedQuestionIds: new Set(["c1", "k1", "b1"]),
+        topics: syllabus,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("says what was finished without the visit qualifier", () => {
+    expect(topicCompleteSentence(6, "Conditional probability")).toBe(
+      "You solved all 6 questions in Conditional probability.",
+    );
+  });
+
+  it("keeps a half-typed answer per question attempt", () => {
+    expect(draftStorageKey("session:abc")).toBe("ai-tutor:draft:session:abc");
   });
 });
 
@@ -560,7 +694,7 @@ describe("similar practice", () => {
     );
 
     expect(html).toContain("Try a similar problem");
-    expect(html).toContain("professor-approved");
+    expect(html).toContain("checked by your professor");
     expect(html).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
   });
 
@@ -688,22 +822,40 @@ describe("answer format guidance", () => {
 });
 
 describe("landing page", () => {
-  it("puts a live question above the words and keeps empty weeks in the syllabus", async () => {
+  it("shows a signed-out visitor a locked question and keeps empty weeks in the syllabus", async () => {
     mockPrincipal(undefined);
 
     const markup = renderToStaticMarkup(await HomePage());
+    const text = markup.replace(/<[^>]+>/g, "");
 
-    // The product first: a real approved question in the sheet, checkable by
-    // a visitor with no account.
+    // A real approved question, readable but not answerable until the
+    // visitor signs in or joins: no Check, no hint control, no steps.
     expect(markup).toContain("Two fair dice are rolled.");
-    expect(markup).toContain("Check answer");
-    expect(markup).toContain("Reveal hint 1 of 3");
-    expect(markup).toContain("Available once every hint is shown.");
-    expect(markup).toContain("Sign in to chat with the tutor");
+    expect(markup).toContain("A problem from your course");
+    expect(markup).toContain("Join with your section code to answer it.");
+    expect(markup).not.toContain("Try one now");
+    expect(markup).not.toContain("Check answer");
+    expect(markup).not.toContain("Reveal hint");
+    expect(markup).not.toContain("Available once every hint is shown.");
+    expect(markup).not.toContain("Keypad");
+    expect(markup).toContain('placeholder="Join your course to answer"');
+    expect(markup).toMatch(
+      /<input[^>]*disabled=""[^>]*placeholder="Join your course to answer"|<input[^>]*placeholder="Join your course to answer"[^>]*disabled=""/,
+    );
+    expect(markup).toContain(">Join to answer</button>");
+    expect(markup).toContain("Sign in or join your course to open hints.");
+    // The tutor is shown but closed.
+    expect(markup).toContain("Sign in or join your course to use the tutor.");
+    expect(markup).not.toContain("Sign in to chat with the tutor");
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Give me a hint<\/button>/);
+    expect(markup).toMatch(
+      /<button[^>]*disabled=""[^>]*>Where do I start\?<\/button>/,
+    );
+    expect(markup).not.toContain("Join MATH-255 to keep your progress.");
 
     // The syllabus keeps every week, so the numbers never skip.
-    expect(markup).toContain("Wk 3 · Conditional Probability");
-    expect(markup).toContain("Wk 13 · Central Limit Theorem");
+    expect(markup).toContain("Week 3 · Conditional Probability");
+    expect(markup).toContain("Week 13 · Central Limit Theorem");
     expect(markup).toContain("no questions yet");
     expect(markup).toContain("2 questions · 2 topics");
     expect(markup).toContain('href="/learn/conditional-probability"');
@@ -712,14 +864,39 @@ describe("landing page", () => {
     expect(markup).toContain("Practice MATH-255,");
     expect(markup).toContain("one hint at a time");
     expect(markup).toContain(
-      "Real course problems, reviewed by your professor. Hints before answers, always.",
+      "Real problems from your course, checked instantly. Stuck? Open a hint, not the answer.",
     );
-    expect(markup).toContain("Join your course");
+    // The section code is the door, typed right on the page (the same form
+    // as /join), with one Join beside it.
+    expect(markup).toContain("Section code from your professor");
+    expect(markup).toContain('placeholder="K7Q-2M"');
+    expect(markup).toContain('autoComplete="off"');
+    expect(markup.match(/>Join<\/button>/g)).toHaveLength(1);
+    // "Join your course" appears only as the locked field's wording, never
+    // as a second join button or link.
+    expect(markup).not.toMatch(/>Join your course[^<]*<\/(button|a)>/);
+    // [Join to answer] is secondary; the hero's Join stays the one mint.
+    expect(markup.match(/<button[^>]*bg-mint[^>]*>/g)).toHaveLength(1);
+    expect(markup).toContain('id="landing-section-code"');
     expect(markup).toContain("I’m a professor");
     expect(markup).toContain('href="/join#professor"');
-    expect(markup).toContain("Continue as guest");
-    expect(markup).toContain('href="/join"');
-    expect(markup).toContain("What the tutor sees");
+    // No code: sign in, or the guest door on /join.
+    expect(markup).toContain("No code?");
+    expect(text).toContain("No code? Sign in, or continue as a guest.");
+    expect(markup).toContain('href="/sign-in?callbackUrl=%2Flearn"');
+    expect(markup).toMatch(/href="\/join"[^>]*>continue as a guest<\/a>/);
+    expect(markup).not.toContain("Try a problem now ↓");
+    expect(markup).not.toContain('href="#try-one-now"');
+    expect(markup).toContain('id="try-one-now"');
+    // How it works carries what the tutor sees; the statements keep the rest.
+    expect(markup).toContain("How it works");
+    expect(markup).toContain("Enter your section code");
+    expect(markup).toContain("Try before you&#x27;re told");
+    expect(markup).toContain("Ask the tutor");
+    expect(markup).toContain(
+      "It sees the problem and your last answer, not your name.",
+    );
+    expect(markup).not.toContain("What the tutor sees");
     expect(markup).toContain("Your professor approves every problem");
     expect(markup).toContain("Guest practice is anonymous; sign in to keep it");
     expect(markup).not.toMatch(STUDENT_VISIBLE_TECHNICAL_TERMS);
@@ -746,7 +923,22 @@ describe("landing page", () => {
 
     expect(markup).toContain("Continue practicing →");
     expect(markup).toContain('href="/learn"');
-    expect(markup).not.toContain("Join your course");
+    expect(markup).toContain(
+      "Your syllabus has 2 practice questions from your professor.",
+    );
+    expect(markup).not.toContain("Section code from your professor");
+    expect(markup).not.toContain(">Join</button>");
+
+    // Signed in, the Sheet stays live: checking, hints, steps and the tutor.
+    expect(markup).toContain("Two fair dice are rolled.");
+    expect(markup).toContain("Check answer");
+    expect(markup).toContain("Reveal hint 1 of 3");
+    expect(markup).toContain("Available once every hint is shown.");
+    expect(markup).toContain("Try one now");
+    expect(markup).not.toContain("Join to answer");
+    expect(markup).not.toContain("Join your course to answer");
+    expect(markup).not.toContain("Sign in or join your course");
+    expect(markup).not.toMatch(/<button[^>]*disabled=""[^>]*>Where do I start\?<\/button>/);
   });
 
   it("prefers the third topic with questions as the hero, and falls back to the first question", () => {
@@ -814,7 +1006,12 @@ describe("student-facing error states", () => {
       }),
     );
 
-    expect(notFound).toContain("Browse topics");
+    expect(notFound).toContain("Back to Learn");
+    expect(notFound).toContain("Practice something else");
+    expect(notFound).toContain(
+      "Your professor may have removed it or not opened it yet.",
+    );
+    expect(notFound).not.toContain("404");
     expect(failure).toContain("Try again");
     expect(failure).not.toContain("ECONNREFUSED");
     expect(`${notFound}${failure}`).not.toMatch(

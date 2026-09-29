@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Circle, CircleDot } from "lucide-react";
+import { Archive, ArrowRight, Circle, CircleDot } from "lucide-react";
 import { useId } from "react";
 
 import type { LearnQuestionRow } from "@/components/learn/learn-model";
@@ -9,16 +9,19 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { cn } from "@/lib/utils";
 
 /**
- * Where the student left this question, as an icon and a word. Retired and
- * solved reuse the product's verdict and lifecycle chips; the two neutral
- * states carry their own glyphs so colour is never the only signal.
+ * Where the student left this question, as an icon and a word. Solved reuses
+ * the verdict chip; a question the professor removed is neutral (the student
+ * did nothing wrong), and every neutral state carries its own glyph so colour
+ * is never the only signal.
  */
 function QuestionStatus({ status }: { status: LearnQuestionRow["status"] }) {
   switch (status) {
     case "done":
       return <StatusChip tone="correct" label="Solved" />;
     case "retired":
-      return <StatusChip tone="retired" label="Retired" />;
+      return (
+        <StatusChip tone="neutral" icon={Archive} label="No longer available" />
+      );
     case "current":
       return <StatusChip tone="neutral" icon={CircleDot} label="In progress" />;
     case "todo":
@@ -28,8 +31,9 @@ function QuestionStatus({ status }: { status: LearnQuestionRow["status"] }) {
 }
 
 /**
- * One question as a compact Sheet: position, code and difficulty on the mono
- * line, the title as a real heading, the first two lines of the prompt, and
+ * One question as a compact Sheet: position and difficulty on the mono line
+ * (never the question code), the title as a real heading, the first two lines
+ * of the prompt, and
  * where the student left it. The whole card is one link whose accessible name
  * is the question title only (not the KaTeX prompt), so a screen reader lists
  * "Spinner and Coin Condition, link" once per row.
@@ -45,7 +49,7 @@ export function QuestionRow({
   question: LearnQuestionRow;
   /** Questions in this topic, for "Question 2 of 5". */
   topicTotal: number;
-  /** The row the header's call to action opens: a left azure rule. */
+  /** The row the header's call to action opens: a left azure rule and an "Up next" chip. */
   upNext?: boolean;
 }) {
   const labelId = useId();
@@ -73,28 +77,34 @@ export function QuestionRow({
         )}
         header={{
           topicLabel: questionPositionLabel(question.position, topicTotal),
-          questionCode: question.questionCode,
-          // The Sheet joins these in order: "Question 2 of 5 · Q-A638 ·
-          // Core · 1 hint used". Difficulty is a word, never a colour.
+          // Codes are a support handle, not something a student reads.
+          questionCode: "",
+          // The Sheet joins these in order: "Question 2 of 5 · Core ·
+          // 1 hint used". Difficulty is a word, never a colour.
           answerType: question.difficultyLabel,
           difficultyLabel: hintsUsed,
         }}
         headingLevel={3}
         hints={{ total: 0, revealed: [] }}
         menu={
-          <span className="type-caption flex items-center gap-3 pt-1.5">
+          <span className="type-caption flex flex-wrap items-center justify-end gap-2 pt-1.5">
             {upNext ? (
-              <span className="type-label sr-only text-azure-500 sm:not-sr-only">
-                Up next
-              </span>
+              <StatusChip tone="published" icon={ArrowRight} label="Up next" />
             ) : null}
-            <QuestionStatus status={question.status} />
+            {/* A removed question says so in the Sheet body ("No longer
+                available · removed by your professor"), so the chip would
+                only repeat it. */}
+            {question.status === "retired" ? null : (
+              <QuestionStatus status={question.status} />
+            )}
           </span>
         }
         prompt={question.prompt}
         title={question.title}
         tombstone={
-          question.status === "retired" ? "Your attempts are kept." : undefined
+          question.status === "retired"
+            ? "Removed by your professor · your answers are kept."
+            : undefined
         }
       />
     </div>
