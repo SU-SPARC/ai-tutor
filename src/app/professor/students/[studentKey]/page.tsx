@@ -10,6 +10,7 @@ import {
   requirePageAccess,
 } from "@/lib/auth/authorization";
 import { getInstructorStudentDetail } from "@/lib/data/data-store";
+import { getServerEnv } from "@/lib/env/server";
 import { isStudentKey, studentLabel } from "@/lib/professor/student-pseudonym";
 
 export const metadata: Metadata = {
@@ -70,7 +71,12 @@ export default async function ProfessorStudentPage({
         studentKey={studentKey}
         studentLabel={label}
       />
-      <InstructorStudentDetailPanel detail={detail} />
+      <InstructorStudentDetailPanel
+        detail={detail}
+        sketchpadMeasurementEnabled={
+          getServerEnv().SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
+        }
+      />
     </ProfessorPageShell>
   );
 }

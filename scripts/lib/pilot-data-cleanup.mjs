@@ -43,6 +43,12 @@ export const APPROVAL_ROLES = Object.freeze([
 // addressed only by its complete primary key; the manifest never carries a
 // predicate, pattern, range, or wildcard.
 export const CLEANUP_TABLES = Object.freeze([
+  Object.freeze({ keys: ["id"], table: "student_usage_events", types: ["bigint"] }),
+  Object.freeze({
+    keys: ["user_id", "tool", "bucket_started_at"],
+    table: "student_tool_active_buckets",
+    types: ["text", "text", "timestamptz"],
+  }),
   Object.freeze({ keys: ["id"], table: "feedback_reports", types: ["bigint"] }),
   Object.freeze({
     keys: ["id"],
@@ -157,6 +163,8 @@ export const INVENTORY_TABLES = Object.freeze([
   "solution_steps",
   "student_content_availability_events",
   "student_progress",
+  "student_tool_active_buckets",
+  "student_usage_events",
   "topic_student_availability",
   "topics",
   "tutor_sessions",
@@ -168,6 +176,7 @@ const MARKER_PATTERN = "(^|[^a-z])(demo|test|fake|fixture|synthetic)([^a-z]|$)";
 const TEXT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$/;
 const BIGINT_KEY_PATTERN = /^[1-9][0-9]{0,17}$/;
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIMESTAMPTZ_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 const SAFE_LABEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._:/+-]{1,199}$/;
 const SAFE_HASH_PATTERN = /^[0-9a-f]{16}$/;
 const TEMPORARY_ROLE_PATTERN = /^(integrity_audit|backup_export)_[0-9a-f]{16}$/;
@@ -259,6 +268,7 @@ export function sqlTextArray(values) {
 function typedLiteral(value, type) {
   if (type === "bigint") return `${value}::bigint`;
   if (type === "date") return `${sqlLiteral(value)}::date`;
+  if (type === "timestamptz") return `${sqlLiteral(value)}::timestamptz`;
   return sqlLiteral(value);
 }
 
@@ -269,6 +279,8 @@ function validateKeyValue(value, type, table, column) {
       ? BIGINT_KEY_PATTERN.test(text)
       : type === "date"
         ? DATE_KEY_PATTERN.test(text)
+        : type === "timestamptz"
+          ? TIMESTAMPTZ_KEY_PATTERN.test(text)
         : TEXT_KEY_PATTERN.test(text);
   if (!valid) {
     throw new PilotCleanupError(
@@ -654,7 +666,13 @@ export function buildPlanSql({
         + (select count(*) from anonymous_identity_claims c where c.claimed_by_user_id = u.id)
         + (select count(*) from user_roles ur where ur.granted_by_user_id = u.id or ur.revoked_by_user_id = u.id),
       'audit_events', (select count(*) from audit_events ae where ae.actor_user_id = u.id),
-      'progress', (select coalesce(json_agg(p.id order by p.id), '[]'::json) from student_progress p where p.user_id = u.id)
+      'progress', (select coalesce(json_agg(p.id order by p.id), '[]'::json) from student_progress p where p.user_id = u.id),
+      'usage_events', (select coalesce(json_agg(e.id order by e.id), '[]'::json) from student_usage_events e where e.user_id = u.id),
+      'tool_buckets', (select coalesce(json_agg(json_build_object(
+        'user_id', b.user_id,
+        'tool', b.tool,
+        'bucket_started_at', to_char(b.bucket_started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+      ) order by b.user_id, b.tool, b.bucket_started_at), '[]'::json) from student_tool_active_buckets b where b.user_id = u.id)
     ) order by u.id), '[]'::json) from users u where u.id = any(${targets})),
     'sessions', (select coalesce(json_agg(json_build_object(
       'id', s.id,
@@ -670,6 +688,12 @@ export function buildPlanSql({
     'cache_rows', (select coalesce(json_agg(c.id order by c.id), '[]'::json) from ai_response_cache c),
     'feedback_rows', (select coalesce(json_agg(f.id order by f.id), '[]'::json) from feedback_reports f),
     'progress_rows', (select coalesce(json_agg(p.id order by p.id), '[]'::json) from student_progress p),
+    'student_usage_event_rows', (select coalesce(json_agg(e.id order by e.id), '[]'::json) from student_usage_events e),
+    'student_tool_bucket_rows', (select coalesce(json_agg(json_build_object(
+      'user_id', b.user_id,
+      'tool', b.tool,
+      'bucket_started_at', to_char(b.bucket_started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+    ) order by b.user_id, b.tool, b.bucket_started_at), '[]'::json) from student_tool_active_buckets b),
     'reservation_rows', (select coalesce(json_agg(r.id order by r.id), '[]'::json) from ai_llm_reservations r),
     'student_scope_owner_check', (select count(*) from ai_usage u where u.scope = 'student' and not exists (select 1 from ai_llm_reservations r join tutor_sessions s on s.id = r.session_id where r.student_key_hash = u.scope_key and s.user_id = any(${targets}))),
     'retained_user_ids', (select coalesce(json_agg(u.id order by u.id), '[]'::json) from users u where u.id <> all(${pilot})),
@@ -810,6 +834,16 @@ export function buildCleanupManifest({
     for (const id of user.progress) {
       records.student_progress.push({ id: String(id) });
     }
+    for (const id of user.usage_events) {
+      records.student_usage_events.push({ id: String(id) });
+    }
+    for (const bucket of user.tool_buckets) {
+      records.student_tool_active_buckets.push({
+        bucket_started_at: String(bucket.bucket_started_at),
+        tool: String(bucket.tool),
+        user_id: String(bucket.user_id),
+      });
+    }
   }
 
   const sessions = plan.sessions ?? [];
@@ -867,6 +901,29 @@ export function buildCleanupManifest({
     }
   }
   records.student_progress = [...progressIds].map((id) => ({ id }));
+  const usageEventIds = new Set(
+    records.student_usage_events.map((row) => row.id),
+  );
+  for (const id of plan.student_usage_event_rows ?? []) {
+    if (!usageEventIds.has(String(id))) {
+      problems.push(`usage_event_without_pre_pilot_owner:${safeHash(id)}`);
+    }
+  }
+  const toolBucketKeys = new Set(
+    records.student_tool_active_buckets.map((row) =>
+      [row.user_id, row.tool, row.bucket_started_at].join("\u0001"),
+    ),
+  );
+  for (const bucket of plan.student_tool_bucket_rows ?? []) {
+    const key = [
+      String(bucket.user_id),
+      String(bucket.tool),
+      String(bucket.bucket_started_at),
+    ].join("\u0001");
+    if (!toolBucketKeys.has(key)) {
+      problems.push(`tool_bucket_without_pre_pilot_owner:${safeHash(key)}`);
+    }
+  }
 
   // AI usage counters and response-cache rows carry no student identity of
   // their own. They are listed explicitly only when every session owner in the

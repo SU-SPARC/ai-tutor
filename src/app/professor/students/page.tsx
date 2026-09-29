@@ -17,6 +17,7 @@ import {
   requirePageAccess,
 } from "@/lib/auth/authorization";
 import { listInstructorStudents } from "@/lib/data/data-store";
+import { getServerEnv } from "@/lib/env/server";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 import {
   resolveInstructorStudentIdentities,
@@ -186,7 +187,13 @@ export default async function ProfessorStudentsPage({
             </EmptyState>
           ) : (
             <>
-              <InstructorStudentTable identities={identities} list={list} />
+              <InstructorStudentTable
+                identities={identities}
+                list={list}
+                sketchpadMeasurementEnabled={
+                  getServerEnv().SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
+                }
+              />
 
               <nav
                 aria-label="Student pages"

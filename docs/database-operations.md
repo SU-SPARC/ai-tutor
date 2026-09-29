@@ -180,14 +180,59 @@ integrity audit, and a read-only verification that the one backfilled link pins
 the expected origin and sibling version IDs. This repository work does not
 perform that Production rollout.
 
-Migration 026 is unreleased and may be replaced only before any environment
-records its checksum. Before application, reversal is simply reverting the
-application changes and the unapplied migration file. After application, do
-not down-migrate or delete relationship rows: roll forward with a new migration,
-and use attributed soft revocation for relationship changes. If the controlled
-backfill or schema application fails, the migration runner transaction rolls
-back the whole migration; correct the precondition or SQL and rerun through the
-normal reviewed workflow.
+Migration 026 is part of the checked-in baseline. Once an environment records
+its checksum, do not amend it: roll forward with a new migration and use
+attributed soft revocation for relationship changes. If schema application
+fails before the ledger row is recorded, the migration runner transaction
+rolls back the whole migration; correct the precondition or SQL and rerun
+through the normal reviewed workflow.
+
+### Migration 027 student tool usage analytics
+
+Migration 027 adds `student_usage_events` for idempotent, topic-associated AI
+Help requests and `student_tool_active_buckets` for server-timed 15-second
+Sketchpad activity buckets. The normal application runtime role treats both as
+append-only: it receives SELECT and INSERT but no UPDATE or DELETE. The
+`app_migrator` and database owner retain administrative privileges, so the rows
+must not be described as intrinsically immutable.
+
+Use this rollout order. Do not combine, omit, or reorder the steps:
+
+1. Take and verify the required pre-change backup per
+   [database-recovery.md](database-recovery.md) and record the evidence.
+2. Verify Production is exactly 26/26 with the expected checksums and no drift
+   (`npm run db:migrate:check -- --json`).
+3. Apply only `027_student_tool_usage_analytics.sql` with the approved
+   `app_migrator` workflow. It is non-destructive and creates two tables, one
+   sequence, and their indexes.
+4. Immediately run the approved custody `provision` operation, which reapplies
+   the current `db/roles/app_runtime.sql` in one transaction.
+5. Through the approved read-only operator check, verify both new tables have
+   row-level security enabled, one `app_runtime_full_access` policy each
+   (33 tables, 33 policies), runtime SELECT and INSERT, no runtime UPDATE or
+   DELETE, and runtime USAGE on `student_usage_events_id_seq`. Run
+   `npm run db:custody:verify`, `npm run db:migrate:check -- --json`, and the
+   Production integrity audit.
+6. Only then merge and deploy application code that reads or writes the new
+   schema. The Production build gate (`db:migrate:check` in `vercel.json`)
+   fails every Production build while 027 is pending, so merging first would
+   break the build rather than the running deployment.
+
+The interval between steps 3 and 4 is bounded and safe: because `app_migrator`
+owns the new tables, the operator-role default privileges give `app_runtime`
+SELECT immediately, so the Students page keeps working, but INSERT and the
+role-scoped RLS policy exist only after step 4. AI Help usage writes in that
+interval fail with SQLSTATE 42501, are logged without identity, and never block
+AI Help; the heartbeat endpoint has no caller yet. The order matters in the
+other direction too: the current role script grants on both new tables and
+fails closed (relation does not exist) against a database still at 026, and
+the custody operation rolls that transaction back rather than leaving the
+runtime without grants.
+
+After any environment records migration 027's checksum, never amend the file;
+every correction must use a later migration. Migration 027 contains no
+unrelated `app.lifecycle_write` cleanup; that NULL-safety fix for migration
+011's guards is a separate later migration.
 
 ## Authoring A Migration
 

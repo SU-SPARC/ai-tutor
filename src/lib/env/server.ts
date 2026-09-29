@@ -41,6 +41,7 @@ type ServerEnvBase = {
   RATE_LIMIT_MAX_REQUESTS: number;
   RATE_LIMIT_WINDOW_SECONDS: number;
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
+  SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: boolean;
 };
 
 type EnabledAiServerEnv = {
@@ -245,6 +246,16 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
   const GHOST_LOGIN_ENABLED = parseBoolean(
     "GHOST_LOGIN_ENABLED",
     input.GHOST_LOGIN_ENABLED,
+    issues,
+    { defaultValue: false },
+  );
+  // Professor surfaces show estimated Sketchpad time only once the external
+  // Sketchpad reports heartbeats through a reviewed bridge. Until then the
+  // display reads "Not yet measured" so a stored zero is never presented as a
+  // measured zero. The flag never changes time accounting or the endpoint.
+  const SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED = parseBoolean(
+    "SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED",
+    input.SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
     issues,
     { defaultValue: false },
   );
@@ -455,6 +466,7 @@ export function parseServerEnv(input: ProcessEnvironment): ServerEnv {
     RATE_LIMIT_MAX_REQUESTS: RATE_LIMIT_MAX_REQUESTS!,
     RATE_LIMIT_WINDOW_SECONDS: RATE_LIMIT_WINDOW_SECONDS!,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
   };
 
   if (AI_ENABLED) {

@@ -39,7 +39,7 @@ describePostgres("question similarity repository on PostgreSQL 16", () => {
     const migration = await pool.query<{ count: number }>(
       "select count(*)::int as count from schema_migrations",
     );
-    expect(migration.rows[0].count).toBe(26);
+    expect(migration.rows[0].count).toBe(27);
     versions = await seedPostgresContent(pool);
     repository = createDatabaseQuestionSimilarityRepository(
       postgresQueryExecutor(pool),

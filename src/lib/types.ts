@@ -932,6 +932,7 @@ export type TutorSessionEngineState = TutorProgress & {
  * user's name and email deliberately never reach an instructor surface.
  */
 export type InstructorStudentSummary = {
+  aiHelpRequests: number;
   attempts: number;
   correctAttempts: number;
   extraPracticeSessions: number;
@@ -943,6 +944,7 @@ export type InstructorStudentSummary = {
   misconceptionAttempts: number;
   needsAttention: boolean;
   sessions: number;
+  sketchpadActiveSeconds: number;
   solutionsRevealed: number;
   solvedSessions: number;
   studentKey: string;
@@ -1127,6 +1129,7 @@ export type InstructorStudentIdentities = Record<
 >;
 
 export type InstructorRosterStudent = {
+  aiHelpRequests?: number;
   identity?: InstructorStudentRosterIdentity;
   studentKey: string;
 };

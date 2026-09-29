@@ -93,6 +93,8 @@ grant insert on
   questions,
   solution_steps,
   student_content_availability_events,
+  student_tool_active_buckets,
+  student_usage_events,
   topic_student_availability,
   tutor_sessions,
   user_roles,

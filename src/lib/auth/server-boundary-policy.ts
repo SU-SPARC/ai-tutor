@@ -469,6 +469,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   ),
   route(
     "POST",
+    "/api/student/tools/sketchpad/heartbeat",
+    "src/app/api/student/tools/sketchpad/heartbeat/route.ts",
+    "student-authenticated",
+    ["requireStudent", "recordSketchpadHeartbeat"],
+  ),
+  route(
+    "POST",
     "/api/tutor/respond",
     "src/app/api/tutor/respond/route.ts",
     "owned-student-resource",

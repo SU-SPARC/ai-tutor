@@ -20,6 +20,7 @@ import {
   getTutorSession,
   persistTutorSessionTransition,
 } from "@/lib/data/tutor-session-repository";
+import { recordAiHelpRequest } from "@/lib/data/student-tool-usage-repository";
 import { getServerEnv } from "@/lib/env/server";
 import {
   logPilotOperationalEvent,
@@ -207,6 +208,20 @@ export async function POST(request: Request) {
         "MALFORMED_TUTOR_REQUEST",
         "The tutor response question must match the active session.",
         400,
+      );
+    }
+
+    if (body.aiHelp === true) {
+      await recordAiHelpRequestSafely(
+        access.authorization,
+        {
+          eventId: body.eventId,
+          questionId: session.questionId,
+          questionVersionId: session.questionVersionId!,
+          sessionId: session.id,
+          topicId: currentlyApprovedQuestion.topicId,
+        },
+        requestId,
       );
     }
 
@@ -473,6 +488,27 @@ async function releaseReservationSafely(
       route: TUTOR_RESPOND_ROUTE,
       status: 503,
       subsystem: "tutor-session",
+    });
+  }
+}
+
+async function recordAiHelpRequestSafely(
+  authorization: Parameters<typeof recordAiHelpRequest>[0],
+  context: Parameters<typeof recordAiHelpRequest>[1],
+  requestId: string,
+) {
+  try {
+    await recordAiHelpRequest(authorization, context);
+  } catch (cause) {
+    // Usage telemetry is deliberately best-effort. A persistence failure must
+    // never replace or block the student's AI Help response.
+    logPilotOperationalEvent({
+      cause,
+      event: "data_service_unavailable",
+      requestId,
+      route: TUTOR_RESPOND_ROUTE,
+      status: 503,
+      subsystem: "student-tool-usage",
     });
   }
 }

@@ -64,6 +64,18 @@ Reservation and usage keys are HMAC-derived; prompts, answers, generated text,
 retrieval context, provider payloads, account identifiers, and IP addresses are
 not stored in these cost-control records.
 
+`027_student_tool_usage_analytics.sql` adds `student_usage_events` for
+idempotent AI Help requests and `student_tool_active_buckets` for server-timed,
+deduplicated 15-second Sketchpad buckets. Both retain only internal user IDs and
+minimal public-safe context. They are append-only for the normal application
+runtime role: `app_runtime` receives INSERT and SELECT, but no UPDATE or DELETE;
+the migrator retains its administrative privileges.
+
+After migration 027, immediately reapply `db/roles/app_runtime.sql` so both new
+tables receive the reviewed grants and role-scoped RLS policy before application
+code is deployed. See the exact rollout order in
+[Database Migration Operations](database-operations.md#migration-027-student-tool-usage-analytics).
+
 `022_question_reserve_disposition.sql` adds Save for later as current-state
 columns on `questions` plus the append-only `question_reserve_events` ledger.
 Constraints keep reserved content active and without a published pointer;

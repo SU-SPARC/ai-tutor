@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAccuracy } from "@/lib/professor/student-pseudonym";
+import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
 import { FULL_CREDIT_VALID_ATTEMPT_LIMIT } from "@/lib/tutor/practice-credit";
 import type {
   InstructorAttentionSignal,
@@ -479,8 +480,11 @@ function RecentActivity({
 
 export function InstructorStudentDetailPanel({
   detail,
+  sketchpadMeasurementEnabled = false,
 }: {
   detail: InstructorStudentDetail;
+  /** From the typed server environment; see `sketchpadTimeDisplay`. */
+  sketchpadMeasurementEnabled?: boolean;
 }) {
   const {
     activity,
@@ -497,7 +501,9 @@ export function InstructorStudentDetailPanel({
   const hasActivity =
     summary.sessions > 0 ||
     summary.extraPracticeSessions > 0 ||
-    summary.attempts > 0;
+    summary.attempts > 0 ||
+    summary.aiHelpRequests > 0 ||
+    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0);
   const checkedAnswers =
     summary.correctAttempts + (summary.incorrectAttempts ?? 0);
   const now = requestTime();
@@ -517,7 +523,7 @@ export function InstructorStudentDetailPanel({
             practiced, so every number below is zero.
           </p>
         )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Tile
             label="Correct"
             value={formatAccuracy(summary.correctAttempts, checkedAnswers)}
@@ -536,6 +542,19 @@ export function InstructorStudentDetailPanel({
           <Tile
             label="Solutions viewed"
             value={count(summary.solutionsRevealed)}
+          />
+          <Tile
+            label="Time on sketchpad"
+            value={sketchpadTimeDisplay(
+              summary.sketchpadActiveSeconds,
+              sketchpadMeasurementEnabled,
+            )}
+            delta="About how long they spent drawing on the sketchpad"
+          />
+          <Tile
+            label="AI help requests"
+            value={count(summary.aiHelpRequests)}
+            delta="How many times they asked the AI tutor for help"
           />
         </div>
       </section>

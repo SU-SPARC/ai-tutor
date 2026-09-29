@@ -6,15 +6,80 @@ import {
   getTutorSession,
   resetTutorSessionsForTests,
 } from "@/lib/data/tutor-session-repository";
+import { setStudentToolUsageRepositoryForTests } from "@/lib/data/student-tool-usage-repository";
 import { resetTutorStateForTests } from "@/lib/tutor/tutor-state";
 import {
   authorizationForStudentOwner,
+  mockPrincipal,
   mockStudentOwner,
   resetAuthMocks,
   TEST_ANONYMOUS_OWNER,
+  TEST_STUDENT,
 } from "./auth-test-helpers";
 
+/**
+ * A switch for the one place a tutor request can fail after the AI Help usage
+ * event has been recorded. The real engine runs unless a test arms it.
+ */
+const tutorEngineFailure: { error?: Error } = {};
+
+vi.mock("@/lib/tutor/tutor-engine", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/tutor/tutor-engine")>();
+  return {
+    ...actual,
+    createTutorResponseFromState: async (
+      ...args: Parameters<typeof actual.createTutorResponseFromState>
+    ) => {
+      if (tutorEngineFailure.error) {
+        throw tutorEngineFailure.error;
+      }
+      return actual.createTutorResponseFromState(...args);
+    },
+  };
+});
+
 const studentAuthorization = authorizationForStudentOwner(TEST_ANONYMOUS_OWNER);
+const signedInStudentAuthorization = authorizationForStudentOwner({
+  kind: "user",
+  userId: TEST_STUDENT.userId,
+});
+
+/**
+ * Stands in for `student_usage_events` with the same uniqueness the table
+ * enforces: one row per (student, event id), and `recordAiHelpRequest` reports
+ * whether this call inserted it. Sketchpad heartbeats are not exercised here.
+ */
+function fakeUsageRepository() {
+  const persisted = new Set<string>();
+  return {
+    persisted,
+    recordAiHelpRequest: vi.fn(
+      async (
+        authorization: { owner: { kind: string; userId?: string } },
+        context: { eventId: string },
+      ) => {
+        const key = `${authorization.owner.userId}:${context.eventId}`;
+        if (persisted.has(key)) return "duplicate" as const;
+        persisted.add(key);
+        return "recorded" as const;
+      },
+    ),
+    recordSketchpadHeartbeat: vi.fn(async () => "recorded" as const),
+  };
+}
+
+function aiHelpRequest(sessionId: string, eventId: string) {
+  return jsonRequest({
+    aiHelp: true,
+    allowLlmFallback: true,
+    answer: "I think it is 2/5 but I am not sure why.",
+    eventId,
+    mode: "check",
+    questionId: "dice-sum-eight",
+    sessionId,
+  });
+}
 
 describe("tutor response API", () => {
   beforeEach(() => {
@@ -25,8 +90,103 @@ describe("tutor response API", () => {
   });
 
   afterEach(() => {
+    tutorEngineFailure.error = undefined;
+    setStudentToolUsageRepositoryForTests(undefined);
     vi.unstubAllEnvs();
     resetAuthMocks();
+  });
+
+  it("persists one AI Help request when the same signed-in request is replayed", async () => {
+    const usage = fakeUsageRepository();
+    setStudentToolUsageRepositoryForTests(usage);
+    mockPrincipal(TEST_STUDENT);
+    const session = await createTutorSession(
+      signedInStudentAuthorization,
+      "dice-sum-eight",
+    );
+
+    const first = await POST(aiHelpRequest(session.id, "event:ai-help-replay"));
+    const replay = await POST(aiHelpRequest(session.id, "event:ai-help-replay"));
+    const saved = await getTutorSession(signedInStudentAuthorization, session.id);
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    // Both requests reach the ledger with the server-resolved owner and the
+    // same event id; the ledger's uniqueness keeps a single row.
+    expect(usage.recordAiHelpRequest).toHaveBeenCalledTimes(2);
+    for (const call of usage.recordAiHelpRequest.mock.calls) {
+      expect(call[0]).toMatchObject({
+        owner: { kind: "user", userId: TEST_STUDENT.userId },
+        permission: "student",
+      });
+      expect(call[1]).toMatchObject({
+        eventId: "event:ai-help-replay",
+        questionId: "dice-sum-eight",
+        sessionId: session.id,
+        // Topic context comes from the approved question, never the client.
+        topicId: "conditional-probability",
+      });
+    }
+    expect(usage.persisted.size).toBe(1);
+    // The replay is served from the saved attempt, never as a second one.
+    expect(saved?.attempts).toHaveLength(1);
+    expect(saved).toMatchObject({ solved: false, wrongAttemptCount: 0 });
+  });
+
+  it("keeps the recorded AI Help request and leaves academic state untouched when the tutor fails afterwards", async () => {
+    const usage = fakeUsageRepository();
+    setStudentToolUsageRepositoryForTests(usage);
+    mockPrincipal(TEST_STUDENT);
+    const session = await createTutorSession(
+      signedInStudentAuthorization,
+      "dice-sum-eight",
+    );
+    tutorEngineFailure.error = new Error("synthetic provider failure");
+
+    const response = await POST(
+      aiHelpRequest(session.id, "event:ai-help-downstream-failure"),
+    );
+    const saved = await getTutorSession(signedInStudentAuthorization, session.id);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.not.toHaveProperty("verdict");
+    expect(usage.persisted).toEqual(
+      new Set([`${TEST_STUDENT.userId}:event:ai-help-downstream-failure`]),
+    );
+    expect(saved).toMatchObject({
+      attemptCount: 0,
+      attempts: [],
+      solved: false,
+      wrongAttemptCount: 0,
+    });
+  });
+
+  it("keeps AI Help academic state safe when usage telemetry fails", async () => {
+    setStudentToolUsageRepositoryForTests({
+      async recordAiHelpRequest() {
+        throw new Error("synthetic telemetry failure");
+      },
+      async recordSketchpadHeartbeat() {
+        return "recorded" as const;
+      },
+    });
+    mockPrincipal(TEST_STUDENT);
+    const session = await createTutorSession(
+      signedInStudentAuthorization,
+      "dice-sum-eight",
+    );
+
+    const response = await POST(
+      aiHelpRequest(session.id, "event:ai-help-telemetry-failure"),
+    );
+    const saved = await getTutorSession(signedInStudentAuthorization, session.id);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      verdict: "guidance",
+    });
+    expect(saved).toMatchObject({ solved: false, wrongAttemptCount: 0 });
+    expect(saved?.attempts[0]).toMatchObject({ verdict: "guidance" });
   });
 
   it("derives identity from the active session and rejects mismatched questions", async () => {

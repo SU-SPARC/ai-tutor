@@ -136,6 +136,12 @@ export function InstructorStudentTable({
 }: {
   identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
+  /**
+   * From the typed server environment. Accepted so the Students page can
+   * pass it, but the table keeps five plain columns: time on the sketchpad
+   * and AI help requests are shown on each student's record page instead.
+   */
+  sketchpadMeasurementEnabled?: boolean;
 }) {
   const labels = assignStudentLabels(
     list.students.map((student) => student.studentKey),

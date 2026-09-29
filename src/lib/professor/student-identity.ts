@@ -278,6 +278,9 @@ function withRosterIdentities(
   const attach = (students: InstructorRosterStudent[]) =>
     sortRosterStudents(
       students.map((student) => ({
+        ...(student.aiHelpRequests !== undefined
+          ? { aiHelpRequests: student.aiHelpRequests }
+          : {}),
         identity: resolved.get(student.studentKey) ?? {
           status: "unavailable",
         },

@@ -37,6 +37,25 @@ describe("typed server environment", () => {
     expect(env.DATABASE_URL).toBeUndefined();
   });
 
+  it("keeps Sketchpad measurement off unless explicitly enabled", () => {
+    expect(
+      parseServerEnv({ NODE_ENV: "development" })
+        .SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
+    ).toBe(false);
+    expect(
+      parseServerEnv({
+        NODE_ENV: "development",
+        SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: "true",
+      }).SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED,
+    ).toBe(true);
+    expect(() =>
+      parseServerEnv({
+        NODE_ENV: "development",
+        SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED: "maybe",
+      }),
+    ).toThrow(ServerEnvironmentValidationError);
+  });
+
   it("recognizes automated tests independently from local development", () => {
     const env = parseServerEnv({ NODE_ENV: "test" });
 
