@@ -97,6 +97,13 @@ type RetrievalChunkRow = {
 
 const APPROVED_PUBLIC_WHERE =
   "visibility = 'public' and review_status = 'approved' and trust_level in ('public_original', 'professor_approved', 'course_approved')";
+// Restricts tutor sessions (alias `s`) to a course through the question's topic.
+// Expects the course id as $1, or null for every course.
+const COURSE_SESSION_SQL = `and ($1::text is null or exists (
+  select 1 from questions cq join topics ct on ct.id = cq.topic_id
+  where cq.id = s.question_id and ct.course_id = $1
+))`;
+
 const ADMIN_SAFE_TEXT_PREDICATE = `concat_ws(' ', q.prompt, q.answer_explanation, q.originality_note, q.review_notes) !~*
       '(source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only)'`;
 
@@ -136,11 +143,11 @@ export function createDatabaseContentRepository(
       return isPublishedContent(question) ? question : undefined;
     },
 
-    async getApprovedQuestions() {
-      return this.listQuestions();
+    async getApprovedQuestions(scope) {
+      return this.listQuestions(scope);
     },
 
-    async getQuestionCounts() {
+    async getQuestionCounts(scope) {
       const rows = await readDatabaseRows(
         query,
         `
@@ -148,9 +155,11 @@ export function createDatabaseContentRepository(
         from app_public_questions q
         join topics t on t.id = q.topic_id
         where t.is_active = true
+          and ($1::text is null or t.course_id = $1)
         group by q.topic_id, t.sort_order, t.title, t.id
         order by t.sort_order, t.title, t.id
       `,
+        [scope?.courseId ?? null],
       );
 
       return rows.reduce<QuestionCounts>(
@@ -169,8 +178,9 @@ export function createDatabaseContentRepository(
       );
     },
 
-    async getProfessorPracticeAnalytics(authorization) {
+    async getProfessorPracticeAnalytics(authorization, scope) {
       assertAuthorization(authorization, "professor");
+      const courseParams = [scope?.courseId ?? null];
       const [questionRows, summaryRows, generatedRows] = await Promise.all([
         readDatabaseRows(
           query,
@@ -215,19 +225,22 @@ export function createDatabaseContentRepository(
               and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
             group by question_id
           ) sessions on sessions.question_id = q.id
+          where ($1::text is null or t.course_id = $1)
           order by t.sort_order, t.title, t.id, q.title, q.id
         `,
+          courseParams,
         ),
         readDatabaseRows(
           query,
           `
           select
-            (select count(*)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_tutor_sessions,
+            (select count(*)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} ${COURSE_SESSION_SQL}) as total_tutor_sessions,
             -- A joined attempt already implies engagement; retain the shared population filter.
-            (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} and a.mode = 'check') as total_attempts,
-            (select coalesce(sum(s.revealed_hints), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_hints_used,
-            (select coalesce(sum(s.revealed_steps), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}) as total_steps_revealed
+            (select count(*)::int from attempts a join tutor_sessions s on s.id = a.session_id where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} ${COURSE_SESSION_SQL} and a.mode = 'check') as total_attempts,
+            (select coalesce(sum(s.revealed_hints), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} ${COURSE_SESSION_SQL}) as total_hints_used,
+            (select coalesce(sum(s.revealed_steps), 0)::int from tutor_sessions s where s.practice_context = 'published' and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL} ${COURSE_SESSION_SQL}) as total_steps_revealed
         `,
+          courseParams,
         ),
         readDatabaseRows(
           query,
@@ -236,8 +249,10 @@ export function createDatabaseContentRepository(
           from questions
           where visibility = 'public'
             and source_type in ('generated_original', 'pattern_derived_original')
+            and ($1::text is null or exists (select 1 from topics ct where ct.id = questions.topic_id and ct.course_id = $1))
           group by review_status
         `,
+          courseParams,
         ),
       ]);
       const questions = questionRows.map((row) => ({
@@ -306,16 +321,19 @@ export function createDatabaseContentRepository(
       };
     },
 
-    async listQuestions() {
+    async listQuestions(scope) {
       const rows = await readDatabaseRows(
         query,
         `
         select q.*
         from app_public_questions q
         join topics t on t.id = q.topic_id
+        join courses c on c.id = t.course_id
         where t.is_active = true
-        order by t.sort_order, t.title, t.id, q.title, q.id
+          and ($1::text is null or t.course_id = $1)
+        order by c.sort_order, t.sort_order, t.title, t.id, q.title, q.id
       `,
+        [scope?.courseId ?? null],
       );
       return rows
         .map((row) => mapQuestionRow(row as QuestionRow))
@@ -340,14 +358,16 @@ export function createDatabaseContentRepository(
         .filter(isPublishedContent);
     },
 
-    async getRetrievalChunks() {
+    async getRetrievalChunks(scope) {
       const rows = await readDatabaseRows(
         query,
         `
         select *
         from app_student_retrieval_chunks
+        where ($1::text is null or course_id = $1)
         order by priority_rank, topic_id, title, id
       `,
+        [scope?.courseId ?? null],
       );
       return rows
         .map((row) => mapRetrievalChunkRow(row as RetrievalChunkRow))
@@ -512,26 +532,58 @@ export function createDatabaseContentRepository(
       });
     },
 
-    async getTopics() {
-      return this.listTopics();
+    async getTopics(scope) {
+      return this.listTopics(scope);
     },
 
-    async listTopics() {
+    async listCourses() {
+      const rows = await readDatabaseRows(
+        query,
+        `
+        select id, code, title, is_active, sort_order
+        from courses
+        order by sort_order, id
+      `,
+      );
+      return rows.map((row) => ({
+        active: Boolean(row.is_active),
+        code: row.code === null || row.code === undefined ? null : String(row.code),
+        id: String(row.id),
+        order: Number(row.sort_order),
+        title: String(row.title),
+      }));
+    },
+
+    async listTopicCourses() {
+      const rows = await readDatabaseRows(
+        query,
+        `select id, course_id from topics order by id`,
+      );
+      return rows.map((row) => ({
+        courseId: String(row.course_id),
+        topicId: String(row.id),
+      }));
+    },
+
+    async listTopics(scope) {
       const rows = await readDatabaseRows(
         query,
         `
         select
-          id,
-          title,
-          description,
-          sort_order,
-          week_number,
-          module_ref,
-          is_active
+          topics.id,
+          topics.course_id,
+          topics.title,
+          topics.description,
+          topics.sort_order,
+          topics.week_number,
+          topics.module_ref,
+          topics.is_active
         from topics
+        join courses on courses.id = topics.course_id
         left join topic_student_availability availability
           on availability.topic_id = topics.id
         where topics.is_active = true
+          and ($1::text is null or topics.course_id = $1)
           and coalesce(availability.release_state, 'published') = 'published'
           and (
             availability.available_from is null
@@ -541,11 +593,13 @@ export function createDatabaseContentRepository(
             availability.available_until is null
             or availability.available_until > statement_timestamp()
           )
-        order by topics.sort_order, topics.title, topics.id
+        order by courses.sort_order, topics.sort_order, topics.title, topics.id
       `,
+        [scope?.courseId ?? null],
       );
       return rows.map((row) => ({
         active: Boolean(row.is_active),
+        courseId: String(row.course_id),
         description: String(row.description ?? ""),
         id: String(row.id),
         moduleRef: String(row.module_ref ?? ""),
@@ -1073,6 +1127,13 @@ function adminQuestionQuery(filters: AdminQuestionFilters = {}) {
     clauses.push(`q.topic_id = $${params.length}`);
   }
 
+  if (filters.courseId) {
+    params.push(filters.courseId);
+    clauses.push(
+      `q.topic_id in (select id from topics where course_id = $${params.length})`,
+    );
+  }
+
   if (filters.sourceType) {
     params.push(filters.sourceType);
     clauses.push(`q.source_type = $${params.length}`);
@@ -1112,6 +1173,11 @@ function reviewQueueQuery(filters: ReviewQueueFilters = {}) {
   if (filters.topicId) {
     params.push(filters.topicId);
     clauses.push(`topic_id = $${params.length}`);
+  }
+
+  if (filters.courseId) {
+    params.push(filters.courseId);
+    clauses.push(`course_id = $${params.length}`);
   }
 
   return {

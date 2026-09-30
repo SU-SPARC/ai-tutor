@@ -13,6 +13,7 @@ import { getMigrationStatus } from "./database-migrations.mjs";
 
 export const CRITICAL_RECOVERY_TABLES = Object.freeze([
   "schema_migrations",
+  "courses",
   "topics",
   "questions",
   "hints",

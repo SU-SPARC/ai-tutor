@@ -33,6 +33,9 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
   page("/account", "src/app/account/page.tsx", "student-authenticated", [
     "requireStudent",
   ]),
+  page("/courses", "src/app/courses/page.tsx", "public", [
+    "getSelectedCourse",
+  ]),
   page("/dashboard", "src/app/dashboard/page.tsx", "public", ["redirect"]),
   page("/forbidden", "src/app/forbidden/page.tsx", "public", []),
   page("/join", "src/app/join/page.tsx", "public-auth-protocol", [
@@ -205,6 +208,13 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "public-auth-protocol",
     ["GHOST_LOGIN_ENABLED", "signInAsGhost"],
   ),
+  action("selectCourseAction", "src/app/courses/actions.ts", "public", [
+    "isSelectableCourse",
+    "safeReturnPath",
+  ]),
+  action("syncSelectedCourseAction", "src/app/courses/actions.ts", "public", [
+    "isSelectableCourse",
+  ]),
   action(
     "acknowledgeStudentOnboardingAction",
     "src/app/onboarding/actions.ts",

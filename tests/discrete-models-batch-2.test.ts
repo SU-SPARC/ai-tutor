@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import candidates from "../data/demo/discrete-models-batch-2-review-candidates.json";
-import topics from "../data/canonical/syllabus-topics.json";
+import topics from "../data/canonical/probability-statistics/syllabus-topics.json";
 import { checkAnswer } from "@/lib/tutor/answer-checker";
 import {
   parseRational,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authorizeApi, requireStudent } from "@/lib/auth/authorization";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
+import { getSelectedCourseId } from "@/lib/course-selection";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const progress = await getStudentProgress(access.authorization);
+    const progress = await getStudentProgress(access.authorization, {
+      courseId: await getSelectedCourseId(),
+    });
     return NextResponse.json(
       { progress },
       {

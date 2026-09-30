@@ -7,7 +7,7 @@ discrete-models batch 2 candidates. Production remains
 database-backed; these fixtures are copied into Postgres only by the explicit
 operator command documented here.
 
-The importer reads only `data/canonical/syllabus-topics.json` and the seven hard-coded
+The importer reads only `data/canonical/probability-statistics/syllabus-topics.json` and the seven hard-coded
 `*-review-candidates.json` files listed in
 `scripts/lib/review-candidate-import.mjs`. It never scans or reads
 `data/private/`, extracted course material, retrieval chunks, or arbitrary

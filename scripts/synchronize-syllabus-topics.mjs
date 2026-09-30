@@ -3,7 +3,11 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
+import {
+  DEFAULT_COURSE_ID,
+  loadAllCanonicalSyllabusTopics,
+  loadCanonicalSyllabusTopics,
+} from "./lib/canonical-syllabus-topics.mjs"
 import {
   buildSyllabusSyncReport,
   inspectDatabaseTopics,
@@ -19,10 +23,14 @@ const repositoryRoot = path.resolve(
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const mode = args.apply ? "apply" : "dry-run"
-  const topics = await loadCanonicalSyllabusTopics(repositoryRoot)
+  const courseId = args.course
+  const topics = await loadCanonicalSyllabusTopics(repositoryRoot, courseId)
+  const allTopics = await loadAllCanonicalSyllabusTopics(repositoryRoot)
   const repository = await inspectRepositoryTopicMappings(
     repositoryRoot,
     topics,
+    allTopics,
+    courseId,
   )
   let client
   let database
@@ -39,10 +47,10 @@ async function main() {
     client = new Client({ connectionString })
     await client.connect()
     try {
-      database = await inspectDatabaseTopics(client, topics)
+      database = await inspectDatabaseTopics(client, topics, courseId)
       if (args.apply) {
-        await synchronizeDatabaseTopics(client, topics, database)
-        database = await inspectDatabaseTopics(client, topics)
+        await synchronizeDatabaseTopics(client, topics, database, courseId)
+        database = await inspectDatabaseTopics(client, topics, courseId)
       }
     } finally {
       await client.end()
@@ -50,6 +58,7 @@ async function main() {
   }
 
   const report = buildSyllabusSyncReport({
+    courseId,
     database,
     mode,
     repository,
@@ -65,15 +74,23 @@ async function main() {
     repository.staleMappings.length +
     (database?.duplicateOrderValues.length ?? 0) +
     (database?.duplicateSlugs.length ?? 0) +
-    (database?.blockingOrderConflicts.length ?? 0)
+    (database?.blockingOrderConflicts.length ?? 0) +
+    (database?.courseConflicts.length ?? 0)
   if (failures > 0) process.exitCode = 1
 }
 
 function parseArgs(rawArgs) {
-  const args = { apply: false, filesOnly: false }
+  const args = { apply: false, course: DEFAULT_COURSE_ID, filesOnly: false }
   let requestedMode
-  for (const arg of rawArgs) {
-    if (arg === "--apply" || arg === "--dry-run") {
+  for (const [index, arg] of rawArgs.entries()) {
+    if (rawArgs[index - 1] === "--course") continue
+    if (arg === "--course") {
+      const value = rawArgs[index + 1]
+      if (!value || value.startsWith("--")) {
+        throw new Error("--course requires a course id.")
+      }
+      args.course = value
+    } else if (arg === "--apply" || arg === "--dry-run") {
       if (requestedMode && requestedMode !== arg) {
         throw new Error("Choose either --dry-run or --apply, not both.")
       }

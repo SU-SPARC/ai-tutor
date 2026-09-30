@@ -1,27 +1,66 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
-export const CANONICAL_SYLLABUS_TOPICS_FILE =
-  "data/canonical/syllabus-topics.json"
+// Courses registered by migration 028, in display order. Each has one
+// canonical syllabus file at data/canonical/<course id>/syllabus-topics.json.
+export const DEFAULT_COURSE_ID = "probability-statistics"
+export const CANONICAL_COURSE_IDS = Object.freeze([
+  "probability-statistics",
+  "calculus-1",
+])
 
-export async function loadCanonicalSyllabusTopics(repositoryRoot) {
-  const inputPath = path.join(repositoryRoot, CANONICAL_SYLLABUS_TOPICS_FILE)
+/** The default course's canonical file, kept for importers written for one course. */
+export const CANONICAL_SYLLABUS_TOPICS_FILE =
+  "data/canonical/probability-statistics/syllabus-topics.json"
+
+export function canonicalSyllabusTopicsFile(courseId = DEFAULT_COURSE_ID) {
+  if (!CANONICAL_COURSE_IDS.includes(courseId)) {
+    throw new Error(
+      `Unknown course "${courseId}". Known courses: ${CANONICAL_COURSE_IDS.join(", ")}.`,
+    )
+  }
+  return `data/canonical/${courseId}/syllabus-topics.json`
+}
+
+/**
+ * Loads one course's canonical topics, each stamped with its `courseId`. A
+ * course whose syllabus has not been provided yet has an empty file, which is
+ * valid and yields no topics.
+ */
+export async function loadCanonicalSyllabusTopics(
+  repositoryRoot,
+  courseId = DEFAULT_COURSE_ID,
+) {
+  const inputPath = path.join(
+    repositoryRoot,
+    canonicalSyllabusTopicsFile(courseId),
+  )
   const topics = JSON.parse(await readFile(inputPath, "utf8"))
   const errors = validateCanonicalSyllabusTopics(topics)
 
   if (errors.length > 0) {
     throw new Error(
-      `Invalid canonical syllabus topics:\n${errors.map((error) => `- ${error}`).join("\n")}`,
+      `Invalid canonical syllabus topics for ${courseId}:\n${errors.map((error) => `- ${error}`).join("\n")}`,
     )
   }
 
-  return topics.map((topic) => ({ ...topic }))
+  return topics.map((topic) => ({ ...topic, courseId }))
+}
+
+/** Every course's canonical topics, for checks that must recognise any course. */
+export async function loadAllCanonicalSyllabusTopics(repositoryRoot) {
+  const perCourse = await Promise.all(
+    CANONICAL_COURSE_IDS.map((courseId) =>
+      loadCanonicalSyllabusTopics(repositoryRoot, courseId),
+    ),
+  )
+  return perCourse.flat()
 }
 
 export function validateCanonicalSyllabusTopics(topics) {
   const errors = []
-  if (!Array.isArray(topics) || topics.length === 0) {
-    return ["The canonical topic catalog must be a non-empty array."]
+  if (!Array.isArray(topics)) {
+    return ["The canonical topic catalog must be an array."]
   }
 
   const ids = new Set()

@@ -6,6 +6,7 @@ import {
   type LocalRetrievalAudience,
 } from "@/lib/ai/retrieval";
 import { authorizeApi, requireProfessor } from "@/lib/auth/authorization";
+import { isCourseIdShape } from "@/lib/course-catalog";
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
@@ -13,6 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RetrievalSearchBody = {
+  courseId?: unknown;
   limit?: unknown;
   mode?: unknown;
   query?: unknown;
@@ -21,6 +23,7 @@ type RetrievalSearchBody = {
 };
 
 type RetrievalSearchInput = {
+  courseId?: string;
   limit: number;
   mode: LocalRetrievalAudience;
   query: string;
@@ -68,6 +71,7 @@ export async function POST(request: Request) {
   try {
     const results = await searchLocalRetrieval(parsed.input.query, {
       audience: parsed.input.mode,
+      courseId: parsed.input.courseId,
       filters: parsed.input.questionId
         ? {
             questionId: parsed.input.questionId,
@@ -133,6 +137,16 @@ function parseRetrievalSearchInput(body: RetrievalSearchBody):
     return { error: `questionId ${questionId.error}`, ok: false };
   }
 
+  const courseId = optionalBoundedString(body.courseId, MAX_FILTER_CHARACTERS);
+
+  if (courseId.error) {
+    return { error: `courseId ${courseId.error}`, ok: false };
+  }
+
+  if (courseId.value !== undefined && !isCourseIdShape(courseId.value)) {
+    return { error: "courseId must be a course id.", ok: false };
+  }
+
   const limit = parseLimit(body.limit);
 
   if (!limit.ok) {
@@ -147,6 +161,7 @@ function parseRetrievalSearchInput(body: RetrievalSearchBody):
 
   return {
     input: {
+      courseId: courseId.value,
       limit: limit.value,
       mode: mode.value,
       query: query.value,

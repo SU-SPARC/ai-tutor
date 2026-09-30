@@ -86,6 +86,7 @@ const siblingQuestion = published(
 );
 const axiomsTopic: CourseTopic = {
   active: true,
+  courseId: "probability-statistics",
   description: "Axioms of probability and counting.",
   id: "axioms-probability-counting-methods",
   moduleRef: "Week 1",

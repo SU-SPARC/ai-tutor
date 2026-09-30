@@ -91,7 +91,7 @@ export function validateCanonicalTopicProjection(manifest, canonicalTopics) {
     throw new ContentImportValidationError([
       issue(
         "canonical_syllabus_mismatch",
-        "Manifest topics must exactly match data/canonical/syllabus-topics.json; update the canonical syllabus first or report the change for human review.",
+        "Manifest topics must exactly match data/canonical/probability-statistics/syllabus-topics.json; update the canonical syllabus first or report the change for human review.",
       ),
     ]);
   }

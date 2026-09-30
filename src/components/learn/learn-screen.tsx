@@ -7,11 +7,13 @@ import { ContinueCard } from "@/components/learn/continue-card";
 import { GuestNotice } from "@/components/learn/guest-notice";
 import type { LearnModel } from "@/components/learn/learn-model";
 import { LearnToolbar } from "@/components/learn/learn-toolbar";
+import { CourseChangeLink } from "@/components/course/course-change-link";
 import { SavedPractice } from "@/components/learn/saved-practice";
 import { SyllabusList } from "@/components/learn/syllabus-list";
 import { WeekStrip } from "@/components/learn/week-strip";
 import { ThreeColumn } from "@/components/shell/three-column";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 
 /** Recent practice rows shown before "Show all" below 1280px. */
@@ -28,7 +30,13 @@ const RECENT_LIMIT_NARROW = 3;
  * and "At a glance" comes last. A guest who has solved nothing sees only the
  * Continue card, the syllabus and the guest note: empty trackers are noise.
  */
-export function LearnScreen({ model }: { model: LearnModel }) {
+export function LearnScreen({
+  course,
+  model,
+}: {
+  course?: { id: string; title: string };
+  model: LearnModel;
+}) {
   const [search, setSearch] = useState("");
 
   const visibleTopics = useMemo(() => {
@@ -59,7 +67,11 @@ export function LearnScreen({ model }: { model: LearnModel }) {
   return (
     <ThreeColumn drawerOpen={false}>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 xl:max-w-6xl">
-        <PageHeader title="Learn">
+        <PageHeader
+          title="Learn"
+          eyebrow={course?.title}
+          actions={course ? <CourseChangeLink returnTo="/learn" /> : undefined}
+        >
           {model.isGuest ? <GuestNotice returnTo="/learn" /> : null}
         </PageHeader>
 
@@ -72,11 +84,19 @@ export function LearnScreen({ model }: { model: LearnModel }) {
               <h2 id="learn-continue" className="type-label">
                 Continue
               </h2>
-              <ContinueCard
-                card={model.continueCard}
-                positionTotal={continueTotal}
-                question={continueQuestion}
-              />
+              {model.topics.length === 0 ? (
+                <EmptyState className="py-2">
+                  {course
+                    ? `${course.title} doesn't have any topics yet. Your professor is still setting it up.`
+                    : "There are no topics yet."}
+                </EmptyState>
+              ) : (
+                <ContinueCard
+                  card={model.continueCard}
+                  positionTotal={continueTotal}
+                  question={continueQuestion}
+                />
+              )}
               {showTrackers ? (
                 <p className="type-small tabular text-ink xl:hidden">
                   <span className="type-label">This week: </span>
@@ -109,30 +129,34 @@ export function LearnScreen({ model }: { model: LearnModel }) {
               <h2 id="learn-syllabus" className="type-label">
                 Syllabus
               </h2>
-              <LearnToolbar
-                onSearchChange={setSearch}
-                search={search}
-                searchLabel="Search topics"
-                searchPlaceholder="Search topics…"
-              />
+              {model.topics.length > 0 ? (
+                <LearnToolbar
+                  onSearchChange={setSearch}
+                  search={search}
+                  searchLabel="Search topics"
+                  searchPlaceholder="Search topics…"
+                />
+              ) : null}
               <p role="status" className="sr-only">
                 {filtering
                   ? `${visibleTopics.length} of ${model.topics.length} topics shown`
                   : ""}
               </p>
-              <SyllabusList
-                emptyAction={
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setSearch("")}
-                  >
-                    Show all topics
-                  </Button>
-                }
-                emptyMessage="No topic matches that search."
-                topics={visibleTopics}
-              />
+              {model.topics.length > 0 ? (
+                <SyllabusList
+                  emptyAction={
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setSearch("")}
+                    >
+                      Show all topics
+                    </Button>
+                  }
+                  emptyMessage="No topic matches that search."
+                  topics={visibleTopics}
+                />
+              ) : null}
             </section>
           </div>
 

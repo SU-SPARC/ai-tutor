@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
+import { ProfessorCourseFilter } from "@/components/professor/professor-course-filter";
+import { getSelectedCourse } from "@/lib/course-selection";
 import {
   DEMO_NOTICE,
   ProfessorQuestionIntakePanel,
@@ -42,8 +44,9 @@ export default async function ProfessorQuestionsPage({
     requireProfessorReview,
     "/professor/questions",
   );
+  const { course, courses } = await getSelectedCourse();
   const [initialDashboard, params] = await Promise.all([
-    getQuestionLifecycleDashboard(authorization),
+    getQuestionLifecycleDashboard(authorization, { courseId: course.id }),
     searchParams,
   ]);
   const activeQuestions = initialDashboard.questions.filter(
@@ -59,6 +62,13 @@ export default async function ProfessorQuestionsPage({
       ]}
       description={`${activeQuestions} ${activeQuestions === 1 ? "question" : "questions"}. Students only see questions you choose to show them.`}
       notice={initialDashboard.readOnly ? DEMO_NOTICE : undefined}
+      courseFilter={
+        <ProfessorCourseFilter
+          courses={courses}
+          returnTo="/professor/questions"
+          selectedCourseId={course.id}
+        />
+      }
       aside={
         <Button asChild variant="cta" className="min-h-11">
           <Link href={ADD_QUESTION_HREF}>

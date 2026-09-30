@@ -22,6 +22,8 @@ import { questionCode, studentDifficultyLabel } from "@/lib/labels";
 import type { StudentPracticeQuestion } from "@/lib/types";
 
 export type LandingSheetProps = {
+  /** How the course is named in the join prompt; defaults to "MATH-255". */
+  courseLabel?: string;
   question: StudentPracticeQuestion;
   weekNumber: number;
   value: string;
@@ -94,6 +96,7 @@ export function LandingSheet({
   verdict,
   error,
   locked = false,
+  courseLabel = "MATH-255",
 }: LandingSheetProps) {
   const header = {
     topicLabel: `Wk ${weekNumber}`,
@@ -190,7 +193,7 @@ export function LandingSheet({
           <p className="type-small text-ink-muted">
             That was the course’s own answer checker.{" "}
             <Link href="/join" className={LANDING_TEXT_LINK}>
-              Join MATH-255 to keep your progress.
+              Join {courseLabel} to keep your progress.
             </Link>
           </p>
         ) : null}

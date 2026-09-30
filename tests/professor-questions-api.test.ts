@@ -264,6 +264,12 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
         nonDurable: true,
       };
     },
+    async listCourses() {
+      return [];
+    },
+    async listTopicCourses() {
+      return [];
+    },
     async listQuestions() {
       return [current];
     },
@@ -274,6 +280,7 @@ function contentRepositoryFixture(question: AdminQuestion): ContentRepository {
       return [
         {
           active: true,
+          courseId: "probability-statistics",
           description: "Generated topic",
           id: current.topicId,
           moduleRef: "Week 1",

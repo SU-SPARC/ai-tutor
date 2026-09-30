@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
+import { ProfessorCourseFilter } from "@/components/professor/professor-course-filter";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { InstructorStudentTable } from "@/components/professor/instructor-student-table";
 import { InstructorStudentTopicRoster } from "@/components/professor/instructor-student-topic-roster";
@@ -16,7 +17,9 @@ import {
   requireAnalyticsAccess,
   requirePageAccess,
 } from "@/lib/auth/authorization";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { listInstructorStudents } from "@/lib/data/data-store";
+import { activeCanonicalSyllabusTopicsForCourse } from "@/lib/data/canonical-syllabus-topics";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 import {
   resolveInstructorStudentIdentities,
@@ -76,15 +79,25 @@ export default async function ProfessorStudentsPage({
 
   // One correlation id per render, shared by every audit row it writes.
   const requestId = pilotRequestId();
+  // The class, in the course the professor is working in.
+  const { course, courses } = await getSelectedCourse();
+  const courseFilter = (
+    <ProfessorCourseFilter
+      courses={courses}
+      returnTo="/professor/students"
+      selectedCourseId={course.id}
+    />
+  );
 
   if (view === "topics") {
     const roster = await resolveInstructorStudentRoster(authorization, {
+      courseId: course.id,
       requestId,
     });
     const empty = roster.topics.length === 0 && roster.unassigned.length === 0;
 
     return (
-      <StudentsPageShell>
+      <StudentsPageShell courseFilter={courseFilter}>
         {roster.mode === "demo" ? (
           <DemoModeNotice />
         ) : empty ? (
@@ -107,6 +120,7 @@ export default async function ProfessorStudentsPage({
     typeof params.page === "string" ? params.page : undefined,
   );
   const list = await listInstructorStudents(authorization, {
+    courseId: course.id,
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
     search,
@@ -126,7 +140,7 @@ export default async function ProfessorStudentsPage({
   const lastShown = Math.min(list.offset + list.limit, list.total);
 
   return (
-    <StudentsPageShell>
+    <StudentsPageShell courseFilter={courseFilter}>
       {list.mode === "demo" ? (
         <DemoModeNotice />
       ) : list.total === 0 && !search ? (
@@ -189,6 +203,7 @@ export default async function ProfessorStudentsPage({
               <InstructorStudentTable
                 identities={identities}
                 list={list}
+                topicCount={activeCanonicalSyllabusTopicsForCourse(course.id).length}
               />
 
               <nav
@@ -232,9 +247,16 @@ export default async function ProfessorStudentsPage({
   );
 }
 
-function StudentsPageShell({ children }: { children: ReactNode }) {
+function StudentsPageShell({
+  children,
+  courseFilter,
+}: {
+  children: ReactNode;
+  courseFilter?: ReactNode;
+}) {
   return (
     <ProfessorPageShell
+      courseFilter={courseFilter}
       title="Students"
       breadcrumbs={[
         { label: "Home", href: "/professor" },

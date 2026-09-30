@@ -15,6 +15,7 @@ import {
   currentAuthenticatedUser,
   hasPermission,
 } from "@/lib/auth/authorization";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { getServerEnv } from "@/lib/env/server";
 import { operatingModePolicyFor } from "@/lib/runtime/operating-mode";
 
@@ -91,6 +92,19 @@ async function resolveHeaderRole(): Promise<AppHeaderRole | undefined> {
   }
 }
 
+/**
+ * The course the visitor is working in, for the header chip. A failure to read
+ * it falls back to no chip detail rather than failing the page.
+ */
+async function resolveHeaderCourse() {
+  try {
+    const { course } = await getSelectedCourse();
+    return { id: course.id, title: course.title };
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -99,7 +113,10 @@ export default async function RootLayout({
   const env = getServerEnv();
   const operatingMode = operatingModePolicyFor(env);
   const authenticationEnabled = env.CLERK_ENABLED;
-  const role = await resolveHeaderRole();
+  const [role, headerCourse] = await Promise.all([
+    resolveHeaderRole(),
+    resolveHeaderCourse(),
+  ]);
   // The onboarding guide gets the same server-resolved role; signed-out
   // visitors (no role) never see a tour.
   const shell = (
@@ -111,6 +128,7 @@ export default async function RootLayout({
         }
         environmentLabel={operatingMode.indicatorLabel}
         role={role}
+        course={headerCourse}
       />
       {children}
       <Toaster />

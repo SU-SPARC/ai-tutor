@@ -13,10 +13,12 @@ import {
   reviewCandidates,
 } from "@/lib/data/demo-data";
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
+import { DEFAULT_PLATFORM_COURSES } from "@/lib/course-catalog";
 import {
   type AdminQuestionFilters,
   reviewStatusForAction,
   type ContentRepository,
+  type CourseScope,
   type QuestionCounts,
   type ReviewAction,
   type ReviewCandidateUpdate,
@@ -34,6 +36,17 @@ import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-tool
 let reviewQueue: ReviewCandidate[] = reviewCandidates.map(cloneReviewCandidate);
 
 export const demoContentRepository: ContentRepository = {
+  async listCourses() {
+    return DEFAULT_PLATFORM_COURSES.map((course) => ({ ...course }));
+  },
+
+  async listTopicCourses() {
+    return demoTopics.map((topic) => ({
+      courseId: topic.courseId,
+      topicId: topic.id,
+    }));
+  },
+
   async getAdminQuestions(authorization, filters) {
     assertAuthorization(authorization, "professor");
     return filterAdminQuestions(
@@ -53,21 +66,23 @@ export const demoContentRepository: ContentRepository = {
     return this.getQuestionById(questionId);
   },
 
-  async getApprovedQuestions() {
-    return this.listQuestions();
+  async getApprovedQuestions(scope) {
+    return this.listQuestions(scope);
   },
 
-  async getQuestionCounts() {
-    return getQuestionCounts(listDemoQuestions());
+  async getQuestionCounts(scope) {
+    return getQuestionCounts(listDemoQuestions(scope));
   },
 
-  async getProfessorPracticeAnalytics(authorization) {
+  async getProfessorPracticeAnalytics(authorization, scope) {
     assertAuthorization(authorization, "professor");
-    return getDemoProfessorPracticeAnalytics();
+    return getDemoProfessorPracticeAnalytics(scope);
   },
 
-  async getRetrievalChunks() {
-    return retrievalChunks.filter(isStudentSafeRetrievalContent);
+  async getRetrievalChunks(scope) {
+    return retrievalChunks
+      .filter(isStudentSafeRetrievalContent)
+      .filter((chunk) => isInCourse(chunk.topicId, scope?.courseId));
   },
 
   async getReviewQueue(authorization, filters) {
@@ -75,8 +90,8 @@ export const demoContentRepository: ContentRepository = {
     return filterReviewQueue(reviewQueue, filters).map(cloneReviewCandidate);
   },
 
-  async getTopics() {
-    return this.listTopics();
+  async getTopics(scope) {
+    return this.listTopics(scope);
   },
 
   async importReviewCandidates(authorization, candidates) {
@@ -98,8 +113,8 @@ export const demoContentRepository: ContentRepository = {
     };
   },
 
-  async listQuestions() {
-    return listDemoQuestions();
+  async listQuestions(scope) {
+    return listDemoQuestions(scope);
   },
 
   async listQuestionsByTopic(topicId) {
@@ -108,8 +123,10 @@ export const demoContentRepository: ContentRepository = {
     );
   },
 
-  async listTopics() {
-    return demoTopics;
+  async listTopics(scope) {
+    return scope?.courseId
+      ? demoTopics.filter((topic) => topic.courseId === scope.courseId)
+      : demoTopics;
   },
 
   async updateReviewCandidates(authorization, input: ReviewCandidateUpdate) {
@@ -190,8 +207,19 @@ export const demoContentRepository: ContentRepository = {
   },
 };
 
-function listDemoQuestions() {
-  return demoQuestions.filter(isPublishedContent);
+const demoTopicCourseIds = new Map(
+  demoTopics.map((topic) => [topic.id, topic.courseId]),
+);
+
+/** True when no course is requested, or the topic belongs to that course. */
+function isInCourse(topicId: string, courseId: string | undefined) {
+  return courseId === undefined || demoTopicCourseIds.get(topicId) === courseId;
+}
+
+function listDemoQuestions(scope?: CourseScope) {
+  return demoQuestions
+    .filter(isPublishedContent)
+    .filter((question) => isInCourse(question.topicId, scope?.courseId));
 }
 
 function getQuestionCounts(questions: TutorQuestion[]): QuestionCounts {
@@ -209,7 +237,7 @@ function getQuestionCounts(questions: TutorQuestion[]): QuestionCounts {
   );
 }
 
-function getDemoProfessorPracticeAnalytics() {
+function getDemoProfessorPracticeAnalytics(scope?: CourseScope) {
   const questionStats = [
     {
       attempts: 22,
@@ -236,7 +264,10 @@ function getDemoProfessorPracticeAnalytics() {
       stepsRevealed: 3,
     },
   ];
-  const questions = demoQuestions.map((question, index) => {
+  const scopedQuestions = demoQuestions.filter((question) =>
+    isInCourse(question.topicId, scope?.courseId),
+  );
+  const questions = scopedQuestions.map((question, index) => {
     const stats = questionStats[index % questionStats.length];
     const topicTitle =
       demoTopics.find((topic) => topic.id === question.topicId)?.title ??
@@ -294,7 +325,7 @@ function getDemoProfessorPracticeAnalytics() {
         (total, question) => total + question.stepsRevealed,
         0,
       ),
-      totalTutorSessions: 26,
+      totalTutorSessions: scopedQuestions.length === 0 ? 0 : 26,
     },
     topics: [...byTopic.values()].sort((left, right) =>
       compareCanonicalTopicIds(left.topicId, right.topicId),
@@ -342,6 +373,10 @@ function filterReviewQueue(
       return false;
     }
 
+    if (!isInCourse(candidate.topicId, filters.courseId)) {
+      return false;
+    }
+
     return true;
   });
 }
@@ -356,6 +391,10 @@ function filterAdminQuestions(
     }
 
     if (filters.topicId && question.topicId !== filters.topicId) {
+      return false;
+    }
+
+    if (!isInCourse(question.topicId, filters.courseId)) {
       return false;
     }
 

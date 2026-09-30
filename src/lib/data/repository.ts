@@ -17,6 +17,17 @@ import type {
   TutorQuestion,
 } from "@/lib/types";
 import type { OperatingMode } from "@/lib/runtime/operating-mode";
+import type { PlatformCourse } from "@/lib/course-catalog";
+
+/**
+ * Narrows a read to one course. A course owns topics, and a question's course is
+ * its topic's course, so this never needs a column on the question. Omitting
+ * `courseId` reads across every course, which deep links and cross-course
+ * tools (for example, resolving which course a question belongs to) rely on.
+ */
+export type CourseScope = {
+  courseId?: string;
+};
 
 export type ReviewAction =
   | "approve"
@@ -25,6 +36,7 @@ export type ReviewAction =
   | "request_regeneration";
 
 export type ReviewQueueFilters = {
+  courseId?: string;
   difficulty?: Difficulty;
   reviewPriority?: ReviewPriority;
   status?: ReviewStatus;
@@ -49,6 +61,7 @@ export type ReviewCandidateImport = {
 };
 
 export type AdminQuestionFilters = {
+  courseId?: string;
   generatedOnly?: boolean;
   sourceType?: SourceType;
   status?: ReviewStatus;
@@ -121,24 +134,31 @@ export type ContentRepository = {
   getApprovedQuestionById(
     questionId: string,
   ): Promise<TutorQuestion | undefined>;
-  getApprovedQuestions(): Promise<TutorQuestion[]>;
-  getQuestionCounts(): Promise<QuestionCounts>;
+  getApprovedQuestions(scope?: CourseScope): Promise<TutorQuestion[]>;
+  getQuestionCounts(scope?: CourseScope): Promise<QuestionCounts>;
   getProfessorPracticeAnalytics(
     authorization: AnalyticsAuthorization,
+    scope?: CourseScope,
   ): Promise<ProfessorPracticeAnalytics>;
-  getRetrievalChunks(): Promise<RetrievalChunk[]>;
+  getRetrievalChunks(scope?: CourseScope): Promise<RetrievalChunk[]>;
   getReviewQueue(
     authorization: ProfessorReviewAuthorization | AnalyticsAuthorization,
     filters?: ReviewQueueFilters,
   ): Promise<ReviewCandidate[]>;
-  getTopics(): Promise<Topic[]>;
+  getTopics(scope?: CourseScope): Promise<Topic[]>;
   importReviewCandidates(
     authorization: ProfessorReviewAuthorization,
     candidates: ReviewCandidate[],
   ): Promise<ReviewCandidateImport>;
-  listQuestions(): Promise<TutorQuestion[]>;
+  listCourses(): Promise<PlatformCourse[]>;
+  /**
+   * The course of every topic, including topics not currently shown to
+   * students. Professor tools use it to scope their own lists by course.
+   */
+  listTopicCourses(): Promise<Array<{ courseId: string; topicId: string }>>;
+  listQuestions(scope?: CourseScope): Promise<TutorQuestion[]>;
   listQuestionsByTopic(topicId: string): Promise<TutorQuestion[]>;
-  listTopics(): Promise<Topic[]>;
+  listTopics(scope?: CourseScope): Promise<Topic[]>;
   regenerateAdminQuestion(
     authorization: ProfessorReviewAuthorization,
     input: AdminQuestionRegenerationInput,

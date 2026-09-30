@@ -3,7 +3,7 @@
 Prepared 2026-09-10. Eight new original drafts, pending professor review.
 Canonical topic: `binomial-models` — **Bernoulli, Binomial, Geometric, Poisson,
 and Other Discrete Random Variables**, as specified by
-`data/canonical/syllabus-topics.json`. No new topic was introduced.
+`data/canonical/probability-statistics/syllabus-topics.json`. No new topic was introduced.
 
 All IDs below start with `generated-discrete-batch-2-`.
 

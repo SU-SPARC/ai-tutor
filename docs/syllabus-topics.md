@@ -1,6 +1,6 @@
 # Canonical syllabus topics
 
-`data/canonical/syllabus-topics.json` is the single source of topic identity and
+`data/canonical/probability-statistics/syllabus-topics.json` is the single source of topic identity and
 syllabus order. Database rows, demo data, review imports, generators, analytics,
 retrieval exports, and professor/student views must preserve those IDs and that
 order. Display names are not IDs and must never be re-slugged to create mappings.

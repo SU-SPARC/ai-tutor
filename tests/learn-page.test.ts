@@ -36,6 +36,7 @@ const NOW = "2026-09-10T12:00:00.000Z";
 const topics: CourseTopic[] = [
   {
     active: true,
+    courseId: "probability-statistics",
     description: "Sample spaces and Venn diagrams.",
     id: "introduction",
     moduleRef: "Week 1",
@@ -45,6 +46,7 @@ const topics: CourseTopic[] = [
   },
   {
     active: true,
+    courseId: "probability-statistics",
     description: "Restrict the sample space.",
     id: "conditional-probability",
     moduleRef: "Week 3",
@@ -54,6 +56,7 @@ const topics: CourseTopic[] = [
   },
   {
     active: true,
+    courseId: "probability-statistics",
     description: "Approximate sample means.",
     id: "central-limit-theorem",
     moduleRef: "Week 13",

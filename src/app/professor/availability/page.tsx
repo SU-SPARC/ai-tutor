@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
+import { ProfessorCourseFilter } from "@/components/professor/professor-course-filter";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { ProfessorContentAvailabilityPanel } from "@/components/professor/professor-content-availability-panel";
 import { getContentAvailabilityDashboard } from "@/lib/data/data-store";
 import {
@@ -17,7 +19,11 @@ export default async function ProfessorAvailabilityPage() {
     requireProfessorReview,
     "/professor/availability",
   );
-  const initialDashboard = await getContentAvailabilityDashboard(authorization);
+  const { course, courses } = await getSelectedCourse();
+  const initialDashboard = await getContentAvailabilityDashboard(
+    authorization,
+    { courseId: course.id },
+  );
 
   return (
     <ProfessorPageShell
@@ -27,6 +33,13 @@ export default async function ProfessorAvailabilityPage() {
         { label: "What students see" },
       ]}
       description="Choose when students can see each topic or question."
+      courseFilter={
+        <ProfessorCourseFilter
+          courses={courses}
+          returnTo="/professor/availability"
+          selectedCourseId={course.id}
+        />
+      }
       notice={
         initialDashboard.mode === "demo"
           ? "Demo: changes on this page are not saved."

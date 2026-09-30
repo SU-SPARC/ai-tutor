@@ -6,6 +6,7 @@ import {
   isPublishedContent,
   type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
+import { DEFAULT_COURSE_ID } from "@/lib/course-catalog";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import {
   getApprovedQuestions,
@@ -33,6 +34,12 @@ export type RetrievalAudience = "admin_dev" | "student";
 
 export type RetrievalOptions = {
   audience?: RetrievalAudience;
+  /**
+   * Grounding never crosses courses. When omitted it is taken from `topicId`;
+   * a student retrieval with neither falls back to the default course, and a
+   * topic that cannot be resolved matches nothing rather than everything.
+   */
+  courseId?: string;
   excludeQuestionId?: string;
   includeQuestionExamples?: boolean;
   maxResults?: number;
@@ -46,6 +53,9 @@ export type GroundingContextOptions = {
   maxItems?: number;
   maxTotalChars?: number;
 };
+
+/** Names no course, so a scoped read returns nothing. */
+const UNRESOLVED_COURSE_ID = "unresolved-course";
 
 const DEFAULT_MAX_RESULTS = 3;
 const DEFAULT_MAX_GROUNDING_ITEMS = 4;
@@ -107,8 +117,10 @@ export async function retrieveTutorContext(
     assertAuthorization(options.professorAuthorization, "professor");
   }
   let sources: Awaited<ReturnType<typeof loadRetrievalSources>>;
+  let courseId: string | undefined;
   try {
-    sources = await loadRetrievalSources(query, options, audience);
+    courseId = await resolveRetrievalCourseId(options, audience);
+    sources = await loadRetrievalSources(query, options, audience, courseId);
   } catch (cause) {
     if (cause instanceof AuthorizationDeniedError) {
       throw cause;
@@ -144,6 +156,7 @@ export async function retrieveTutorContext(
   const matches = rankRetrievalChunks(query, chunks, {
     ...options,
     audience,
+    courseId,
     productionSourcesOnly: ["production", "staging"].includes(
       getOperatingModePolicy().mode,
     ),
@@ -156,24 +169,45 @@ export async function retrieveTutorContext(
   };
 }
 
+async function resolveRetrievalCourseId(
+  options: RetrievalOptions,
+  audience: RetrievalAudience,
+): Promise<string | undefined> {
+  if (options.courseId) {
+    return options.courseId;
+  }
+  if (options.topicId) {
+    const topic = (await getTopics()).find(
+      (candidate) => candidate.id === options.topicId,
+    );
+    return topic?.courseId ?? UNRESOLVED_COURSE_ID;
+  }
+  // A professor's admin search may span courses on purpose; a student request
+  // that names neither course nor topic keeps the original course.
+  return audience === "student" ? DEFAULT_COURSE_ID : undefined;
+}
+
 function loadRetrievalSources(
   query: string,
   options: RetrievalOptions,
   audience: RetrievalAudience,
+  courseId: string | undefined,
 ) {
   const includeQuestionExamples = options.includeQuestionExamples ?? true;
+  const scope = { courseId };
   return Promise.all([
-    getRetrievalChunks(),
-    includeQuestionExamples ? getApprovedQuestions() : Promise.resolve([]),
+    getRetrievalChunks(scope),
+    includeQuestionExamples ? getApprovedQuestions(scope) : Promise.resolve([]),
     audience === "admin_dev"
-      ? getReviewQueue(options.professorAuthorization!)
+      ? getReviewQueue(options.professorAuthorization!, { courseId })
       : Promise.resolve([]),
     searchLocalRetrieval(query, {
       audience: audience === "admin_dev" ? "admin_dev" : "student",
+      courseId,
       maxResults: options.maxResults ?? 3,
       topicId: options.topicId,
     }),
-    audience === "student" ? getTopics() : Promise.resolve([]),
+    audience === "student" ? getTopics(scope) : Promise.resolve([]),
   ] as const);
 }
 

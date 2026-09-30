@@ -133,15 +133,17 @@ export function formatCorrect(correct: number, checked: number) {
 export function InstructorStudentTable({
   identities,
   list,
+  topicCount = activeCanonicalSyllabusTopics.length,
 }: {
   identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
+  /** How many topics the course has; "Topics practiced" is shown out of this. */
+  topicCount?: number;
 }) {
   const labels = assignStudentLabels(
     list.students.map((student) => student.studentKey),
   );
   const now = requestTime();
-  const topicCount = activeCanonicalSyllabusTopics.length;
 
   return (
     <div className="rounded-panel bg-sheet">

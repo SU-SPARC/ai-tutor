@@ -154,7 +154,7 @@ async function buildImportPlan(client, fixtures) {
   ];
   const [topicResult, questionResult, patternResult] = await Promise.all([
     client.query(`
-      select id, title, description, sort_order, week_number, module_ref, is_active
+      select id, course_id, title, description, sort_order, week_number, module_ref, is_active
       from topics
       order by id
     `),
@@ -206,6 +206,9 @@ async function buildImportPlan(client, fixtures) {
   );
 
   for (const row of topicResult.rows) {
+    // Topic order is a per-course sequence; these fixtures are the default
+    // course's syllabus, so another course's topics cannot conflict with it.
+    if (row.course_id !== "probability-statistics") continue;
     const desiredOwner = desiredOrders.get(Number(row.sort_order));
     if (desiredOwner && desiredOwner !== row.id && !canonicalIds.has(row.id)) {
       throw new ReviewCandidateImportValidationError([

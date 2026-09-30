@@ -27,7 +27,7 @@ export type QuestionLifecycleState =
 export type AnswerType = "numeric" | "categorical" | "expression";
 export type Difficulty = "foundational" | "core" | "challenge";
 
-/** One canonical syllabus topic, as loaded from data/canonical/syllabus-topics.json. */
+/** One canonical syllabus topic, as loaded from data/canonical/probability-statistics/syllabus-topics.json. */
 export type CanonicalTopic = {
   id: TopicId;
   title: string;

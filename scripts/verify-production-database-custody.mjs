@@ -39,6 +39,7 @@ const repositoryRoot = path.resolve(
 
 const PROTECTED_RUNTIME_TABLES = Object.freeze([
   "approved_content_imports",
+  "courses",
   "question_patterns",
   "retrieval_chunks",
   "roles",

@@ -208,7 +208,7 @@ revoke create on schema public from app_runtime;
 revoke create on database postgres from app_runtime;
 revoke insert, update, delete, truncate, references, trigger
   on schema_migrations, approved_content_imports, question_patterns, roles,
-     retrieval_chunks, student_progress, topics
+     retrieval_chunks, student_progress, topics, courses
   from app_runtime;
 
 -- Fail closed if the publish path would still be denied inside the trigger.

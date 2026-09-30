@@ -23,6 +23,7 @@ export function ProfessorPageShell({
   aside,
   breadcrumbs,
   children,
+  courseFilter,
   description,
   notice,
   title,
@@ -30,6 +31,8 @@ export function ProfessorPageShell({
   aside?: ReactNode;
   breadcrumbs?: ProfessorBreadcrumb[];
   children: ReactNode;
+  /** The course selector, on pages whose lists are scoped to one course. */
+  courseFilter?: ReactNode;
   description: string;
   /**
    * One line under the description. The demo line is always exactly "Demo:
@@ -52,6 +55,7 @@ export function ProfessorPageShell({
         notice={notice}
         className="mb-2"
       />
+      {courseFilter}
       {children}
     </div>
   );

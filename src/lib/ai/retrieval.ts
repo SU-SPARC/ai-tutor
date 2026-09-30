@@ -3,6 +3,7 @@ import "server-only"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import { canonicalSyllabusTopicsForCourse } from "@/lib/data/canonical-syllabus-topics"
 import { getOperatingModePolicy } from "@/lib/runtime/operating-mode"
 import type {
   Difficulty,
@@ -23,6 +24,11 @@ export type LocalRetrievalSourceLabel =
 
 export type LocalKeywordRetrievalOptions = {
   audience?: LocalRetrievalAudience
+  /**
+   * Keeps only chunks whose topic belongs to this course's syllabus. A chunk
+   * with no topic, or a topic from another course, is excluded.
+   */
+  courseId?: string
   filters?: LocalRetrievalMetadataFilters
   maxChunkCharacters?: number
   maxContextCharacters?: number
@@ -153,6 +159,7 @@ export async function searchLocalKeywordRetrieval(
     .filter(
       (chunk) =>
         isChunkAllowedForAudience(chunk, audience) &&
+        matchesCourse(chunk, options.courseId) &&
         matchesMetadataFilters(chunk, options),
     )
     .map((chunk) =>
@@ -583,6 +590,19 @@ function limitResultContext(
   }
 
   return limited
+}
+
+function matchesCourse(chunk: NormalizedLocalChunk, courseId?: string) {
+  if (!courseId) {
+    return true
+  }
+
+  return (
+    chunk.topicId !== undefined &&
+    canonicalSyllabusTopicsForCourse(courseId).some(
+      (topic) => topic.id === chunk.topicId,
+    )
+  )
 }
 
 function matchesMetadataFilters(

@@ -51,6 +51,7 @@ type StudentIdentityDependencies = {
   ) => Promise<Map<string, StudentAccountLink>>;
   listTopicRoster: (
     authorization: AnalyticsAuthorization,
+    scope?: { courseId?: string },
   ) => Promise<InstructorStudentTopicRoster>;
   lookUpIdentity: (link: ProviderLink) => Promise<ProviderIdentity>;
   /** Keyed by provider subject; every requested subject has an entry. */
@@ -128,11 +129,14 @@ export async function resolveInstructorStudentIdentity(
  */
 export async function resolveInstructorStudentRoster(
   authorization: AnalyticsAuthorization,
-  options: { requestId?: string } = {},
+  options: { courseId?: string; requestId?: string } = {},
 ): Promise<InstructorStudentTopicRoster> {
   assertAuthorization(authorization, "professor");
   const dependencies = resolveDependencies();
-  const roster = await dependencies.listTopicRoster(authorization);
+  const roster = await dependencies.listTopicRoster(
+    authorization,
+    options.courseId ? { courseId: options.courseId } : undefined,
+  );
   const resolved = await auditedIdentities(
     authorization,
     dependencies,

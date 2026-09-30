@@ -53,6 +53,7 @@ import type {
   AdminQuestionRegenerationInput,
   AdminQuestionUpdate,
   ContentRepository,
+  CourseScope,
   DataRepositoryMetadata,
   ReviewCandidateUpdate,
   ReviewQueueFilters,
@@ -99,13 +100,35 @@ let contentAvailabilityRepositoryOverride:
   | ReturnType<typeof createDatabaseContentAvailabilityRepository>
   | undefined;
 
-export async function listTopics() {
-  return readWithConfiguredRepository((repository) => repository.listTopics());
+export async function listCourses() {
+  return readWithConfiguredRepository((repository) => repository.listCourses());
 }
 
-export async function listQuestions() {
+export async function listTopics(scope?: CourseScope) {
+  return readWithConfiguredRepository((repository) =>
+    repository.listTopics(scope),
+  );
+}
+
+/**
+ * The ids of every topic in a course, for scoping professor lists. Unlike
+ * `listTopics` it includes topics hidden from students, because a professor
+ * manages those too.
+ */
+async function topicIdsInCourse(courseId: string): Promise<Set<string>> {
+  const topicCourses = await readWithConfiguredRepository((repository) =>
+    repository.listTopicCourses(),
+  );
+  return new Set(
+    topicCourses
+      .filter((entry) => entry.courseId === courseId)
+      .map((entry) => entry.topicId),
+  );
+}
+
+export async function listQuestions(scope?: CourseScope) {
   const questions = await readWithConfiguredRepository((repository) =>
-    repository.listQuestions(),
+    repository.listQuestions(scope),
   );
   return questions.filter(isPublishedContent);
 }
@@ -117,7 +140,7 @@ export async function getAdminQuestionDashboard(
   assertAuthorization(authorization, "professor");
   const env = getServerEnv();
   const policy = getOperatingModePolicy();
-  const topics = await listTopics();
+  const topics = await listTopics({ courseId: filters?.courseId });
 
   if (contentRepositoryOverride) {
     return {
@@ -259,36 +282,37 @@ export async function listQuestionsByTopic(topicId: string) {
   return questions.filter(isPublishedContent);
 }
 
-export async function getQuestionCounts() {
+export async function getQuestionCounts(scope?: CourseScope) {
   return readWithConfiguredRepository((repository) =>
-    repository.getQuestionCounts(),
+    repository.getQuestionCounts(scope),
   );
 }
 
 export async function getProfessorPracticeAnalytics(
   authorization: AnalyticsAuthorization,
+  scope?: CourseScope,
 ) {
   assertAuthorization(authorization, "professor");
   return readWithConfiguredRepository((repository) =>
-    repository.getProfessorPracticeAnalytics(authorization),
+    repository.getProfessorPracticeAnalytics(authorization, scope),
   );
 }
 
-export async function getTopics() {
-  return listTopics();
+export async function getTopics(scope?: CourseScope) {
+  return listTopics(scope);
 }
 
-export async function getApprovedQuestions() {
-  return listQuestions();
+export async function getApprovedQuestions(scope?: CourseScope) {
+  return listQuestions(scope);
 }
 
 export async function getApprovedQuestionById(questionId: string) {
   return getQuestionById(questionId);
 }
 
-export async function getRetrievalChunks() {
+export async function getRetrievalChunks(scope?: CourseScope) {
   const chunks = await readWithConfiguredRepository((repository) =>
-    repository.getRetrievalChunks(),
+    repository.getRetrievalChunks(scope),
   );
   return chunks.filter(isRetrievalEligibleContent);
 }
@@ -360,11 +384,14 @@ export async function listQuestionLifecycles(
 
 export async function getQuestionLifecycleDashboard(
   authorization: ProfessorReviewAuthorization,
+  scope: CourseScope = {},
 ): Promise<QuestionLifecycleDashboard> {
   assertAuthorization(authorization, "professor");
   const policy = getOperatingModePolicy();
   if (policy.repositorySource === "demo") {
-    const dashboard = await getAdminQuestionDashboard(authorization);
+    const dashboard = await getAdminQuestionDashboard(authorization, {
+      courseId: scope.courseId,
+    });
     return {
       mode: "demo",
       professorUserId: authorization.principal.userId,
@@ -378,11 +405,24 @@ export async function getQuestionLifecycleDashboard(
     };
   }
 
-  const [questions, topics, inspections] = await Promise.all([
-    listQuestionLifecycles(authorization),
-    listTopics(),
-    listQuestionLifecycleInspections(authorization),
-  ]);
+  const [allQuestions, topics, allInspections, courseTopicIds] =
+    await Promise.all([
+      listQuestionLifecycles(authorization),
+      listTopics(scope),
+      listQuestionLifecycleInspections(authorization),
+      scope.courseId ? topicIdsInCourse(scope.courseId) : undefined,
+    ]);
+  const questions = courseTopicIds
+    ? allQuestions.filter((question) =>
+        courseTopicIds.has(question.workingVersion.topicId),
+      )
+    : allQuestions;
+  const questionIds = new Set(questions.map((question) => question.questionId));
+  const inspections = courseTopicIds
+    ? allInspections.filter((inspection) =>
+        questionIds.has(inspection.questionId),
+      )
+    : allInspections;
   return {
     inspections,
     mode: "database",
@@ -394,6 +434,36 @@ export async function getQuestionLifecycleDashboard(
 }
 
 export async function getContentAvailabilityDashboard(
+  authorization: ProfessorReviewAuthorization,
+  scope: CourseScope = {},
+): Promise<StudentContentAvailabilityDashboard> {
+  const dashboard = await loadContentAvailabilityDashboard(authorization);
+  if (!scope.courseId) {
+    return dashboard;
+  }
+  // Availability is keyed by topic and question, so a course is just the set of
+  // topics it owns; nothing in another course is listed or changed from here.
+  const topicIds = await topicIdsInCourse(scope.courseId);
+  const questionIds = new Set(
+    dashboard.questions
+      .filter((question) => question.topicId && topicIds.has(question.topicId))
+      .map((question) => question.id),
+  );
+  return {
+    ...dashboard,
+    auditEvents: dashboard.auditEvents.filter((event) =>
+      event.targetType === "topic"
+        ? topicIds.has(event.targetId)
+        : questionIds.has(event.targetId),
+    ),
+    questions: dashboard.questions.filter((question) =>
+      questionIds.has(question.id),
+    ),
+    topics: dashboard.topics.filter((topic) => topicIds.has(topic.id)),
+  };
+}
+
+async function loadContentAvailabilityDashboard(
   authorization: ProfessorReviewAuthorization,
 ): Promise<StudentContentAvailabilityDashboard> {
   assertAuthorization(authorization, "professor");
@@ -508,6 +578,7 @@ export async function listInstructorStudents(
  */
 export async function listInstructorStudentTopicRoster(
   authorization: AnalyticsAuthorization,
+  scope?: CourseScope,
 ): Promise<InstructorStudentTopicRoster> {
   assertAuthorization(authorization, "professor");
   const repository = instructorStudentRepository();
@@ -517,7 +588,7 @@ export async function listInstructorStudentTopicRoster(
   }
 
   try {
-    return await repository.listTopicRoster(authorization);
+    return await repository.listTopicRoster(authorization, scope);
   } catch (cause) {
     if (getOperatingModePolicy().allowDemoFallback) {
       return demoInstructorStudentTopicRoster();
@@ -656,6 +727,7 @@ export async function recordInstructorStudentIdentityViews(
 
 export async function getInstructorCohortAnalytics(
   authorization: AnalyticsAuthorization,
+  scope?: CourseScope,
 ): Promise<InstructorCohortAnalytics> {
   assertAuthorization(authorization, "professor");
   const repository = instructorStudentRepository();
@@ -665,7 +737,7 @@ export async function getInstructorCohortAnalytics(
   }
 
   try {
-    return await repository.getCohortAnalytics(authorization);
+    return await repository.getCohortAnalytics(authorization, scope);
   } catch (cause) {
     if (getOperatingModePolicy().allowDemoFallback) {
       return demoInstructorCohortAnalytics();
@@ -692,6 +764,7 @@ function pilotAnalyticsExportRepository() {
 
 export async function getPilotAnalyticsExport(
   authorization: AnalyticsAuthorization,
+  scope?: CourseScope,
 ): Promise<PilotAnalyticsExport> {
   assertAuthorization(authorization, "professor");
   const repository = pilotAnalyticsExportRepository();
@@ -701,7 +774,7 @@ export async function getPilotAnalyticsExport(
   }
 
   try {
-    return await repository.build(authorization);
+    return await repository.build(authorization, undefined, scope);
   } catch (cause) {
     if (getOperatingModePolicy().allowDemoFallback) {
       return emptyPilotAnalyticsExport();
@@ -744,6 +817,33 @@ export async function updateContentAvailability(
 }
 
 export async function getProfessorQuestionReviewDashboard(
+  authorization: ProfessorReviewAuthorization,
+  selectedTopicId?: string,
+  scope: CourseScope = {},
+): Promise<ProfessorQuestionReviewDashboard> {
+  const dashboard = await loadProfessorQuestionReviewDashboard(
+    authorization,
+    selectedTopicId,
+  );
+  if (!scope.courseId) {
+    return dashboard;
+  }
+  const topicIds = await topicIdsInCourse(scope.courseId);
+  const topicInCourse = (topicId: string) => topicIds.has(topicId);
+  const selectedInCourse =
+    dashboard.selectedTopicId !== undefined &&
+    topicInCourse(dashboard.selectedTopicId);
+  return {
+    ...dashboard,
+    // A selection from another course shows no candidates rather than leaking
+    // them into this course's queue.
+    candidates: selectedInCourse ? dashboard.candidates : [],
+    selectedTopicId: selectedInCourse ? dashboard.selectedTopicId : undefined,
+    topics: dashboard.topics.filter((topic) => topicInCourse(topic.topicId)),
+  };
+}
+
+async function loadProfessorQuestionReviewDashboard(
   authorization: ProfessorReviewAuthorization,
   selectedTopicId?: string,
 ): Promise<ProfessorQuestionReviewDashboard> {
@@ -826,18 +926,24 @@ export async function createQuestionLifecycle(
 
 export async function getQuestionIntakeTopics(
   authorization: ProfessorReviewAuthorization,
+  scope: CourseScope = {},
 ): Promise<QuestionIntakeTopic[]> {
   assertAuthorization(authorization, "professor");
   const policy = getOperatingModePolicy();
   if (contentRepositoryOverride || policy.repositorySource === "demo") {
-    const topics = await listTopics();
+    const topics = await listTopics(scope);
     return topics
       .filter((topic) => topic.active)
       .map(({ description, id, title }) => ({ description, id, title }));
   }
-  return writeStrictDatabaseLifecycle((repository) =>
+  const topics = await writeStrictDatabaseLifecycle((repository) =>
     repository.listQuestionIntakeTopics(authorization),
   );
+  if (!scope.courseId) {
+    return topics;
+  }
+  const topicIds = await topicIdsInCourse(scope.courseId);
+  return topics.filter((topic) => topicIds.has(topic.id));
 }
 
 export async function findQuestionIntakeDuplicates(

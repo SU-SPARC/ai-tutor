@@ -1,6 +1,7 @@
 import "server-only";
 
 import { MEANINGFUL_TUTOR_SESSION_SQL } from "@/lib/tutor/session-engagement";
+import { isCourseIdShape } from "@/lib/course-catalog";
 
 /**
  * One digest function for every owner expression, so a student's key is the
@@ -52,6 +53,30 @@ function currentProfessorGrantSql(userIdExpression: string) {
 }
 
 export const PROFESSOR_OWNED_SESSION_SQL = currentProfessorGrantSql("s.user_id");
+
+/**
+ * Restricts tutor sessions (alias `alias`) to one course through the topic of
+ * the question they practised. The id is checked against the course-id shape
+ * and inlined as a literal, so the fragment needs no query parameter and every
+ * query that already builds on the population filter can scope itself without
+ * renumbering its own parameters. Empty when no course is requested.
+ */
+export function courseSessionSql(alias: string, courseId?: string) {
+  if (courseId === undefined) {
+    return "";
+  }
+  if (!isCourseIdShape(courseId)) {
+    throw new Error("Invalid course id.");
+  }
+  return `
+  and exists (
+    select 1
+    from questions course_q
+    join topics course_t on course_t.id = course_q.topic_id
+    where course_q.id = ${alias}.question_id
+      and course_t.course_id = '${courseId}'
+  )`;
+}
 
 /** Engaged anonymous/non-professor sessions form the learning population. */
 export const ANALYTICS_STUDENT_SESSION_FILTER_SQL = `

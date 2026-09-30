@@ -1216,6 +1216,12 @@ function contentRepositoryWithChunks(
     async getTopics() {
       return [];
     },
+    async listCourses() {
+      return [];
+    },
+    async listTopicCourses() {
+      return [];
+    },
     async listQuestions() {
       return [];
     },

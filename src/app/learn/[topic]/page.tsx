@@ -22,6 +22,9 @@ import {
   getTopics,
   listQuestionsByTopic,
 } from "@/lib/data/data-store";
+import { CourseSelectionSync } from "@/components/course/course-selection-sync";
+import { getSelectedCourse } from "@/lib/course-selection";
+import type { CourseScope } from "@/lib/data/repository";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import type { StudentProgressDashboard } from "@/lib/types";
 
@@ -60,18 +63,25 @@ export default async function TopicPage({ params }: TopicPageProps) {
     notFound();
   }
 
-  const topics = await getTopics();
-  const topic = topics.find((item) => item.id === topicId);
+  // A direct link may name a topic in any course. The topic decides the
+  // course, so the page shows that course's syllabus and progress and the
+  // remembered course follows it.
+  const allTopics = await getTopics();
+  const topic = allTopics.find((item) => item.id === topicId);
 
   if (!topic) {
     notFound();
   }
 
-  const [topicQuestions, allQuestions, { isGuest, progress }] = await Promise.all([
-    listQuestionsByTopic(topic.id),
-    getApprovedQuestions(),
-    readOwnProgress(),
-  ]);
+  const scope: CourseScope = { courseId: topic.courseId };
+  const topics = allTopics.filter((item) => item.courseId === topic.courseId);
+  const [{ course: selectedCourse }, topicQuestions, allQuestions, { isGuest, progress }] =
+    await Promise.all([
+      getSelectedCourse(),
+      listQuestionsByTopic(topic.id),
+      getApprovedQuestions(scope),
+      readOwnProgress(scope),
+    ]);
 
   const nowIso = new Date().toISOString();
   const orderedTopics = sortTopicsForSyllabus(topics);
@@ -96,20 +106,29 @@ export default async function TopicPage({ params }: TopicPageProps) {
   const next = nextUnfinishedTopic(syllabus.topics, topic.id);
 
   return (
-    <TopicScreen
-      model={model}
-      nextTopic={
-        next
-          ? { href: next.href, title: next.title, weekNumber: next.weekNumber }
-          : undefined
-      }
-      topics={syllabus.topics}
-    />
+    <>
+      {selectedCourse.id !== topic.courseId ? (
+        <CourseSelectionSync courseId={topic.courseId} />
+      ) : null}
+      <TopicScreen
+        model={model}
+        nextTopic={
+          next
+            ? {
+                href: next.href,
+                title: next.title,
+                weekNumber: next.weekNumber,
+              }
+            : undefined
+        }
+        topics={syllabus.topics}
+      />
+    </>
   );
 }
 
 /** Same rule as `/learn`: guest is the owner kind, not "no progress". */
-async function readOwnProgress(): Promise<{
+async function readOwnProgress(scope: CourseScope): Promise<{
   isGuest: boolean;
   progress: StudentProgressDashboard | null;
 }> {
@@ -126,6 +145,6 @@ async function readOwnProgress(): Promise<{
 
   return {
     isGuest: authorization.owner.kind !== "user",
-    progress: await getStudentProgress(authorization),
+    progress: await getStudentProgress(authorization, scope),
   };
 }

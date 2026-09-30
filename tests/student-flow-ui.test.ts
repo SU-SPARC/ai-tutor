@@ -83,6 +83,7 @@ const STUDENT_VISIBLE_TECHNICAL_TERMS =
 const topics: CourseTopic[] = [
   {
     active: true,
+    courseId: "probability-statistics",
     description: "Restrict the sample space.",
     id: "conditional-probability",
     moduleRef: "Week 3",
@@ -92,6 +93,7 @@ const topics: CourseTopic[] = [
   },
   {
     active: true,
+    courseId: "probability-statistics",
     description: "Approximate sample means.",
     id: "central-limit-theorem",
     moduleRef: "Week 13",

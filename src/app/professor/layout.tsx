@@ -9,6 +9,7 @@ import {
   requireProfessor,
   type ProfessorAuthorization,
 } from "@/lib/auth/authorization";
+import { getSelectedCourseId } from "@/lib/course-selection";
 import { getProfessorQuestionReviewDashboard } from "@/lib/data/data-store";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,11 @@ async function loadRailCounts(
   authorization: ProfessorAuthorization,
 ): Promise<ProfessorRailCounts | undefined> {
   try {
-    const review = await getProfessorQuestionReviewDashboard(authorization);
+    const review = await getProfessorQuestionReviewDashboard(
+      authorization,
+      undefined,
+      { courseId: await getSelectedCourseId() },
+    );
     return {
       review: review.topics.reduce((sum, topic) => sum + topic.needsReview, 0),
     };

@@ -171,7 +171,7 @@ describe("professor question feedback workflow", () => {
       reviewRequest(
         report.id,
         "resolved",
-        "Reviewed the pinned version; a separate lifecycle revision is required.",
+        "Reviewed the pinned version; a separate content revision is required.",
       ),
       reportContext(report.id),
     );
@@ -181,7 +181,7 @@ describe("professor question feedback workflow", () => {
     expect(resolved.status).toBe(200);
     expect(resolvedPayload.report).toMatchObject({
       resolutionNotes:
-        "Reviewed the pinned version; a separate lifecycle revision is required.",
+        "Reviewed the pinned version; a separate content revision is required.",
       status: "resolved",
     });
     expect(resolvedPayload.report.resolvedAt).toBeTruthy();
@@ -218,7 +218,7 @@ describe("professor question feedback workflow", () => {
       question_version_id: session.questionVersionId,
       reporter_user_id: null,
       resolution_notes:
-        "Reviewed the pinned version; a separate lifecycle revision is required.",
+        "Reviewed the pinned version; a separate content revision is required.",
       status: "resolved",
       tutor_session_id: session.id,
     });

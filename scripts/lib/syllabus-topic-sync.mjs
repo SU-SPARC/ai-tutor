@@ -2,7 +2,8 @@ import { readdir, readFile } from "node:fs/promises"
 import path from "node:path"
 
 import {
-  CANONICAL_SYLLABUS_TOPICS_FILE,
+  DEFAULT_COURSE_ID,
+  canonicalSyllabusTopicsFile,
   canonicalTopicMap,
 } from "./canonical-syllabus-topics.mjs"
 
@@ -12,8 +13,19 @@ const PUBLIC_DATA_DIRECTORIES = [
   "data/production",
 ]
 
-export async function inspectRepositoryTopicMappings(repositoryRoot, topics) {
-  const known = canonicalTopicMap(topics)
+/**
+ * `topics` is the course being synchronised. `allTopics` (every course's
+ * canonical topics) keeps another course's topic ids from being reported as
+ * unknown, so a Calculus id in a shared data file is not "stale" for
+ * Probability & Statistics.
+ */
+export async function inspectRepositoryTopicMappings(
+  repositoryRoot,
+  topics,
+  allTopics = topics,
+  courseId = DEFAULT_COURSE_ID,
+) {
+  const known = canonicalTopicMap(allTopics)
   const staleMappings = []
   const syllabusChangesRequiringHumanReview = []
   const files = []
@@ -46,10 +58,9 @@ export async function inspectRepositoryTopicMappings(repositoryRoot, topics) {
           )
           .map((item) => item.topicId)
         for (let index = 1; index < topicIds.length; index += 1) {
-          if (
-            known.get(topicIds[index - 1]).order >
-            known.get(topicIds[index]).order
-          ) {
+          const previous = known.get(topicIds[index - 1])
+          const current = known.get(topicIds[index])
+          if (previous.courseId === current.courseId && previous.order > current.order) {
             syllabusChangesRequiringHumanReview.push({
               file: relative(repositoryRoot, filePath),
               path: jsonPath,
@@ -82,7 +93,16 @@ export async function inspectRepositoryTopicMappings(repositoryRoot, topics) {
             ? { id: entry, sortOrder: known.get(entry)?.order }
             : { id: entry?.id, sortOrder: entry?.sortOrder },
         )
-        if (JSON.stringify(exportedOrder) !== JSON.stringify(canonicalOrder)) {
+        const exportedForAnotherCourse =
+          exportedOrder.length > 0 &&
+          exportedOrder.every((entry) => {
+            const topic = known.get(entry.id)
+            return topic && topic.courseId && topic.courseId !== courseId
+          })
+        if (
+          !exportedForAnotherCourse &&
+          JSON.stringify(exportedOrder) !== JSON.stringify(canonicalOrder)
+        ) {
           syllabusChangesRequiringHumanReview.push({
             file: relative(repositoryRoot, filePath),
             path: jsonPath,
@@ -97,12 +117,26 @@ export async function inspectRepositoryTopicMappings(repositoryRoot, topics) {
   return { staleMappings, syllabusChangesRequiringHumanReview }
 }
 
-export async function inspectDatabaseTopics(client, topics) {
-  const result = await client.query(`
+/**
+ * Inspects one course's topics only. Topics that belong to another course are
+ * never "extra", never order conflicts, and never stale mappings here; the one
+ * cross-course check is that a canonical id is not already owned by another
+ * course, which would make the synchronisation move it.
+ */
+export async function inspectDatabaseTopics(
+  client,
+  topics,
+  courseId = DEFAULT_COURSE_ID,
+) {
+  const result = await client.query(
+    `
     select id, title, description, sort_order, week_number, module_ref, is_active
     from topics
+    where course_id = $1
     order by sort_order, title, id
-  `)
+  `,
+    [courseId],
+  )
   const rows = result.rows
   const desired = canonicalTopicMap(topics)
   const existing = new Map(rows.map((row) => [String(row.id), row]))
@@ -120,6 +154,19 @@ export async function inspectDatabaseTopics(client, topics) {
   )
   const staleTopicMappings = []
 
+  const courseConflicts =
+    missingTopics.length === 0
+      ? []
+      : (
+          await client.query(
+            "select id, course_id from topics where id = any($1::text[]) and course_id <> $2",
+            [missingTopics.map((topic) => topic.id), courseId],
+          )
+        ).rows.map((row) => ({
+          ownedByCourse: String(row.course_id),
+          topicId: String(row.id),
+        }))
+
   const tablesResult = await client.query(`
     select table_name
     from information_schema.tables
@@ -133,7 +180,12 @@ export async function inspectDatabaseTopics(client, topics) {
   ]) {
     if (!tables.has(table)) continue
     const refs = await client.query(
-      `select ${column} as topic_id, count(*)::int as reference_count from ${table} where ${column} is not null group by ${column}`,
+      `select c.${column} as topic_id, count(*)::int as reference_count
+       from ${table} c
+       join topics t on t.id = c.${column}
+       where c.${column} is not null and t.course_id = $1
+       group by c.${column}`,
+      [courseId],
     )
     for (const row of refs.rows) {
       if (!desired.has(String(row.topic_id))) {
@@ -146,12 +198,17 @@ export async function inspectDatabaseTopics(client, topics) {
     }
   }
   if (tables.has("question_versions")) {
-    const refs = await client.query(`
-      select snapshot_json ->> 'topicId' as topic_id, count(*)::int as reference_count
-      from question_versions
-      where snapshot_json ->> 'topicId' is not null
-      group by snapshot_json ->> 'topicId'
-    `)
+    const refs = await client.query(
+      `
+      select qv.snapshot_json ->> 'topicId' as topic_id, count(*)::int as reference_count
+      from question_versions qv
+      left join topics t on t.id = qv.snapshot_json ->> 'topicId'
+      where qv.snapshot_json ->> 'topicId' is not null
+        and coalesce(t.course_id, $1) = $1
+      group by qv.snapshot_json ->> 'topicId'
+    `,
+      [courseId],
+    )
     for (const row of refs.rows) {
       if (!desired.has(String(row.topic_id))) {
         staleTopicMappings.push({
@@ -166,6 +223,7 @@ export async function inspectDatabaseTopics(client, topics) {
   return {
     blockingOrderConflicts,
     changedTopics,
+    courseConflicts,
     duplicateOrderValues,
     duplicateSlugs,
     extraTopics,
@@ -174,21 +232,28 @@ export async function inspectDatabaseTopics(client, topics) {
   }
 }
 
-export async function synchronizeDatabaseTopics(client, topics, inspection) {
+export async function synchronizeDatabaseTopics(
+  client,
+  topics,
+  inspection,
+  courseId = DEFAULT_COURSE_ID,
+) {
   if (
     inspection.blockingOrderConflicts.length > 0 ||
     inspection.duplicateOrderValues.length > 0 ||
-    inspection.duplicateSlugs.length > 0
+    inspection.duplicateSlugs.length > 0 ||
+    (inspection.courseConflicts?.length ?? 0) > 0
   ) {
     throw new Error(
-      "Topic synchronization is blocked by duplicate identity/order data requiring human review.",
+      "Topic synchronization is blocked by duplicate identity/order data or a topic id owned by another course, which requires human review.",
     )
   }
 
   await client.query("begin")
   try {
     const maxOrderResult = await client.query(
-      "select coalesce(max(sort_order), 0)::int as max_order from topics",
+      "select coalesce(max(sort_order), 0)::int as max_order from topics where course_id = $1",
+      [courseId],
     )
     const temporaryBase = Number(maxOrderResult.rows[0]?.max_order ?? 0) + 1000
     for (const [index, topic] of inspection.changedTopics.entries()) {
@@ -201,8 +266,8 @@ export async function synchronizeDatabaseTopics(client, topics, inspection) {
       await client.query(
         `
           insert into topics
-            (id, title, description, sort_order, week_number, module_ref, is_active)
-          values ($1, $2, $3, $4, $5, $6, $7)
+            (id, course_id, title, description, sort_order, week_number, module_ref, is_active)
+          values ($1, $2, $3, $4, $5, $6, $7, $8)
           on conflict (id) do update set
             title = excluded.title,
             description = excluded.description,
@@ -214,6 +279,7 @@ export async function synchronizeDatabaseTopics(client, topics, inspection) {
         `,
         [
           topic.id,
+          courseId,
           topic.title,
           topic.description,
           topic.order,
@@ -231,6 +297,7 @@ export async function synchronizeDatabaseTopics(client, topics, inspection) {
 }
 
 export function buildSyllabusSyncReport({
+  courseId = DEFAULT_COURSE_ID,
   database,
   mode,
   repository,
@@ -249,6 +316,10 @@ export function buildSyllabusSyncReport({
         reason:
           "Stored content references a non-canonical topic; remap it explicitly.",
       })),
+      ...database.courseConflicts.map((conflict) => ({
+        ...conflict,
+        reason: `Canonical topic id is already owned by course ${conflict.ownedByCourse}; it will not be moved.`,
+      })),
       ...database.blockingOrderConflicts.map((row) => ({
         reason: `Non-canonical topic occupies canonical order ${row.sort_order}; resolve it manually.`,
         topicId: String(row.id),
@@ -256,11 +327,13 @@ export function buildSyllabusSyncReport({
     )
   }
   return {
-    canonicalSource: CANONICAL_SYLLABUS_TOPICS_FILE,
+    canonicalSource: canonicalSyllabusTopicsFile(courseId),
     canonicalTopicCount: topics.length,
+    course: courseId,
     database: database
       ? {
           changed: database.changedTopics.map(({ id }) => id),
+          courseConflicts: database.courseConflicts,
           duplicateOrderValues: database.duplicateOrderValues,
           duplicateSlugs: database.duplicateSlugs,
           extra: database.extraTopics.map((row) => String(row.id)),

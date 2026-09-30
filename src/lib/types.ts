@@ -343,6 +343,8 @@ export type TutorResponseLabel =
 
 export type Topic = {
   active: boolean;
+  /** The course this topic belongs to; its questions inherit it. */
+  courseId: string;
   description: string;
   id: string;
   keywords?: string[];
@@ -958,6 +960,8 @@ export type InstructorStudentSort =
   | "sessions";
 
 export type InstructorStudentListFilters = {
+  /** Only sessions in this course's topics count toward each student's row. */
+  courseId?: string;
   limit?: number;
   offset?: number;
   search?: string;

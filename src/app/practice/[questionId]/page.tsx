@@ -9,10 +9,17 @@ import {
   getApprovedQuestions,
   getTopics,
 } from "@/lib/data/data-store";
+import { CourseSelectionSync } from "@/components/course/course-selection-sync";
+import { getSelectedCourseId } from "@/lib/course-selection";
 import { getServerEnv } from "@/lib/env/server";
 import { studentQuestionTitle } from "@/lib/labels";
 
-import { inSyllabusOrder, readSolvedQuestionIds } from "../practice-progress";
+import {
+  inCourse,
+  inferPracticeCourseId,
+  inSyllabusOrder,
+  readSolvedQuestionIds,
+} from "../practice-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -59,21 +66,36 @@ export default async function PracticeQuestionPage({
     notFound();
   }
 
-  const [allTopics, allQuestions, solvedQuestionIds] = await Promise.all([
+  // The question decides the course, so a direct link always opens in its own
+  // course's syllabus, and the remembered course follows it.
+  const [everyTopic, everyQuestion, selectedCourseId] = await Promise.all([
     getTopics(),
     getApprovedQuestions(),
-    readSolvedQuestionIds(),
+    getSelectedCourseId(),
   ]);
-  const { questions, topics } = inSyllabusOrder(allTopics, allQuestions);
+  const courseId = inferPracticeCourseId(
+    { questionId: question.id },
+    everyTopic,
+    everyQuestion,
+    selectedCourseId,
+  );
+  const solvedQuestionIds = await readSolvedQuestionIds(courseId);
+  const scoped = inCourse(courseId, everyTopic, everyQuestion);
+  const { questions, topics } = inSyllabusOrder(scoped.topics, scoped.questions);
 
   return (
-    <PracticeWorkspace
-      aiHelpEnabled={env.AI_ENABLED}
-      initialQuestionId={question.id}
-      initialSessionId={initialSessionId}
-      initialSolvedQuestionIds={solvedQuestionIds}
-      topics={topics}
-      questions={questions.map(normalizeSummary)}
-    />
+    <>
+      {courseId !== selectedCourseId ? (
+        <CourseSelectionSync courseId={courseId} />
+      ) : null}
+      <PracticeWorkspace
+        aiHelpEnabled={env.AI_ENABLED}
+        initialQuestionId={question.id}
+        initialSessionId={initialSessionId}
+        initialSolvedQuestionIds={solvedQuestionIds}
+        topics={topics}
+        questions={questions.map(normalizeSummary)}
+      />
+    </>
   );
 }

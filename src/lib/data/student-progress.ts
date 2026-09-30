@@ -1,8 +1,10 @@
 import "server-only";
 
 import type { StudentAuthorization } from "@/lib/auth/authorization";
+import { DEFAULT_COURSE_ID } from "@/lib/course-catalog";
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
+import type { CourseScope } from "@/lib/data/repository";
 import { listTutorSessionsForStudent } from "@/lib/data/tutor-session-repository";
 import { isValidAnswerAttempt } from "@/lib/tutor/practice-credit";
 import { isMeaningfulTutorSession } from "@/lib/tutor/session-engagement";
@@ -67,14 +69,46 @@ function isAnswerAttempt(
  */
 export async function getStudentProgress(
   authorization: StudentAuthorization,
+  scope: CourseScope = {},
 ): Promise<StudentProgressDashboard> {
-  const [{ mode, sessions: retainedSessions }, questions, topics] =
-    await Promise.all([
-      listTutorSessionsForStudent(authorization, { engagedOnly: true }),
-      getApprovedQuestions(),
-      getTopics(),
-    ]);
-  const sessions = retainedSessions.filter(isMeaningfulTutorSession);
+  const [
+    { mode, sessions: retainedSessions },
+    questions,
+    topics,
+    everyCourseTopics,
+    everyCourseQuestions,
+  ] = await Promise.all([
+    listTutorSessionsForStudent(authorization, { engagedOnly: true }),
+    getApprovedQuestions(scope),
+    getTopics(scope),
+    scope.courseId ? getTopics() : Promise.resolve([]),
+    scope.courseId ? getApprovedQuestions() : Promise.resolve([]),
+  ]);
+  // A session belongs to the course of its question's topic. Without a scope
+  // every course counts; with one, work in another course never shows here.
+  // Content whose topic is no longer listed predates multi-course and was all
+  // Probability & Statistics, so it keeps that attribution.
+  const courseByTopicId = new Map(
+    everyCourseTopics.map((topic) => [topic.id, topic.courseId]),
+  );
+  const topicIdByQuestionId = new Map(
+    everyCourseQuestions.map((question) => [question.id, question.topicId]),
+  );
+  const isInScopedCourse = (session: TutorSessionRecord) => {
+    if (!scope.courseId) {
+      return true;
+    }
+    const topicId =
+      session.topicId ??
+      session.questionVersion?.topicId ??
+      topicIdByQuestionId.get(session.questionId);
+    const sessionCourseId =
+      (topicId ? courseByTopicId.get(topicId) : undefined) ?? DEFAULT_COURSE_ID;
+    return sessionCourseId === scope.courseId;
+  };
+  const sessions = retainedSessions
+    .filter(isMeaningfulTutorSession)
+    .filter(isInScopedCourse);
   const orderedTopics = [...topics].sort(
     (left, right) =>
       compareCanonicalTopicIds(left.id, right.id) ||

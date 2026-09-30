@@ -61,6 +61,61 @@ describe("instructor student analytics", () => {
     // The complete migration chain under load can outrun the default hook timeout.
   }, 60_000);
 
+  it("scopes the class list, topic roster, and cohort totals to a course", async () => {
+    const authorization = await professorAuthorization();
+    const everything = await repository.getCohortAnalytics(authorization);
+    const probability = await repository.getCohortAnalytics(authorization, {
+      courseId: "probability-statistics",
+    });
+    const calculus = await repository.getCohortAnalytics(authorization, {
+      courseId: "calculus-1",
+    });
+
+    // Every seeded session practices a Probability & Statistics topic, so that
+    // course sees all of it and Calculus I sees none of it.
+    expect(probability).toEqual(everything);
+    expect(calculus).toMatchObject({
+      activeStudents: 0,
+      attempts: 0,
+      sessions: 0,
+      studentsNeedingAttention: 0,
+    });
+    expect(calculus.misconceptions).toEqual([]);
+
+    const calculusList = await repository.listStudents(authorization, {
+      courseId: "calculus-1",
+    });
+    expect(calculusList.students.every((student) => student.sessions === 0)).toBe(
+      true,
+    );
+    expect(
+      calculusList.students.every((student) => student.attempts === 0),
+    ).toBe(true);
+    const probabilityList = await repository.listStudents(authorization, {
+      courseId: "probability-statistics",
+    });
+    expect(probabilityList).toEqual(await repository.listStudents(authorization));
+
+    const calculusRoster = await repository.listTopicRoster(authorization, {
+      courseId: "calculus-1",
+    });
+    expect(calculusRoster.topics).toEqual([]);
+  });
+
+  it("scopes the pilot export's session facts to a course", async () => {
+    const authorization = await professorAuthorization();
+    const exporter = createDatabasePilotAnalyticsExportRepository(
+      pgliteQuery(database),
+    );
+    const everything = await exporter.build(authorization, "2026-09-30T00:00:00.000Z");
+    const calculus = await exporter.build(authorization, "2026-09-30T00:00:00.000Z", {
+      courseId: "calculus-1",
+    });
+
+    expect(JSON.stringify(everything)).toContain("conditional-probability");
+    expect(JSON.stringify(calculus)).not.toContain("conditional-probability");
+  });
+
   it("lists one row per student with derived counts and no raw identity", async () => {
     const authorization = await professorAuthorization();
     const list = await repository.listStudents(authorization);

@@ -16,6 +16,7 @@ import {
   getQuestionCounts,
   getTopics,
 } from "@/lib/data/data-store";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { getServerEnv } from "@/lib/env/server";
 import type { CourseTopic, StudentPracticeQuestion } from "@/lib/types";
 
@@ -64,10 +65,17 @@ function canonicalOrder(topics: readonly CourseTopic[]) {
 }
 
 export default async function HomePage() {
+  // The landing page shows the course the visitor is working in; a visitor with
+  // no choice sees Probability & Statistics exactly as before.
+  const { course } = await getSelectedCourse();
+  const scope = { courseId: course.id };
+  const courseLabel = course.code ?? course.title;
   const [topics, counts, questions, isSignedIn] = await Promise.all([
-    getTopics(),
-    getQuestionCounts(),
-    getApprovedQuestions().then((approved) => approved.map(normalizeSummary)),
+    getTopics(scope),
+    getQuestionCounts(scope),
+    getApprovedQuestions(scope).then((approved) =>
+      approved.map(normalizeSummary),
+    ),
     currentAuthenticatedUser()
       .then((principal) => Boolean(principal))
       // Header decoration must not make the public landing page unavailable
@@ -135,6 +143,7 @@ export default async function HomePage() {
           signedIn={isSignedIn}
           ghostLoginEnabled={ghostLoginEnabled()}
           continueNote={continueNote}
+          courseLabel={courseLabel}
         />
         {heroQuestion ? (
           <LandingScreen
@@ -145,6 +154,7 @@ export default async function HomePage() {
             // Signed out, the question is a preview: readable, not
             // answerable, until the visitor signs in or joins a section.
             locked={!isSignedIn}
+            courseLabel={courseLabel}
           />
         ) : (
           <div className={LANDING_COLUMN}>
@@ -154,9 +164,9 @@ export default async function HomePage() {
           </div>
         )}
         <LandingHowItWorks />
-        <LandingStatements />
+        <LandingStatements courseLabel={courseLabel} />
       </main>
-      <LandingFooter />
+      <LandingFooter courseLabel={courseLabel} />
     </>
   );
 }

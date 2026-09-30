@@ -1,5 +1,6 @@
 import { dataServiceUnavailableResponse } from "@/lib/api/service-unavailable";
 import { authorizeApi, requireAnalyticsAccess } from "@/lib/auth/authorization";
+import { isCourseIdShape } from "@/lib/course-catalog";
 import { getPilotAnalyticsExport } from "@/lib/data/data-store";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
@@ -19,8 +20,17 @@ export async function GET(request: Request) {
     return access.response;
   }
 
+  // `?course=<id>` exports one course; without it, every course.
+  const requestedCourse = new URL(request.url).searchParams.get("course");
+  if (requestedCourse !== null && !isCourseIdShape(requestedCourse)) {
+    return Response.json({ error: "Unknown course." }, { status: 400 });
+  }
+
   try {
-    const document = await getPilotAnalyticsExport(access.authorization);
+    const document = await getPilotAnalyticsExport(
+      access.authorization,
+      requestedCourse ? { courseId: requestedCourse } : undefined,
+    );
     const exportDate = document.generatedAt.slice(0, 10);
     return new Response(JSON.stringify(document, null, 2), {
       headers: {

@@ -321,7 +321,7 @@ function relativeToRepo(targetPath) {
   return path.relative(repoRoot, targetPath)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main().catch((error) => {
     console.error(error)
     process.exitCode = 1

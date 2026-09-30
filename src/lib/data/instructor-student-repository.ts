@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/authorization";
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
+  courseSessionSql,
   PROFESSOR_OWNED_SESSION_SQL,
   STUDENT_ACCOUNTS_CTE,
   STUDENT_KEY_SQL,
@@ -15,6 +16,7 @@ import {
   type DatabaseQueryExecutor,
   type DatabaseQueryValue,
 } from "@/lib/data/database-executor";
+import type { CourseScope } from "@/lib/data/repository";
 import {
   derivePracticeCreditEvidence,
   VALID_ANSWER_ATTEMPT_SQL,
@@ -70,7 +72,8 @@ async function readRows<Row>(
  * The digest is computed in SQL and the raw owner never leaves this module, so
  * no instructor query can return a cookie value or a user id by accident.
  */
-const STUDENT_SESSIONS_CTE = `
+function studentSessionsCte(courseId?: string) {
+  return `
   all_student_sessions as (
     select
       s.id as session_id,
@@ -86,12 +89,17 @@ const STUDENT_SESSIONS_CTE = `
       ,s.practice_context
     from tutor_sessions s
     where ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+      ${courseSessionSql("s", courseId)}
   ),
   student_sessions as (
     select * from all_student_sessions
     where practice_context = 'published'
   )
 `;
+}
+
+/** Every course together, for the views that are not course-scoped. */
+const STUDENT_SESSIONS_CTE = studentSessionsCte();
 
 const EXTRA_PRACTICE_TOTALS_CTE = `
   extra_practice_totals as (
@@ -383,7 +391,7 @@ async function readStudentList(
     query,
     `
       with
-      ${STUDENT_SESSIONS_CTE},
+      ${studentSessionsCte(filters.courseId)},
       ${SESSION_TOTALS_CTE},
       ${ATTEMPT_TOTALS_CTE},
       ${ATTENTION_STUDENTS_CTE},
@@ -533,12 +541,13 @@ async function readTopicPerformance(
  */
 async function readTopicRoster(
   query: DatabaseQueryExecutor,
+  courseId?: string,
 ): Promise<InstructorStudentTopicRoster> {
   const rows = await readRows<TopicRosterRow>(
     query,
     `
       with
-      ${STUDENT_SESSIONS_CTE},
+      ${studentSessionsCte(courseId)},
       ${SESSION_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
       ${STUDENT_POPULATION_CTE},
@@ -947,13 +956,14 @@ export function deriveAttentionSignals({
 
 async function readCohortAnalytics(
   query: DatabaseQueryExecutor,
+  courseId?: string,
 ): Promise<InstructorCohortAnalytics> {
   const [totalsRows, misconceptionRows] = await Promise.all([
     readRows<CohortRow>(
       query,
       `
         with
-        ${STUDENT_SESSIONS_CTE},
+        ${studentSessionsCte(courseId)},
         ${SESSION_TOTALS_CTE},
         ${ATTEMPT_TOTALS_CTE},
         ${ATTENTION_STUDENTS_CTE},
@@ -978,7 +988,8 @@ async function readCohortAnalytics(
            where practice_context = 'reserve_practice') as extra_practice_sessions,
           (select count(*)::int from tutor_sessions s
            where ${PROFESSOR_OWNED_SESSION_SQL}
-             and ${MEANINGFUL_TUTOR_SESSION_SQL}) as excluded_staff_sessions,
+             and ${MEANINGFUL_TUTOR_SESSION_SQL}
+             ${courseSessionSql("s", courseId)}) as excluded_staff_sessions,
           (select coalesce(sum(hints_used), 0)::int from session_totals)
             as hints_used,
           (select coalesce(sum(solutions_revealed), 0)::int from session_totals)
@@ -1009,6 +1020,7 @@ async function readCohortAnalytics(
         ) as misconception_id
         where s.practice_context = 'published'
           and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+          ${courseSessionSql("s", courseId)}
         group by misconception_id
         order by sessions desc, misconception_id
         limit ${MISCONCEPTION_LIMIT}
@@ -1048,9 +1060,10 @@ export function createDatabaseInstructorStudentRepository(
   return {
     async getCohortAnalytics(
       authorization: AnalyticsAuthorization,
+      scope: CourseScope = {},
     ): Promise<InstructorCohortAnalytics> {
       assertAuthorization(authorization, "professor");
-      return readCohortAnalytics(query);
+      return readCohortAnalytics(query, scope.courseId);
     },
 
     async getStudentDetail(
@@ -1095,9 +1108,10 @@ export function createDatabaseInstructorStudentRepository(
 
     async listTopicRoster(
       authorization: AnalyticsAuthorization,
+      scope: CourseScope = {},
     ): Promise<InstructorStudentTopicRoster> {
       assertAuthorization(authorization, "professor");
-      return readTopicRoster(query);
+      return readTopicRoster(query, scope.courseId);
     },
   };
 }

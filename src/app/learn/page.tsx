@@ -11,7 +11,9 @@ import {
   AuthenticationRequiredError,
   requireStudentAccess,
 } from "@/lib/auth/authorization";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
+import type { CourseScope } from "@/lib/data/repository";
 import { getStudentProgress } from "@/lib/data/student-progress";
 import type { StudentProgressDashboard } from "@/lib/types";
 
@@ -34,10 +36,14 @@ export const metadata: Metadata = {
  * than an empty progress column.
  */
 export default async function LearnPage() {
+  // The page is the same for every course; only the scope differs. Progress is
+  // read for the same course, so work in another course never shows here.
+  const { course } = await getSelectedCourse();
+  const scope: CourseScope = { courseId: course.id };
   const [topics, questions, { isGuest, progress }] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-    readOwnProgress(),
+    getTopics(scope),
+    getApprovedQuestions(scope),
+    readOwnProgress(scope),
   ]);
 
   const orderedTopics = sortTopicsForSyllabus(topics);
@@ -50,7 +56,12 @@ export default async function LearnPage() {
     topics: orderedTopics,
   });
 
-  return <LearnScreen model={model} />;
+  return (
+    <LearnScreen
+      course={{ id: course.id, title: course.title }}
+      model={model}
+    />
+  );
 }
 
 /**
@@ -61,7 +72,7 @@ export default async function LearnPage() {
  * neither a session nor an anonymous cookie; that is the guest case, not an
  * error.
  */
-async function readOwnProgress(): Promise<{
+async function readOwnProgress(scope: CourseScope): Promise<{
   isGuest: boolean;
   progress: StudentProgressDashboard | null;
 }> {
@@ -78,6 +89,6 @@ async function readOwnProgress(): Promise<{
 
   return {
     isGuest: authorization.owner.kind !== "user",
-    progress: await getStudentProgress(authorization),
+    progress: await getStudentProgress(authorization, scope),
   };
 }

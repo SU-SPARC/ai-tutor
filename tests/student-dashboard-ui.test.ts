@@ -170,6 +170,7 @@ beforeEach(() => {
   mocks.getTopics.mockResolvedValue([
     {
       active: true,
+      courseId: "probability-statistics",
       description: "Restrict the sample space.",
       id: "conditional-probability",
       moduleRef: "Week 3",

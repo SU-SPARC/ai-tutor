@@ -12,7 +12,7 @@
  * and one release that went stale when its version was unpublished.
  */
 
-import canonicalTopicData from "../../../data/canonical/syllabus-topics.json";
+import canonicalTopicData from "../../../data/canonical/probability-statistics/syllabus-topics.json";
 import discreteModelsBatch2Data from "../../../data/demo/discrete-models-batch-2-review-candidates.json";
 import followingSyllabusData from "../../../data/demo/following-syllabus-review-candidates.json";
 import generatedCandidateData from "../../../data/demo/generated-review-candidates.json";

@@ -35,6 +35,8 @@ export type LandingScreenProps = {
    * hinted or discussed with the tutor, and no guest session is created.
    */
   locked?: boolean;
+  /** How the course is named in the sheet's join prompt. */
+  courseLabel?: string;
 };
 
 /**
@@ -58,6 +60,7 @@ export function LandingScreen({
   railTopics,
   railFooter,
   locked = false,
+  courseLabel,
 }: LandingScreenProps) {
   const { check, error, hint, hintsRevealed, lastMessage, status, verdict } =
     useSheetSession({
@@ -137,6 +140,7 @@ export function LandingScreen({
               verdict={sheetVerdict}
               error={error}
               locked={locked}
+              courseLabel={courseLabel}
             />
           </div>
         </div>

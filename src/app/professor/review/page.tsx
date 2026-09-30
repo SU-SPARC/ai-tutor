@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
+import { ProfessorCourseFilter } from "@/components/professor/professor-course-filter";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { ProfessorFriendlyReviewPanel } from "@/components/professor/professor-friendly-review-panel";
 import { Button } from "@/components/ui/button";
 import { getProfessorQuestionReviewDashboard } from "@/lib/data/data-store";
@@ -35,9 +37,12 @@ export default async function ProfessorReviewPage({
   const params = await searchParams;
   const requestedTopicId = singleParam(params.topic);
   const requestedQuestionId = singleParam(params.question);
+  const { course, courses } = await getSelectedCourse();
+  const scope = { courseId: course.id };
   const loaded = await getProfessorQuestionReviewDashboard(
     authorization,
     requestedTopicId,
+    scope,
   );
   // Only a real syllabus topic may preselect the queue. Without one, open on
   // the first topic in syllabus order that has questions waiting, so the
@@ -56,6 +61,7 @@ export default async function ProfessorReviewPage({
       ? await getProfessorQuestionReviewDashboard(
           authorization,
           preselectedTopicId,
+          scope,
         )
       : loaded;
   const dashboard = preselectedTopicId
@@ -91,6 +97,13 @@ export default async function ProfessorReviewPage({
         <Button asChild variant="secondary" className="min-h-11">
           <Link href="/professor/questions">Question bank</Link>
         </Button>
+      }
+      courseFilter={
+        <ProfessorCourseFilter
+          courses={courses}
+          returnTo="/professor/review"
+          selectedCourseId={course.id}
+        />
       }
     >
       {/* Keyed by topic so following a [Review] link to another topic

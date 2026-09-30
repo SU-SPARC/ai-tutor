@@ -1,5 +1,7 @@
 export interface CanonicalSyllabusTopic {
   active: boolean
+  /** Set by the loaders; absent in the JSON files. */
+  courseId?: string
   description: string
   id: string
   keywords: string[]
@@ -10,7 +12,14 @@ export interface CanonicalSyllabusTopic {
 }
 
 export const CANONICAL_SYLLABUS_TOPICS_FILE: string
+export const DEFAULT_COURSE_ID: string
+export const CANONICAL_COURSE_IDS: readonly string[]
+export function canonicalSyllabusTopicsFile(courseId?: string): string
 export function loadCanonicalSyllabusTopics(
+  repositoryRoot: string,
+  courseId?: string,
+): Promise<CanonicalSyllabusTopic[]>
+export function loadAllCanonicalSyllabusTopics(
   repositoryRoot: string,
 ): Promise<CanonicalSyllabusTopic[]>
 export function validateCanonicalSyllabusTopics(topics: unknown): string[]

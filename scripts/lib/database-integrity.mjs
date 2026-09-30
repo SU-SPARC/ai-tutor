@@ -241,7 +241,7 @@ const AUDIT_CHECKS = Object.freeze([
   },
   {
     description:
-      "Topic syllabus positions must be nonnegative and unique, including after constraint drift.",
+      "Topic syllabus positions must be nonnegative and unique within each course, including after constraint drift.",
     id: "topic_order_conflicts",
     repairAction: null,
     severity: "high",
@@ -253,7 +253,9 @@ const AUDIT_CHECKS = Object.freeze([
          or exists (
            select 1
            from topics conflicting
-           where conflicting.sort_order = t.sort_order
+           where coalesce(to_jsonb(conflicting) ->> 'course_id', '')
+               = coalesce(to_jsonb(t) ->> 'course_id', '')
+             and conflicting.sort_order = t.sort_order
              and conflicting.id <> t.id
          )
     `,

@@ -13,7 +13,12 @@ export type LandingHeadlineProps = {
   ghostLoginEnabled?: boolean;
   /** One `type-small` line of context under [Continue practicing →]. */
   continueNote?: string;
+  /** How the course is named in the headline ("MATH-255", "Calculus I"). */
+  courseLabel?: string;
 };
+
+/** The course the landing page was written for. */
+export const DEFAULT_LANDING_COURSE_LABEL = "MATH-255";
 
 /**
  * The hero's section-code door. The locked Sheet's [Join to answer] scrolls
@@ -46,6 +51,7 @@ export function LandingHeadline({
   signedIn,
   ghostLoginEnabled = false,
   continueNote,
+  courseLabel = DEFAULT_LANDING_COURSE_LABEL,
 }: LandingHeadlineProps) {
   return (
     <section
@@ -54,7 +60,7 @@ export function LandingHeadline({
     >
       <div className="flex max-w-3xl flex-col gap-5">
         <h1 id="landing-title" className="type-display text-ink">
-          Practice MATH-255, one hint at a time
+          Practice {courseLabel}, one hint at a time
         </h1>
         <p className="type-reading text-ink-muted">
           Real problems from your course, checked instantly. Stuck? Open a
@@ -118,24 +124,28 @@ export function LandingHeadline({
 // Two plain statements: what is kept, and who decides what the problems are.
 // The lead is the rule; the second line is the fact behind it. What the
 // tutor sees is step 3 of "How it works", so it is not repeated here.
-const STATEMENTS = [
-  {
-    lead: "Guest practice is anonymous; sign in to keep it",
-    detail:
-      "Guest progress lives in this browser until you sign in and import it.",
-  },
-  {
-    lead: "Your professor approves every problem",
-    detail:
-      "A question reaches students only after a MATH-255 professor has reviewed and published it.",
-  },
-] as const;
+const statementsFor = (courseLabel: string) =>
+  [
+    {
+      lead: "Guest practice is anonymous; sign in to keep it",
+      detail:
+        "Guest progress lives in this browser until you sign in and import it.",
+    },
+    {
+      lead: "Your professor approves every problem",
+      detail: `A question reaches students only after a ${courseLabel} professor has reviewed and published it.`,
+    },
+  ] as const;
 
-export function LandingStatements() {
+export function LandingStatements({
+  courseLabel = DEFAULT_LANDING_COURSE_LABEL,
+}: {
+  courseLabel?: string;
+}) {
   return (
     <div className={LANDING_COLUMN}>
       <ul className="grid gap-6 border-t border-rule py-8 md:grid-cols-2 md:gap-8 lg:py-12">
-        {STATEMENTS.map((statement) => (
+        {statementsFor(courseLabel).map((statement) => (
           <li key={statement.lead} className="flex max-w-prose flex-col gap-1">
             <p className="type-body-strong text-ink">{statement.lead}</p>
             <p className="type-body text-ink-muted">{statement.detail}</p>
@@ -150,14 +160,18 @@ export function LandingStatements() {
  * One line: whose course this is, the privacy fact, and the professor's way
  * in. Rendered outside `<main>` so it is the page's contentinfo landmark.
  */
-export function LandingFooter() {
+export function LandingFooter({
+  courseLabel = DEFAULT_LANDING_COURSE_LABEL,
+}: {
+  courseLabel?: string;
+}) {
   return (
     <footer className="bg-surface">
       <div className={LANDING_COLUMN}>
         <div className="flex flex-col gap-2 border-t border-rule py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <p className="type-small text-ink-muted">
-            Suffolk University · MATH-255 · Your professor sees you as a code, not
-            your name, unless they open your record.
+            Suffolk University · {courseLabel} · Your professor sees you as a
+            code, not your name, unless they open your record.
           </p>
           <Link
             href="/join#professor"

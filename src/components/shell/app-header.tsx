@@ -6,8 +6,10 @@ import { Logo } from "@/components/shell/logo";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { NavLink } from "@/components/shell/nav-link";
 import { PROFESSOR_NAV, STUDENT_NAV } from "@/components/shell/nav-config";
+import { StudentCourseChip } from "@/components/shell/student-course-chip";
 import { StudentSectionChip } from "@/components/shell/student-section-chip";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DEFAULT_COURSE_ID } from "@/lib/course-catalog";
 import { cn } from "@/lib/utils";
 
 export type AppHeaderRole = "student" | "professor";
@@ -21,6 +23,8 @@ export type AppHeaderProps = {
    */
   environmentLabel?: "Development" | "Local demo" | "Preview" | "Preview demo";
   role?: AppHeaderRole;
+  /** The course the visitor is working in, for the student course chip. */
+  course?: { id: string; title: string };
   className?: string;
 };
 
@@ -41,6 +45,7 @@ export function AppHeader({
   accountControl,
   environmentLabel,
   role,
+  course,
   className,
 }: AppHeaderProps) {
   const navItems = role === "professor" ? PROFESSOR_NAV : STUDENT_NAV;
@@ -73,8 +78,12 @@ export function AppHeader({
               <CourseSwitcher />
               <FallbackCourseChip className="[&:not(:only-child)]:hidden" />
             </>
+          ) : course && course.id !== DEFAULT_COURSE_ID ? (
+            <StudentCourseChip courseTitle={course.title} />
           ) : (
-            <StudentSectionChip />
+            <StudentCourseChip courseTitle={course?.title ?? "Probability & Statistics"}>
+              <StudentSectionChip />
+            </StudentCourseChip>
           )}
         </div>
 

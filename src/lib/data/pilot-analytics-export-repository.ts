@@ -21,8 +21,10 @@ import {
 } from "@/lib/data/database-executor";
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
+  courseSessionSql,
   STUDENT_KEY_SQL,
 } from "@/lib/data/analytics-population";
+import type { CourseScope } from "@/lib/data/repository";
 
 type ActivityRow = {
   answer_attempts: number | string | null;
@@ -74,7 +76,8 @@ type CountRow = {
   key: string;
 };
 
-const SESSION_FACTS_CTE = `
+function sessionFactsCte(courseId?: string) {
+  return `
   student_sessions as (
     select
       s.id as session_id,
@@ -88,6 +91,7 @@ const SESSION_FACTS_CTE = `
     join questions q on q.id = s.question_id
     where s.practice_context = 'published'
       and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+      ${courseSessionSql("s", courseId)}
   ),
   attempt_facts as (
     select
@@ -126,6 +130,7 @@ const SESSION_FACTS_CTE = `
     left join attempt_facts af on af.session_id = ss.session_id
   )
 `;
+}
 
 const ACTIVITY_COLUMNS = `
   count(*)::int as sessions,
@@ -159,8 +164,13 @@ export function createDatabasePilotAnalyticsExportRepository(
     async build(
       authorization: AnalyticsAuthorization,
       generatedAt = new Date().toISOString(),
+      scope: CourseScope = {},
     ): Promise<PilotAnalyticsExport> {
       assertAuthorization(authorization, "professor");
+      // Session-derived sections (cohort, participants, topics, questions,
+      // misconceptions) follow the course. Platform-wide ones (AI usage,
+      // feedback, coverage window) are not attributable to a course.
+      const courseId = scope.courseId;
 
       const [
         cohortRows,
@@ -175,7 +185,7 @@ export function createDatabasePilotAnalyticsExportRepository(
       ] = await Promise.all([
         readRows<ActivityRow>(
           query,
-          `with ${SESSION_FACTS_CTE}
+          `with ${sessionFactsCte(courseId)}
            select
              count(distinct student_key)::int as participating_students,
              ${ACTIVITY_COLUMNS}
@@ -183,7 +193,7 @@ export function createDatabasePilotAnalyticsExportRepository(
         ),
         readRows<ActivityRow>(
           query,
-          `with ${SESSION_FACTS_CTE}
+          `with ${sessionFactsCte(courseId)}
            select student_key, ${ACTIVITY_COLUMNS}
            from session_facts
            group by student_key
@@ -191,7 +201,7 @@ export function createDatabasePilotAnalyticsExportRepository(
         ),
         readRows<ActivityRow>(
           query,
-          `with ${SESSION_FACTS_CTE}
+          `with ${sessionFactsCte(courseId)}
            select
              sf.topic_id,
              t.title as topic_title,
@@ -204,7 +214,7 @@ export function createDatabasePilotAnalyticsExportRepository(
         ),
         readRows<ActivityRow>(
           query,
-          `with ${SESSION_FACTS_CTE}
+          `with ${sessionFactsCte(courseId)}
            select
              question_id,
              topic_id,
@@ -232,6 +242,7 @@ export function createDatabasePilotAnalyticsExportRepository(
              ) as code
              where s.practice_context = 'published'
                and ${ANALYTICS_STUDENT_SESSION_FILTER_SQL}
+               ${courseSessionSql("s", courseId)}
            ) retained
            group by misconception_code
            order by session_occurrences desc, misconception_code`,
