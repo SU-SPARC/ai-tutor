@@ -26,12 +26,14 @@ type BankFilter =
   | "needs_review"
   | "draft";
 
+// "Ready to show" is first and the default: those are the questions a
+// professor can actually add. The others explain why something is missing.
 const FILTERS: { id: BankFilter; label: string }[] = [
+  { id: "published", label: "Ready to show" },
   { id: "all", label: "All" },
-  { id: "published", label: "Published" },
   { id: "approved_not_released", label: "Approved" },
-  { id: "needs_review", label: "Needs review" },
-  { id: "draft", label: "Draft" },
+  { id: "needs_review", label: "Waiting for your review" },
+  { id: "draft", label: "Being written" },
 ];
 
 function matchesFilter(
@@ -70,10 +72,10 @@ function matchesSearch(question: BankQuestion, needle: string) {
 }
 
 /**
- * The right pane: the whole bank for the course's topics, grouped by topic
- * (Teachable's curriculum pattern), with a state chip per row and ⊕ / ⊖ to
- * stage a change. Rows that cannot be released say why, as a link to the step
- * that unblocks them.
+ * The right pane: the question bank for the course's weeks, grouped by week,
+ * with a status chip per row and a labelled Add / Remove button. Rows that
+ * cannot be added say why, with a link to the step that fixes it when there
+ * is one.
  */
 export function BuilderBankPane({
   courseId,
@@ -96,11 +98,12 @@ export function BuilderBankPane({
   openTopics: ReadonlySet<TopicId>;
   /** Questions this section already has a row for (released or held). */
   releasedIds: ReadonlySet<QuestionId>;
+  /** Already in words: "Section 1". */
   sectionLabel: string;
   staged: StagedChanges;
 }) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<BankFilter>("all");
+  const [filter, setFilter] = useState<BankFilter>("published");
   const needle = search.trim().toLowerCase();
 
   const filterCounts = useMemo(() => {
@@ -161,19 +164,27 @@ export function BuilderBankPane({
       >
         <div className="sticky top-(--header-h) z-10 flex flex-col gap-3 rounded-t-panel border-b border-rule bg-sheet px-4 pt-4 pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="type-h3 text-ink" id="bank-heading">
-              Question bank{" "}
-              <span className="type-mono text-ink-muted">
-                {filterCounts.all}
-              </span>
-            </h2>
+            <div className="flex flex-col gap-1">
+              <h2 className="type-h3 text-ink" id="bank-heading">
+                Question bank
+              </h2>
+              <p className="type-small text-ink-muted">
+                {filterCounts.published} ready to show ·{" "}
+                {filterCounts.all} in all
+              </p>
+            </div>
             <div className="flex items-center gap-1">
-              <Button onClick={onExpandAll} size="sm" type="button" variant="ghost">
+              <Button
+                className="min-h-11"
+                onClick={onExpandAll}
+                type="button"
+                variant="ghost"
+              >
                 Expand all
               </Button>
               <Button
+                className="min-h-11"
                 onClick={onCollapseAll}
-                size="sm"
                 type="button"
                 variant="ghost"
               >
@@ -190,18 +201,19 @@ export function BuilderBankPane({
               aria-label="Search the question bank"
               className="pl-9"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search prompt, tag, or id…"
+              placeholder="Search question text or tag…"
               type="search"
               value={search}
             />
           </div>
           <TabsList
-            aria-label="Filter the bank by state"
+            aria-label="Which questions to list"
             className="max-w-full overflow-x-auto"
             variant="segmented"
           >
             {FILTERS.map((entry) => (
               <TabsTrigger
+                className="min-h-11"
                 count={filterCounts[entry.id]}
                 key={entry.id}
                 value={entry.id}
@@ -217,10 +229,13 @@ export function BuilderBankPane({
             if (questions.length === 0) {
               return null;
             }
+            // The default "Ready to show" list keeps the professor's open and
+            // closed weeks; the narrower filters open every week so nothing
+            // they asked for is hidden inside a closed group.
             const isOpen =
               openTopics.has(group.topic.id) ||
               needle.length > 0 ||
-              filter !== "all";
+              (filter !== "all" && filter !== "published");
             const listId = `bank-${group.topic.id}`;
             const changed = nextCount !== group.releasedCount;
 
@@ -237,7 +252,7 @@ export function BuilderBankPane({
                   <button
                     aria-controls={listId}
                     aria-expanded={isOpen}
-                    className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-control text-left focus-ring"
+                    className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-control text-left focus-ring"
                     onClick={() => onSetTopicOpen(group.topic.id, !isOpen)}
                     type="button"
                   >
@@ -251,12 +266,10 @@ export function BuilderBankPane({
                     <span className="type-body-strong min-w-0 flex-1 truncate text-ink">
                       {group.label}
                     </span>
-                    <span className="type-caption shrink-0 tabular">
-                      {group.releasedCount}
-                      {changed ? (
-                        <span className="text-ink"> → {nextCount}</span>
-                      ) : null}{" "}
-                      of {group.bankCount} released
+                    <span className="type-small shrink-0 tabular text-ink-muted">
+                      {changed
+                        ? `${nextCount} of ${group.bankCount} shown after saving (now ${group.releasedCount})`
+                        : `${group.releasedCount} of ${group.bankCount} shown`}
                       <span className="sr-only"> to {sectionLabel}</span>
                     </span>
                   </button>
@@ -278,10 +291,10 @@ export function BuilderBankPane({
                       ))}
                     </ul>
                     <div className="px-3 pt-1 pb-3">
-                      <Button asChild size="sm" variant="ghost">
+                      <Button asChild className="min-h-11" variant="ghost">
                         <Link href={courseTopicPath(courseId, group.topic.id)}>
                           <Plus aria-hidden="true" />
-                          Add a question to this topic
+                          Add a question to this week
                         </Link>
                       </Button>
                     </div>
@@ -293,7 +306,9 @@ export function BuilderBankPane({
 
           {!anyVisible ? (
             <p className="type-body px-4 py-6 text-ink-muted">
-              No questions match that search or filter.
+              {filter === "published" && needle.length === 0
+                ? "No questions are ready to show yet. Choose All to see the others and why they are not ready."
+                : "No questions match that search or list."}
             </p>
           ) : null}
         </TabsContent>

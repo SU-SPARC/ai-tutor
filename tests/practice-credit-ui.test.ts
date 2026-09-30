@@ -98,25 +98,28 @@ describe("instructor practice credit evidence panel", () => {
       }),
     );
 
-    expect(markup).toContain("Practice credit evidence");
-    expect(markup).toContain("Credit route");
-    expect(markup).toContain("Full-credit route (1.0)");
-    expect(markup).toContain(
-      "Partial-credit route (0.9) · similar problem solved",
-    );
-    expect(markup).toContain("Manual review");
-    expect(markup).toContain("Start over fallback is yours to judge");
+    expect(markup).toContain("Credit suggestions by question");
+    expect(markup).toContain("Suggested credit");
+    expect(markup).toContain("Full credit");
+    expect(markup).toContain("90% (solved a similar problem)");
+    expect(markup).toContain("Your call");
+    expect(markup).toContain("The tutor can’t tell whether a similar problem was");
     expect(markup).not.toContain("decision pending");
-    expect(markup).toContain("Not yet qualified");
-    expect(markup).toContain("2 to first correct");
-    expect(markup).toContain("3, none correct");
-    expect(markup).toContain("Attempted, not solved");
-    expect(markup).toContain("evidence for your decision, not a grade");
+    expect(markup).toContain("Not yet");
+    expect(markup).toContain("Solved in 2 tries");
+    expect(markup).toContain("Solved after viewing the solution");
+    expect(markup).toContain("Tried, not solved");
+    // The detailed counts stay one click away.
+    expect(markup).toContain("How credit is suggested");
+    expect(markup).toContain("Correct on try 2");
+    expect(markup).toContain("3 tries, none correct");
+    expect(markup).toContain("A suggestion to help you decide, not a grade.");
     expect(markup).not.toMatch(/official grade|final grade|gradebook|course grade/i);
     // The raw submission metric is named for what it is, so it cannot be
-    // read as the policy's valid-attempt count.
-    expect(markup).toContain("Answer submissions");
+    // read as the policy's try count.
+    expect(markup).toContain("2 of 6 answers checked");
     expect(markup).not.toContain(">Attempts<");
+    expect(markup).not.toContain("Credit route");
   });
 
   it("explains an empty evidence table without inventing rows", () => {

@@ -1,4 +1,8 @@
 import {
+  formatCorrect,
+  PROFESSOR_TABLE_TYPE,
+} from "@/components/professor/instructor-student-table";
+import {
   Table,
   TableBody,
   TableCaption,
@@ -8,33 +12,88 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { compareCanonicalTopicIds } from "@/lib/data/canonical-syllabus-topics";
-import { formatAccuracy } from "@/lib/professor/student-pseudonym";
 import type { ProfessorPracticeAnalytics } from "@/lib/types";
 
-const RELIABLE_QUESTION_ATTEMPTS = 4;
+/** Fewer checked answers than this is too little to call something hard. */
+const RELIABLE_ANSWERS_CHECKED = 4;
 
 type QuestionPerformance = ProfessorPracticeAnalytics["questions"][number];
+type TopicPerformance = ProfessorPracticeAnalytics["topics"][number];
+
+type Difficulty = {
+  attempts: number;
+  correctAttempts: number;
+  incorrectAttempts?: number;
+};
+
+function checked(row: Difficulty) {
+  return row.correctAttempts + (row.incorrectAttempts ?? 0);
+}
 
 /**
- * Topic and question performance for published practice: two dense tables
- * with numeric columns, each introduced by an h2 and footnoted by its caption
- * (scope, ranking rule, and whether the rows are demo fixtures). No cards,
- * no badges; a demo notice is one quiet line in the caption.
+ * Hardest first: rows with enough checked answers come first, lowest share
+ * correct at the top; the rest follow, most answered first, and are not
+ * called hard.
+ */
+function compareDifficulty(left: Difficulty, right: Difficulty) {
+  const leftChecked = checked(left);
+  const rightChecked = checked(right);
+  const leftHasEvidence = leftChecked >= RELIABLE_ANSWERS_CHECKED;
+  const rightHasEvidence = rightChecked >= RELIABLE_ANSWERS_CHECKED;
+
+  if (leftHasEvidence !== rightHasEvidence) {
+    return leftHasEvidence ? -1 : 1;
+  }
+
+  if (leftHasEvidence && rightHasEvidence) {
+    const difference =
+      left.correctAttempts / leftChecked - right.correctAttempts / rightChecked;
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+
+  return right.attempts - left.attempts;
+}
+
+function compareTopicPerformance(
+  left: TopicPerformance,
+  right: TopicPerformance,
+) {
+  return (
+    compareDifficulty(left, right) ||
+    compareCanonicalTopicIds(left.topicId, right.topicId) ||
+    left.topicTitle.localeCompare(right.topicTitle)
+  );
+}
+
+function compareQuestionPerformance(
+  left: QuestionPerformance,
+  right: QuestionPerformance,
+) {
+  return (
+    compareDifficulty(left, right) ||
+    compareCanonicalTopicIds(left.topicId, right.topicId) ||
+    left.questionTitle.localeCompare(right.questionTitle) ||
+    left.questionId.localeCompare(right.questionId)
+  );
+}
+
+/**
+ * The two "hardest first" tables for the questions students can see. Each
+ * has an h2 and a visible line above it that says how it is ordered. Tutor
+ * internals (which engine answered) stay in the research export.
  */
 export function InstructorPracticePerformance({
   practice,
 }: {
   practice: ProfessorPracticeAnalytics;
 }) {
-  const topics = [...practice.topics].sort(
-    (left, right) =>
-      compareCanonicalTopicIds(left.topicId, right.topicId) ||
-      left.topicTitle.localeCompare(right.topicTitle),
-  );
+  const topics = [...practice.topics].sort(compareTopicPerformance);
   const questions = [...practice.questions].sort(compareQuestionPerformance);
   const demoNote =
     practice.mode === "demo"
-      ? " Demo fixtures, not results from a recorded class."
+      ? " These are sample numbers for the demo, not a real class."
       : "";
 
   return (
@@ -44,15 +103,20 @@ export function InstructorPracticePerformance({
         className="flex flex-col gap-3"
       >
         <h2 id="topic-performance-heading" className="type-h2 text-ink">
-          Topic performance
+          Topics students find hardest
         </h2>
+        <p id="topic-performance-note" className="type-small text-ink">
+          Hardest topics first. Topics with fewer than{" "}
+          {RELIABLE_ANSWERS_CHECKED} answers checked come last.{demoNote}
+        </p>
         <div className="rounded-panel bg-sheet">
           <Table
             containerClassName="rounded-panel"
+            className={PROFESSOR_TABLE_TYPE}
             aria-describedby="topic-performance-note"
           >
             <TableCaption className="sr-only">
-              Topic performance, in syllabus order
+              Topics, hardest first
             </TableCaption>
             <TableHeader>
               <TableRow>
@@ -60,19 +124,14 @@ export function InstructorPracticePerformance({
                   Topic
                 </TableHead>
                 <TableHead scope="col" numeric>
-                  Answer attempts
+                  Answers checked
                 </TableHead>
-                <TableHead scope="col" numeric>
-                  Correct %
-                </TableHead>
+                <TableHead scope="col">Correct</TableHead>
                 <TableHead scope="col" numeric>
                   Hints used
                 </TableHead>
-                <TableHead scope="col" numeric>
-                  Solutions revealed
-                </TableHead>
                 <TableHead scope="col" numeric className="pr-4">
-                  LLM fallbacks
+                  Solutions viewed
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -83,34 +142,25 @@ export function InstructorPracticePerformance({
                     <TableCell className="min-w-48 pl-4 font-medium">
                       {topic.topicTitle}
                     </TableCell>
-                    <TableCell numeric>{topic.attempts}</TableCell>
-                    <TableCell numeric>
-                      {formatAccuracy(
-                        topic.correctAttempts,
-                        topic.correctAttempts + (topic.incorrectAttempts ?? 0),
-                      )}
+                    <TableCell numeric>{checked(topic)}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular">
+                      {formatCorrect(topic.correctAttempts, checked(topic))}
                     </TableCell>
                     <TableCell numeric>{topic.hintsUsed}</TableCell>
-                    <TableCell numeric>{topic.stepsRevealed}</TableCell>
                     <TableCell numeric className="pr-4">
-                      {topic.llmAttempts}
+                      {topic.stepsRevealed}
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <EmptyRow
-                  columns={6}
-                  message="No published topic practice has been recorded yet."
+                  columns={5}
+                  message="No student has practiced a topic yet."
                 />
               )}
             </TableBody>
           </Table>
         </div>
-        <p id="topic-performance-note" className="type-caption max-w-prose">
-          Published normal-practice sessions only. Answer attempts count checks;
-          hints, solutions and LLM fallbacks are counted separately.
-          {demoNote}
-        </p>
       </section>
 
       <section
@@ -118,38 +168,38 @@ export function InstructorPracticePerformance({
         className="flex flex-col gap-3"
       >
         <h2 id="question-performance-heading" className="type-h2 text-ink">
-          Question performance
+          Questions students find hardest
         </h2>
+        <p id="question-performance-note" className="type-small text-ink">
+          Hardest questions first. Questions with fewer than{" "}
+          {RELIABLE_ANSWERS_CHECKED} answers checked come last, most answered
+          first.{demoNote}
+        </p>
         <div className="rounded-panel bg-sheet">
           <Table
             stickyHeader
             containerClassName="rounded-panel lg:max-h-[70svh]"
-            className="[&_thead_th]:bg-sheet"
+            className={`[&_thead_th]:bg-sheet ${PROFESSOR_TABLE_TYPE}`}
             aria-describedby="question-performance-note"
           >
             <TableCaption className="sr-only">
-              Question performance, lowest correct percentage first
+              Questions, hardest first
             </TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead scope="col" className="pl-4">
-                  Question title
+                  Question
                 </TableHead>
                 <TableHead scope="col">Topic</TableHead>
                 <TableHead scope="col" numeric>
-                  Answer attempts
+                  Answers checked
                 </TableHead>
+                <TableHead scope="col">Correct</TableHead>
                 <TableHead scope="col" numeric>
-                  Correct %
-                </TableHead>
-                <TableHead scope="col" numeric>
-                  Hints
-                </TableHead>
-                <TableHead scope="col" numeric>
-                  Solutions revealed
+                  Hints used
                 </TableHead>
                 <TableHead scope="col" numeric className="pr-4">
-                  LLM fallbacks
+                  Solutions viewed
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -160,78 +210,40 @@ export function InstructorPracticePerformance({
                     <TableCell className="min-w-56 pl-4 font-medium">
                       {question.questionTitle}
                     </TableCell>
-                    <TableCell className="min-w-40 text-ink-muted">
+                    <TableCell className="min-w-40">
                       {question.topicTitle}
                     </TableCell>
-                    <TableCell numeric>{question.attempts}</TableCell>
-                    <TableCell numeric>
-                      {formatAccuracy(
+                    <TableCell numeric>{checked(question)}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular">
+                      {formatCorrect(
                         question.correctAttempts,
-                        question.correctAttempts + question.incorrectAttempts,
+                        checked(question),
                       )}
                     </TableCell>
                     <TableCell numeric>{question.hintsUsed}</TableCell>
-                    <TableCell numeric>{question.stepsRevealed}</TableCell>
                     <TableCell numeric className="pr-4">
-                      {question.llmAttempts}
+                      {question.stepsRevealed}
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <EmptyRow
-                  columns={7}
-                  message="No published question practice has been recorded yet."
+                  columns={6}
+                  message="No student has answered a question yet."
                 />
               )}
             </TableBody>
           </Table>
         </div>
-        <p id="question-performance-note" className="type-caption max-w-prose">
-          Questions with at least four scored answer checks come first, lowest
-          correct percentage at the top. Lower-volume questions follow by
-          attempt count and are not labeled as difficult.{demoNote}
-        </p>
       </section>
     </div>
-  );
-}
-
-function compareQuestionPerformance(
-  left: QuestionPerformance,
-  right: QuestionPerformance,
-) {
-  const leftHasEvidence =
-    left.correctAttempts + left.incorrectAttempts >= RELIABLE_QUESTION_ATTEMPTS;
-  const rightHasEvidence =
-    right.correctAttempts + right.incorrectAttempts >=
-    RELIABLE_QUESTION_ATTEMPTS;
-
-  if (leftHasEvidence !== rightHasEvidence) {
-    return leftHasEvidence ? -1 : 1;
-  }
-
-  if (leftHasEvidence && rightHasEvidence) {
-    const accuracyDifference =
-      left.correctAttempts / (left.correctAttempts + left.incorrectAttempts) -
-      right.correctAttempts / (right.correctAttempts + right.incorrectAttempts);
-
-    if (accuracyDifference !== 0) {
-      return accuracyDifference;
-    }
-  }
-
-  return (
-    right.attempts - left.attempts ||
-    compareCanonicalTopicIds(left.topicId, right.topicId) ||
-    left.questionTitle.localeCompare(right.questionTitle) ||
-    left.questionId.localeCompare(right.questionId)
   );
 }
 
 function EmptyRow({ columns, message }: { columns: number; message: string }) {
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell className="px-4 py-6 text-ink-muted" colSpan={columns}>
+      <TableCell className="px-4 py-6" colSpan={columns}>
         {message}
       </TableCell>
     </TableRow>

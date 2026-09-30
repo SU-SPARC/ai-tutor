@@ -9,44 +9,27 @@ import {
   requireProfessor,
   type ProfessorAuthorization,
 } from "@/lib/auth/authorization";
-import {
-  getProfessorQuestionReviewDashboard,
-  listInstructorStudents,
-} from "@/lib/data/data-store";
-import { getProfessorQuestionFeedbackDashboard } from "@/lib/data/question-feedback-repository";
+import { getProfessorQuestionReviewDashboard } from "@/lib/data/data-store";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Live counts for the workspace rail: questions waiting on review, open
- * student reports, and students with any practice. Best effort: the rail is
- * navigation, so a failed read leaves that row without a number instead of
- * failing the page. The three reads run in parallel; the student read asks
- * for one row because only the total is shown (no identity is resolved).
+ * The rail's one count: questions waiting for the professor's review. Best
+ * effort: the rail is navigation, so a failed read leaves the row without a
+ * count instead of failing the page. Totals (students, reports) are not
+ * loaded; the rail shows a number only when something needs the professor.
  */
 async function loadRailCounts(
   authorization: ProfessorAuthorization,
 ): Promise<ProfessorRailCounts | undefined> {
-  const [review, feedback, students] = await Promise.allSettled([
-    getProfessorQuestionReviewDashboard(authorization),
-    getProfessorQuestionFeedbackDashboard(authorization),
-    listInstructorStudents(authorization, { limit: 1 }),
-  ]);
-
-  const counts: ProfessorRailCounts = {};
-  if (review.status === "fulfilled") {
-    counts.review = review.value.topics.reduce(
-      (sum, topic) => sum + topic.needsReview,
-      0,
-    );
+  try {
+    const review = await getProfessorQuestionReviewDashboard(authorization);
+    return {
+      review: review.topics.reduce((sum, topic) => sum + topic.needsReview, 0),
+    };
+  } catch {
+    return undefined;
   }
-  if (feedback.status === "fulfilled") {
-    counts.feedback = feedback.value.counts.open;
-  }
-  if (students.status === "fulfilled") {
-    counts.students = students.value.total;
-  }
-  return Object.keys(counts).length > 0 ? counts : undefined;
 }
 
 export default async function ProfessorLayout({
@@ -62,7 +45,7 @@ export default async function ProfessorLayout({
     <CoursesStoreProvider>
       <ThreeColumn
         rail={<ProfessorRail counts={counts} />}
-        railLabel="Workspace"
+        railLabel="Professor pages"
         drawerOpen={false}
         mainClassName="lg:py-8"
       >

@@ -1,12 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { CircleMinus, CirclePlus, Undo2 } from "lucide-react";
+import type { ReactNode } from "react";
 
-import {
-  QuestionStateChip,
-  StagedChip,
-} from "@/components/courses/course-status";
+import { QuestionStateChip } from "@/components/courses/course-status";
 import { Button } from "@/components/ui/button";
 import { courseTopicPath } from "@/lib/courses/paths";
 import { professorReviewQueuePagePath } from "@/lib/professor/question-paths";
@@ -17,22 +14,26 @@ import type {
   Difficulty,
 } from "@/lib/courses/types";
 
-const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  foundational: "Foundational",
+/** One difficulty vocabulary across the courses screens. */
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  foundational: "Intro",
   core: "Core",
   challenge: "Challenge",
 };
 
 /**
- * Blueprint S3 rule 2: the reason a ⊕ is unavailable is never a dead end. It
- * links to the lifecycle step that unblocks it — the review queue for anything
- * still awaiting a decision, the topic page (which owns publish) for
- * everything else.
+ * The reason a question cannot be added is never a dead end when there is
+ * something to do: "Not approved yet: review it" goes to the review queue,
+ * "Approved: make it ready" to the week's page, which owns "Make ready to
+ * use". A draft has no step here, so its reason is plain text.
  */
 export function unblockHref(
   courseId: CourseId,
   question: BankQuestion,
-): string {
+): string | null {
+  if (question.state === "draft") {
+    return null;
+  }
   if (question.state === "needs_review") {
     return professorReviewQueuePagePath(question.topicId, question.id);
   }
@@ -51,85 +52,106 @@ export function BankQuestionRow({
   courseId: CourseId;
   onToggle: () => void;
   question: BankQuestion;
-  /** Already has an availability row in this section (released or held). */
+  /** Already shown to this section (or paused there). */
   released: boolean;
+  /** Already in words: "Section 1". */
   sectionLabel: string;
   staged: boolean;
 }) {
   const blockReason = releaseBlockReason(question);
   const blocked = blockReason !== null && !released;
-  const stagedKind = staged ? (released ? "remove" : "add") : null;
+  const href = blocked ? unblockHref(courseId, question) : null;
 
-  const actionLabel = staged
-    ? released
-      ? `Undo staged removal of ${question.title} from ${sectionLabel}`
-      : `Undo staged release of ${question.title} to ${sectionLabel}`
-    : released
-      ? `Stage removal of ${question.title} from ${sectionLabel}`
-      : `Stage release of ${question.title} to ${sectionLabel}`;
+  let action: ReactNode = null;
+  if (!blocked) {
+    if (staged && !released) {
+      action = (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="type-body-strong text-ink">Added ✓</span>
+          <Button
+            aria-label={`Undo adding ${question.title} to ${sectionLabel}`}
+            className="min-h-11"
+            onClick={onToggle}
+            type="button"
+            variant="outline"
+          >
+            Undo
+          </Button>
+        </div>
+      );
+    } else if (staged && released) {
+      action = (
+        <Button
+          aria-label={`Undo remove: keep ${question.title} for ${sectionLabel}`}
+          className="min-h-11"
+          onClick={onToggle}
+          type="button"
+          variant="outline"
+        >
+          Undo remove
+        </Button>
+      );
+    } else if (released) {
+      action = (
+        <Button
+          aria-label={`Remove ${question.title} from ${sectionLabel}`}
+          className="min-h-11"
+          onClick={onToggle}
+          type="button"
+          variant="outline"
+        >
+          Remove
+        </Button>
+      );
+    } else {
+      action = (
+        <Button
+          aria-label={`Add ${question.title} for ${sectionLabel}`}
+          className="min-h-11"
+          onClick={onToggle}
+          type="button"
+          variant="secondary"
+        >
+          Add
+        </Button>
+      );
+    }
+  }
 
   return (
-    <li className="flex items-start gap-2 border-b border-rule px-3 py-2 last:border-b-0">
-      {blocked ? (
-        // aria-disabled rather than `disabled`, so the control stays focusable
-        // and the professor can still hear why it is off.
-        <Button
-          aria-disabled="true"
-          aria-label={`Cannot release ${question.title} to ${sectionLabel}: ${blockReason}`}
-          className="shrink-0 text-ink-muted"
-          onClick={(event) => event.preventDefault()}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <CirclePlus aria-hidden="true" />
-        </Button>
-      ) : (
-        <Button
-          aria-label={actionLabel}
-          aria-pressed={staged}
-          className={
-            released || staged ? "shrink-0 text-ink-muted" : "shrink-0 text-azure-500"
-          }
-          onClick={onToggle}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          {staged ? (
-            <Undo2 aria-hidden="true" />
-          ) : released ? (
-            <CircleMinus aria-hidden="true" />
-          ) : (
-            <CirclePlus aria-hidden="true" />
-          )}
-        </Button>
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
-        <p className="type-small text-ink">{question.title}</p>
+    <li className="flex flex-wrap items-center gap-3 border-b border-rule px-3 py-2 last:border-b-0">
+      <div className="flex min-w-0 flex-1 basis-48 flex-col gap-1">
+        <p className="type-body text-ink">{question.title}</p>
         <div className="flex flex-wrap items-center gap-2">
           <QuestionStateChip state={question.state} />
-          <span className="type-caption tabular">
-            v{question.publishedVersion ?? question.latestVersion}
-          </span>
-          <span className="type-caption">
+          <span className="type-small text-ink-muted">
             {DIFFICULTY_LABELS[question.difficulty]}
           </span>
           {released && !staged ? (
-            <span className="type-caption">In {sectionLabel}</span>
+            <span className="type-small text-ink">
+              Shown to {sectionLabel}
+            </span>
           ) : null}
-          {stagedKind ? <StagedChip kind={stagedKind} /> : null}
+          {staged ? (
+            <span className="type-small text-ink">
+              {released ? "Will hide" : "Will show"} (not saved yet)
+            </span>
+          ) : null}
         </div>
-        {blocked ? (
-          <Link
-            className="type-caption w-fit rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
-            href={unblockHref(courseId, question)}
-          >
-            {blockReason}
-          </Link>
+        {blocked && blockReason ? (
+          href ? (
+            <Link
+              className="type-small inline-flex min-h-11 w-fit items-center rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
+              href={href}
+            >
+              {blockReason}
+            </Link>
+          ) : (
+            <p className="type-small text-ink">{blockReason}</p>
+          )
         ) : null}
       </div>
+      {action}
     </li>
   );
 }

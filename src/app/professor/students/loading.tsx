@@ -6,7 +6,7 @@ export default function ProfessorStudentsLoading() {
   return (
     <ProfessorPageShell
       title="Students"
-      description="Everyone who has signed in to the tutor, with the practice they have recorded."
+      description="Everyone who has practiced, with what they’ve done so far."
     >
       <p role="status" className="sr-only">
         Loading students…

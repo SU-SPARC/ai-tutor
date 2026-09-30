@@ -20,8 +20,8 @@ export default function ProfessorAvailabilityError({
 
   return (
     <ProfessorPageShell
-      title="Student availability"
-      description="Publish, schedule, unpublish or archive what students can reach, topic by topic and question by question."
+      title="What students see"
+      description="Choose when students can see each topic or question."
     >
       <section
         role="alert"
@@ -29,13 +29,18 @@ export default function ProfessorAvailabilityError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="availability-error-heading" className="type-h3 text-ink">
-          Student availability could not be loaded
+          This page didn&apos;t load
         </h2>
-        <p className="type-body text-ink-muted">
-          Availability settings are temporarily unavailable, and nothing was
-          changed. Try loading the page again.
+        <p className="type-body text-ink">
+          That didn&apos;t work and nothing changed. Try again, or reload the
+          page.
         </p>
-        <Button type="button" variant="secondary" onClick={reset}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-11"
+          onClick={reset}
+        >
           <RotateCcw aria-hidden="true" />
           Try again
         </Button>

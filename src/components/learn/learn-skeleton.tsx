@@ -4,9 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Loading states for `/learn` and `/learn/[topic]`, drawn in the shape of
- * the real pages (rail, header, Continue card, syllabus rows, right column),
- * so nothing jumps when the content arrives. Never a spinner. The label is
- * announced once through a polite status region.
+ * the real pages (header, Continue card, syllabus rows, right column; the
+ * topic page also has the rail), so nothing jumps when the content arrives.
+ * Never a spinner. The label is announced once through a polite status region.
  */
 
 const RAIL_ROWS = 11;
@@ -51,8 +51,8 @@ function CompactSheetSkeleton({ withAction = false }: { withAction?: boolean }) 
 
 function SyllabusRowSkeleton() {
   return (
-    <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 py-3 pr-3 pl-3.5 sm:grid-cols-[4rem_minmax(0,1fr)]">
-      <Skeleton className="h-5 w-10" />
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 py-3 pr-3 pl-3.5 sm:grid-cols-[5rem_minmax(0,1fr)]">
+      <Skeleton className="h-5 w-14" />
       <div className="flex flex-col gap-2">
         <Skeleton className="h-5 w-3/4" />
         <div className="flex items-center gap-3">
@@ -71,7 +71,7 @@ export function LearnSkeleton({
   label?: string;
 }) {
   return (
-    <ThreeColumn drawerOpen={false} rail={<RailSkeleton />}>
+    <ThreeColumn drawerOpen={false}>
       <LoadingStatus label={label} />
       <div
         aria-hidden="true"
@@ -87,7 +87,7 @@ export function LearnSkeleton({
             </div>
             <div className="flex flex-col gap-3">
               <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-10 w-full sm:w-96" />
+              <Skeleton className="h-10 w-full sm:w-56" />
               <div className="flex flex-col divide-y divide-rule border-y border-rule">
                 {Array.from({ length: 6 }, (_, index) => (
                   <SyllabusRowSkeleton key={index} />
@@ -152,7 +152,6 @@ export function TopicSkeleton() {
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-12">
           <div className="flex min-w-0 flex-col gap-4">
             <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-10 w-full sm:w-2/3" />
             <div className="flex gap-1">
               {Array.from({ length: 4 }, (_, index) => (
                 <Skeleton key={index} className="size-11" />

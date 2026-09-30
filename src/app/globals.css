@@ -590,3 +590,247 @@
   font-size: max(1.0625em, 1.0625rem);
 }
 
+
+/* ---------------------------------------------------------------------
+ * Math answer field and keypad (src/components/math/). Additive block.
+ * ------------------------------------------------------------------- */
+
+/* MathLive's <math-field>, themed to match the mono answer input: sheet
+ * fill, the --input boundary, the control radius, 18px, 48px tall. The
+ * verdict washes come from `data-verdict`, set by the field. */
+math-field.math-answer-field {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-control);
+  background-color: var(--sheet);
+  color: var(--ink);
+  font-size: 1.125rem;
+  outline: none;
+  transition:
+    background-color var(--duration-base) ease-out,
+    border-color var(--duration-base) ease-out;
+  --caret-color: var(--azure-500);
+  --primary-color: var(--azure-500);
+  --selection-color: var(--ink);
+  --selection-background-color: var(--azure-100);
+  --contains-highlight-background-color: transparent;
+  --smart-fence-color: var(--ink-muted);
+  --placeholder-color: var(--ink-muted);
+  --text-font-family: var(--font-sans);
+}
+
+math-field.math-answer-field:hover {
+  border-color: var(--ink-muted);
+}
+
+/* The shared focus ring (2px azure, offset 2) and the azure boundary. */
+math-field.math-answer-field:focus-within {
+  border-color: var(--azure-500);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+math-field.math-answer-field[data-verdict="correct"] {
+  border-color: var(--green-500);
+  background-color: var(--green-100);
+}
+
+math-field.math-answer-field[data-verdict="incorrect"] {
+  border-color: var(--red-500);
+  background-color: var(--red-100);
+}
+
+math-field.math-answer-field[disabled],
+math-field.math-answer-field[aria-disabled="true"] {
+  cursor: not-allowed;
+  background-color: var(--surface-tint);
+  opacity: 0.6;
+}
+
+.dark math-field.math-answer-field {
+  --selection-background-color: var(--azure-300);
+}
+
+/* Our keypad replaces MathLive's keyboard and menu. */
+math-field::part(virtual-keyboard-toggle),
+math-field::part(menu-toggle) {
+  display: none;
+}
+
+/* The page's bottom bar, while it is on screen: its full height, so the
+ * docked keypad can sit on top of it (see shell/bottom-bar.tsx). */
+:root:has([data-slot="bottom-bar"][data-hide-from="never"]) {
+  --bottombar-h: calc(var(--bottom-bar-h) + 1px + env(safe-area-inset-bottom));
+  --keypad-dock-safe: 0px;
+}
+
+@media (max-width: 1023.98px) {
+  :root:has([data-slot="bottom-bar"][data-hide-from="lg"]) {
+    --bottombar-h: calc(var(--bottom-bar-h) + 1px + env(safe-area-inset-bottom));
+    --keypad-dock-safe: 0px;
+  }
+}
+
+@media (max-width: 1279.98px) {
+  :root:has([data-slot="bottom-bar"][data-hide-from="xl"]) {
+    --bottombar-h: calc(var(--bottom-bar-h) + 1px + env(safe-area-inset-bottom));
+    --keypad-dock-safe: 0px;
+  }
+}
+
+/* Docked keypad: above the bottom bar when there is one, otherwise on the
+ * screen edge with the safe-area padding (`pb-safe`). */
+.math-keypad-dock {
+  bottom: var(--bottombar-h, 0px);
+  padding-bottom: var(--keypad-dock-safe, env(safe-area-inset-bottom));
+}
+
+/* ---------------------------------------------------------------------
+ * Onboarding guide (src/components/tour/). Additive block.
+ * driver.js draws the dimmed page and the card; its stylesheet loads on
+ * demand with the tour, so these rules use two classes to win over it.
+ * No mint here: the page keeps its one call to action.
+ * ------------------------------------------------------------------- */
+
+.driver-popover.probstat-tour {
+  position: fixed;
+  box-sizing: border-box;
+  width: 22rem;
+  min-width: 0;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 20px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background-color: var(--sheet);
+  color: var(--ink);
+  box-shadow: var(--sheet-shadow);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.dark .driver-popover.probstat-tour {
+  box-shadow: 0 8px 32px oklch(0 0 0 / 0.45);
+}
+
+.driver-popover.probstat-tour .probstat-tour-step {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: var(--ink-muted);
+}
+
+.driver-popover.probstat-tour .driver-popover-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.driver-popover.probstat-tour .driver-popover-description {
+  margin-top: 6px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.driver-popover.probstat-tour .probstat-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.driver-popover.probstat-tour .probstat-tour-skip {
+  margin-right: auto;
+  padding-inline: 8px;
+  color: var(--ink-muted);
+}
+
+.driver-popover.probstat-tour .probstat-tour-button {
+  font-size: 1rem;
+}
+
+/* The arrow takes the card colour on whichever side points at the target. */
+.driver-popover.probstat-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--sheet);
+}
+.driver-popover.probstat-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--sheet);
+}
+.driver-popover.probstat-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--sheet);
+}
+.driver-popover.probstat-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--sheet);
+}
+
+/* The lit element: an azure ring inside the cut-out. It is not clickable
+ * while the tour runs (driver.js adds .driver-no-interaction). */
+.driver-active .driver-active-element:not(#driver-dummy-element) {
+  outline: 2px solid var(--azure-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-panel);
+}
+
+.dark .driver-overlay path {
+  opacity: 0.7 !important;
+}
+
+/* Phones: the card docks as a sheet at the bottom (or the top when the
+ * target sits low on the screen) instead of floating beside the target. */
+@media (max-width: 639.98px) {
+  .driver-popover.probstat-tour {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: auto;
+    max-width: none;
+    border-width: 1px 0 0;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .driver-popover.probstat-tour.probstat-tour-top {
+    top: 0 !important;
+    bottom: auto !important;
+    border-width: 0 0 1px;
+    border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+    padding: calc(16px + env(safe-area-inset-top)) 16px 20px;
+  }
+
+  .driver-popover.probstat-tour .driver-popover-arrow {
+    display: none;
+  }
+
+  .driver-popover.probstat-tour .probstat-tour-actions {
+    justify-content: stretch;
+  }
+
+  .driver-popover.probstat-tour .probstat-tour-actions > :not(.probstat-tour-skip) {
+    flex: 1 1 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-fade .driver-overlay,
+  .driver-fade .driver-popover,
+  .driver-popover.probstat-tour .probstat-tour-button {
+    animation: none !important;
+    transition: none !important;
+  }
+}

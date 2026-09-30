@@ -27,22 +27,24 @@ export function AddQuestionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button">
+        <Button className="min-h-11" type="button">
           <Plus aria-hidden="true" />
-          Add question
+          Add a question
           <ChevronDown aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel>Every route lands in Needs review</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={onWriteItMyself}>
+        <DropdownMenuLabel className="type-body">
+          You&rsquo;ll approve it before students see it
+        </DropdownMenuLabel>
+        <DropdownMenuItem className="min-h-11" onSelect={onWriteItMyself}>
           Write it myself
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={UPLOAD_PATH}>Paste LaTeX or upload a file</Link>
+        <DropdownMenuItem asChild className="min-h-11">
+          <Link href={UPLOAD_PATH}>Upload notes or a file</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={UPLOAD_PATH}>Generate from course material</Link>
+        <DropdownMenuItem asChild className="min-h-11">
+          <Link href={UPLOAD_PATH}>Have the tutor draft questions from my notes</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

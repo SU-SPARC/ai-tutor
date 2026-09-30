@@ -61,8 +61,14 @@ describe("professor page authorization", () => {
     );
 
     const markup = renderToStaticMarkup(createElement(ForbiddenPage));
-    expect(markup).toContain("does not have access to instructor tools");
-    expect(markup).toContain("reload this page");
+    const text = markup.replaceAll("&#x27;", "'");
+    expect(text).toContain("This page is for professors");
+    expect(text).toContain(
+      "You're signed in as a student. Your practice is on Learn.",
+    );
+    expect(text).toContain("Back to Learn");
+    expect(text).toContain("Your account");
+    expect(text).not.toMatch(/Clerk|metadata|support team|instructor/i);
     expect(markup).not.toContain("sign out and sign in again");
     expect(markup).toContain('href="/learn"');
     expect(markup).toContain('href="/account"');
@@ -82,15 +88,28 @@ describe("professor page authorization", () => {
     expect(layout.props.children.props.children).toBe(protectedChild);
 
     const markup = renderToStaticMarkup(await ProfessorPage());
-    expect(markup).toContain("Professor workspace");
-    expect(markup).toContain("Question pipeline");
-    expect(markup).toContain("Waiting on your review");
-    // The two gates the workspace exists to keep apart.
-    expect(markup).toContain("Not published yet");
-    expect(markup).toContain("Available to students");
-    // Every section stays reachable from the shared nav.
+    expect(markup).toContain(">Home</h1>");
+    expect(markup).toContain(
+      "Approving a question does not show it to students. You decide when students see it.",
+    );
+    expect(markup).toContain("Next step");
+    expect(markup).toContain("Waiting for you");
+    expect(markup).toContain("How it works");
+    expect(markup).toContain("Hide this");
+    // The two gates Home exists to keep apart, as worded counts.
+    expect(markup).toContain("approved, not yet shown to students");
+    expect(markup).toContain("students can see");
+    expect(markup).toContain("waiting for your review");
+    // One next step: review what waits, or add a question.
+    expect(markup).toMatch(/Review \d+ questions?|Add a question/);
+    // Every count links to where the professor acts on it.
     expect(markup).toContain('href="/professor/review"');
     expect(markup).toContain('href="/professor/availability"');
+    expect(markup).toContain('href="/professor/questions?view=approved"');
+    // The pipeline strip and its system words are gone.
+    expect(markup).not.toContain("Question pipeline");
+    expect(markup).not.toContain("Immutable");
+    expect(markup).not.toContain("held back");
   });
 
   it("enforces anonymous, student, and professor API access", async () => {

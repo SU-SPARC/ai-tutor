@@ -5,6 +5,7 @@ import {
   buildLearnModel,
   buildTopicModel,
   isTopicIdShape,
+  nextUnfinishedTopic,
 } from "@/components/learn/learn-model";
 import {
   sortQuestionsForSyllabus,
@@ -66,7 +67,7 @@ export default async function TopicPage({ params }: TopicPageProps) {
     notFound();
   }
 
-  const [topicQuestions, allQuestions, progress] = await Promise.all([
+  const [topicQuestions, allQuestions, { isGuest, progress }] = await Promise.all([
     listQuestionsByTopic(topic.id),
     getApprovedQuestions(),
     readOwnProgress(),
@@ -77,32 +78,54 @@ export default async function TopicPage({ params }: TopicPageProps) {
   // The rail shows the whole syllabus with its glyphs, so it needs the same
   // model `/learn` builds; the screen itself only renders this topic.
   const syllabus = buildLearnModel({
+    isGuest,
     nowIso,
     progress,
     questions: sortQuestionsForSyllabus(allQuestions).map(normalizeSummary),
     topics: orderedTopics,
   });
   const model = buildTopicModel({
+    isGuest,
     nowIso,
     progress,
     questions: sortQuestionsForSyllabus(topicQuestions).map(normalizeSummary),
     topic,
   });
 
-  return <TopicScreen model={model} topics={syllabus.topics} />;
+  // A finished topic points forward, never at a dead end.
+  const next = nextUnfinishedTopic(syllabus.topics, topic.id);
+
+  return (
+    <TopicScreen
+      model={model}
+      nextTopic={
+        next
+          ? { href: next.href, title: next.title, weekNumber: next.weekNumber }
+          : undefined
+      }
+      topics={syllabus.topics}
+    />
+  );
 }
 
-async function readOwnProgress(): Promise<StudentProgressDashboard | null> {
+/** Same rule as `/learn`: guest is the owner kind, not "no progress". */
+async function readOwnProgress(): Promise<{
+  isGuest: boolean;
+  progress: StudentProgressDashboard | null;
+}> {
   let authorization;
 
   try {
     authorization = await requireStudentAccess({ allowAnonymous: true });
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return null;
+      return { isGuest: true, progress: null };
     }
     throw error;
   }
 
-  return getStudentProgress(authorization);
+  return {
+    isGuest: authorization.owner.kind !== "user",
+    progress: await getStudentProgress(authorization),
+  };
 }

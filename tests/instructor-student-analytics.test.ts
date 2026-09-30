@@ -198,7 +198,7 @@ describe("instructor analytics authorization", () => {
     );
 
     expect(markup).toContain("Students");
-    expect(markup).toContain("there is no class to list here");
-    expect(markup).toContain('href="/professor/students"');
+    expect(markup).toContain("This is a demo, so there’s no real class to show.");
+    expect(markup).toContain('href="/professor"');
   });
 });

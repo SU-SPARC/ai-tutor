@@ -16,10 +16,23 @@ export function sortTopicsForSyllabus(topics: CourseTopic[]) {
   );
 }
 
+/**
+ * Inside a topic questions run Intro → Core → Stretch, so "Question 1 of 5",
+ * the Continue card and "Up next" follow the course's own sequence rather
+ * than the alphabet. `getStudentProgress` uses the same ranks.
+ */
+const DIFFICULTY_RANK: Record<TutorQuestion["difficulty"], number> = {
+  foundational: 0,
+  intermediate: 1,
+  challenge: 2,
+};
+
 export function sortQuestionsForSyllabus(questions: TutorQuestion[]) {
   return [...questions].sort(
     (left, right) =>
       compareCanonicalTopicIds(left.topicId, right.topicId) ||
+      (DIFFICULTY_RANK[left.difficulty] ?? 3) -
+        (DIFFICULTY_RANK[right.difficulty] ?? 3) ||
       left.title.localeCompare(right.title) ||
       left.id.localeCompare(right.id),
   );

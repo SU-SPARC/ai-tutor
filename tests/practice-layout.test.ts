@@ -92,9 +92,16 @@ describe("practice layout", () => {
     const markup = await renderPractice();
 
     expect(markup).toContain('data-slot="practice-rail"');
-    expect(markup).toContain(">Wk 3<");
-    // The sheet header repeats the week in its mono line.
-    expect(markup).toContain("Wk 3 · 1 of 2");
+    // The rail's way back names the topic, with the week in words under it.
+    expect(markup).toContain(">Week 3<");
+    expect(markup).not.toContain("Wk 3");
+    // The sheet header is the orientation line: week, topic, position. No
+    // question code and no answer-type word.
+    expect(markup).toContain(
+      "Week 3 · Conditional Probability · Question 1 of 2",
+    );
+    expect(markup).not.toMatch(/Q-[0-9A-F]{4}/);
+    expect(markup).not.toContain("numeric");
   });
 
   it("says what the tutor can see before the student types anything", async () => {
@@ -109,8 +116,27 @@ describe("practice layout", () => {
     const markup = await renderPractice();
 
     expect(markup).toContain('data-slot="practice-footer"');
-    expect(markup).toContain(">1/2<");
     expect(markup).toContain('aria-label="Questions in this topic"');
+    // Phones read "‹ Question 1 of 2 ›" in the top bar; the label opens the
+    // jump list and the chevrons are the adjacent questions.
+    expect(markup).toContain('data-slot="practice-position"');
+    expect(markup).toContain(">Question 1 of 2<");
+    expect(markup).toContain('aria-label="Question 1 of 2. Jump to question"');
+    expect(markup).not.toContain(">1/2<");
+    // Previous / Next carry their keyboard shortcuts.
+    expect(markup).toContain('aria-keyshortcuts="Alt+ArrowLeft"');
+    expect(markup).toContain('aria-keyshortcuts="Alt+ArrowRight"');
+    expect(markup).toContain("Alt + ← / → moves between questions");
+  });
+
+  it("opens the tutor with its box gated until the first check", async () => {
+    const markup = await renderPractice();
+
+    expect(markup).not.toContain("Check my work");
+    expect(markup).toContain("Show steps");
+    expect(markup).toContain(
+      "Stuck? Ask for a hint, or type a question like “Where do I start?”",
+    );
   });
 
   it("keeps the phone tutor sheet collapsed to its handle", async () => {

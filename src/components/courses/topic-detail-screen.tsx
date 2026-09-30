@@ -8,7 +8,7 @@ import { CircleCheck, Info } from "lucide-react";
 import { AddQuestionMenu } from "@/components/courses/add-question-menu";
 import { CourseNotFound } from "@/components/courses/course-not-found";
 import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
-import { plural } from "@/components/courses/course-status";
+import { plural, sectionLabelText } from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { QuestionPreviewDrawer } from "@/components/courses/question-preview-drawer";
 import {
@@ -55,11 +55,11 @@ const FILTER_ORDER: FilterKey[] = [
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   all: "All",
-  published: "Published",
+  published: "Ready to use",
   approved: "Approved",
-  needs_review: "Needs review",
-  draft: "Draft",
-  unpublished: "Unpublished",
+  needs_review: "Waiting for your review",
+  draft: "Being written",
+  unpublished: "Hidden from students",
 };
 
 /**
@@ -124,16 +124,16 @@ function TopicDetailFallback({
           href: coursePath(courseId),
           label: course ? `${course.code} ${course.term}` : "Course",
         },
-        { href: courseTopicsPath(courseId), label: "Topic builder" },
+        { href: courseTopicsPath(courseId), label: "Choose questions" },
         {
           label: topic
             ? (overlay?.displayLabel ?? topicShortLabel(topic))
             : "Topic",
         },
       ]}
-      description="Loading this topic's questions."
+      description="Loading this week's questions."
       shape="topic"
-      title={topic ? topic.title : "Topic"}
+      title={topic ? topic.title : "Week"}
     />
   );
 }
@@ -180,7 +180,7 @@ function TopicDetailScreenInner({
         question,
         releasedTo: questionReleasedSections(state, question.id)
           .filter((entry) => courseSectionIds.has(entry.section.id))
-          .map((entry) => entry.section.label),
+          .map((entry) => sectionLabelText(entry.section)),
       })),
     [questions, state, courseSectionIds],
   );
@@ -293,7 +293,7 @@ function TopicDetailScreenInner({
   const breadcrumbs = [
     { href: coursesIndexPath(), label: "Courses" },
     { href: coursePath(courseId), label: courseLabel },
-    { href: courseTopicsPath(courseId), label: "Topic builder" },
+    { href: courseTopicsPath(courseId), label: "Choose questions" },
     { label: shortLabel },
   ];
 
@@ -303,9 +303,9 @@ function TopicDetailScreenInner({
     return (
       <CourseScreenSkeleton
         breadcrumbs={breadcrumbs}
-        description="Loading this topic's questions."
+        description="Loading this week's questions."
         shape="topic"
-        title="Topic"
+        title="Week"
       />
     );
   }
@@ -314,8 +314,8 @@ function TopicDetailScreenInner({
     return (
       <ProfessorPageShell
         breadcrumbs={breadcrumbs}
-        description="Nothing was changed. Pick a topic from the course you are working in."
-        title={!course ? "Course not found" : "Topic not found"}
+        description="Nothing was changed. Pick a week from the course you are working in."
+        title={!course ? "Course not found" : "Week not found"}
       >
         <CourseNotFound what={!course ? "course" : "topic"} />
       </ProfessorPageShell>
@@ -326,10 +326,10 @@ function TopicDetailScreenInner({
     .size;
   const excluded = overlay ? !overlay.included : true;
 
-  const description = `Week ${topic.weekNumber} · ${plural(
+  const description = `Week ${topic.weekNumber}: ${plural(
     questions.length,
     "question",
-  )} in the bank · released to ${plural(releasedSectionCount, "section")}.`;
+  )} in the bank, shown to ${plural(releasedSectionCount, "section")}.`;
 
   // "Unpublished" only appears when something is, or while it is selected.
   const visibleFilters = FILTER_ORDER.filter(
@@ -349,14 +349,14 @@ function TopicDetailScreenInner({
           <Info aria-hidden="true" />
           <AlertTitle>Not in {course.code} · {course.term}&rsquo;s syllabus</AlertTitle>
           <AlertDescription>
-            <p className="type-small max-w-prose text-ink-muted">
-              Questions here cannot be released to this course&rsquo;s sections
-              until the topic is included.{" "}
+            <p className="type-body max-w-prose text-ink-muted">
+              Students in this course cannot see these questions until the
+              week is added back to the syllabus.{" "}
               <Link
                 className="rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
                 href={coursePath(courseId)}
               >
-                Edit the syllabus on the course overview
+                Edit the syllabus on the course page
               </Link>
             </p>
           </AlertDescription>
@@ -366,11 +366,11 @@ function TopicDetailScreenInner({
       {savedDraftTitle ? (
         <Alert variant="success">
           <CircleCheck aria-hidden="true" />
-          <AlertTitle>&ldquo;{savedDraftTitle}&rdquo; saved to the review queue</AlertTitle>
+          <AlertTitle>&ldquo;{savedDraftTitle}&rdquo; saved. Students can&rsquo;t see it yet.</AlertTitle>
           <AlertDescription>
-            <p className="type-small max-w-prose text-ink-muted">
-              It is marked Needs review. Approve it, publish it, then release it
-              to a section.
+            <p className="type-body max-w-prose text-ink-muted">
+              It is waiting for your review. Approve it, make it ready to use,
+              then choose it for a section.
             </p>
           </AlertDescription>
         </Alert>
@@ -389,12 +389,17 @@ function TopicDetailScreenInner({
         value={filter}
       >
         <TabsList
-          aria-label="Filter questions by state"
+          aria-label="Which questions to list"
           className="max-w-full overflow-x-auto"
           variant="segmented"
         >
           {visibleFilters.map((key) => (
-            <TabsTrigger count={counts[key]} key={key} value={key}>
+            <TabsTrigger
+              className="min-h-11"
+              count={counts[key]}
+              key={key}
+              value={key}
+            >
               {FILTER_LABELS[key]}
             </TabsTrigger>
           ))}

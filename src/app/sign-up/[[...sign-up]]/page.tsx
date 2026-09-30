@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ThemedSignUp } from "@/components/auth/themed-clerk-form";
 import { AuthenticationUnavailable } from "@/components/auth/authentication-unavailable";
+import { Logo } from "@/components/shell/logo";
 import { MAIN_CONTENT_ID } from "@/components/shell/skip-link";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
@@ -59,7 +60,10 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
       tabIndex={-1}
       className="flex min-h-[calc(100svh-var(--header-h))] w-full items-start justify-center bg-surface px-4 py-10 outline-none sm:items-center sm:px-6 sm:py-16"
     >
-      <div className="flex w-full max-w-md justify-center">
+      <div className="flex w-full max-w-md flex-col items-center gap-6">
+        {/* Clerk's card carries the h1 (its title changes per step); the
+            logo says where you are before the widget loads. */}
+        <Logo size="lg" wordmark priority />
         <ThemedSignUp
           path="/sign-up"
           routing="path"

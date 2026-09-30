@@ -12,31 +12,31 @@ describe("practice usage indicators", () => {
         responseLabel: "approved_course_content",
         source: "rule",
       }),
-    ).toBe("Using saved course content")
+    ).toBe("From your professor's questions")
     expect(
       responseUsageStatusText({
         responseLabel: "generated_approved_content",
         source: "retrieval",
       }),
-    ).toBe("Using approved generated content")
+    ).toBe("From your professor's questions")
     expect(
       responseUsageStatusText({
         responseLabel: "private_reference_grounded_explanation",
         source: "retrieval",
       }),
-    ).toBe("Using private reference grounded explanation")
+    ).toBe("From your course notes")
     expect(
       responseUsageStatusText({
         responseLabel: "general_ai_help",
         source: "llm",
       }),
-    ).toBe("Using AI fallback")
+    ).toBe("Answered with AI help")
     expect(
       responseUsageStatusText({
         responseLabel: "private_reference_grounded_explanation",
         source: "cache",
       }),
-    ).toBe("Using AI fallback")
+    ).toBe("Answered with AI help")
   })
 
   it("does not expose source excerpts in status text", () => {
@@ -45,8 +45,9 @@ describe("practice usage indicators", () => {
       source: "retrieval",
     })
 
-    expect(status).toBe("Using private reference grounded explanation")
+    expect(status).toBe("From your course notes")
     expect(status).not.toMatch(/page|chunk|locator|excerpt|textbook/i)
+    expect(status).not.toMatch(/fallback|retrieval|generated|private/i)
     expect(
       shouldShowRetrievedContext({
         responseLabel: "private_reference_grounded_explanation",

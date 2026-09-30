@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ThemedSignIn } from "@/components/auth/themed-clerk-form";
 import { AuthenticationUnavailable } from "@/components/auth/authentication-unavailable";
+import { Logo } from "@/components/shell/logo";
 import { MAIN_CONTENT_ID } from "@/components/shell/skip-link";
 import { currentAuthenticatedUser } from "@/lib/auth/authorization";
 import {
@@ -47,13 +48,18 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   return (
     <AuthenticationPageShell
       body={
-        <ThemedSignIn
-          path="/sign-in"
-          routing="path"
-          signUpUrl={signUpPath(returnTo)}
-          forceRedirectUrl={destination}
-          signUpForceRedirectUrl={destination}
-        />
+        <div className="flex w-full flex-col items-center gap-6">
+          {/* Clerk's card carries the h1 (its title changes per step); the
+              logo says where you are before the widget loads. */}
+          <Logo size="lg" wordmark priority />
+          <ThemedSignIn
+            path="/sign-in"
+            routing="path"
+            signUpUrl={signUpPath(returnTo)}
+            forceRedirectUrl={destination}
+            signUpForceRedirectUrl={destination}
+          />
+        </div>
       }
     />
   );

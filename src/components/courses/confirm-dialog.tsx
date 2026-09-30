@@ -37,7 +37,7 @@ export function ConfirmDialog({
   description: ReactNode;
   /** Optional extra line under the description. */
   children?: ReactNode;
-  /** Names the action: "Regenerate code", "Archive Sec 02". */
+  /** Names the action: "Make a new join code", "Archive Section 2". */
   confirmLabel: string;
   cancelLabel?: string;
   destructive?: boolean;
@@ -53,11 +53,12 @@ export function ConfirmDialog({
         {children ? <DialogBody>{children}</DialogBody> : null}
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="ghost">
+            <Button className="min-h-11" type="button" variant="secondary">
               {cancelLabel}
             </Button>
           </DialogClose>
           <Button
+            className="min-h-11"
             onClick={() => {
               onConfirm();
               onOpenChange(false);

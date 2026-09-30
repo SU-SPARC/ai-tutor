@@ -2,6 +2,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -16,6 +18,7 @@ import {
   requireStudent,
   type AnalyticsAuthorization,
 } from "@/lib/auth/authorization";
+import { InstructorStudentTopicRoster } from "@/components/professor/instructor-student-topic-roster";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { createDatabaseInstructorStudentRepository } from "@/lib/data/instructor-student-repository";
 import {
@@ -158,6 +161,29 @@ describe("students grouped by practised topic", () => {
     expect(
       roster.topics[0].students.find((student) => student.studentKey === BROWN_KEY),
     ).toMatchObject({ aiHelpRequests: 0 });
+  });
+
+  it("labels the per-topic AI tutor column in words and dashes a zero", async () => {
+    const roster = await repository.listTopicRoster(await professorAuthorization());
+    const markup = renderToStaticMarkup(
+      createElement(InstructorStudentTopicRoster, { roster }),
+    );
+
+    expect(markup).toContain(
+      "The last column counts how many times each student asked the AI tutor in that topic.",
+    );
+    expect(markup).toMatch(/<th[^>]*text-right[^>]*>Asked the AI tutor<\/th>/);
+    expect(markup).not.toContain("AI Help Requests");
+    // Anders asked 2 and 5 times; Brown's zero reads as a dash.
+    expect(markup).toMatch(/<td[^>]*text-right[^>]*>2<\/td>/);
+    expect(markup).toMatch(/<td[^>]*text-right[^>]*>5<\/td>/);
+    expect(markup).toMatch(/<td[^>]*text-right[^>]*>—<\/td>/);
+    expect(markup).not.toMatch(/<td[^>]*text-right[^>]*>0<\/td>/);
+    // One column header per practised topic, none in "No topic practice yet".
+    expect(markup).toContain("No topic practice yet");
+    expect(markup.match(/>Asked the AI tutor<\/th>/g)).toHaveLength(
+      roster.topics.length,
+    );
   });
 
   it("lists students with no practised topic once, under unassigned", async () => {

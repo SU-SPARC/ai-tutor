@@ -6,38 +6,58 @@ import { RotateCcw } from "lucide-react";
 import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { Button } from "@/components/ui/button";
+import { StatusChip } from "@/components/ui/status-chip";
 import { toast } from "@/components/ui/toast";
 
 /**
- * The demo persists every change in this browser. One visible way back to the
- * seeded state keeps a demo recoverable without clearing site data by hand.
- * It is the quiet action in a header, so it never outranks the primary.
+ * The demo keeps every change in this browser. One way back to the starting
+ * demo keeps it recoverable without clearing site data by hand. It erases the
+ * professor's work, so it is destructive, says so on the button, sits at the
+ * bottom of the Courses page only, and asks first.
  */
 export function DemoResetButton() {
   const { reset } = useCoursesStore();
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <>
+    <section
+      aria-labelledby="demo-reset-heading"
+      className="flex flex-col items-start gap-3 rounded-panel border border-rule p-5"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="type-h3 text-ink" id="demo-reset-heading">
+          Start the demo over
+        </h2>
+        <StatusChip label="Demo only" tone="neutral" />
+      </div>
+      <p className="type-body max-w-prose text-ink-muted">
+        This only exists in the demo. Real courses are never reset.
+      </p>
       <Button
+        className="min-h-11"
         onClick={() => setConfirming(true)}
         type="button"
-        variant="ghost"
+        variant="destructive"
       >
         <RotateCcw aria-hidden="true" />
-        Reset demo data
+        Reset demo (erases your changes)
       </Button>
       <ConfirmDialog
-        confirmLabel="Reset demo data"
-        description="Every course, section, and release you changed in this browser goes back to the seeded demo."
+        cancelLabel="Keep my changes"
+        confirmLabel="Erase and start over"
+        description="Erase every course, section and question choice you made in this browser and start the demo over?"
+        destructive
         onConfirm={() => {
           reset();
-          toast({ title: "Demo data reset", tone: "success" });
+          toast({
+            title: "The demo is back to how it started.",
+            tone: "success",
+          });
         }}
         onOpenChange={setConfirming}
         open={confirming}
-        title="Reset the courses demo?"
+        title="Reset the demo?"
       />
-    </>
+    </section>
   );
 }

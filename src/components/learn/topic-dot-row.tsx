@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const STATUS_LABELS: Record<LearnQuestionRow["status"], string> = {
   current: "in progress",
   done: "solved",
-  retired: "retired",
+  retired: "no longer available",
   todo: "not started",
 };
 
@@ -67,7 +67,7 @@ function Dot({ status }: { status: LearnQuestionRow["status"] }) {
       );
     case "retired":
       return (
-        <CircleSlash aria-hidden="true" className={cn(className, "text-red-500")} />
+        <CircleSlash aria-hidden="true" className={cn(className, "text-ink-muted")} />
       );
     case "todo":
     default:

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Flag } from "lucide-react";
 
 import { StudentUsername } from "@/components/professor/instructor-student-username";
+import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
   Table,
@@ -17,7 +17,6 @@ import {
   assignStudentLabels,
   formatAccuracy,
 } from "@/lib/professor/student-pseudonym";
-import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
 import type {
   InstructorStudentIdentities,
   InstructorStudentList,
@@ -28,16 +27,32 @@ const DATE_TIME = new Intl.DateTimeFormat("en", {
   timeStyle: "short",
 });
 const DATE_ONLY = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+const MONTH_DAY = new Intl.DateTimeFormat("en", {
+  day: "numeric",
+  month: "short",
+});
 const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const NUMBER = new Intl.NumberFormat("en");
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/**
+ * Professor tables read in 16px: cells in type-body, headers in type-small
+ * ink. Applied from the table element so the shared primitive's 13/14px
+ * defaults are overridden without editing it.
+ */
+export const PROFESSOR_TABLE_TYPE =
+  "[&_td]:type-body [&_th]:type-small [&_th]:font-medium [&_th]:text-ink";
+
 function parseDate(value: string | undefined) {
   if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  // A missing date stored as epoch 0 must never read as Dec 31 1969.
+  return Number.isNaN(date.getTime()) || date.getTime() <= 0
+    ? undefined
+    : date;
 }
 
 /** "Aug 14, 2026, 10:00 AM", or "—" when there is no usable date. */
@@ -55,6 +70,11 @@ export function requestTime() {
   return Date.now();
 }
 
+/** Within the last 30 days, a relative phrase; older, the date itself. */
+function isRecent(date: Date, now: number) {
+  return Math.abs(date.getTime() - now) < 30 * DAY * 1000;
+}
+
 function relativeLabel(date: Date, now: number) {
   const seconds = Math.round((date.getTime() - now) / 1000);
   const distance = Math.abs(seconds);
@@ -69,57 +89,70 @@ function relativeLabel(date: Date, now: number) {
 }
 
 /**
- * "3 days ago" inside a `<time>` whose title carries the exact date. Server
- * rendered only, so the clock it reads is the request's. With no usable date
- * it renders a bare "—", which the tables keep as the whole cell.
+ * "3 days ago" inside a `<time>`. With `withDate`, the date is printed too
+ * ("3 days ago · Sep 26"), so the exact day is never hidden in a tooltip.
+ * Server rendered only, so the clock it reads is the request's. With no
+ * usable date it renders a bare "—", which the tables keep as the whole cell.
  */
 export function RelativeTime({
   now,
   value,
+  withDate = false,
 }: {
   now?: number;
   value: string | undefined;
+  withDate?: boolean;
 }) {
   const date = parseDate(value);
   if (!date) return "—";
+  const clock = now ?? requestTime();
+  const relative = relativeLabel(date, clock);
   return (
-    <time dateTime={date.toISOString()} title={DATE_TIME.format(date)}>
-      {relativeLabel(date, now ?? requestTime())}
+    <time dateTime={date.toISOString()}>
+      {withDate && isRecent(date, clock)
+        ? `${relative} · ${MONTH_DAY.format(date)}`
+        : relative}
     </time>
   );
 }
 
+/** "18 of 25 (72%)", or "—" before any answer has been checked. */
+export function formatCorrect(correct: number, checked: number) {
+  if (checked <= 0) return "—";
+  return `${NUMBER.format(correct)} of ${NUMBER.format(checked)} (${formatAccuracy(correct, checked)})`;
+}
+
 /**
- * The activity table. When the page has resolved and recorded username
- * identities, each row shows the student's username above their code; without
- * them the row stays pseudonymous, as it is wherever the table is rendered
- * without an audited lookup.
+ * The Students list: five columns and a labelled way into each record. When
+ * the page has resolved and recorded username identities, each row leads
+ * with the student's username and shows their code under it; without them
+ * the row shows the code alone, as it does wherever the table is rendered
+ * without an audited lookup. Hints, solutions, study sessions, extra
+ * practice, AI tutor use and sketchpad time live on the student's record.
  */
 export function InstructorStudentTable({
   identities,
   list,
-  sketchpadMeasurementEnabled = false,
 }: {
   identities?: InstructorStudentIdentities;
   list: InstructorStudentList;
-  /** From the typed server environment; see `sketchpadTimeDisplay`. */
-  sketchpadMeasurementEnabled?: boolean;
 }) {
   const labels = assignStudentLabels(
     list.students.map((student) => student.studentKey),
   );
   const now = requestTime();
+  const topicCount = activeCanonicalSyllabusTopics.length;
 
   return (
     <div className="rounded-panel bg-sheet">
       <Table
         stickyHeader
         containerClassName="lg:max-h-[70svh] rounded-panel"
-        className="[&_thead_th]:bg-sheet"
+        className={`[&_thead_th]:bg-sheet ${PROFESSOR_TABLE_TYPE}`}
       >
         <TableCaption className="sr-only">
-          Students on this page with their recorded practice. Open a student
-          code for the full record.
+          Students on this page with what they have done so far. Choose View
+          record to see a student&apos;s full record.
         </TableCaption>
         <TableHeader>
           <TableRow>
@@ -127,97 +160,77 @@ export function InstructorStudentTable({
               Student
             </TableHead>
             <TableHead scope="col">Last active</TableHead>
-            <TableHead scope="col" numeric>
-              Topics (of {activeCanonicalSyllabusTopics.length})
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Attempts
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Correct
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Hints
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Solutions
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Est. Sketchpad Time
-            </TableHead>
-            <TableHead scope="col" numeric>
-              AI Help Requests
-            </TableHead>
-            <TableHead scope="col" numeric>
-              Practice sessions
-            </TableHead>
-            <TableHead scope="col" numeric className="pr-4">
-              Extra practice
+            <TableHead scope="col">Correct answers</TableHead>
+            <TableHead scope="col">Topics practiced</TableHead>
+            <TableHead scope="col">Needs attention</TableHead>
+            <TableHead scope="col" className="pr-4">
+              <span className="sr-only">Record</span>
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {list.students.length > 0 ? (
-            list.students.map((student) => (
-              <TableRow key={student.studentKey}>
-                <TableCell className="py-2.5 pl-4">
-                  <div className="flex min-w-40 flex-col items-start gap-1">
-                    {identities ? (
-                      <StudentUsername
-                        identity={identities[student.studentKey]}
-                      />
-                    ) : null}
-                    <Link
-                      className="relative rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-3"
-                      href={`/professor/students/${student.studentKey}`}
-                    >
-                      {labels.get(student.studentKey)}
-                    </Link>
-                    {student.needsAttention ? (
-                      <StatusChip
-                        tone="neutral"
-                        icon={Flag}
-                        label="Repeated difficulty"
-                      />
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-ink-muted">
-                  <RelativeTime now={now} value={student.lastActiveAt} />
-                </TableCell>
-                <TableCell numeric>{student.topicsPracticed}</TableCell>
-                <TableCell numeric>{student.attempts}</TableCell>
-                <TableCell numeric className="whitespace-nowrap">
-                  <span>{student.correctAttempts}</span>
-                  <span className="text-ink-muted">
-                    {" "}
-                    (
-                    {formatAccuracy(
+            list.students.map((student) => {
+              const label = labels.get(student.studentKey);
+              return (
+                <TableRow key={student.studentKey}>
+                  <TableCell className="py-2.5 pl-4">
+                    <div className="flex min-w-40 flex-col items-start gap-0.5">
+                      {identities ? (
+                        <StudentUsername
+                          identity={identities[student.studentKey]}
+                        />
+                      ) : null}
+                      <span
+                        className={
+                          identities
+                            ? "type-small text-ink-muted"
+                            : "font-medium text-ink"
+                        }
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <RelativeTime now={now} value={student.lastActiveAt} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap tabular">
+                    {formatCorrect(
                       student.correctAttempts,
                       student.correctAttempts +
                         (student.incorrectAttempts ?? 0),
                     )}
-                    )
-                  </span>
-                </TableCell>
-                <TableCell numeric>{student.hintsUsed}</TableCell>
-                <TableCell numeric>{student.solutionsRevealed}</TableCell>
-                <TableCell numeric className="whitespace-nowrap">
-                  {sketchpadTimeDisplay(
-                    student.sketchpadActiveSeconds,
-                    sketchpadMeasurementEnabled,
-                  )}
-                </TableCell>
-                <TableCell numeric>{student.aiHelpRequests}</TableCell>
-                <TableCell numeric>{student.sessions}</TableCell>
-                <TableCell numeric className="pr-4">
-                  {student.extraPracticeSessions}
-                </TableCell>
-              </TableRow>
-            ))
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap tabular">
+                    {`${student.topicsPracticed} of ${topicCount}`}
+                  </TableCell>
+                  <TableCell>
+                    {student.needsAttention ? (
+                      <StatusChip tone="hint" label="Needs help" />
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2 pr-4 text-right">
+                    <Button asChild variant="outline" className="min-h-11">
+                      <Link
+                        href={`/professor/students/${student.studentKey}`}
+                        // Nothing on this page is prefetched on hover; see
+                        // the pagination links.
+                        prefetch={false}
+                      >
+                        View record
+                        <span className="sr-only"> for {label}</span>
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
           ) : (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={11} className="px-4 py-6 text-ink-muted">
+              <TableCell colSpan={6} className="px-4 py-6 text-ink-muted">
                 No students on this page.
               </TableCell>
             </TableRow>

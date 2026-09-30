@@ -19,13 +19,15 @@ export type StagedChanges = {
   stage: (questionId: QuestionId, kind: StagedKind) => void;
   unstage: (questionId: QuestionId) => void;
   clear: () => void;
+  /** Put back a buffer taken earlier (Undo after "Discard all changes"). */
+  restore: (snapshot: ReadonlyMap<QuestionId, StagedKind>) => void;
 };
 
 /**
  * The S3 staging buffer.
  *
- * Nothing here touches the store: a professor's ⊕/⊖ clicks accumulate until
- * "Review N changes" commits them in one dispatch (blueprint S3 rule 1). Two
+ * Nothing here touches the store: a professor's Add / Remove clicks wait here
+ * ("Not saved yet") until the review dialog saves them in one dispatch. Two
  * invariants keep the two panes from ever disagreeing with the store:
  *
  * - staging an add for a question the section already has is a no-op, and
@@ -88,6 +90,13 @@ export function useStagedChanges(
     setStaged((previous) => (previous.size === 0 ? previous : new Map()));
   }, []);
 
+  const restore = useCallback(
+    (snapshot: ReadonlyMap<QuestionId, StagedKind>) => {
+      setStaged(new Map(snapshot));
+    },
+    [],
+  );
+
   const kindFor = useCallback(
     (questionId: QuestionId) => staged.get(questionId),
     [staged],
@@ -116,6 +125,7 @@ export function useStagedChanges(
       stage,
       unstage,
       clear,
+      restore,
     };
-  }, [staged, kindFor, toggle, stage, unstage, clear]);
+  }, [staged, kindFor, toggle, stage, unstage, clear, restore]);
 }

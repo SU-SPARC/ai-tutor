@@ -76,7 +76,7 @@ export type CourseTopic = {
   courseId: CourseId;
   topicId: TopicId;
   position: number;
-  /** Optional professor label ("Wk3 — Bayes"); canonical title is always kept. */
+  /** Optional professor label ("Week 3 — Bayes"); canonical title is always kept. */
   displayLabel: string | null;
   included: boolean;
 };
@@ -86,7 +86,7 @@ export type SectionStatus = "active" | "archived";
 export type CourseSection = {
   id: SectionId;
   courseId: CourseId;
-  /** Short label, e.g. "Sec 01". */
+  /** Short label, e.g. "Section 1". */
   label: string;
   /** e.g. "MWF 10:00". */
   meetingTime: string;

@@ -5,34 +5,26 @@ import { Button } from "@/components/ui/button";
 import { StatusPage } from "@/components/ui/status-page";
 
 export const metadata: Metadata = {
-  title: "Access denied",
+  title: "Professors only",
 };
 
+/**
+ * Where a signed-in student lands after opening a professor page. It says
+ * whose page this is and sends them back to their own work.
+ */
 export default function ForbiddenPage() {
   return (
     <StatusPage
-      code="Access denied"
-      title="This account cannot open instructor tools"
-      description={
-        <>
-          <p>
-            This signed-in account does not have access to instructor tools.
-            If professor access was recently granted in Clerk, reload this
-            page after the metadata change is saved.
-          </p>
-          <p>
-            Signing out and back in is not normally required. For help,
-            contact the application support team.
-          </p>
-        </>
-      }
+      code="Professors only"
+      title="This page is for professors"
+      description="You're signed in as a student. Your practice is on Learn."
       actions={
         <>
           <Button asChild>
-            <Link href="/learn">Return to Learn</Link>
+            <Link href="/learn">Back to Learn</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/account">View account</Link>
+            <Link href="/account">Your account</Link>
           </Button>
         </>
       }

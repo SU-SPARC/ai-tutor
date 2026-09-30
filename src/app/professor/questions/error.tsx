@@ -21,12 +21,12 @@ export default function ProfessorQuestionsError({
 
   return (
     <ProfessorPageShell
-      title="Questions"
+      title="Question bank"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Questions" },
+        { label: "Home", href: "/professor" },
+        { label: "Question bank" },
       ]}
-      description="The question bank could not be loaded."
+      description="Your questions didn't load."
     >
       <section
         role="alert"
@@ -34,19 +34,18 @@ export default function ProfessorQuestionsError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="questions-error-heading" className="type-h3 text-ink">
-          The question bank could not be loaded
+          Your questions didn&apos;t load
         </h2>
-        <p className="type-body text-ink-muted">
-          Nothing was changed. Try loading it again, or review questions by
-          topic instead.
+        <p className="type-body text-ink">
+          Nothing was changed. Try again, or go back to Home.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={reset}>
+          <Button type="button" className="min-h-11" onClick={reset}>
             <RotateCcw aria-hidden="true" />
             Try again
           </Button>
-          <Button asChild variant="secondary">
-            <Link href="/professor/review">Open the review queue</Link>
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href="/professor">Go back to Home</Link>
           </Button>
         </div>
       </section>

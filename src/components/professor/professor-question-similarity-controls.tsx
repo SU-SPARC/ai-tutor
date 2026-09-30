@@ -1,8 +1,9 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { Unlink } from "lucide-react";
+import { Link2, Unlink } from "lucide-react";
 
+import { plainActionError } from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -18,10 +19,20 @@ type PublishedOriginOption = {
   versionId: number;
 };
 
+const ORDER_LABELS: Record<number, string> = {
+  1: "First",
+  2: "Second",
+  3: "Third",
+};
+
+function orderLabel(slot: number) {
+  return ORDER_LABELS[slot] ?? String(slot);
+}
+
 /**
- * The similar-practice relationship: for a published origin, which reserve
- * siblings are pinned to it; for a reserve question, which origin it stands
- * in for. A quiet panel on the question detail page.
+ * "Extra practice": for a question students can see, which saved-for-later
+ * questions are offered after it; for a saved-for-later question, which
+ * question it is offered after. A quiet panel inside "More options".
  */
 export function ProfessorQuestionSimilarityControls({
   initialLinks,
@@ -70,7 +81,7 @@ export function ProfessorQuestionSimilarityControls({
     const originVersionId = link?.originVersionId ?? selected?.versionId;
     const targetSlot = link?.slot ?? slot;
     if (!originQuestionId || !originVersionId) {
-      setError("Select a published origin first.");
+      setError("Choose a question first.");
       return;
     }
 
@@ -97,7 +108,10 @@ export function ProfessorQuestionSimilarityControls({
         error?: string;
         links?: QuestionSimilarityLinkDto[];
       };
-      if (!response.ok) throw new Error(payload.error ?? "Update failed.");
+      if (!response.ok) {
+        setError(plainActionError(response.status));
+        return;
+      }
       if (action === "remove") {
         setLinks((current) =>
           current.filter(
@@ -111,85 +125,80 @@ export function ProfessorQuestionSimilarityControls({
       } else {
         setLinks(payload.links ?? []);
       }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Update failed.");
+    } catch {
+      setError(plainActionError());
     } finally {
       setPending(false);
     }
   }
 
+  const readyCount = currentOriginLinks.filter((link) => link.eligible).length;
+
   return (
     <section
+      id="extra-practice"
       aria-labelledby={headingId}
-      className="@container flex flex-col gap-4 rounded-panel bg-surface-tint p-4 sm:p-5"
+      className="@container flex scroll-mt-24 flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
     >
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 id={headingId} className="type-h3 text-ink">
-            Similar-practice relationship
-          </h2>
-          {isPublishedOrigin ? (
-            <span className="type-small tabular text-ink-muted">
-              {currentOriginLinks.filter((link) => link.eligible).length} of 3
-              eligible
-            </span>
-          ) : null}
-        </div>
-        <p className="type-small max-w-prose text-ink-muted">
-          Relationships pin both reviewed versions. Publishing a new origin
-          version or revising the reserve sibling makes the old link ineligible
-          until you assign a new one.
+      <div className="flex max-w-prose flex-col gap-1">
+        <h3 id={headingId} className="type-h3 text-ink">
+          Extra practice
+        </h3>
+        <p className="type-body text-ink">
+          {isPublishedOrigin
+            ? `${readyCount} of 3 extra-practice questions ready. Students who finish this question can try these next.`
+            : "A question saved for later can be offered as extra practice after a question students can see."}
         </p>
       </div>
       {isPublishedOrigin ? (
         currentOriginLinks.length ? (
-          <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4">
+          <ul className="flex flex-col divide-y divide-rule rounded-panel bg-surface-tint px-4">
             {currentOriginLinks.map((link) => (
               <li
-                className="flex flex-wrap items-center justify-between gap-3 py-3 type-small text-ink"
+                className="flex flex-wrap items-center justify-between gap-3 py-3 type-body text-ink"
                 key={link.id}
               >
                 <span>
-                  Slot {link.slot} of 3 · {link.similarTitle}
+                  {orderLabel(link.slot)}: “{link.similarTitle}”
                 </span>
                 <StatusChip
                   icon={false}
-                  label={link.eligible ? "Eligible" : "Not currently eligible"}
+                  label={link.eligible ? "Ready" : "Not ready right now"}
                   tone={link.eligible ? "approved" : "neutral"}
                 />
               </li>
             ))}
           </ul>
         ) : (
-          <p className="type-small text-ink-muted">
-            No reserve siblings are assigned to this published version.
+          <p className="type-body text-ink">
+            No extra-practice questions are linked to this question yet.
           </p>
         )
       ) : reserveLink ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel bg-sheet px-4 py-3 type-small text-ink">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel bg-surface-tint px-4 py-3 type-body text-ink">
           <span>
-            Similar to: {reserveLink.originTitle} · slot {reserveLink.slot} of
-            3
+            Offered as extra practice after “{reserveLink.originTitle}” (
+            {orderLabel(reserveLink.slot).toLowerCase()} of 3)
           </span>
           <Button
+            className="h-11"
             disabled={pending}
             loading={pending}
             onClick={() => mutateLink("remove", reserveLink)}
-            size="sm"
             type="button"
             variant="outline"
           >
-            <Unlink aria-hidden="true" /> Revoke link
+            <Unlink aria-hidden="true" /> Unlink
           </Button>
         </div>
       ) : isEligibleReserve ? (
-        <div className="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_8rem_auto] @xl:items-end">
-          <Field label="Published origin">
+        <div className="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_10rem_auto] @xl:items-end">
+          <Field label="Offer this as extra practice after:">
             <NativeSelect
               onChange={(event) => setOriginKey(event.target.value)}
               value={originKey}
             >
-              <option value="">Select an origin</option>
+              <option value="">Choose a question</option>
               {publishedOrigins.map((origin) => (
                 <option
                   key={`${origin.questionId}:${origin.versionId}`}
@@ -200,36 +209,37 @@ export function ProfessorQuestionSimilarityControls({
               ))}
             </NativeSelect>
           </Field>
-          <Field label="Slot">
+          <Field label="Order">
             <NativeSelect
               onChange={(event) =>
                 setSlot(Number(event.target.value) as 1 | 2 | 3)
               }
               value={slot}
             >
-              <option value={1}>1 of 3</option>
-              <option value={2}>2 of 3</option>
-              <option value={3}>3 of 3</option>
+              <option value={1}>First of 3</option>
+              <option value={2}>Second of 3</option>
+              <option value={3}>Third of 3</option>
             </NativeSelect>
           </Field>
           <Button
+            className="h-11"
             disabled={pending || !originKey}
             loading={pending}
             onClick={() => mutateLink("assign")}
             type="button"
             variant="secondary"
           >
-            Assign origin
+            <Link2 aria-hidden="true" /> Link
           </Button>
         </div>
       ) : (
-        <p className="type-small max-w-prose text-ink-muted">
-          Enable this unpublished reserve question for optional practice before
-          assigning a published origin.
+        <p className="type-body max-w-prose text-ink">
+          To link it, first choose Offer as extra practice under Saved for
+          later.
         </p>
       )}
       <div role="status" aria-live="polite">
-        {error ? <p className="type-small text-red-700">{error}</p> : null}
+        {error ? <p className="type-body text-red-700">{error}</p> : null}
       </div>
     </section>
   );

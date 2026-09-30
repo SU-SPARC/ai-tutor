@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Copy } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { sectionName } from "@/components/courses/course-status";
 import { Button } from "@/components/ui/button";
@@ -14,56 +14,65 @@ import {
 import type { CourseSection, SectionId } from "@/lib/courses/types";
 
 /**
- * Blueprint S3 rule 5: copying a released set to another section is the same
- * staged-then-reviewed operation as any other release, just computed for the
- * professor. Nothing is written here — picking a section only opens the review
- * dialog pointed at that section.
+ * "Make another section match this one…": gives another section exactly the
+ * same questions, which can also hide that section's extra ones. Nothing is
+ * written here — picking a section only opens the check-before-saving dialog
+ * pointed at that section, which lists every question shown and hidden.
  *
- * It is disabled while changes are staged, because a copy commits against the
- * set that is stored, not the one on screen, and applying it would silently
- * throw the professor's staging away.
+ * It is off while changes are waiting, because it works from what is saved,
+ * not what is on screen. The reason is printed beside it, not in a tooltip.
  */
 export function CopyToSectionMenu({
   disabled,
   onSelect,
   sections,
+  sourceLabel,
 }: {
   disabled: boolean;
   onSelect: (targetSectionId: SectionId) => void;
   sections: CourseSection[];
+  /** Already in words: "Section 1". */
+  sourceLabel: string;
 }) {
   if (sections.length === 0) {
     return null;
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          disabled={disabled}
-          size="sm"
-          title={
-            disabled ? "Review or discard the staged changes first." : undefined
-          }
-          type="button"
-          variant="secondary"
-        >
-          <Copy aria-hidden="true" />
-          Copy to
-          <ChevronDown aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuLabel>Copy this released set to</DropdownMenuLabel>
-        {sections.map((section) => (
-          <DropdownMenuItem
-            key={section.id}
-            onSelect={() => onSelect(section.id)}
+    <div className="flex flex-col gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-describedby={disabled ? "copy-to-disabled-reason" : undefined}
+            className="min-h-11"
+            disabled={disabled}
+            type="button"
+            variant="outline"
           >
-            {sectionName(section)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            Make another section match this one…
+            <ChevronDown aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-64">
+          <DropdownMenuLabel className="type-body">
+            Give this section exactly the same questions as {sourceLabel}:
+          </DropdownMenuLabel>
+          {sections.map((section) => (
+            <DropdownMenuItem
+              className="min-h-11"
+              key={section.id}
+              onSelect={() => onSelect(section.id)}
+            >
+              {sectionName(section)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {disabled ? (
+        <p className="type-small text-ink" id="copy-to-disabled-reason">
+          Save or discard your changes first.
+        </p>
+      ) : null}
+    </div>
   );
 }

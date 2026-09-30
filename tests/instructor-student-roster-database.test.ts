@@ -257,10 +257,23 @@ describe("signed-in students on the professor Students page", () => {
       }),
     );
 
-    expect(markup).toContain("No practice activity yet");
-    expect(markup).toContain("Accuracy");
-    // An accuracy with no scored attempts is shown as absent, never as 0%.
-    expect(markup).not.toContain("0%");
+    expect(markup).toContain(
+      "This student has signed in but hasn’t practiced or asked for help yet.",
+    );
+    expect(markup).not.toContain("every number below is zero");
+    expect(markup).toContain("Correct");
+    expect(markup).toContain("No answers checked yet");
+    // Main's usage columns, moved from the table to the record page: with
+    // measurement off the sketchpad tile is not rendered at all, and the AI
+    // tutor count is a real zero with its zero-state helper.
+    expect(markup).not.toContain("Time on sketchpad");
+    expect(markup).not.toContain("Not yet measured");
+    expect(markup).toContain("Asked the AI tutor");
+    expect(markup).toMatch(/Asked the AI tutor<\/span><\/p><p class="type-metric[^"]*">0<\/p>/);
+    expect(markup).toContain("They haven’t asked the AI tutor yet.");
+    // A share correct with no checked answers is shown as absent, never as 0%.
+    // (The credit rules mention "90%", so match a standalone 0% only.)
+    expect(markup).not.toMatch(/(?<![0-9])0%/);
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -276,13 +289,18 @@ describe("signed-in students on the professor Students page", () => {
 
     expect(markup).toContain(studentLabel(NEW_KEY));
     expect(markup).toContain(`href="/professor/students/${NEW_KEY}"`);
-    // Attempts, topics, hints, solutions, AI Help, sessions, extra practice.
-    expect(markup.match(/<td[^>]*>0<\/td>/g)).toHaveLength(7);
-    expect(markup).toContain("Not yet measured");
-    expect(markup).toContain("Est. Sketchpad Time");
-    expect(markup).toContain("AI Help Requests");
-    expect(markup).toContain("(—)");
-    expect(markup).toContain(">—</td>");
+    // Topics practiced reads "0 of 11"; last active, correct answers and
+    // needs attention are dashes, never 0% or a 1970 date.
+    expect(markup).toMatch(/<td[^>]*>0 of \d+<\/td>/);
+    expect(markup.match(/<td[^>]*>—<\/td>/g)).toHaveLength(3);
+    expect(markup).toContain("View record");
+    // The table keeps five plain columns; time on the sketchpad and AI help
+    // requests are shown on the student's record page instead.
+    expect(markup).not.toContain("Est. Sketchpad Time");
+    expect(markup).not.toContain("AI Help Requests");
+    expect(markup).not.toContain("Asked the AI tutor");
+    expect(markup).not.toContain("Time on sketchpad");
+    expect(markup).not.toContain("Not yet measured");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -304,9 +322,13 @@ describe("signed-in students on the professor Students page", () => {
     );
 
     expect(markup).toContain(studentLabel(NEW_KEY));
-    expect(markup).toContain("No practice activity yet");
-    expect(markup).toContain("Identity hidden");
-    expect(markup).toContain("Reveal identity");
+    // The header notice and the panel sentence come from one test.
+    expect(markup).toContain("No practice yet");
+    expect(markup).toContain(
+      "This student has signed in but hasn’t practiced or asked for help yet.",
+    );
+    expect(markup).toContain("Names and emails are hidden to protect student privacy.");
+    expect(markup).toContain("Show name and email");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }
@@ -357,6 +379,63 @@ describe("signed-in students on the professor Students page", () => {
       }),
     ]);
     expect(detail?.attempts).toHaveLength(3);
+    expect(detail?.summary).toMatchObject({
+      aiHelpRequests: 2,
+      sketchpadActiveSeconds: 45,
+    });
+
+    // The record page shows the usage totals in plain words: 45 credited
+    // seconds read "Under a minute" once measurement is on, and the two AI
+    // tutor requests are counted with their scope and "not a grade".
+    const markup = renderToStaticMarkup(
+      createElement(InstructorStudentDetailPanel, {
+        detail: detail as InstructorStudentDetail,
+        sketchpadMeasurementEnabled: true,
+      }),
+    );
+    expect(markup).toMatch(
+      /Time on sketchpad<\/span><\/p><p class="type-metric[^"]*">Under a minute<\/p>/,
+    );
+    expect(markup).toContain(
+      "About how long they spent drawing on the sketchpad, all topics, since they joined. An estimate.",
+    );
+    expect(markup).toMatch(
+      /Asked the AI tutor<\/span><\/p><p class="type-metric[^"]*">2<\/p>/,
+    );
+    expect(markup).toContain(
+      "Times they asked the AI tutor for help, across all topics since they joined. Asking is a good sign, and it’s not part of any grade. See Students by topic for each topic.",
+    );
+    expect(markup).not.toContain("Not yet measured");
+    // Tile order: the three help numbers read together, sketchpad last.
+    const order = [
+      "Correct",
+      "Study sessions",
+      "Hints used",
+      "Asked the AI tutor",
+      "Solutions viewed",
+      "Time on sketchpad",
+    ].map((label) => markup.indexOf(`${label}</span>`));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+
+    // Measurement off: the same record renders no sketchpad tile at all.
+    const unmeasured = renderToStaticMarkup(
+      createElement(InstructorStudentDetailPanel, {
+        detail: detail as InstructorStudentDetail,
+      }),
+    );
+    expect(unmeasured).not.toContain("Time on sketchpad");
+    expect(unmeasured).toContain("Asked the AI tutor");
+
+    // AI off for the deployment: the AI tutor tile is hidden too.
+    const aiOff = renderToStaticMarkup(
+      createElement(InstructorStudentDetailPanel, {
+        aiEnabled: false,
+        detail: detail as InstructorStudentDetail,
+      }),
+    );
+    expect(aiOff).not.toContain("Asked the AI tutor");
+    expect(aiOff).toContain("Solutions viewed");
   });
 
   it("keeps the cohort's active-student count activity-based", async () => {
@@ -615,8 +694,8 @@ describe("signed-in students on the professor Students page", () => {
       }),
     );
 
-    expect(markup).toContain("Identity hidden");
-    expect(markup).toContain("Reveal identity");
+    expect(markup).toContain("Names and emails are hidden to protect student privacy.");
+    expect(markup).toContain("Show name and email");
     for (const identifier of IDENTIFIERS) {
       expect(markup).not.toContain(identifier);
     }

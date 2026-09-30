@@ -5,9 +5,9 @@ import { AlertTriangle } from "lucide-react";
 
 import {
   formatProfessorDate,
-  questionStateLabel,
-  REVISION_METHOD_LABELS,
+  plainActionError,
 } from "@/components/professor/professor-question-labels";
+import { ProfessorReviewReasonFields } from "@/components/professor/professor-review-reason-fields";
 import { Button } from "@/components/ui/button";
 import {
   DialogBody,
@@ -26,10 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  professorReviewReasonLabel,
-  professorReviewReasonRequiresNote,
-} from "@/lib/tutor/professor-review-reasons";
+import { professorReviewReasonRequiresNote } from "@/lib/tutor/professor-review-reasons";
 import type {
   QuestionLifecycleBatchAction,
   QuestionLifecycleBatchFailure,
@@ -41,16 +38,38 @@ import type {
   QuestionVersionReviewEvidence,
 } from "@/lib/types";
 
-const ACTION_LABELS: Record<QuestionLifecycleBatchAction, string> = {
-  publish: "publish",
-  reject: "reject",
-  request_revision: "request revision",
+/** The reason each action starts on, so most professors never change it. */
+export const DEFAULT_BATCH_REASONS: Record<
+  Exclude<QuestionLifecycleBatchAction, "publish">,
+  string
+> = {
+  reject: "duplicate_repetition",
+  request_revision: "poor_wording",
 };
+
+function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** "Show 3 questions to students": the button always restates the action. */
+export function batchConfirmLabel(
+  action: QuestionLifecycleBatchAction,
+  count: number,
+) {
+  switch (action) {
+    case "publish":
+      return `Show ${plural(count, "question")} to students`;
+    case "reject":
+      return `Reject ${plural(count, "question")}`;
+    case "request_revision":
+      return `Send ${plural(count, "question")} back for changes`;
+  }
+}
 
 /**
  * What the professor sees for one selected question. `cancelled` means the
- * question itself passed, but the batch changed nothing because another
- * selected question was blocked.
+ * question itself passed, but nothing changed because another selected
+ * question had a problem.
  */
 export type BatchQuestionOutcome =
   | { status: "checking" }
@@ -63,13 +82,13 @@ export function ProfessorQuestionBatchConfirmation({
   action,
   disabled,
   inDialog = false,
-  note,
+  note: initialNote,
   onCancel,
   onCompleted,
   onRemoveQuestion,
   questions,
-  reasonCode,
-  revisionMethod,
+  reasonCode: initialReasonCode,
+  revisionMethod = "manual",
   topics,
 }: {
   action: QuestionLifecycleBatchAction;
@@ -80,13 +99,15 @@ export function ProfessorQuestionBatchConfirmation({
    * outside a dialog and in tests.
    */
   inDialog?: boolean;
+  /** The note to start with; the professor can change it here. */
   note?: string;
   onCancel: () => void;
   onCompleted: (result: QuestionLifecycleBatchResult) => void;
   onRemoveQuestion?: (versionId: number) => void;
   questions: QuestionLifecycleDto[];
+  /** The reason to start with; defaults to the most common one. */
   reasonCode?: string;
-  revisionMethod: QuestionRevisionMethod;
+  revisionMethod?: QuestionRevisionMethod;
   topics: QuestionLifecycleDashboard["topics"];
 }) {
   const [failures, setFailures] = useState<QuestionLifecycleBatchFailure[]>([]);
@@ -94,6 +115,12 @@ export function ProfessorQuestionBatchConfirmation({
   const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [note, setNote] = useState(initialNote ?? "");
+  const [noteError, setNoteError] = useState<string>();
+  const [reasonCode, setReasonCode] = useState(
+    initialReasonCode ??
+      (action === "publish" ? "" : DEFAULT_BATCH_REASONS[action]),
+  );
   const [preview, setPreview] = useState<QuestionLifecycleBatchPreviewResult>();
   const autoCheckedSelection = useRef<string>(undefined);
   const headingId = useId();
@@ -141,7 +168,9 @@ export function ProfessorQuestionBatchConfirmation({
 
   const runPublicationCheck = useCallback(async () => {
     if (questions.length < 2) {
-      setMessage("Select at least two questions to publish together.");
+      setMessage(
+        "Tick at least 2 questions to show them together. For one question, use the button on its row.",
+      );
       return;
     }
     setIsChecking(true);
@@ -162,22 +191,19 @@ export function ProfessorQuestionBatchConfirmation({
         preview?: QuestionLifecycleBatchPreviewResult;
       };
       if (!response.ok || !payload.preview) {
-        setMessage(
-          payload.error ??
-            "The publication check could not run. Nothing was changed.",
-        );
+        setMessage(plainActionError(response.status));
         return;
       }
       setPreview(payload.preview);
     } catch {
-      setMessage("The publication check could not run. Nothing was changed.");
+      setMessage(plainActionError());
     } finally {
       setIsChecking(false);
     }
   }, [questions]);
 
-  // Publishing needs the check, so run it as soon as the selection is known
-  // instead of waiting for a separate click. Re-run when the selection changes.
+  // Showing needs the check, so it runs as soon as the selection is known,
+  // and again whenever the selection changes. There is no separate button.
   useEffect(() => {
     if (action !== "publish" || questions.length < 2) return;
     if (autoCheckedSelection.current === selectionKey) return;
@@ -189,16 +215,19 @@ export function ProfessorQuestionBatchConfirmation({
     if (
       action !== "publish" &&
       professorReviewReasonRequiresNote(reasonCode) &&
-      !note?.trim()
+      !note.trim()
     ) {
-      setMessage("Other requires an audit note.");
+      setNoteError(
+        "Please explain in a few words why you chose Something else.",
+      );
       return;
     }
+    setNoteError(undefined);
     if (action === "publish" && !allReady) {
       setMessage(
         blockedCount > 0
-          ? `${blockedCount} of ${questions.length} selected questions cannot be published yet. Fix or remove them, then publish.`
-          : "Wait for the publication check to finish before publishing.",
+          ? `${blockedCount} of ${questions.length} questions aren't ready yet. Fix them or remove them from this list first.`
+          : "Please wait: we are still checking the questions.",
       );
       return;
     }
@@ -217,9 +246,9 @@ export function ProfessorQuestionBatchConfirmation({
         body: JSON.stringify({
           action,
           items: batchItems(questions),
-          note: note?.trim() || undefined,
+          note: note.trim() || undefined,
           reasonCode:
-            action === "publish" ? undefined : reasonCode?.trim() || undefined,
+            action === "publish" ? undefined : reasonCode.trim() || undefined,
           revisionMethod:
             action === "request_revision" ? revisionMethod : undefined,
         }),
@@ -232,34 +261,41 @@ export function ProfessorQuestionBatchConfirmation({
         if (action === "publish") setPreview(undefined);
         setFailures(payload.result?.failures ?? []);
         setMessage(
-          payload.error ??
-            `Nothing was changed. The batch ${ACTION_LABELS[action]} did not go through.`,
+          payload.result?.failures?.length
+            ? "Nothing changed. The questions with a problem are marked below."
+            : plainActionError(response.status),
         );
         return;
       }
       onCompleted(payload.result);
     } catch {
-      setMessage(
-        `Nothing was changed. The batch ${ACTION_LABELS[action]} request could not be completed.`,
-      );
+      setMessage(plainActionError());
     } finally {
       setIsSubmitting(false);
     }
   }
 
   const busy = disabled || isSubmitting || isChecking;
-  const title = `Confirm batch ${ACTION_LABELS[action]}`;
+  const count = questions.length;
+  const title =
+    action === "publish"
+      ? `Show ${plural(count, "question")} to students?`
+      : action === "reject"
+        ? `Reject ${plural(count, "question")}?`
+        : `Send ${plural(count, "question")} back for changes?`;
   const description =
     action === "publish"
-      ? `Each selected question is checked against the publication requirements first. The check changes nothing. When you confirm, all ${questions.length} questions are published together, or none of them are.`
-      : "This operation contains no approval step. It will apply to every selected version in one transaction, or to none of them.";
+      ? "We check each question first. If any has a problem, nothing changes."
+      : action === "reject"
+        ? "Students won't see these questions. If any can't be rejected, nothing changes."
+        : "Each question goes back to being written. If any can't be sent back, nothing changes.";
 
   const body = (
     <>
       <div
         className="flex flex-wrap gap-2"
         role="group"
-        aria-label="Selected topic summary"
+        aria-label="Topics in this list"
       >
         {[...selectedTopics]
           .sort(
@@ -268,11 +304,11 @@ export function ProfessorQuestionBatchConfirmation({
                 (topicOrders.get(rightId) ?? Number.MAX_SAFE_INTEGER) ||
               leftId.localeCompare(rightId),
           )
-          .map(([topicId, count]) => (
+          .map(([topicId, topicCount]) => (
             <StatusChip
               key={topicId}
               icon={false}
-              label={`${topicTitles.get(topicId) ?? topicId}: ${count}`}
+              label={`${topicTitles.get(topicId) ?? topicId}: ${topicCount}`}
               tone="neutral"
             />
           ))}
@@ -308,29 +344,27 @@ export function ProfessorQuestionBatchConfirmation({
             questions={questions}
             topics={topics}
           />
-          <div className="flex flex-col gap-1 type-small text-ink">
-            <p>
-              Reason:{" "}
-              <span className="font-medium">
-                {reasonCode
-                  ? professorReviewReasonLabel(reasonCode)
-                  : "Not selected"}
-              </span>
-              {action === "request_revision"
-                ? ` · Method: ${REVISION_METHOD_LABELS[revisionMethod]}`
-                : ""}
-            </p>
-            {note ? <p>Audit note: {note}</p> : null}
-          </div>
+          <ProfessorReviewReasonFields
+            disabled={busy}
+            includeLifecycleReasons
+            note={note}
+            noteError={noteError}
+            onNoteChange={(next) => {
+              setNote(next);
+              setNoteError(undefined);
+            }}
+            onReasonCodeChange={setReasonCode}
+            reasonCode={reasonCode}
+          />
         </>
       )}
 
       <div role="status" aria-live="polite">
         {message ? (
-          <p className="flex items-start gap-2 type-small text-red-700">
+          <p className="flex items-start gap-2 type-body text-red-700">
             <AlertTriangle
               aria-hidden="true"
-              className="mt-0.5 size-4 shrink-0"
+              className="mt-1 size-4 shrink-0"
             />
             {message}
           </p>
@@ -343,32 +377,32 @@ export function ProfessorQuestionBatchConfirmation({
     <>
       <Button
         type="button"
-        variant="ghost"
+        variant="secondary"
+        className="h-11"
         disabled={isSubmitting}
         onClick={onCancel}
       >
         Cancel
       </Button>
-      {action === "publish" ? (
-        <Button
-          type="button"
-          disabled={busy}
-          variant="outline"
-          onClick={() => void runPublicationCheck()}
-        >
-          {isChecking ? "Checking…" : "Check again"}
-        </Button>
-      ) : null}
       <Button
         type="button"
+        className="h-11"
         loading={isSubmitting}
-        variant={action === "reject" ? "destructive" : "primary"}
+        variant={
+          action === "reject"
+            ? "destructive"
+            : action === "publish"
+              ? "cta"
+              : "primary"
+        }
         onClick={() => void confirmBatch()}
-        disabled={busy || (action === "publish" && !allReady)}
+        disabled={
+          busy ||
+          (action === "publish" && !allReady) ||
+          (action !== "publish" && !reasonCode)
+        }
       >
-        {action === "publish"
-          ? `Publish ${questions.length} questions`
-          : `Confirm ${ACTION_LABELS[action]} for ${questions.length} questions`}
+        {batchConfirmLabel(action, count)}
       </Button>
     </>
   );
@@ -395,7 +429,7 @@ export function ProfessorQuestionBatchConfirmation({
         <h2 id={headingId} className="type-h2 text-ink">
           {title}
         </h2>
-        <p className="type-body max-w-prose text-ink-muted">{description}</p>
+        <p className="type-body max-w-prose text-ink">{description}</p>
       </div>
       {body}
       <div className="flex flex-wrap justify-end gap-3">{buttons}</div>
@@ -404,8 +438,8 @@ export function ProfessorQuestionBatchConfirmation({
 }
 
 /**
- * The per-question publication check: every selected question with its
- * current outcome, a summary line, and a way to drop blocked questions.
+ * The check before showing questions to students: every selected question
+ * with its result, a summary line, and a way to drop the ones not ready.
  */
 export function ProfessorBatchPublicationCheck({
   disabled,
@@ -434,34 +468,34 @@ export function ProfessorBatchPublicationCheck({
   const total = questions.length;
   let summary: string;
   if (isChecking) {
-    summary = `Checking ${total} questions against the publication requirements…`;
+    summary = `Checking ${plural(total, "question")}…`;
   } else if (cancelledCount > 0) {
-    summary = `Nothing was published. ${blockedCount} of ${total} questions did not pass the publication check, so the other ${cancelledCount} were left unchanged.`;
+    summary = `Nothing changed. ${blockedCount} of ${total} questions had a problem, so the other ${cancelledCount} ${cancelledCount === 1 ? "was" : "were"} left as ${cancelledCount === 1 ? "it was" : "they were"}.`;
   } else if (readyCount === total) {
-    summary = `All ${total} questions can be published.`;
+    summary = `All ${plural(total, "question")} ${total === 1 ? "is" : "are"} ready to show to students.`;
   } else if (blockedCount > 0) {
-    summary = `${readyCount} of ${total} questions can be published. ${blockedCount} ${blockedCount === 1 ? "is" : "are"} blocked: fix or remove ${blockedCount === 1 ? "it" : "them"}, then publish.`;
+    summary = `${readyCount} of ${total} questions are ready. ${blockedCount} ${blockedCount === 1 ? "isn't" : "aren't"} ready yet: fix or remove ${blockedCount === 1 ? "it" : "them"} first.`;
   } else {
-    summary = "The publication check has not run for this selection yet.";
+    summary = "We haven't checked these questions yet.";
   }
 
   return (
     <section
-      aria-label="Publication check"
+      aria-label="Check before showing to students"
       className="flex flex-col gap-3 rounded-panel bg-surface-tint p-4"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="type-h3 text-ink">Publication check</h3>
+        <h3 className="type-h3 text-ink">Check before showing to students</h3>
         {!isChecking && (readyCount > 0 || blockedCount > 0) ? (
           <>
-            <StatusChip label={`${readyCount} Ready`} tone="approved" />
+            <StatusChip label={`${readyCount} ready`} tone="approved" />
             {blockedCount > 0 ? (
-              <StatusChip label={`${blockedCount} Blocked`} tone="wrong" />
+              <StatusChip label={`${blockedCount} not ready`} tone="wrong" />
             ) : null}
           </>
         ) : null}
       </div>
-      <p role="status" className="type-small max-w-prose text-ink">
+      <p role="status" className="type-body max-w-prose text-ink">
         {summary}
       </p>
       <ProfessorBatchQuestionOutcomes
@@ -472,9 +506,8 @@ export function ProfessorBatchPublicationCheck({
         questions={questions}
         topics={topics}
       />
-      <p className="type-caption max-w-prose">
-        Publishing repeats every check on the server before anything changes.
-        Students see a question only after the whole batch commits.
+      <p className="type-body max-w-prose text-ink">
+        Nothing changes for students until every question passes.
       </p>
     </section>
   );
@@ -500,18 +533,13 @@ function ProfessorBatchQuestionOutcomes({
     <div className="rounded-panel bg-sheet">
       <Table>
         <TableCaption className="sr-only">
-          {action === "publish"
-            ? "Publication check for each selected question"
-            : "Outcome for each selected question"}
+          Result for each question in this list
         </TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead>Question</TableHead>
             <TableHead>Topic</TableHead>
-            <TableHead>Version</TableHead>
-            <TableHead>
-              {action === "publish" ? "Publication check" : "Outcome"}
-            </TableHead>
+            <TableHead>Result</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -522,17 +550,13 @@ function ProfessorBatchQuestionOutcomes({
             };
             return (
               <TableRow key={question.questionId} className="align-top">
-                <TableCell className="min-w-40 font-medium">
+                <TableCell className="min-w-40 type-body font-medium">
                   {version.title}
                 </TableCell>
-                <TableCell className="min-w-32">
+                <TableCell className="min-w-32 type-body">
                   {topicTitles.get(version.topicId) ?? version.topicId}
                 </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <span className="font-mono">v{version.versionNumber}</span>{" "}
-                  · {questionStateLabel(version.state)}
-                </TableCell>
-                <TableCell className="min-w-56">
+                <TableCell className="min-w-56 type-body">
                   <BatchQuestionOutcomeCell
                     action={action}
                     disabled={disabled}
@@ -566,18 +590,18 @@ function BatchQuestionOutcomeCell({
 }) {
   switch (outcome.status) {
     case "checking":
-      return <span className="text-ink-muted">Checking…</span>;
+      return <span className="text-ink">Checking…</span>;
     case "unchecked":
       return (
-        <span className="text-ink-muted">
-          {action === "publish" ? "Not checked yet" : "Not applied yet"}
+        <span className="text-ink">
+          {action === "publish" ? "Not checked yet" : "Not changed yet"}
         </span>
       );
     case "ready":
       return (
         <div className="flex flex-col gap-1">
-          <StatusChip label="Ready to publish" tone="approved" />
-          <p className="text-ink-muted">
+          <StatusChip label="Ready to show" tone="approved" />
+          <p className="text-ink">
             {reviewEvidenceText(outcome.reviewEvidence)}
           </p>
         </div>
@@ -586,9 +610,9 @@ function BatchQuestionOutcomeCell({
       return (
         <div className="flex flex-col gap-1">
           <StatusChip icon={false} label="Not changed" tone="neutral" />
-          <p className="text-ink-muted">
-            This question passed, but the batch was cancelled because another
-            selected question was blocked. Nothing changed.
+          <p className="text-ink">
+            This one was fine, but nothing changed because another question had
+            a problem.
           </p>
         </div>
       );
@@ -598,32 +622,35 @@ function BatchQuestionOutcomeCell({
       return (
         <div className="flex flex-col gap-1.5">
           <StatusChip
-            label={action === "publish" ? "Cannot publish yet" : "Blocked"}
+            label={action === "publish" ? "Not ready yet" : "Can't change"}
             tone="wrong"
           />
           {failure.publicationBlockers?.length ? (
             <>
-              <p className="text-ink">Publication requirements not met:</p>
+              <p className="text-ink">Needs fixing:</p>
               <ul className="flex list-disc flex-col gap-1 pl-5 text-ink">
                 {failure.publicationBlockers.map((blocker) => (
                   <li key={blocker.code}>{blocker.message}</li>
                 ))}
               </ul>
             </>
+          ) : failure.code === "not_inspected" ? (
+            <p className="text-ink">
+              You haven&apos;t approved or checked this version yourself.
+            </p>
           ) : (
             <p className="text-ink">{failure.message}</p>
           )}
-          {guidance ? <p className="text-ink-muted">{guidance}</p> : null}
+          {guidance ? <p className="text-ink">{guidance}</p> : null}
           {onRemove ? (
             <Button
               type="button"
-              size="sm"
               variant="outline"
-              className="w-fit"
+              className="h-11 w-fit"
               disabled={disabled}
               onClick={onRemove}
             >
-              Remove from selection
+              Remove from this list
             </Button>
           ) : null}
         </div>
@@ -691,25 +718,27 @@ function batchItems(questions: QuestionLifecycleDto[]) {
 }
 
 function reviewEvidenceText(evidence?: QuestionVersionReviewEvidence) {
-  if (!evidence) return "This exact version passed every publication check.";
+  if (!evidence) return "Ready to show to students.";
   const date = formatProfessorDate(evidence.reviewedAt);
   return evidence.kind === "approval"
-    ? `You approved this exact version on ${date}. It passed every publication check.`
-    : `You inspected this exact version on ${date}. It passed every publication check.`;
+    ? `You approved this version on ${date}.`
+    : `You checked this version on ${date}.`;
 }
 
 function failureGuidance(failure: QuestionLifecycleBatchFailure) {
   switch (failure.code) {
     case "stale_state":
       return failure.actualState === "published"
-        ? "Remove it from the selection; nothing more is needed for it."
-        : "Refresh the page to load its current state, then select it again if it still applies.";
+        ? "Students can already see it. Remove it from this list; nothing more is needed."
+        : "Reload the page to see where it stands now, then tick it again if it still applies.";
     case "stale_version":
-      return "Refresh the page to load the current working version, then select it again if it still applies.";
+      return "Someone saved a newer version. Reload the page, then tick it again if it still applies.";
     case "validation_failed":
-      return "Resolve each requirement, then check again. A provenance correction or content revision creates a new version that must be approved before it can be published.";
+      return "Open this question and fix the items listed, then approve it again.";
     case "invalid_state":
-      return "Only an approved (or previously unpublished) working version can be published.";
+      return "Only approved or hidden questions can be shown to students.";
+    case "not_inspected":
+      return "Open this question and choose Mark as checked, or approve it yourself.";
     default:
       return undefined;
   }

@@ -456,7 +456,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
         position,
         displayLabel:
           course.id === FALL_2026_COURSE_ID && topic.weekNumber === 3
-            ? "Wk3 — Bayes"
+            ? "Week 3 — Bayes"
             : null,
         included:
           course.id === SUMMER_2026_COURSE_ID
@@ -484,7 +484,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
       section: {
         id: FALL_2026_SECTION_01_ID,
         courseId: FALL_2026_COURSE_ID,
-        label: "Sec 01",
+        label: "Section 1",
         meetingTime: "MWF 10:00",
         joinCode: "K7Q-2M",
         status: "active",
@@ -496,7 +496,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
       section: {
         id: FALL_2026_SECTION_02_ID,
         courseId: FALL_2026_COURSE_ID,
-        label: "Sec 02",
+        label: "Section 2",
         meetingTime: "TTh 13:00",
         joinCode: "R4N-8X",
         status: "active",
@@ -508,7 +508,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
       section: {
         id: SUMMER_2026_SECTION_ID,
         courseId: SUMMER_2026_COURSE_ID,
-        label: "Sec 01",
+        label: "Section 1",
         meetingTime: "MTWR 09:00",
         joinCode: uniqueJoinCode(SUMMER_2026_SECTION_ID),
         status: "active",
@@ -520,7 +520,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
       section: {
         id: SPRING_2026_SECTION_ID,
         courseId: SPRING_2026_COURSE_ID,
-        label: "Sec 01",
+        label: "Section 1",
         meetingTime: "MWF 11:00",
         joinCode: uniqueJoinCode(SPRING_2026_SECTION_ID),
         status: "archived",
@@ -532,7 +532,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
       section: {
         id: FALL_2025_SECTION_ID,
         courseId: FALL_2025_COURSE_ID,
-        label: "Sec 01",
+        label: "Section 1",
         meetingTime: "TTh 09:30",
         joinCode: uniqueJoinCode(FALL_2025_SECTION_ID),
         status: "archived",
@@ -609,7 +609,7 @@ export function createSeedState(now: string = SEED_NOW): CoursesState {
         attempts,
         correctAttempts,
         hintsUsed,
-        attentionNote: index % 8 === 3 ? "Wk3 repeated difficulty" : null,
+        attentionNote: index % 8 === 3 ? "Week 3: repeated misses" : null,
         topicMastery,
       });
     }

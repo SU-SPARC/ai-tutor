@@ -6,16 +6,15 @@ import { StatusPage } from "@/components/ui/status-page";
 export default function PracticeQuestionNotFound() {
   return (
     <StatusPage
-      code="404"
       title="Question not available"
-      description="This question could not be found or is not published for practice yet. Pick another one to keep going."
+      description="This question isn't available. Your professor may have removed it or not opened it yet."
       actions={
         <>
           <Button asChild>
-            <Link href="/learn">Browse topics</Link>
+            <Link href="/learn">Back to Learn</Link>
           </Button>
           <Button asChild variant="secondary">
-            <Link href="/practice">Open practice</Link>
+            <Link href="/practice">Practice something else</Link>
           </Button>
         </>
       }

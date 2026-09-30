@@ -26,7 +26,7 @@ const FILTER_LABELS: Record<LearnFilter, string> = {
   all: "All",
   unsolved: "Unsolved",
   "hint-used": "Hint used",
-  retired: "Retired",
+  retired: "No longer available",
 };
 
 const SORT_LABELS: Record<LearnSort, string> = {
@@ -37,25 +37,32 @@ const SORT_LABELS: Record<LearnSort, string> = {
 
 export type LearnToolbarProps = {
   className?: string;
-  filter: LearnFilter;
+  /** Omit (with `onFilterChange`) for a search-only toolbar. */
+  filter?: LearnFilter;
   /** Accessible name of the filter select ("Filter topics"). */
   filterLabel?: string;
-  onFilterChange: (filter: LearnFilter) => void;
+  onFilterChange?: (filter: LearnFilter) => void;
   onSearchChange: (search: string) => void;
   onSortChange?: (sort: LearnSort) => void;
   search: string;
   searchLabel: string;
   searchPlaceholder: string;
   sort?: LearnSort;
-  /** Every unsolved destination the shuffle button may land on. */
-  unsolvedHrefs: string[];
+  /**
+   * Offer "No longer available" in the filter only when the list has a
+   * question your professor removed.
+   */
+  showRemovedFilter?: boolean;
+  /** Every unsolved destination "Random question" may land on; omit for none. */
+  unsolvedHrefs?: string[];
 };
 
 /**
- * Search · sort · filter · shuffle above a list, wrapping when the column is
- * narrow (the search takes its own row on phones). Every control is 40px,
- * 44px on touch. The shuffle
- * button is a real link so it is keyboard-reachable and opens in a new tab
+ * Search · sort · filter · "Random question" above a list, wrapping when the
+ * column is narrow (the search takes its own row on phones). Pages render it
+ * only when a list is long enough to need it; `/learn` uses search alone.
+ * Every control is 40px, 44px on touch. "Random question" (visible text at
+ * every width) is a real link so it is keyboard-reachable and opens in a new tab
  * like any other: its target is the first unsolved question on the server and
  * a random one once the page is interactive, which keeps the server and the
  * first client render identical.
@@ -70,8 +77,9 @@ export function LearnToolbar({
   search,
   searchLabel,
   searchPlaceholder,
+  showRemovedFilter = false,
   sort,
-  unsolvedHrefs,
+  unsolvedHrefs = [],
 }: LearnToolbarProps) {
   const searchId = useId();
   const filterId = useId();
@@ -134,21 +142,30 @@ export function LearnToolbar({
         </>
       ) : null}
 
-      <label className="sr-only" htmlFor={filterId}>
-        {filterLabel}
-      </label>
-      <NativeSelect
-        id={filterId}
-        value={filter}
-        onChange={(event) => onFilterChange(event.target.value as LearnFilter)}
-        className="w-auto min-w-0 flex-1 sm:flex-none"
-      >
-        {LEARN_FILTERS.map((value) => (
-          <option key={value} value={value}>
-            {FILTER_LABELS[value]}
-          </option>
-        ))}
-      </NativeSelect>
+      {filter && onFilterChange ? (
+        <>
+          <label className="sr-only" htmlFor={filterId}>
+            {filterLabel}
+          </label>
+          <NativeSelect
+            id={filterId}
+            value={filter}
+            onChange={(event) =>
+              onFilterChange(event.target.value as LearnFilter)
+            }
+            className="w-auto min-w-0 flex-1 sm:flex-none"
+          >
+            {LEARN_FILTERS.filter(
+              (value) =>
+                value !== "retired" || showRemovedFilter || filter === value,
+            ).map((value) => (
+              <option key={value} value={value}>
+                {FILTER_LABELS[value]}
+              </option>
+            ))}
+          </NativeSelect>
+        </>
+      ) : null}
 
       {randomHref ? (
         <Button
@@ -161,11 +178,10 @@ export function LearnToolbar({
             onMouseEnter={reshuffle}
             onFocus={reshuffle}
             onPointerDown={reshuffle}
-            aria-label="Open a random unsolved question"
-            title="Random unsolved"
+            title="Open a random unsolved question"
           >
             <Shuffle aria-hidden="true" />
-            <span className="hidden sm:inline">Random unsolved</span>
+            Random question
           </Link>
         </Button>
       ) : null}

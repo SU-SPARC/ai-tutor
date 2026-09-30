@@ -10,6 +10,7 @@ import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import { difficultyLabel } from "@/lib/labels";
 import type {
   Difficulty,
+  QuestionLifecycleDto,
   QuestionCreationMethod,
   QuestionRevisionMethod,
   QuestionValidationStatus,
@@ -27,19 +28,19 @@ export type QuestionDisplayState = QuestionVersionState | "archived";
 
 export const QUESTION_STATE_LABELS: Record<QuestionDisplayState, string> = {
   approved: "Approved",
-  archived: "Archived",
-  draft: "Draft",
-  needs_review: "Needs review",
-  published: "Published",
+  archived: "Removed",
+  draft: "Being written",
+  needs_review: "Waiting for your review",
+  published: "Students can see it",
   rejected: "Rejected",
-  revision_requested: "Revision requested",
-  unpublished: "Unpublished",
+  revision_requested: "Sent back for changes",
+  unpublished: "Hidden from students",
 };
 
 /**
- * Lifecycle states on the foundation's StatusChip tones: the five pipeline
- * stages keep their own tone, a sent-back version reads as a draft again, and
- * red is used only for rejected and archived.
+ * Lifecycle states on the foundation's StatusChip tones: "Students can see
+ * it" is the one mint chip, a sent-back version reads as a draft again, and
+ * red is used only for rejected and removed.
  */
 const QUESTION_STATE_CHIPS: Record<
   QuestionDisplayState,
@@ -49,7 +50,7 @@ const QUESTION_STATE_CHIPS: Record<
   archived: { tone: "retired" },
   draft: { tone: "draft" },
   needs_review: { tone: "review" },
-  published: { tone: "published" },
+  published: { tone: "released" },
   rejected: { icon: CircleX, tone: "retired" },
   revision_requested: { icon: RotateCcw, tone: "draft" },
   unpublished: { icon: EyeOff, tone: "neutral" },
@@ -86,18 +87,20 @@ export function SavedForLaterChip({
   return (
     <StatusChip
       icon={Bookmark}
-      label={practiceAllowed ? "Saved + practice" : "Saved for later"}
+      label={
+        practiceAllowed ? "Saved for later · extra practice" : "Saved for later"
+      }
       tone="neutral"
     />
   );
 }
 
 const CREATION_METHOD_LABELS: Record<QuestionCreationMethod, string> = {
-  generated: "Generated",
+  generated: "Written by AI",
   imported: "Imported",
-  manual: "Professor edit",
-  regenerated: "Regenerated",
-  rollback_clone: "Rollback copy",
+  manual: "Edited by an instructor",
+  regenerated: "Rewritten by AI",
+  rollback_clone: "Copy of an earlier version",
 };
 
 export function creationMethodLabel(method: QuestionCreationMethod) {
@@ -105,11 +108,11 @@ export function creationMethodLabel(method: QuestionCreationMethod) {
 }
 
 const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
-  generated_original: "Generated original",
-  original_demo: "Original demo question",
-  pattern_derived_original: "Pattern-derived original",
-  private_reference_pattern: "Private reference pattern",
-  professor_provided: "Professor provided",
+  generated_original: "Written by AI",
+  original_demo: "Sample question",
+  pattern_derived_original: "Written by AI from a course example",
+  private_reference_pattern: "Private course example",
+  professor_provided: "Written by an instructor",
 };
 
 export function sourceTypeLabel(sourceType: SourceType) {
@@ -117,20 +120,19 @@ export function sourceTypeLabel(sourceType: SourceType) {
 }
 
 const VALIDATION_LABELS: Record<QuestionValidationStatus, string> = {
-  invalid: "Failed validation",
-  pending: "Not validated yet",
-  valid: "Valid",
+  invalid: "Has problems",
+  pending: "Not checked yet",
+  valid: "Passed the automatic checks",
 };
 
 export function validationStatusLabel(status: QuestionValidationStatus) {
   return VALIDATION_LABELS[status] ?? status;
 }
 
-export const REVISION_METHOD_LABELS: Record<QuestionRevisionMethod, string> =
-  {
-    manual: "Manual revision",
-    regeneration: "Regeneration",
-  };
+export const REVISION_METHOD_LABELS: Record<QuestionRevisionMethod, string> = {
+  manual: "Edit it myself",
+  regeneration: "Rewrite with AI",
+};
 
 /** Difficulty in professor words ("Foundational"), never a colour. */
 export function professorDifficultyLabel(difficulty: Difficulty | string) {
@@ -158,10 +160,17 @@ const ZONE_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
+// Anything within a day of the Unix epoch is a missing value that was stored
+// as 0, never a real moment: it would read "Dec 31, 1969".
+const EPOCH_GUARD_MS = 24 * 60 * 60 * 1000;
+
 function parseDate(value: string | undefined) {
   if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const time = date.getTime();
+  return Number.isNaN(time) || Math.abs(time) <= EPOCH_GUARD_MS
+    ? undefined
+    : date;
 }
 
 function zoneName(date: Date) {
@@ -171,18 +180,18 @@ function zoneName(date: Date) {
   );
 }
 
-/** "Sep 18, 2026, 2:47 PM EDT"; unknown values come back unchanged. */
+/** "Sep 18, 2026, 2:47 PM EDT"; a missing or unreadable value becomes "—". */
 export function formatProfessorDateTime(value: string) {
   const date = parseDate(value);
-  if (!date) return value;
+  if (!date) return "—";
   const zone = zoneName(date);
   return `${DATE_TIME_FORMAT.format(date)}${zone ? ` ${zone}` : ""}`;
 }
 
-/** "Sep 18, 2026"; unknown values come back unchanged. */
+/** "Sep 18, 2026"; a missing or unreadable value becomes "—". */
 export function formatProfessorDate(value: string) {
   const date = parseDate(value);
-  return date ? DATE_FORMAT.format(date) : value;
+  return date ? DATE_FORMAT.format(date) : "—";
 }
 
 /**
@@ -200,7 +209,7 @@ export function ProfessorTime({
 }) {
   const date = parseDate(value);
   if (!date) {
-    return <span className={className}>{value || "—"}</span>;
+    return <span className={className}>—</span>;
   }
   return (
     <time className={className} dateTime={value}>
@@ -222,4 +231,35 @@ export function replaceSearchParam(key: string, value: string | undefined) {
     url.searchParams.delete(key);
   }
   window.history.replaceState(null, "", url);
+}
+
+/**
+ * What a failed request says to the professor. Server messages can name
+ * internal machinery, so only the status decides the sentence.
+ */
+export function plainActionError(status?: number, serverMessage?: string) {
+  if (status === 409) {
+    return "Someone changed this question while you were looking at it. Reload the page to see the latest version, then try again.";
+  }
+  if (serverMessage && /publication blocked/i.test(serverMessage)) {
+    return "This question isn't ready to show to students. Open it, fix what's listed, and approve it again.";
+  }
+  return "That didn't work and nothing changed. Try again, or reload the page.";
+}
+
+/** Shown in the PageHeader notice whenever a page cannot save. */
+export const DEMO_NOTICE = "Demo: changes on this page are not saved.";
+
+/**
+ * The version students can see right now, when it is not the one being
+ * worked on (an edit waiting for review, for example). Undefined when the
+ * two are the same or students see nothing. Lives here (no "use client") so
+ * server components can call it.
+ */
+export function olderVisibleVersion(question: QuestionLifecycleDto) {
+  const published = question.publishedVersion;
+  if (!published || question.recordState !== "active") return undefined;
+  return published.versionId !== question.workingVersion.versionId
+    ? published
+    : undefined;
 }

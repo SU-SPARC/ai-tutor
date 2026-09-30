@@ -53,7 +53,7 @@ export type LearnTopicRow = {
   /** 1-based position in canonical syllabus order — rendered as "01". */
   index: number;
   isCurrent: boolean;
-  /** "no questions yet" for a topic with nothing published. */
+  /** "no questions yet" for a topic with nothing published (the rail says "none yet"). */
   meta?: string;
   solved: number;
   title: string;
@@ -64,7 +64,12 @@ export type LearnTopicRow = {
 export type ContinueCard = {
   detail?: string;
   eyebrow?: string;
-  kind: "resume" | "start" | "empty";
+  /**
+   * resume: a live question to continue; start: the first question with work
+   * left in it; complete: every question on the syllabus is solved; empty:
+   * nothing is published yet.
+   */
+  kind: "resume" | "start" | "complete" | "empty";
   message?: string;
   primary?: { href: string; label: string };
   questionTitle?: string;
@@ -133,6 +138,7 @@ export type LearnModel = {
 };
 
 export type TopicAbout = {
+  /** "2 hints used so far", "No hints used so far", or "" before any work. */
   doneLabel: string;
   extraPracticeHref: string;
   questionCountLabel: string;
@@ -151,6 +157,12 @@ export type TopicModel = {
 };
 
 export type LearnModelInput = {
+  /**
+   * Whether this visitor is a guest (anything but a signed-in user), decided
+   * by the page from the owner kind: a browser with anonymous practice has
+   * progress and is still a guest. Defaults to `progress === null`.
+   */
+  isGuest?: boolean;
   nowIso: string;
   progress: StudentProgressDashboard | null;
   questions: StudentPracticeQuestion[];
@@ -200,6 +212,32 @@ const SHORT_MONTH_NAMES = [
   "Nov",
   "Dec",
 ] as const;
+/**
+ * The course's own clock. "Today", "this week" and the practice calendar are
+ * decided in this zone, never in UTC, so an evening session still lands on
+ * the day the student practised.
+ */
+export const COURSE_TIME_ZONE = "America/New_York";
+
+const COURSE_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: COURSE_TIME_ZONE,
+  year: "numeric",
+});
+
+/**
+ * What each mastery level means, for the chip's `title`. The levels are a
+ * reading of the solved count, not a grade, so each one says so.
+ */
+export const MASTERY_LEVEL_TITLES: Record<0 | 1 | 2 | 3 | 4, string> = {
+  0: "Not started: nothing opened yet",
+  1: "Attempted: opened, none solved yet",
+  2: "Familiar: under half solved",
+  3: "Proficient: half or more solved",
+  4: "Mastered: every question solved",
+};
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -222,9 +260,19 @@ export function practiceHref(questionId: string, sessionId?: string) {
     : base;
 }
 
-/** "Wk 3" — the mono week label used as an eyebrow everywhere. */
+/** "Week 3": the week label used as an eyebrow everywhere. Never "Wk". */
 export function weekLabel(weekNumber: number) {
-  return `Wk ${weekNumber}`;
+  return `Week ${weekNumber}`;
+}
+
+/** "Start question 3" (untouched) / "Continue question 3" (in progress). */
+export function questionActionLabel(question: {
+  position: number;
+  status: QuestionStatus;
+}) {
+  return `${question.status === "current" ? "Continue" : "Start"} question ${
+    question.position
+  }`;
 }
 
 /**
@@ -270,21 +318,19 @@ export function topicMasteryLevel(topic: {
   return topic.solved * 2 >= topic.total ? 3 : 2;
 }
 
-/** The UTC Monday of the week containing `nowIso`, as a `YYYY-MM-DD` date. */
+/**
+ * The Monday (in the course time zone) of the week containing `nowIso`, as a
+ * `YYYY-MM-DD` date.
+ */
 export function weekStartIsoFor(nowIso: string) {
-  const now = new Date(nowIso);
-  const start = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() - mondayOffset(now.getUTCDay()),
-  );
-  return dayKey(new Date(start));
+  const today = courseDayKey(nowIso);
+  return addDays(today, -mondayOffset(weekdayOf(today)));
 }
 
 /**
  * Relative time, resolved on the server so the string that reaches the browser
- * is already a string. Deliberately coarse: a student needs "2h ago", never
- * "2 hours and 14 minutes ago".
+ * is already a string. Deliberately coarse and in words: a student needs
+ * "2 hours ago", never "2h ago" or "2 hours and 14 minutes ago".
  */
 export function relativeTimeLabel(iso: string, nowIso: string) {
   const then = new Date(iso).getTime();
@@ -300,17 +346,21 @@ export function relativeTimeLabel(iso: string, nowIso: string) {
     return "just now";
   }
   if (elapsed < HOUR) {
-    return `${Math.floor(elapsed / MINUTE)}m ago`;
+    return unitsAgo(Math.floor(elapsed / MINUTE), "minute");
   }
   if (elapsed < DAY) {
-    return `${Math.floor(elapsed / HOUR)}h ago`;
+    return unitsAgo(Math.floor(elapsed / HOUR), "hour");
   }
   if (elapsed < 7 * DAY) {
-    return `${Math.floor(elapsed / DAY)}d ago`;
+    return unitsAgo(Math.floor(elapsed / DAY), "day");
   }
 
-  const date = new Date(then);
-  return `on ${SHORT_MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}`;
+  const [, month, day] = courseDayKey(iso).split("-").map(Number);
+  return `on ${SHORT_MONTH_NAMES[month - 1]} ${day}`;
+}
+
+function unitsAgo(count: number, unit: string) {
+  return `${count} ${unit}${count === 1 ? "" : "s"} ago`;
 }
 
 export function buildLearnModel(input: LearnModelInput): LearnModel {
@@ -322,7 +372,7 @@ export function buildLearnModel(input: LearnModelInput): LearnModel {
   return {
     continueCard: buildContinueCard({ nowIso, progress, rows, topics }),
     glance: buildGlance({ nowIso, progress, rows }),
-    isGuest: progress === null,
+    isGuest: input.isGuest ?? progress === null,
     questions: rows,
     saved: buildSavedPractice(progress, questions, topics),
     topics: topicRows.map((topic) => ({
@@ -334,6 +384,8 @@ export function buildLearnModel(input: LearnModelInput): LearnModel {
 }
 
 export function buildTopicModel(input: {
+  /** See `LearnModelInput.isGuest`. Defaults to `progress === null`. */
+  isGuest?: boolean;
   nowIso: string;
   progress: StudentProgressDashboard | null;
   questions: StudentPracticeQuestion[];
@@ -343,7 +395,6 @@ export function buildTopicModel(input: {
   const rows = buildQuestionRows(questions, progress).filter(
     (question) => question.topicId === topic.id,
   );
-  const done = rows.filter((question) => question.status === "done").length;
   const hintsUsed = rows.reduce(
     (total, question) => total + question.hintsUsed,
     0,
@@ -354,10 +405,14 @@ export function buildTopicModel(input: {
 
   return {
     about: {
+      // The header already prints "2 of 5 solved"; this line only adds what
+      // the header does not say, and nothing before the first attempt.
       doneLabel:
-        touched > 0
-          ? `${done} done · ${formatAverage(hintsUsed / touched)} hint avg`
-          : `${done} done`,
+        touched === 0
+          ? ""
+          : hintsUsed === 0
+            ? "No hints used so far"
+            : `${hintsUsed} hint${hintsUsed === 1 ? "" : "s"} used so far`,
       extraPracticeHref: `/practice?topicId=${encodeURIComponent(topic.id)}`,
       questionCountLabel:
         rows.length === 1 ? "1 question" : `${rows.length} questions`,
@@ -365,7 +420,7 @@ export function buildTopicModel(input: {
     },
     description: topic.description,
     id: topic.id,
-    isGuest: progress === null,
+    isGuest: input.isGuest ?? progress === null,
     questions: rows,
     title: topic.title,
     weekLabel: weekLabel(topic.weekNumber),
@@ -465,9 +520,10 @@ function topicGlyph(input: {
 }
 
 /**
- * "You are here": the topic the student is actually inside, which is the topic
- * of whatever they would resume. With nothing in progress it falls back to the
- * first topic that still has work in it — the same place "Start here" points.
+ * "Up next": the topic the student is actually inside, which is the topic of
+ * whatever they would continue. With nothing in progress it falls back to the
+ * first topic that still has work in it, the same place the Continue card
+ * points.
  */
 function pickCurrentTopicId(
   topics: LearnTopicRow[],
@@ -531,9 +587,17 @@ function buildContinueCard(input: {
       (question) => question.questionId === resume.id,
     )?.lastActiveAt;
 
+    // "Skip to question 4" only when the first untouched question sits in
+    // the same topic: a jump to another week would be a surprise.
+    const skipTo =
+      firstTodo &&
+      firstTodo.topicId === resume.topicId &&
+      firstTodo.id !== resume.id
+        ? firstTodo
+        : undefined;
+
     return {
       detail: [
-        resume.questionCode,
         hintsUsedLabel(resume.hintsUsed),
         lastSeen ? `last opened ${relativeTimeLabel(lastSeen, nowIso)}` : "",
       ]
@@ -543,17 +607,30 @@ function buildContinueCard(input: {
         ? `${weekLabel(topic.weekNumber)} · ${topic.title}`
         : undefined,
       kind: "resume",
-      primary: { href: resume.href, label: "Resume →" },
+      primary: {
+        href: resume.href,
+        label: `Continue question ${resume.position}`,
+      },
       questionTitle: resume.title,
-      secondary: firstTodo
-        ? { href: firstTodo.href, label: "Next new" }
+      secondary: skipTo
+        ? { href: skipTo.href, label: `Skip to question ${skipTo.position}` }
         : undefined,
     };
   }
 
-  const start = firstTodo ?? rows[0];
+  // The first question with work left in it, never a solved or removed one.
+  const start = rows.find(
+    (row) => row.status === "todo" || row.status === "current",
+  );
 
   if (!start) {
+    if (rows.some((row) => row.status === "done")) {
+      return {
+        kind: "complete",
+        message: "You've solved every question on the syllabus.",
+        primary: { href: "/practice", label: "Keep practicing" },
+      };
+    }
     return {
       kind: "empty",
       message:
@@ -565,7 +642,6 @@ function buildContinueCard(input: {
 
   return {
     detail: [
-      start.questionCode,
       start.difficultyLabel,
       hintsAvailableLabel(start.hintCount),
     ]
@@ -575,8 +651,7 @@ function buildContinueCard(input: {
       ? `${weekLabel(topic.weekNumber)} · ${topic.title}`
       : undefined,
     kind: "start",
-    message: "Start here",
-    primary: { href: start.href, label: "Start here →" },
+    primary: { href: start.href, label: questionActionLabel(start) },
     questionTitle: start.title,
   };
 }
@@ -587,7 +662,7 @@ export function buildWeekStrip(input: {
 }): WeekStrip {
   const { nowIso, progress } = input;
   const weekStart = weekStartIsoFor(nowIso);
-  const todayKey = dayKey(new Date(nowIso));
+  const todayKey = courseDayKey(nowIso);
   const activeDays = practiceDayKeys(progress);
   const days: WeekStripDay[] = DAY_LABELS.map((label, index) => {
     const iso = addDays(weekStart, index);
@@ -604,24 +679,25 @@ export function buildWeekStrip(input: {
     if (question.status !== "completed") {
       return false;
     }
-    const key = (question.completedAt ?? question.lastActiveAt).slice(0, 10);
+    const key = courseDayKey(question.completedAt ?? question.lastActiveAt);
     return key >= weekStart && key < weekEnd;
   });
   const firstTry = completed.filter(
     (question) => question.attemptCount === 1,
   ).length;
-  const firstTryLabel =
-    completed.length > 0
-      ? `${Math.round((firstTry / completed.length) * 100)}% first-try`
-      : "— first-try";
+  // A count, never a percentage: "on the first try" is a record, not a grade.
+  const firstTryLabel = `${firstTry} on the first try`;
 
   return {
     completedThisWeek: completed.length,
     days,
     firstTryLabel,
-    summary: `${completed.length} ${
-      completed.length === 1 ? "problem" : "problems"
-    } · ${firstTryLabel}`,
+    summary:
+      completed.length === 0
+        ? "No questions solved yet this week"
+        : `${completed.length} ${
+            completed.length === 1 ? "question" : "questions"
+          } solved this week · ${firstTryLabel}`,
   };
 }
 
@@ -667,7 +743,12 @@ function buildSavedPractice(
     }
   }
 
-  return { active, retired };
+  // In-progress work first (it is what a student comes back for), then the
+  // solved rows; each group keeps its most-recent-first order.
+  const inProgress = active.filter((row) => row.status === "in_progress");
+  const rest = active.filter((row) => row.status !== "in_progress");
+
+  return { active: [...inProgress, ...rest], retired };
 }
 
 function buildGlance(input: {
@@ -700,9 +781,8 @@ export function buildPracticeCalendar(
   nowIso: string,
   activeDays: ReadonlySet<string>,
 ): PracticeCalendar {
-  const now = new Date(nowIso);
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+  const [year, monthNumber] = courseDayKey(nowIso).split("-").map(Number);
+  const month = monthNumber - 1;
   const firstOfMonth = new Date(Date.UTC(year, month, 1));
   const dayCount = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
@@ -710,7 +790,7 @@ export function buildPracticeCalendar(
     days: Array.from({ length: dayCount }, (_, index) => {
       const day = index + 1;
       return {
-        active: activeDays.has(dayKey(new Date(Date.UTC(year, month, day)))),
+        active: activeDays.has(isoDate(new Date(Date.UTC(year, month, day)))),
         day,
       };
     }),
@@ -728,10 +808,10 @@ function practiceDayKeys(progress: StudentProgressDashboard | null) {
   const keys = new Set<string>();
 
   for (const session of progress?.recentSessions ?? []) {
-    keys.add(session.lastSeenAt.slice(0, 10));
+    keys.add(courseDayKey(session.lastSeenAt));
   }
   for (const question of progress?.questions ?? []) {
-    keys.add(question.lastActiveAt.slice(0, 10));
+    keys.add(courseDayKey(question.lastActiveAt));
   }
 
   return keys;
@@ -751,23 +831,58 @@ function hintsAvailableLabel(hintCount: number) {
   return `${hintCount} hint${hintCount === 1 ? "" : "s"}`;
 }
 
-function formatAverage(value: number) {
-  if (!Number.isFinite(value)) {
-    return "0";
+/**
+ * The next topic with work left in it, for a finished topic's "Next topic"
+ * button: the first unfinished topic after this one in syllabus order, else
+ * the first unfinished one before it. `undefined` when every topic with
+ * questions is solved.
+ */
+export function nextUnfinishedTopic(
+  topics: LearnTopicRow[],
+  currentTopicId: string,
+): LearnTopicRow | undefined {
+  const index = topics.findIndex((topic) => topic.id === currentTopicId);
+  const unfinished = (topic: LearnTopicRow) =>
+    topic.id !== currentTopicId && topic.total > 0 && topic.solved < topic.total;
+
+  return (
+    topics.slice(index + 1).find(unfinished) ??
+    topics.slice(0, Math.max(index, 0)).find(unfinished)
+  );
+}
+
+function mondayOffset(weekday: number) {
+  // Sunday = 0. The strip starts on Monday.
+  return (weekday + 6) % 7;
+}
+
+/** The weekday (Sunday = 0) of a `YYYY-MM-DD` calendar date. */
+function weekdayOf(dayIso: string) {
+  const [year, month, day] = dayIso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+/** The calendar date of an instant in the course time zone, as `YYYY-MM-DD`. */
+function courseDayKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
   }
-  return (Math.round(value * 10) / 10).toString();
+  const parts = Object.fromEntries(
+    COURSE_DAY_FORMAT.formatToParts(date).map((part) => [
+      part.type,
+      part.value,
+    ]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-function mondayOffset(utcDay: number) {
-  // getUTCDay(): Sunday = 0. The strip starts on Monday.
-  return (utcDay + 6) % 7;
-}
-
-function dayKey(date: Date) {
+/** A UTC-midnight date (pure calendar arithmetic) as `YYYY-MM-DD`. */
+function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
 function addDays(dayIso: string, days: number) {
   const [year, month, day] = dayIso.split("-").map(Number);
-  return dayKey(new Date(Date.UTC(year, month - 1, day + days)));
+  return isoDate(new Date(Date.UTC(year, month - 1, day + days)));
 }

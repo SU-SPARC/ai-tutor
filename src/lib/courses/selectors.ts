@@ -101,10 +101,10 @@ export type SectionBuilderTopic = {
 };
 
 export type ReleaseBlockReason =
-  | "Approved — publish first"
-  | "Needs review"
-  | "Draft"
-  | "Unpublished — republish first";
+  | "Approved: make it ready"
+  | "Not approved yet: review it"
+  | "Draft: not submitted for review"
+  | "Withdrawn: make it ready again";
 
 export type ReleaseChangeReady = {
   kind: "add" | "remove";
@@ -554,13 +554,13 @@ export function releaseBlockReason(
     case "published":
       return null;
     case "approved":
-      return "Approved — publish first";
+      return "Approved: make it ready";
     case "needs_review":
-      return "Needs review";
+      return "Not approved yet: review it";
     case "draft":
-      return "Draft";
+      return "Draft: not submitted for review";
     case "unpublished":
-      return "Unpublished — republish first";
+      return "Withdrawn: make it ready again";
     default:
       return null;
   }
@@ -613,7 +613,7 @@ export function previewReleaseChanges(
       preview.blocked.push({
         kind: "remove",
         question,
-        reason: "Not released to this section",
+        reason: "Not shown to this section",
       });
       continue;
     }

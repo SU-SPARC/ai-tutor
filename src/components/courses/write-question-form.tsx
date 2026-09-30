@@ -29,7 +29,7 @@ const ANSWER_TYPE_LABELS: Record<AnswerType, string> = {
 };
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  foundational: "Foundational",
+  foundational: "Intro",
   core: "Core",
   challenge: "Challenge",
 };
@@ -71,7 +71,7 @@ export function WriteQuestionForm({
       : undefined;
   const promptError =
     showErrors && prompt.trim().length === 0
-      ? "Write the prompt students will see."
+      ? "Write the question students will see."
       : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -100,29 +100,29 @@ export function WriteQuestionForm({
       <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
         <div className="flex flex-col gap-1">
           <h2 className="type-h2 text-ink" id="write-question-title">
-            Write a question for this topic
+            Write a question for this week
           </h2>
-          <p className="type-small max-w-prose text-ink-muted">
-            It saves to the review queue as Needs review. Approve it, publish
-            it, then release it to a section.
+          <p className="type-body max-w-prose text-ink-muted">
+            You&rsquo;ll approve it before students see it. After that, make it
+            ready to use and choose it for a section.
           </p>
         </div>
 
-        <Field error={titleError} label="Title">
+        <Field error={titleError} label="Short title (required), e.g. Bayes with two urns">
           <Input
             autoComplete="off"
             name="title"
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Bayes with two urns…"
+            placeholder="Bayes with two urns"
             ref={titleRef}
             value={title}
           />
         </Field>
 
         <Field
-          description="LaTeX between $…$ renders as math."
+          description="Math between dollar signs, like $P(A)$, shows as a formula."
           error={promptError}
-          label="Prompt"
+          label="Question text (required)"
         >
           <Textarea
             name="prompt"
@@ -165,13 +165,13 @@ export function WriteQuestionForm({
               ))}
             </NativeSelect>
           </Field>
-          <Field label="Final answer" optional>
+          <Field label="Correct answer, e.g. 7/12" optional>
             <Input
               autoComplete="off"
               mono
               name="finalAnswer"
               onChange={(event) => setFinalAnswer(event.target.value)}
-              placeholder="7/12…"
+              placeholder="7/12"
               value={finalAnswer}
             />
           </Field>
@@ -201,8 +201,15 @@ export function WriteQuestionForm({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit">Save to review queue</Button>
-          <Button onClick={onCancel} type="button" variant="ghost">
+          <Button className="min-h-11" type="submit">
+            Save question
+          </Button>
+          <Button
+            className="min-h-11"
+            onClick={onCancel}
+            type="button"
+            variant="ghost"
+          >
             Cancel
           </Button>
         </div>

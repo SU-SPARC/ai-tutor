@@ -3,7 +3,7 @@
 /**
  * The practice rail: this topic's questions as one dense column, with the same
  * ✓ ● ○ glyph vocabulary the syllabus rail uses, a topic switcher above it, and
- * exactly one button — "Next new".
+ * exactly one button — "Next unsolved".
  *
  * Rows are real links to `/practice/<questionId>` so the rail works without
  * JavaScript and so middle-click / open-in-new-tab behave, but a capture-phase
@@ -56,10 +56,10 @@ export function practiceQuestionHref(questionId: string) {
   return `/practice/${encodeURIComponent(questionId)}`;
 }
 
-/** "Wk 3" — mono, because a week number is a value, not a sentence. */
+/** "Week 3": the week in words (never "Wk"). */
 export function practiceWeekLabel(weekNumber?: number) {
   return typeof weekNumber === "number" && weekNumber > 0
-    ? `Wk ${weekNumber}`
+    ? `Week ${weekNumber}`
     : "Practice";
 }
 
@@ -125,7 +125,8 @@ type PracticeRailProps = {
   collapsed: boolean;
   disabled?: boolean;
   nextQuestionId?: string;
-  onNextNew: () => void;
+  /** Skips to the first unsolved question in the topic. */
+  onNextUnsolved: () => void;
   onSearchChange: (value: string) => void;
   onSelectQuestion: (questionId: string) => void;
   onSelectTopic: (topicId: string) => void;
@@ -146,7 +147,7 @@ export function PracticeRail({
   collapsed,
   disabled = false,
   nextQuestionId,
-  onNextNew,
+  onNextUnsolved,
   onSearchChange,
   onSelectQuestion,
   onSelectTopic,
@@ -222,12 +223,17 @@ export function PracticeRail({
         {collapsed ? null : (
           <Link
             href={topicHref}
-            className="inline-flex h-10 min-w-0 flex-1 items-center gap-1 rounded-control pr-2 pl-1 text-ink transition-colors duration-fast hover:bg-hover focus-ring pointer-coarse:h-11"
+            className="flex min-h-11 min-w-0 flex-1 items-start gap-1 rounded-control py-1 pr-2 pl-1 text-ink transition-colors duration-fast hover:bg-hover focus-ring"
           >
-            <ChevronLeft aria-hidden="true" className="size-4 shrink-0" />
-            <span className="type-mono truncate">{weekLabel}</span>
-            <span className="sr-only">
-              {`: ${topicTitle ?? "topic"} overview`}
+            <ChevronLeft
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <span className="flex min-w-0 flex-col">
+              <span className="type-body-strong truncate">
+                {topicTitle ?? "Topic overview"}
+              </span>
+              <span className="type-caption">{weekLabel}</span>
             </span>
           </Link>
         )}
@@ -236,7 +242,9 @@ export function PracticeRail({
           variant="ghost"
           size="icon-sm"
           aria-label={
-            collapsed ? "Expand the question list" : "Collapse the question list"
+            collapsed
+              ? "Expand the question list"
+              : "Collapse the question list"
           }
           aria-expanded={!collapsed}
           onClick={onToggleCollapsed}
@@ -318,9 +326,9 @@ export function PracticeRail({
             size="sm"
             className="w-full justify-between pointer-coarse:h-11"
             disabled={disabled}
-            onClick={onNextNew}
+            onClick={onNextUnsolved}
           >
-            Next new
+            Next unsolved
             <ChevronRight aria-hidden="true" />
           </Button>
         </div>

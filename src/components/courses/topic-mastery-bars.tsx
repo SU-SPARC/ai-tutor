@@ -1,43 +1,84 @@
 "use client";
 
-import { MasteryBar } from "@/components/ui/mastery-chip";
-import type { SectionTopicMastery } from "@/lib/courses/selectors";
+import { MasteryChip, type MasteryLevel } from "@/components/ui/mastery-chip";
+import type { SectionMember, TopicId } from "@/lib/courses/types";
+
+/** Score (0–100) at or above which a student counts as Proficient. */
+const PROFICIENT_AT = 65;
 
 /**
- * One thin gradient bar per open topic, with the percent beside it. The bar
- * is never the only signal, and no topic is coloured as a verdict: a low
- * number is something to look at, not a grade.
+ * The design system's five named levels from a 0–100 topic score. The name is
+ * always printed (MasteryChip), never a bare percentage.
  */
-export function TopicMasteryBars({ rows }: { rows: SectionTopicMastery[] }) {
+export function masteryLevelFromScore(score: number | null): MasteryLevel {
+  if (score === null || score <= 0) {
+    return 0;
+  }
+  if (score < 40) {
+    return 1;
+  }
+  if (score < PROFICIENT_AT) {
+    return 2;
+  }
+  if (score < 85) {
+    return 3;
+  }
+  return 4;
+}
+
+export type TopicMasteryRow = {
+  topicId: TopicId;
+  label: string;
+};
+
+/**
+ * One row per week students can see: the class's typical level as a named
+ * chip, and "n of m students at Proficient or above" in words. A low level is
+ * something to look at, not a grade, so nothing is coloured as a verdict.
+ */
+export function TopicMasteryBars({
+  members,
+  rows,
+}: {
+  members: SectionMember[];
+  rows: TopicMasteryRow[];
+}) {
   if (rows.length === 0) {
     return (
       <p className="type-body max-w-prose text-ink-muted">
-        No topic is open to this section yet, so there is nothing to measure.
+        No week is open to this section yet, so there is nothing to measure.
       </p>
     );
   }
 
   return (
-    <ul className="grid gap-x-8 gap-y-3 rounded-panel bg-sheet p-5 md:grid-cols-2 sm:p-6">
+    <ul className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-5">
       {rows.map((row) => {
-        // `sectionProgress` collapses "no attempts" to 0, so 0 is reported as
-        // "no data" rather than as a real score a student earned.
-        const hasData = row.pct > 0;
+        const scores = members
+          .map((member) => member.topicMastery[row.topicId])
+          .filter((score): score is number => typeof score === "number");
+        const average =
+          scores.length === 0
+            ? null
+            : Math.round(
+                scores.reduce((sum, score) => sum + score, 0) / scores.length,
+              );
+        const proficient = scores.filter((score) => score >= PROFICIENT_AT)
+          .length;
         return (
-          <li className="flex flex-col gap-1.5" key={row.topicId}>
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="type-small min-w-0 truncate text-ink">
-                {row.label}
+          <li
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3"
+            key={row.topicId}
+          >
+            <span className="type-body min-w-0 text-ink">{row.label}</span>
+            <span className="flex flex-wrap items-center gap-3">
+              <MasteryChip level={masteryLevelFromScore(average)} />
+              <span className="type-body text-ink">
+                {scores.length === 0
+                  ? "No student has tried it yet"
+                  : `${proficient} of ${members.length} students at Proficient or above`}
               </span>
-              <span className="type-mono shrink-0 text-ink-muted">
-                {hasData ? `${row.pct}%` : "—"}
-              </span>
-            </div>
-            <MasteryBar
-              label={`${row.label}: ${hasData ? `${row.pct}% mastery` : "no attempts yet"}`}
-              total={100}
-              value={hasData ? row.pct : 0}
-            />
+            </span>
           </li>
         );
       })}

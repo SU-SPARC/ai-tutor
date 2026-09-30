@@ -17,6 +17,12 @@ import { useSheetSession } from "@/components/tutor/use-sheet-session";
 import { cn } from "@/lib/utils";
 import type { StudentPracticeQuestion } from "@/lib/types";
 
+/**
+ * The Sheet section's anchor. Nothing on the landing page links here any
+ * more, but older links to `/#try-one-now` still land on the question.
+ */
+export const TRY_ONE_NOW_ID = "try-one-now";
+
 export type LandingScreenProps = {
   question: StudentPracticeQuestion;
   /** The hero question's week, for the sheet header ("Wk 3"). */
@@ -24,10 +30,16 @@ export type LandingScreenProps = {
   railTopics: SyllabusRailTopic[];
   /** "84 questions · 11 topics". */
   railFooter: string;
+  /**
+   * Signed out: the question is a preview. It can be read but not answered,
+   * hinted or discussed with the tutor, and no guest session is created.
+   */
+  locked?: boolean;
 };
 
 /**
- * The live product under the headline: the practice screen's own three
+ * The product under the headline (live when signed in, a locked preview
+ * when signed out): the practice screen's own three
  * columns (syllabus, the Sheet, the tutor) drawn as one framed window, with a
  * real question in the middle.
  *
@@ -45,9 +57,13 @@ export function LandingScreen({
   weekNumber,
   railTopics,
   railFooter,
+  locked = false,
 }: LandingScreenProps) {
   const { check, error, hint, hintsRevealed, lastMessage, status, verdict } =
     useSheetSession({
+      // Locked: the hook never talks to the server (sessions are created
+      // lazily on the first check or hint, and neither is offered).
+      enabled: !locked,
       hintCount: question.hintCount,
       questionId: question.id,
       topicId: question.topicId,
@@ -72,12 +88,24 @@ export function LandingScreen({
 
   return (
     <section
+      id={TRY_ONE_NOW_ID}
       aria-labelledby={labelId}
-      className={cn(LANDING_COLUMN, "pb-10 lg:pb-16")}
+      className={cn(LANDING_COLUMN, "scroll-mt-20 pb-12 lg:pb-20")}
     >
-      <p id={labelId} className="type-label mb-3">
-        Try one now — no sign-in needed
-      </p>
+      {locked ? (
+        <div className="mb-3 flex flex-col gap-1">
+          <p id={labelId} className="type-label">
+            A problem from your course
+          </p>
+          <p className="type-small text-ink-muted">
+            Join with your section code to answer it.
+          </p>
+        </div>
+      ) : (
+        <p id={labelId} className="type-label mb-3">
+          Try one now
+        </p>
+      )}
 
       <div
         data-slot="landing-frame"
@@ -108,6 +136,7 @@ export function LandingScreen({
               revealing={status === "hinting"}
               verdict={sheetVerdict}
               error={error}
+              locked={locked}
             />
           </div>
         </div>
@@ -118,6 +147,7 @@ export function LandingScreen({
             onHint={() => void hint()}
             onWhereToStart={() => setAskedWhereToStart(true)}
             hintDisabled={busy || hintsRevealed.length >= question.hintCount}
+            locked={locked}
           />
         </div>
       </div>

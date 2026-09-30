@@ -27,9 +27,8 @@ const SORT_NAMES: Record<RosterSortKey, string> = {
 };
 
 /**
- * A section roster is a list of hashed student keys, never names. The label is
- * the first four hex digits, with the whole key in the title attribute so two
- * lookalike codes can still be told apart.
+ * A section roster is a list of private student codes, never names. The code
+ * is the first four characters of the student's key, printed in full view.
  *
  * There is no link to `/professor/students/<key>` here: that page reads the
  * analytics repository, which knows nothing about these demo members.
@@ -57,7 +56,7 @@ export function SectionRosterTable({
         </TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead scope="col">Student</TableHead>
+            <TableHead scope="col">Student code</TableHead>
             <TableHead aria-sort={ariaSort("sessions")} numeric scope="col">
               Sessions
             </TableHead>
@@ -65,9 +64,9 @@ export function SectionRosterTable({
               Correct
             </TableHead>
             <TableHead aria-sort={ariaSort("hints")} numeric scope="col">
-              Hints
+              Hints used
             </TableHead>
-            <TableHead scope="col">Attention</TableHead>
+            <TableHead scope="col">Note</TableHead>
             <TableHead aria-sort={ariaSort("last_active")} scope="col">
               Last active
             </TableHead>
@@ -84,7 +83,7 @@ export function SectionRosterTable({
           {members.map((member) => (
             <TableRow key={member.studentKey}>
               <TableCell>
-                <span className="font-mono whitespace-nowrap" title={member.studentKey}>
+                <span className="font-mono whitespace-nowrap">
                   {shortStudentLabel(member.studentKey)}
                 </span>
               </TableCell>

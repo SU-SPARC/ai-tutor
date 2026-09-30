@@ -10,6 +10,13 @@ import type { StudentProgressDashboard, TutorSessionRecord } from "@/lib/types";
 
 const RECENT_SESSION_LIMIT = 8;
 
+/** Intro → Core → Stretch inside a topic, matching `sortQuestionsForSyllabus`. */
+const DIFFICULTY_RANK: Record<string, number> = {
+  foundational: 0,
+  intermediate: 1,
+  challenge: 2,
+};
+
 type QuestionProgress = StudentProgressDashboard["questions"][number];
 
 type QuestionAccumulator = {
@@ -79,6 +86,8 @@ export async function getStudentProgress(
   const orderedQuestions = [...questions].sort(
     (left, right) =>
       compareCanonicalTopicIds(left.topicId, right.topicId) ||
+      (DIFFICULTY_RANK[left.difficulty] ?? 3) -
+        (DIFFICULTY_RANK[right.difficulty] ?? 3) ||
       left.title.localeCompare(right.title) ||
       left.id.localeCompare(right.id),
   );

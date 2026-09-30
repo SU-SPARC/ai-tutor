@@ -33,11 +33,18 @@ export function isGhostUserId(userId: string) {
   return userId.startsWith("ghost:");
 }
 
+/**
+ * What a student sees for the demo student: the same word the landing and
+ * join pages use for practicing without an account.
+ */
+export const GHOST_STUDENT_DISPLAY_NAME = "Guest";
+
 export function ghostPrincipalFor(role: GhostRole): AuthenticatedPrincipal {
   return {
     kind: "user",
     userId: `ghost:${role}`,
-    displayName: role === "professor" ? "Ghost Professor" : "Ghost Student",
+    displayName:
+      role === "professor" ? "Ghost Professor" : GHOST_STUDENT_DISPLAY_NAME,
     email: `ghost-${role}@example.invalid`,
     role,
     roles: role === "professor" ? ["student", "professor"] : ["student"],

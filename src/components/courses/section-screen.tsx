@@ -1,14 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { ArrowUpRight, RefreshCw } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/courses/confirm-dialog";
 import { CourseNotFound } from "@/components/courses/course-not-found";
 import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
-import { plural, sectionName } from "@/components/courses/course-status";
+import {
+  plural,
+  sectionLabelText,
+  sectionName,
+} from "@/components/courses/course-status";
 import { useCoursesStore } from "@/components/courses/courses-store";
+import { JoinCodePanel } from "@/components/courses/join-code-panel";
 import { SectionProgressPanel } from "@/components/courses/section-progress-panel";
 import { SectionSettingsPanel } from "@/components/courses/section-settings-panel";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
@@ -62,7 +68,7 @@ function SectionFallback({
           href: coursePath(courseId),
           label: course ? `${course.code} ${course.term}` : "Course",
         },
-        { label: known ? known.label : "Section" },
+        { label: known ? sectionLabelText(known) : "Section" },
       ]}
       description="Loading this section."
       shape="section"
@@ -72,22 +78,31 @@ function SectionFallback({
 }
 
 /**
- * The section's views as underlined link tabs: each one is its own URL, and
- * Availability leaves for the topic builder (pre-scoped to this section),
- * which the arrow icon says.
+ * The section's views as underlined link tabs: each one is its own URL.
+ * "Choose questions" leaves for that page (pre-scoped to this section), which
+ * the arrow says in words for screen readers too.
  */
 function SectionViewNav({
   items,
 }: {
-  items: { key: string; href: string; label: string; current: boolean; leaves?: boolean }[];
+  items: {
+    key: string;
+    href: string;
+    label: string;
+    current: boolean;
+    leaves?: boolean;
+  }[];
 }) {
   return (
-    <LinkTabs label="Section views">
+    <LinkTabs label="Section pages">
       {items.map((item) => (
         <LinkTab current={item.current} href={item.href} key={item.key}>
           {item.label}
           {item.leaves ? (
-            <ArrowUpRight aria-hidden="true" className="size-4" />
+            <>
+              <ArrowRight aria-hidden="true" className="size-4" />
+              <span className="sr-only"> (opens another page)</span>
+            </>
           ) : null}
         </LinkTab>
       ))}
@@ -116,7 +131,7 @@ function SectionScreenInner({
   const breadcrumbs = [
     { href: coursesIndexPath(), label: "Courses" },
     { href: coursePath(courseId), label: courseLabel },
-    { label: section && belongs ? section.label : "Section" },
+    { label: section && belongs ? sectionLabelText(section) : "Section" },
   ];
 
   if (!course || !section || !belongs) {
@@ -145,16 +160,22 @@ function SectionScreenInner({
 
   const members = sectionMembers(state, sectionId);
   const progress = sectionProgress(state, sectionId, SEED_NOW);
+  const label = sectionLabelText(section);
 
   function regenerate() {
+    if (!section) {
+      return;
+    }
     const action = { type: "section/regenerateJoinCode", sectionId } as const;
     // The reducer is pure, so the new code is known before it is stored.
     const nextCode = getSection(coursesReducer(state, action), sectionId)
       ?.joinCode;
     dispatch(action);
     toast({
-      title: nextCode ? `New join code ${nextCode}` : "Join code regenerated",
-      description: "The old code no longer works.",
+      title: nextCode
+        ? `The new join code for ${label} is ${nextCode}.`
+        : `${label} has a new join code.`,
+      description: `The old code ${section.joinCode} no longer works. Students who already joined stay.`,
       tone: "success",
     });
   }
@@ -162,25 +183,18 @@ function SectionScreenInner({
   return (
     <ProfessorPageShell
       aside={
-        <Button
-          onClick={() => setConfirmingRegenerate(true)}
-          type="button"
-          variant="secondary"
-        >
-          <RefreshCw aria-hidden="true" />
-          Regenerate join code
+        <Button asChild className="min-h-11" variant="cta">
+          <Link href={courseTopicsPath(courseId, sectionId)}>
+            Choose questions for this section
+          </Link>
         </Button>
       }
       breadcrumbs={breadcrumbs}
-      description={`${plural(members.length, "student")} joined; the roster shows hashed codes, not names.`}
-      notice={
-        <span className="inline-flex items-baseline gap-2">
-          Join code
-          <span className="type-mono text-ink">{section.joinCode}</span>
-        </span>
-      }
+      description={`${plural(members.length, "student has", "students have")} joined ${label}.`}
       title={sectionName(section)}
     >
+      <JoinCodePanel code={section.joinCode} sectionLabel={label} />
+
       <SectionViewNav
         items={[
           {
@@ -190,11 +204,11 @@ function SectionScreenInner({
             current: tab === "progress",
           },
           {
-            // Availability is S3 with this section pre-selected, not a local
-            // panel: releasing belongs with the whole course's topic list.
-            key: "availability",
+            // "Choose questions" is its own page with this section selected:
+            // choosing belongs with the whole course's weeks.
+            key: "choose",
             href: courseTopicsPath(courseId, sectionId),
-            label: "Availability",
+            label: "Choose questions",
             current: false,
             leaves: true,
           },
@@ -221,12 +235,13 @@ function SectionScreenInner({
       )}
 
       <ConfirmDialog
-        confirmLabel="Regenerate code"
-        description={`Anyone still holding ${section.joinCode} will not be able to join ${section.label}. Students who already joined stay in the section.`}
+        cancelLabel="Keep this code"
+        confirmLabel="Make a new join code"
+        description={`Students who already joined ${label} stay. Anyone who still has ${section.joinCode} will not be able to join with it.`}
         onConfirm={regenerate}
         onOpenChange={setConfirmingRegenerate}
         open={confirmingRegenerate}
-        title="Regenerate the join code?"
+        title={`Make a new join code for ${label}?`}
       />
     </ProfessorPageShell>
   );

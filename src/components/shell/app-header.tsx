@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { CourseSwitcher } from "@/components/courses/course-switcher";
+import { Logo } from "@/components/shell/logo";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { NavLink } from "@/components/shell/nav-link";
 import { PROFESSOR_NAV, STUDENT_NAV } from "@/components/shell/nav-config";
@@ -30,7 +30,9 @@ export type AppHeaderProps = {
  * nav words and theme control move into the menu sheet.
  *
  * Desktop: wordmark · course/section chip · nav words … theme · account.
- * Phone:   logo · chip … account · menu.
+ * Phone:   logo · chip … account · "Menu".
+ *
+ * Professors see "Home" and "Student view" as their two nav words.
  *
  * A server component: the role comes from the root layout; only the nav
  * links, chip, theme control, account disclosure and menu are client islands.
@@ -54,17 +56,12 @@ export function AppHeader({
           aria-label="ProbStat Tutor home"
           className="flex shrink-0 items-center gap-2.5 rounded-control p-1 focus-ring"
         >
-          <Image
-            src="/logo.png"
-            alt=""
-            width={28}
-            height={28}
+          <Logo
+            size="sm"
+            wordmark
             priority
-            className="size-7"
+            wordmarkClassName="hidden sm:inline"
           />
-          <span className="hidden font-display text-lg leading-none font-medium text-ink sm:inline">
-            ProbStat Tutor
-          </span>
         </Link>
 
         <div className="flex min-w-0 items-center">
@@ -88,6 +85,7 @@ export function AppHeader({
               href={item.href}
               label={item.label}
               title={item.title}
+              className={role === "professor" ? "h-11" : undefined}
             />
           ))}
         </nav>

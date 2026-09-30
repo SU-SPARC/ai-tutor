@@ -18,13 +18,15 @@ export function CourseCard({
   course: Course;
   summary: CourseSummary;
 }) {
-  const waiting = summary.approvedNotReleased;
+  // "Ready" means ready to use and could be shown today; approved questions
+  // still need one more step, so they are not counted here.
+  const waiting = summary.publishedNotReleased;
 
   const facts: { label: string; value: number }[] = [
     { label: "Sections", value: summary.sectionCount },
-    { label: "Joined", value: summary.studentCount },
-    { label: "Topics", value: summary.topicCount },
-    { label: "Released", value: summary.releasedCount },
+    { label: "Students", value: summary.studentCount },
+    { label: "Weeks", value: summary.topicCount },
+    { label: "Shown to students", value: summary.releasedCount },
   ];
 
   return (
@@ -42,7 +44,7 @@ export function CourseCard({
               {course.term}
             </Link>
           </h3>
-          <p className="type-small truncate text-ink-muted">{course.title}</p>
+          <p className="type-body truncate text-ink-muted">{course.title}</p>
         </div>
         <ArrowRight
           aria-hidden="true"
@@ -50,10 +52,10 @@ export function CourseCard({
         />
       </div>
 
-      <dl className="grid grid-cols-4 gap-3">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {facts.map((fact) => (
           <div className="flex flex-col" key={fact.label}>
-            <dt className="type-caption">{fact.label}</dt>
+            <dt className="type-small text-ink-muted">{fact.label}</dt>
             <dd className="type-mono text-ink">{fact.value}</dd>
           </div>
         ))}
@@ -61,10 +63,11 @@ export function CourseCard({
 
       {waiting > 0 ? (
         <p className="type-body-strong mt-auto border-l-2 border-azure-500 pl-3 text-ink">
-          {waiting} approved, not yet released
+          {waiting} {waiting === 1 ? "question" : "questions"} ready but not
+          shown to students
         </p>
       ) : (
-        <p className="type-small mt-auto border-l-2 border-rule pl-3 text-ink-muted">
+        <p className="type-body mt-auto border-l-2 border-rule pl-3 text-ink-muted">
           Nothing waiting on you
         </p>
       )}

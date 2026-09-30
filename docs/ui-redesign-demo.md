@@ -102,8 +102,9 @@ The problem as a worksheet: a ruled left margin whose gutter numbers the hints a
 a mono header line (week, position, code, answer type, difficulty), the title as a real
 heading, the prompt in `type-reading` with KaTeX, a mono answer field that washes green
 or red, and a verdict band ("Correct", "Not quite", "Couldn't read that answer") in a
-polite status region. Hints are an amber ladder; steps are an azure ladder that says
-"Available once every hint is shown." until they open. Options: `answer.showCheck`
+polite status region. Hints are an amber ladder; steps are an azure ladder; when a question has hints the Sheet shows a `Hints ○○○ → Steps` row whose amber
+rungs fill as hints open and whose Steps pip reads "Steps unlock after hint 3" then "Steps ready" (the
+landing demo keeps the older sentence). Options: `answer.showCheck`
 (false when the page has its own Check), `answer.preview` (how the entry reads, in
 KaTeX), `hints.revealControl` (false when hints are revealed from elsewhere), `compact`
 (list rows), `tombstone` (retired question). `QuestionSheetSkeleton` is its loading state.
@@ -111,32 +112,63 @@ It renders the landing hero, practice, topic rows, and the professor previews.
 
 ## Student routes
 
+Every student-facing word follows `docs/student-vocabulary.md` ("Week 3", "Up next",
+"Start question n", "2 of 6 solved", "Hint 1 of 3", "Steps unlock after hint 3", "Guest · your
+progress lives in this browser.", "No longer available", one mint per screen, the verdict band carrying
+the next action, and the truthful privacy sentence). Question codes and answer-type words are hidden
+from students except in the report-a-problem caption.
+
 | Route | Screen |
 |---|---|
-| `/` | h1, one sentence, [Join your course], [I’m a professor], "Continue as guest"; then a live Sheet with a real guest session, three plain statements, and the footer. Signed in: [Continue practicing →]. |
-| `/join` | One sheet: section code with [Join] beside it, guest door, SSO (disabled in the demo, with the reason), the data notice; the professor door under it. |
-| `/learn` | Continue card (a compact Sheet), syllabus rows (Wk, title, mastery chip and bar, "0 of 2"), this week, saved practice, at a glance. Guests get the same page with a join note. |
-| `/learn/[topic]` | Header with mastery and "n of m solved", question rows as compact Sheets with an "Up next" rule, dot row, About panel with Extra practice. |
-| `/practice`, `/practice/[id]` | Rail, the Sheet, an action strip that holds the one Check answer and the hint and step controls, the tutor drawer (edge tab from 1024 to 1279, bottom sheet on phones), prev/next pips. The address bar follows the question. |
-| `/account`, `/onboarding` | One sheet each; onboarding is the tutor and data notice with the acknowledgement. |
-| `/dashboard`, `/topics` | Redirect to `/learn` (`/dashboard` sends a signed-out visitor to sign in first). |
-
-Loading states are skeletons shaped like the page (no spinners); error and not-found
-pages use `StatusPage` and name the next step. Titles are short names; the root layout adds
-" · ProbStat Tutor".
+| `/` | h1 "Practice MATH-255, one hint at a time", one sentence, then the **section-code form** ("Section code from your professor", mono `K7Q-2M`, mint Join) with "No code? Try a problem now ↓" and a quiet "I'm a professor" link; signed in: one mint "Continue practicing →". Then the live Sheet ("Try one now — no sign-in needed", real guest session, math keypad), a three-step "How it works" row joined by one hairline, two trust statements, and the footer. |
+| `/join` | Logo and wordmark above "Join MATH-255"; the shared section-code form (unknown codes are refused at the field); the guest door; in the demo a caption instead of the SSO button; the data notice with the privacy sentence; "Teaching MATH-255? Professor sign-in". Signed-in students with no callback see "Join your section" (the code form only). |
+| `/learn` | Guest line when the progress is not owned by a signed-in user; Continue card ("Week 1 · topic · Question 1 of 1", "Start question 1" / "Continue question n", or "You've solved every question…" + "Keep practicing"); syllabus rows "Week n", title, "Up next" chip, mastery chip with a threshold title, "0 of 2 solved"; "This week" as one line; "Recent practice"; "At a glance" last; no duplicate rail on desktop; trackers hidden for a guest with nothing solved. |
+| `/learn/[topic]` | "Week 3" eyebrow, title, description, guest line as the notice, mastery + "n of m solved", mint "Start question n" (also in a BottomBar on phones) or "Next topic: Week n · title →" when finished; question rows without codes, "Up next" chip visible at every width; toolbar only above eight questions; About panel with "Extra practice" and its helper line. |
+| `/practice`, `/practice/[id]` | Sheet header "Week 3 · topic · Question 1 of 6 · Intro"; the math answer field (MathLive drawn in place, plain-text first paint) with the keypad (inline on desktop behind "Keypad", docked on phones, its Check hidden when the strip is present); the "Reads as … · checked as …" line; the `Hints ○○○ → Steps` row; verdict band with "Show hint n of m" / "Next question"; solved marks from the server; Alt+← / → and 44px Previous/Next; phone top bar "‹ Question 1 of 6 ›"; tutor drawer/sheet (≤45svh) gated with "Check an answer first…"; "Next topic" at the end; draft answers survive reload; Start over asks first. |
+| `/account`, `/onboarding` | Account: "Who you are, your section, and your saved practice.", "You: Guest (demo)" for the demo guest, "What your professor sees", "Change section", Back to Learn and Sign out. Onboarding: "Before you start", one paragraph, "Got it, start practicing", "Read the full notice", the import panel only when there is guest practice. |
+| `/dashboard`, `/topics` | Redirect to `/learn`. |
 
 ## Professor routes (inside the workspace rail)
 
-| Route | Screen |
+Every professor-facing word follows `docs/professor-vocabulary.md` (page names, the
+"Show to students" / "Hide from students" verb pair, status words, consequence dialogs,
+one demo banner sentence). The rail is grouped Teach / Students / Courses / Less often.
+
+| Route | Name and screen |
 |---|---|
-| `/professor` | Question pipeline strip (Drafts → Released, one action per stage), waiting on review, recent decisions, tools, then Courses. |
-| `/professor/review` | Topic select, four metric tiles, split view: queue list left, the question and "Your decision" right. |
-| `/professor/questions` | Bank and Intake tabs (`?tab=`); bank table grouped by topic with checkboxes and a sticky bulk toolbar; intake form left, draft preview right. |
-| `/professor/questions/[id]` | Status, student view, similarity, versions and actions; the "Where this is released" rail. |
-| `/professor/upload` | One sheet with the file limit in the notice line. |
-| `/professor/students`, `/[studentKey]` | Activity and By topic link tabs, audited usernames, numeric tables; the student record with metric tiles and a 30-day chart. |
-| `/professor/analytics`, `/feedback`, `/availability`, `/content-transfer` | Class practice tiles and tables; student reports triage; availability per target with lifecycle state; import and export with a dry run. |
-| `/professor/courses/**` | Courses demo (see `docs/courses-sections-demo.md`). |
+| `/professor` | **Home**: one lead sentence, one mint "Review {n} questions" button, a "Next step" card, three worded counts, "Waiting for you" by topic, recent decisions in plain verbs, a dismissible "How it works" strip, then Courses. |
+| `/professor/review` | **Review questions**: opens on the first topic with waiting questions; "Question i of n" with Previous/Next; Approve (mint), Send back for changes, Rewrite with AI, Reject (with a confirmation), each with a one-sentence consequence; "Why?" and "Note (optional)" appear only when sending back or rejecting. |
+| `/professor/questions` | **Question bank**: tabs All questions / Add a question (`?tab=bank|intake`); a four-column table (Question · Students · Actions) with four filters plus More filters; one labeled action per row plus a More menu; bulk bar "{n} selected". Add a question: Type or paste / Photo, "Create draft with AI" or "Fill in the details myself", one "Correct answer" field with advanced checking options collapsed. |
+| `/professor/questions/[id]` | The question title: a status sentence, at most three buttons (Show to students or Approve · Edit question · Hide from students) plus More options; the student view; "More options and history" (extra practice, saved for later, all changes, technical details); "Which sections see this". |
+| `/professor/upload` | **Upload notes**: preview-only wording, "Your lecture notes" (PDF or .tex, 500 KB) checked in the browser, "Upload and preview", results as Topics we found / Kinds of problems / Formulas / Common student mistakes. |
+| `/professor/students`, `/[studentKey]` | **Students**: five columns (Student, Last active, Correct answers as "18 of 25 (72%)", Topics practiced, Needs attention) and "View record"; the record has "Name and email" with "Show name and email", "Answers per day, last 30 days" with printed counts, and "Credit suggestions by question". |
+| `/professor/analytics` | **Class progress**: "Needs your attention" first, worded tiles, "Topics students find hardest", "Questions students find hardest"; the spreadsheet download sits under More options. |
+| `/professor/feedback` | **Reports from students**: statuses New / Looking into it / Fixed / No change needed; each report links to its question; "Mark as fixed" / "No change needed". |
+| `/professor/availability` | **What students see**: read-only rows with one "Change" button that opens a dialog ("Who can see this", "Show starting", "Hide after"); a consequence step before anything students will see; "Recent changes". |
+| `/professor/content-transfer` | **Copy questions in or out**: "Check this file", a checkbox "I have checked the list above", "Add {n} questions"; one "Download approved questions" button with the rest under More options. |
+| `/professor/courses/**` | **Courses** → course → **Section** (join code panel with Copy code and Show full screen) → **Choose questions** (see `docs/courses-sections-demo.md`). |
+
+## Onboarding guide (`src/components/tour/`)
+
+Two tooltip tours built on driver.js 1.8.0 (loaded lazily on the client, never in SSR or node tests),
+chosen by the signed-in role and mounted once from the root layout (`TourProvider`). Each step dims
+the page, lights one anchored element (`data-tour="…"`) that cannot be clicked, and shows a card
+("Step n of 6", a headline of at most five words, one sentence, Skip tour · Back · Next/Done, no mint).
+Escape ends it, arrow keys move, focus stays in the card, reduced motion is respected, and below 640px
+the card docks as a bottom sheet.
+
+- **Professor tour** (all on `/professor`): the Next step card, then the rail items Review questions,
+  Question bank and Courses, the Students group, and the Account trigger. Below 1024px the rail steps
+  fall back to the Menu button.
+- **Student tour**: the Continue card and the syllabus on `/learn`, then a page hop to the first
+  question for the answer block, the Hints → Steps row and the tutor (drawer, edge tab or phone chip),
+  ending on the Account trigger. The step index survives the hop in sessionStorage.
+- **Entry points**: auto-start once per role on the role's home page only (never on the landing page or
+  for signed-out visitors), with a welcome card whose first button is "Not now"; "Onboarding guide" in
+  the Account menu and on `/account` (`?guide=1` on the role's home page) reopens it any time.
+  `localStorage["ai-tutor:guide:{role}"] = "seen"` records the first run.
+- **Feedback**: the student account page shows a Feedback row (mailto link with a prefilled subject and a
+  Copy email button) only when `FEEDBACK_EMAIL` is configured; see `docs/environment-configuration.md`.
 
 ## Accessibility guarantees
 

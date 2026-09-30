@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import {
+  formatCorrect,
+  PROFESSOR_TABLE_TYPE,
   RelativeTime,
   requestTime,
 } from "@/components/professor/instructor-student-table";
@@ -19,53 +21,49 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAccuracy } from "@/lib/professor/student-pseudonym";
-import { sketchpadTimeDisplay } from "@/lib/professor/student-usage";
-import {
-  FULL_CREDIT_VALID_ATTEMPT_LIMIT,
-  MANUAL_REVIEW_REASON,
-  PRACTICE_CREDIT_ROUTE_LABELS,
-} from "@/lib/tutor/practice-credit";
+import { formatActiveTime } from "@/lib/professor/student-usage";
+import { FULL_CREDIT_VALID_ATTEMPT_LIMIT } from "@/lib/tutor/practice-credit";
 import type {
+  InstructorAttentionSignal,
   InstructorQuestionCreditEvidence,
   InstructorStudentActivityPoint,
   InstructorStudentAttempt,
   InstructorStudentDetail,
+  InstructorStudentSummary,
+  InstructorStudentTopicPerformance,
 } from "@/lib/types";
 
-const SOURCE_LABELS: Record<string, string> = {
-  blocked: "Blocked",
-  llm: "LLM fallback",
-  retrieval: "Retrieval",
-  rule: "Rule-based",
-};
-
+/** What the student did, in the professor's words. */
 const MODE_LABELS: Record<string, string> = {
-  check: "Answer",
-  full_solution: "Full solution",
-  hint: "Hint",
-  solution: "Solution step",
+  check: "Answer checked",
+  full_solution: "Viewed the full solution",
+  hint: "Used a hint",
+  solution: "Viewed a solution step",
 };
 
 const VERDICTS: Record<string, { label: string; tone: StatusTone }> = {
-  blocked: { label: "Blocked", tone: "neutral" },
+  blocked: { label: "Not checked", tone: "neutral" },
   correct: { label: "Correct", tone: "correct" },
-  guidance: { label: "Guidance", tone: "neutral" },
-  incorrect: { label: "Incorrect", tone: "wrong" },
+  guidance: { label: "Tutor help", tone: "neutral" },
+  incorrect: { label: "Not correct", tone: "wrong" },
 };
 
 /**
- * Route tones reuse the lifecycle/verdict palette by meaning: the full route
- * is a correct result, the partial route an approved one, manual review waits
- * on a person, and "not yet qualified" is neutral. The label is always shown.
+ * The suggested credit for each route. Presentation only: the route itself
+ * is derived in `@/lib/tutor/practice-credit` and never stored. The label is
+ * always printed; the tone only repeats it.
  */
-const ROUTE_TONES: Record<
+const SUGGESTED_CREDIT: Record<
   InstructorQuestionCreditEvidence["route"],
-  StatusTone
+  { label: string; tone: StatusTone }
 > = {
-  full: "correct",
-  manual_review: "review",
-  not_qualified: "neutral",
-  partial_similar: "approved",
+  full: { label: "Full credit", tone: "correct" },
+  manual_review: { label: "Your call", tone: "review" },
+  not_qualified: { label: "Not yet", tone: "neutral" },
+  partial_similar: {
+    label: "90% (solved a similar problem)",
+    tone: "approved",
+  },
 };
 
 const NUMBER = new Intl.NumberFormat("en");
@@ -75,8 +73,21 @@ const DAY_LABEL = new Intl.DateTimeFormat("en", {
   timeZone: "UTC",
 });
 
+/**
+ * The part of a bar that was not correct: a hatch and an outline, so it
+ * differs from the solid green part without relying on colour.
+ */
+const NOT_CORRECT_FILL = {
+  backgroundImage:
+    "repeating-linear-gradient(135deg, var(--ink-muted) 0 1.5px, transparent 1.5px 5px)",
+} as const;
+
 function count(value: number) {
   return NUMBER.format(value);
+}
+
+function plural(value: number, one: string, many: string) {
+  return `${count(value)} ${value === 1 ? one : many}`;
 }
 
 function formatDay(value: string) {
@@ -86,7 +97,7 @@ function formatDay(value: string) {
 }
 
 const linkClassName =
-  "relative rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-3";
+  "inline-flex min-h-11 items-center rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring";
 
 /** A zone of the record: an h2, an optional helper line, then the content. */
 function Zone({
@@ -107,7 +118,7 @@ function Zone({
           {title}
         </h2>
         {helper ? (
-          <p className="type-small max-w-prose text-ink-muted">{helper}</p>
+          <p className="type-body max-w-prose text-ink">{helper}</p>
         ) : null}
       </div>
       {children}
@@ -115,11 +126,32 @@ function Zone({
   );
 }
 
+/** A number tile whose label and explanation read at 16px. */
+function Tile({
+  delta,
+  label,
+  value,
+}: {
+  delta?: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <MetricTile
+      label={<span className="type-body-strong text-ink">{label}</span>}
+      value={value}
+      delta={
+        delta ? <span className="type-body text-ink">{delta}</span> : undefined
+      }
+    />
+  );
+}
+
 /**
- * Submissions per active day as a stacked bar: the correct share (green) sits
- * on the baseline, the rest (neutral) above it, 2px apart. Heights are
- * relative to the busiest day, which the caption names; each column carries
- * its figures as text for screen readers and as a hover title.
+ * Answers per active day as a stacked bar: the correct part (solid green) on
+ * the baseline, the rest (hatched, outlined) above it. Every bar prints its
+ * figures under it ("3/5") above the date, so nothing depends on hover or on
+ * telling the colours apart.
  */
 function ActivityTrend({
   activity,
@@ -137,12 +169,10 @@ function ActivityTrend({
             point.attempts > 0
               ? (point.correctAttempts / point.attempts) * 100
               : 0;
-          const summary = `${point.correctAttempts} of ${point.attempts} submissions correct on ${formatDay(point.date)}`;
           return (
             <li
               key={point.date}
-              className="flex min-w-10 flex-col items-center gap-2"
-              title={summary}
+              className="flex min-w-12 flex-col items-center gap-1"
             >
               <div
                 aria-hidden="true"
@@ -153,7 +183,10 @@ function ActivityTrend({
                   style={{ height: `${height}%` }}
                 >
                   {correctShare < 100 ? (
-                    <div className="min-h-0.5 flex-1 rounded-t-sm bg-input" />
+                    <div
+                      className="min-h-1 flex-1 rounded-t-sm border border-ink-muted bg-sheet"
+                      style={NOT_CORRECT_FILL}
+                    />
                   ) : null}
                   {correctShare > 0 ? (
                     <div
@@ -169,155 +202,237 @@ function ActivityTrend({
               </div>
               <span
                 aria-hidden="true"
-                className="type-caption whitespace-nowrap"
+                className="type-small whitespace-nowrap tabular text-ink"
+              >
+                {point.correctAttempts}/{point.attempts}
+              </span>
+              <span
+                aria-hidden="true"
+                className="type-small whitespace-nowrap text-ink-muted"
               >
                 {formatDay(point.date)}
               </span>
-              <span className="sr-only">{summary}</span>
+              <span className="sr-only">
+                {`${formatDay(point.date)}: ${point.correctAttempts} of ${point.attempts} answers correct`}
+              </span>
             </li>
           );
         })}
       </ol>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 type-caption">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 type-body text-ink">
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="size-3 rounded-xs bg-green-500" />
+          <span aria-hidden="true" className="size-4 rounded-xs bg-green-500" />
           Correct
         </span>
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="size-3 rounded-xs bg-input" />
-          Other submissions
+          <span
+            aria-hidden="true"
+            className="size-4 rounded-xs border border-ink-muted bg-sheet"
+            style={NOT_CORRECT_FILL}
+          />
+          Not correct (striped)
         </span>
         <span>
-          Tallest bar:{" "}
-          <span className="font-mono tabular text-ink">{count(busiest)}</span>{" "}
-          {busiest === 1 ? "submission" : "submissions"}
+          Most in one day: {plural(busiest, "answer", "answers")}
         </span>
       </div>
     </div>
   );
 }
 
-function validAttemptsLabel(evidence: InstructorQuestionCreditEvidence) {
+/** "Solved in 2 tries", "Solved after viewing the solution", "Tried, not solved". */
+function resultLabel(evidence: InstructorQuestionCreditEvidence) {
+  if (evidence.solved) {
+    if (evidence.workedSolutionViewedBeforeFirstCorrect) {
+      return "Solved after viewing the solution";
+    }
+    if (evidence.validAttemptsToFirstCorrect !== undefined) {
+      const tries = evidence.validAttemptsToFirstCorrect;
+      return `Solved in ${tries} ${tries === 1 ? "try" : "tries"}`;
+    }
+    return "Solved";
+  }
+  return evidence.validAttempts > 0 ? "Tried, not solved" : "Not tried yet";
+}
+
+function triesLabel(evidence: InstructorQuestionCreditEvidence) {
   if (evidence.validAttemptsToFirstCorrect !== undefined) {
-    return `${evidence.validAttemptsToFirstCorrect} to first correct`;
+    return `Correct on try ${evidence.validAttemptsToFirstCorrect}`;
   }
   return evidence.validAttempts === 0
     ? "—"
-    : `${evidence.validAttempts}, none correct`;
+    : `${plural(evidence.validAttempts, "try", "tries")}, none correct`;
 }
 
 function similarProblemLabel(evidence: InstructorQuestionCreditEvidence) {
   if (evidence.similarProblemSolved) return "Solved";
-  if (evidence.similarProblemAttempted) return "Attempted, not solved";
+  if (evidence.similarProblemAttempted) return "Tried, not solved";
   return "—";
 }
 
 /**
- * Evidence for the course practice-credit policy, one row per assigned
- * question. It reports what was recorded and which route that supports; the
- * instructor decides the credit. Nothing here is called a grade.
+ * One row per assigned question: what happened and the credit the course
+ * policy suggests. The instructor decides the credit; nothing here is a
+ * grade.
  */
-function CreditEvidenceTable({
+function CreditSuggestionTable({
   evidence,
 }: {
   evidence: InstructorQuestionCreditEvidence[];
 }) {
   return (
     <div className="rounded-panel bg-sheet">
-      <Table containerClassName="rounded-panel">
+      <Table containerClassName="rounded-panel" className={PROFESSOR_TABLE_TYPE}>
         <TableCaption className="sr-only">
-          Practice credit evidence by assigned question
+          Credit suggestions by assigned question
         </TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead scope="col" className="pl-4">
               Question
             </TableHead>
-            <TableHead scope="col">Status</TableHead>
-            <TableHead scope="col">Valid attempts</TableHead>
-            <TableHead scope="col">Solution before first correct</TableHead>
-            <TableHead scope="col">Similar problem</TableHead>
-            <TableHead scope="col">Start over</TableHead>
+            <TableHead scope="col">Result</TableHead>
             <TableHead scope="col" className="pr-4">
-              Credit route
+              Suggested credit
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {evidence.map((row) => (
-            <TableRow key={row.questionId}>
-              <TableCell className="min-w-56 py-2.5 pl-4">
-                <div className="flex flex-col">
-                  <span className="font-medium">{row.questionTitle}</span>
-                  <span className="type-caption">{row.topicTitle}</span>
-                </div>
-              </TableCell>
-              <TableCell className="whitespace-nowrap">
-                {row.solved ? "Completed" : "Not solved"}
-              </TableCell>
-              <TableCell className="whitespace-nowrap tabular">
-                {validAttemptsLabel(row)}
-              </TableCell>
-              <TableCell>
-                {row.workedSolutionViewedBeforeFirstCorrect ? "Yes" : "No"}
-              </TableCell>
-              <TableCell className="whitespace-nowrap">
-                {similarProblemLabel(row)}
-              </TableCell>
-              <TableCell>{row.startOverUsed ? "Yes" : "—"}</TableCell>
-              <TableCell className="py-2.5 pr-4">
-                <div className="flex flex-col items-start gap-1">
-                  <StatusChip
-                    tone={ROUTE_TONES[row.route]}
-                    label={PRACTICE_CREDIT_ROUTE_LABELS[row.route]}
-                  />
-                  {row.route === "manual_review" ? (
-                    <span className="type-caption max-w-xs">
-                      {MANUAL_REVIEW_REASON}
+          {evidence.map((row) => {
+            const credit = SUGGESTED_CREDIT[row.route];
+            return (
+              <TableRow key={row.questionId}>
+                <TableCell className="min-w-56 py-2.5 pl-4">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{row.questionTitle}</span>
+                    <span className="type-small text-ink-muted">
+                      {row.topicTitle}
                     </span>
-                  ) : null}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                  </div>
+                </TableCell>
+                <TableCell>{resultLabel(row)}</TableCell>
+                <TableCell className="py-2.5 pr-4">
+                  <StatusChip tone={credit.tone} label={credit.label} />
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
   );
 }
 
-/** The rules behind the routes, one click away instead of an intro paragraph. */
-function CreditPolicyDetails() {
+/**
+ * The rules behind each suggestion and the counts they were read from, one
+ * click away instead of in the main table.
+ */
+function CreditPolicyDetails({
+  evidence,
+}: {
+  evidence: InstructorQuestionCreditEvidence[];
+}) {
   return (
-    <details className="group max-w-prose">
-      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 rounded-xs type-small font-medium text-azure-500 focus-ring hover:text-azure-700 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+    <details className="group flex flex-col gap-3">
+      <summary className="inline-flex min-h-11 w-fit cursor-pointer list-none items-center gap-1 rounded-xs type-body font-medium text-azure-500 focus-ring hover:text-azure-700 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden="true"
           className="size-4 transition-transform duration-fast group-open:rotate-90"
         />
-        How each route is decided
+        How credit is suggested
       </summary>
-      <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 type-small text-ink">
+      <ul className="mt-2 flex max-w-prose list-disc flex-col gap-1.5 pl-5 type-body text-ink">
         <li>
-          A valid attempt is an answer the tutor could read and marked correct
-          or incorrect; unreadable submissions, hints, solution reveals and AI
-          help are not attempts. Attempts are counted across Start over.
+          A try is an answer the tutor could check and mark right or wrong.
+          Hints, viewing a solution and asking the tutor for help are not
+          tries. Tries add up across Start over.
         </li>
         <li>
-          Full-credit route: a correct answer within{" "}
-          {FULL_CREDIT_VALID_ATTEMPT_LIMIT} valid attempts, with the worked
-          solution not revealed before it. Revealing the solution first ends
-          that route for the question.
+          Full credit: a correct answer within{" "}
+          {FULL_CREDIT_VALID_ATTEMPT_LIMIT} tries, without viewing the solution
+          first. Viewing the solution first rules out full credit for that
+          question.
         </li>
-        <li>Partial-credit route: a solved linked similar problem.</li>
+        <li>90%: the student solved a similar problem.</li>
         <li>
-          Manual review: solved after the worked solution without a solved
-          similar problem. The record cannot show whether a similar problem was
-          available, so no number is derived.
+          Your call: solved after viewing the solution, with no similar
+          problem solved. The tutor can’t tell whether a similar problem was
+          offered, so you decide.
         </li>
+        <li>Not yet: none of the above has happened.</li>
       </ul>
+      {evidence.length > 0 ? (
+        <div className="mt-3 rounded-panel bg-sheet">
+          <Table
+            containerClassName="rounded-panel"
+            className={PROFESSOR_TABLE_TYPE}
+          >
+            <TableCaption className="sr-only">
+              The counts behind each credit suggestion
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col" className="pl-4">
+                  Question
+                </TableHead>
+                <TableHead scope="col">Tries</TableHead>
+                <TableHead scope="col">
+                  Viewed solution before first correct
+                </TableHead>
+                <TableHead scope="col">Similar problem</TableHead>
+                <TableHead scope="col" className="pr-4">
+                  Started over
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {evidence.map((row) => (
+                <TableRow key={row.questionId}>
+                  <TableCell className="min-w-56 pl-4 font-medium">
+                    {row.questionTitle}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap tabular">
+                    {triesLabel(row)}
+                  </TableCell>
+                  <TableCell>
+                    {row.workedSolutionViewedBeforeFirstCorrect ? "Yes" : "No"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {similarProblemLabel(row)}
+                  </TableCell>
+                  <TableCell className="pr-4">
+                    {row.startOverUsed ? "Yes" : "No"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
     </details>
   );
+}
+
+function attentionText(
+  signal: InstructorAttentionSignal,
+  topics: InstructorStudentTopicPerformance[],
+) {
+  switch (signal.code) {
+    case "repeated_topic_difficulty":
+      return `${count(signal.correctAttempts)} of ${count(signal.attempts)} answers checked were correct.`;
+    case "solution_reliance": {
+      const topic = topics.find(
+        (candidate) => candidate.topicId === signal.topicId,
+      );
+      return topic
+        ? `Viewed ${plural(topic.solutionsRevealed, "solution", "solutions")} and got ${count(signal.correctAttempts)} correct.`
+        : `Viewed more solutions than answers they got correct.`;
+    }
+    case "repeated_misconception":
+      return `${signal.detail.replace(/ recorded in (\d+) sessions?$/, ": made in $1 study sessions")}.`;
+    default:
+      return signal.detail;
+  }
 }
 
 function RecentActivity({
@@ -332,32 +447,29 @@ function RecentActivity({
         const verdict = attempt.verdict ? VERDICTS[attempt.verdict] : undefined;
         const meta = [
           attempt.topicTitle,
-          MODE_LABELS[attempt.mode] ?? attempt.mode,
-          SOURCE_LABELS[attempt.source] ?? attempt.source,
-          attempt.misconceptionDetected ? "Misconception detected" : undefined,
+          MODE_LABELS[attempt.mode],
+          attempt.misconceptionDetected ? "Made a common mistake" : undefined,
         ].filter(Boolean);
         return (
           <li
             key={attempt.id}
             className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
           >
-            <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col">
               <Link
                 className={`${linkClassName} w-fit`}
                 href={`/practice/${attempt.questionId}`}
               >
                 {attempt.questionTitle}
               </Link>
-              <p className="type-caption">{meta.join(" · ")}</p>
+              <p className="type-body text-ink">{meta.join(" · ")}</p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {verdict ? (
                 <StatusChip tone={verdict.tone} label={verdict.label} />
-              ) : attempt.verdict ? (
-                <StatusChip tone="neutral" label={attempt.verdict} />
               ) : null}
-              <span className="type-caption whitespace-nowrap">
-                <RelativeTime now={now} value={attempt.createdAt} />
+              <span className="type-small whitespace-nowrap text-ink">
+                <RelativeTime now={now} value={attempt.createdAt} withDate />
               </span>
             </div>
           </li>
@@ -367,12 +479,40 @@ function RecentActivity({
   );
 }
 
+/**
+ * Whether anything is recorded for this student. A student is listed from
+ * their first sign-in, so "nothing yet" is a real state. The record page's
+ * header uses the same test as the panel so the two never disagree.
+ */
+export function studentHasActivity(
+  summary: InstructorStudentSummary,
+  sketchpadMeasurementEnabled = false,
+) {
+  return (
+    summary.sessions > 0 ||
+    summary.extraPracticeSessions > 0 ||
+    summary.attempts > 0 ||
+    summary.aiHelpRequests > 0 ||
+    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0)
+  );
+}
+
 export function InstructorStudentDetailPanel({
+  aiEnabled = true,
   detail,
   sketchpadMeasurementEnabled = false,
 }: {
+  /**
+   * From the typed server environment (`AI_ENABLED`). With AI off for the
+   * deployment the AI tutor tile is hidden: nobody could have asked.
+   */
+  aiEnabled?: boolean;
   detail: InstructorStudentDetail;
-  /** From the typed server environment; see `sketchpadTimeDisplay`. */
+  /**
+   * From the typed server environment
+   * (`SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED`). While off, the sketchpad
+   * tile is not rendered at all: nothing is measured yet.
+   */
   sketchpadMeasurementEnabled?: boolean;
 }) {
   const {
@@ -384,16 +524,10 @@ export function InstructorStudentDetailPanel({
     summary,
     topics,
   } = detail;
-  // A student is listed from their first sign-in, so a record with nothing
-  // recorded is a real state rather than an error. Say so, and let the zero
-  // metrics below stay truthful zeros.
-  const hasActivity =
-    summary.sessions > 0 ||
-    summary.extraPracticeSessions > 0 ||
-    summary.attempts > 0 ||
-    summary.aiHelpRequests > 0 ||
-    (sketchpadMeasurementEnabled && summary.sketchpadActiveSeconds > 0);
-  const scoredAttempts =
+  // A record with nothing recorded is a real state rather than an error. Say
+  // so, and let the zero numbers below stay truthful zeros.
+  const hasActivity = studentHasActivity(summary, sketchpadMeasurementEnabled);
+  const checkedAnswers =
     summary.correctAttempts + (summary.incorrectAttempts ?? 0);
   const now = requestTime();
 
@@ -407,65 +541,70 @@ export function InstructorStudentDetailPanel({
           Summary
         </h2>
         {hasActivity ? null : (
-          <p className="type-body max-w-prose text-ink-muted">
-            No practice activity yet: this student has signed in but not
-            practiced with the tutor, so every count below is zero.
+          <p className="type-body max-w-prose text-ink">
+            This student has signed in but hasn’t practiced or asked for help
+            yet.
           </p>
         )}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-          <MetricTile
-            label="Practice sessions"
-            value={count(summary.sessions)}
-            delta={`${count(summary.extraPracticeSessions)} extra practice`}
-          />
-          <MetricTile
-            label="Answer submissions"
-            value={count(summary.attempts)}
-          />
-          <MetricTile
-            label="Accuracy"
-            value={formatAccuracy(summary.correctAttempts, scoredAttempts)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Tile
+            label="Correct"
+            value={formatAccuracy(summary.correctAttempts, checkedAnswers)}
             delta={
-              scoredAttempts > 0
-                ? `${count(summary.correctAttempts)} of ${count(scoredAttempts)} scored answers`
-                : "No scored answers yet"
+              checkedAnswers > 0
+                ? `${count(summary.correctAttempts)} of ${plural(checkedAnswers, "answer checked", "answers checked")}`
+                : "No answers checked yet"
             }
           />
-          <MetricTile label="Hints" value={count(summary.hintsUsed)} />
-          <MetricTile
-            label="Solutions revealed"
+          <Tile
+            label="Study sessions"
+            value={count(summary.sessions)}
+            delta={`Plus ${plural(summary.extraPracticeSessions, "extra practice question", "extra practice questions")}`}
+          />
+          <Tile label="Hints used" value={count(summary.hintsUsed)} />
+          {aiEnabled ? (
+            <Tile
+              label="Asked the AI tutor"
+              value={count(summary.aiHelpRequests)}
+              delta={
+                summary.aiHelpRequests > 0
+                  ? "Times they asked the AI tutor for help, across all topics since they joined. Asking is a good sign, and it’s not part of any grade. See Students by topic for each topic."
+                  : "They haven’t asked the AI tutor yet."
+              }
+            />
+          ) : null}
+          <Tile
+            label="Solutions viewed"
             value={count(summary.solutionsRevealed)}
           />
-          <MetricTile
-            label="Est. Sketchpad Time"
-            value={sketchpadTimeDisplay(
-              summary.sketchpadActiveSeconds,
-              sketchpadMeasurementEnabled,
-            )}
-          />
-          <MetricTile
-            label="AI Help Requests"
-            value={count(summary.aiHelpRequests)}
-          />
+          {sketchpadMeasurementEnabled ? (
+            <Tile
+              label="Time on sketchpad"
+              value={formatActiveTime(summary.sketchpadActiveSeconds)}
+              delta="About how long they spent drawing on the sketchpad, all topics, since they joined. An estimate."
+            />
+          ) : null}
         </div>
       </section>
 
       {attention.length > 0 ? (
         <Zone
           id="student-attention-heading"
-          title="Repeated difficulty"
-          helper="Derived from recorded counts alone; each line shows the figures it came from."
+          title="Needs help"
+          helper="Where this student is struggling, with the numbers behind it."
         >
-          <ul className="flex flex-col divide-y divide-rule rounded-panel border-l-2 border-azure-500 bg-sheet px-4">
+          <ul className="flex flex-col divide-y divide-rule rounded-panel border-l-2 border-amber-500 bg-sheet px-4">
             {attention.map((signal, index) => (
               <li
                 key={`${signal.code}-${signal.topicId ?? index}`}
-                className="flex flex-col gap-0.5 py-3 type-small"
+                className="flex flex-col gap-0.5 py-3 type-body"
               >
                 <span className="font-medium text-ink">
-                  {signal.topicTitle ?? "Recurring misconception"}
+                  {signal.topicTitle ?? "The same common mistake, again"}
                 </span>
-                <span className="text-ink-muted">{signal.detail}</span>
+                <span className="text-ink">
+                  {attentionText(signal, topics)}
+                </span>
               </li>
             ))}
           </ul>
@@ -474,12 +613,15 @@ export function InstructorStudentDetailPanel({
 
       <Zone
         id="student-topics-heading"
-        title="Topic performance"
-        helper="Accuracy is the share of scored answers marked correct; it is not a mastery score."
+        title="Topics practiced"
+        helper="Correct is the share of checked answers that were right. It is not a grade."
       >
         {topics.length > 0 ? (
           <div className="rounded-panel bg-sheet">
-            <Table containerClassName="rounded-panel">
+            <Table
+              containerClassName="rounded-panel"
+              className={PROFESSOR_TABLE_TYPE}
+            >
               <TableCaption className="sr-only">
                 Practice by syllabus topic
               </TableCaption>
@@ -489,19 +631,14 @@ export function InstructorStudentDetailPanel({
                     Topic
                   </TableHead>
                   <TableHead scope="col" numeric>
-                    Submissions
+                    Answers checked
+                  </TableHead>
+                  <TableHead scope="col">Correct</TableHead>
+                  <TableHead scope="col" numeric>
+                    Hints used
                   </TableHead>
                   <TableHead scope="col" numeric>
-                    Correct
-                  </TableHead>
-                  <TableHead scope="col" numeric>
-                    Accuracy
-                  </TableHead>
-                  <TableHead scope="col" numeric>
-                    Hints
-                  </TableHead>
-                  <TableHead scope="col" numeric>
-                    Solutions
+                    Solutions viewed
                   </TableHead>
                   <TableHead scope="col" className="pr-4">
                     Last active
@@ -509,58 +646,62 @@ export function InstructorStudentDetailPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {topics.map((topic) => (
-                  <TableRow key={topic.topicId}>
-                    <TableCell className="min-w-48 pl-4 font-medium">
-                      {topic.topicTitle}
-                    </TableCell>
-                    <TableCell numeric>{topic.attempts}</TableCell>
-                    <TableCell numeric>{topic.correctAttempts}</TableCell>
-                    <TableCell numeric>
-                      {formatAccuracy(
-                        topic.correctAttempts,
-                        topic.correctAttempts + (topic.incorrectAttempts ?? 0),
-                      )}
-                    </TableCell>
-                    <TableCell numeric>{topic.hintsUsed}</TableCell>
-                    <TableCell numeric>{topic.solutionsRevealed}</TableCell>
-                    <TableCell className="whitespace-nowrap pr-4 text-ink-muted">
-                      <RelativeTime now={now} value={topic.lastActiveAt} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {topics.map((topic) => {
+                  const checked =
+                    topic.correctAttempts + (topic.incorrectAttempts ?? 0);
+                  return (
+                    <TableRow key={topic.topicId}>
+                      <TableCell className="min-w-48 pl-4 font-medium">
+                        {topic.topicTitle}
+                      </TableCell>
+                      <TableCell numeric>{checked}</TableCell>
+                      <TableCell className="whitespace-nowrap tabular">
+                        {formatCorrect(topic.correctAttempts, checked)}
+                      </TableCell>
+                      <TableCell numeric>{topic.hintsUsed}</TableCell>
+                      <TableCell numeric>{topic.solutionsRevealed}</TableCell>
+                      <TableCell className="whitespace-nowrap pr-4">
+                        <RelativeTime
+                          now={now}
+                          value={topic.lastActiveAt}
+                          withDate
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         ) : (
           <EmptyState className="py-2">
-            No topic practice has been recorded for this student yet.
+            This student hasn’t practiced any topic yet.
           </EmptyState>
         )}
       </Zone>
 
       <Zone
         id="student-credit-heading"
-        title="Practice credit evidence"
-        helper="What the record supports under the course practice-credit policy, per assigned question. This is evidence for your decision, not a grade."
+        title="Credit suggestions by question"
+        helper="What the course practice-credit policy suggests for each assigned question. A suggestion to help you decide, not a grade."
       >
-        <CreditPolicyDetails />
         {creditEvidence.length > 0 ? (
-          <CreditEvidenceTable evidence={creditEvidence} />
+          <CreditSuggestionTable evidence={creditEvidence} />
         ) : (
           <EmptyState className="py-2">
             No assigned-question practice has been recorded for this student
             yet.
           </EmptyState>
         )}
+        <CreditPolicyDetails evidence={creditEvidence} />
       </Zone>
 
       <div className="grid gap-10 lg:grid-cols-3 lg:gap-6">
         <div className="lg:col-span-2">
           <Zone
             id="student-trend-heading"
-            title="Last 30 days"
-            helper="Answer submissions per active day; the green part is the share marked correct."
+            title="Answers per day, last 30 days"
+            helper="Each bar is one day. The number under it is correct answers out of answers checked."
           >
             {activity.length > 0 ? (
               <div className="rounded-panel bg-sheet p-4">
@@ -568,7 +709,7 @@ export function InstructorStudentDetailPanel({
               </div>
             ) : (
               <EmptyState className="py-2">
-                No practice has been recorded in the last 30 days.
+                No answers in the last 30 days.
               </EmptyState>
             )}
           </Zone>
@@ -576,27 +717,26 @@ export function InstructorStudentDetailPanel({
 
         <Zone
           id="student-misconceptions-heading"
-          title="Recorded misconceptions"
-          helper="Counted in sessions from the codes the tutor recorded, never inferred from a low score."
+          title="Common mistakes"
+          helper="Mistakes the tutor recognized, and in how many study sessions."
         >
           {misconceptions.length > 0 ? (
-            <dl className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4 type-small">
+            <dl className="flex flex-col divide-y divide-rule rounded-panel bg-sheet px-4 type-body">
               {misconceptions.map((misconception) => (
                 <div
                   key={misconception.misconceptionId}
-                  className="flex min-h-10 items-center justify-between gap-4 py-2"
+                  className="flex min-h-11 items-center justify-between gap-4 py-2"
                 >
                   <dt className="min-w-0 text-ink">{misconception.label}</dt>
-                  <dd className="shrink-0 font-mono tabular text-ink">
-                    {count(misconception.sessions)}
-                    <span className="sr-only"> sessions</span>
+                  <dd className="shrink-0 tabular text-ink">
+                    {plural(misconception.sessions, "session", "sessions")}
                   </dd>
                 </div>
               ))}
             </dl>
           ) : (
             <EmptyState className="py-2">
-              No misconception codes have been recorded for this student.
+              The tutor hasn’t recognized a common mistake from this student.
             </EmptyState>
           )}
         </Zone>
@@ -605,13 +745,13 @@ export function InstructorStudentDetailPanel({
       <Zone
         id="student-recent-heading"
         title="Recent activity"
-        helper="The latest recorded interactions. Submitted answers and tutor feedback text are not shown."
+        helper="The latest things this student did. Their answers are not shown."
       >
         {attempts.length > 0 ? (
           <RecentActivity attempts={attempts} />
         ) : (
           <EmptyState className="py-2">
-            This student has no recorded attempts yet.
+            This student hasn’t answered anything yet.
           </EmptyState>
         )}
       </Zone>

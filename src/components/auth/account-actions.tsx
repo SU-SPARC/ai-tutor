@@ -10,6 +10,7 @@ import {
   navigationClassName,
 } from "@/components/auth/navigation-class-name";
 import { AccountMenu } from "@/components/shell/account-menu";
+import { StartGuideButton } from "@/components/tour/start-guide-button";
 import {
   currentAuthenticatedUser,
   hasPermission,
@@ -20,8 +21,10 @@ type EnvironmentLabel = "Development" | "Local demo" | "Preview" | "Preview demo
 
 /**
  * The header's account control. Signed out: a "Sign in" link. Signed in: the
- * account disclosure (Professor workspace for professors, Account, Sign out, and
- * the non-production line). Roles are never printed.
+ * account disclosure, headed by who you are ("Guest (demo)" or your name) and,
+ * for students, the section this browser joined; then Professor workspace for
+ * professors, Onboarding guide, Your account, Sign out, and the non-production
+ * line. Roles are never printed.
  */
 export async function AccountActions({
   environmentLabel,
@@ -40,20 +43,28 @@ export async function AccountActions({
   }
 
   const canAccessProfessorPanel = hasPermission(principal, "professor");
+  const isGhost = isGhostUserId(principal.userId);
+  const who =
+    isGhost && !canAccessProfessorPanel ? "Guest (demo)" : principal.displayName;
 
   return (
-    <AccountMenu environmentLabel={environmentLabel}>
+    <AccountMenu
+      environmentLabel={environmentLabel}
+      detail={who}
+      showSection={!canAccessProfessorPanel}
+    >
       {canAccessProfessorPanel ? (
         <Link href="/professor" className={accountMenuItemClassName}>
           <GraduationCap aria-hidden="true" />
           Professor workspace
         </Link>
       ) : null}
+      <StartGuideButton />
       <Link href="/account" className={accountMenuItemClassName}>
         <UserRound aria-hidden="true" />
-        Account
+        Your account
       </Link>
-      {isGhostUserId(principal.userId) ? (
+      {isGhost ? (
         // A demo session has no Clerk provider mounted above it, so signing out
         // has to clear the cookie itself instead of asking Clerk to end a
         // session that never existed.

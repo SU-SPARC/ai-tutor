@@ -18,12 +18,12 @@ export default function PracticeError({
   return (
     <StatusPage
       title="This question could not load"
-      description="The practice page hit a problem while loading. Your saved progress is not affected; try again, or pick a topic to continue from."
+      description="That didn't work and nothing changed. Try again, or reload the page."
       actions={
         <>
           <Button onClick={reset}>Try again</Button>
           <Button asChild variant="secondary">
-            <Link href="/learn">Browse topics</Link>
+            <Link href="/learn">Back to Learn</Link>
           </Button>
         </>
       }

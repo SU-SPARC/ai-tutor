@@ -1,16 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
-import {
-  CircleX,
-  Download,
-  FileUp,
-  RotateCcw,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown, Download, FileUp } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
@@ -34,63 +35,68 @@ import type {
 
 const MAX_FILE_BYTES = 1_048_576;
 
+/** The API needs this exact word to add questions; the checkbox stands in for typing it. */
+const API_CONFIRMATION = "IMPORT";
+
+const GENERIC_ERROR =
+  "That didn't work and nothing changed. Try again, or reload the page.";
+
 type TransferResponse = {
   error?: string;
   preview?: ContentTransferPreview;
   result?: ContentTransferImportResult;
 };
 
-type Message = { text: string; tone: "info" | "success" | "destructive" };
-
-/** The lifecycle words and chip tones the review and question screens use. */
+/** The status each question will have once added, in professor words. */
 const REVIEW_STATES: Record<
   ContentTransferImportState,
-  { icon?: LucideIcon; label: string; tone: StatusTone }
+  { label: string; tone: StatusTone }
 > = {
   approved: { label: "Approved", tone: "approved" },
-  draft: { label: "Draft", tone: "draft" },
-  needs_review: { label: "Needs review", tone: "review" },
-  rejected: { icon: CircleX, label: "Rejected", tone: "retired" },
-  revision_requested: {
-    icon: RotateCcw,
-    label: "Revision requested",
-    tone: "draft",
-  },
+  draft: { label: "Being written", tone: "draft" },
+  needs_review: { label: "Waiting for your review", tone: "review" },
+  rejected: { label: "Rejected", tone: "retired" },
+  revision_requested: { label: "Sent back for changes", tone: "draft" },
 };
 
 const ROW_STATUS: Record<
   ContentTransferPreviewRow["status"],
   { label: string; tone: StatusTone }
 > = {
-  duplicate: { label: "Duplicate", tone: "neutral" },
-  invalid: { label: "Invalid", tone: "wrong" },
-  ready: { label: "Ready", tone: "approved" },
+  duplicate: { label: "Already here", tone: "neutral" },
+  invalid: { label: "Has problems", tone: "wrong" },
+  ready: { label: "Ready to add", tone: "approved" },
 };
 
 const TOPIC_TITLES = new Map(
   canonicalSyllabusTopics.map((topic) => [topic.id, topic.title]),
 );
 
-const EXPORTS = [
-  { label: "Export approved", scope: "approved" },
-  { label: "Export drafts", scope: "drafts" },
-  { label: "Export all eligible", scope: "all" },
-] as const;
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
 
-export function ProfessorContentTransferPanel() {
+export function ProfessorContentTransferPanel({
+  canAddQuestions = true,
+}: {
+  /** False in the demo: files can be checked, but nothing can be added. */
+  canAddQuestions?: boolean;
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [confirmation, setConfirmation] = useState("");
+  const [checkedList, setCheckedList] = useState(false);
   const [document, setDocument] = useState<ContentTransferDocument>();
+  const [fileError, setFileError] = useState<string>();
+  const [error, setError] = useState<string>();
   const [isApplying, setIsApplying] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [message, setMessage] = useState<Message>();
   const [preview, setPreview] = useState<ContentTransferPreview>();
   const [result, setResult] = useState<ContentTransferImportResult>();
 
   function resetPreview() {
-    setConfirmation("");
+    setCheckedList(false);
     setDocument(undefined);
-    setMessage(undefined);
+    setFileError(undefined);
+    setError(undefined);
     setPreview(undefined);
     setResult(undefined);
   }
@@ -99,114 +105,103 @@ export function ProfessorContentTransferPanel() {
     resetPreview();
     const file = event.currentTarget.files?.[0];
     if (file && file.size > MAX_FILE_BYTES) {
-      setMessage({
-        text: "That file is over 1 MB. Choose a JSON file smaller than 1 MB.",
-        tone: "destructive",
-      });
+      setFileError("This file is larger than 1 MB. Choose a smaller file.");
     }
   }
 
-  async function previewImport() {
+  async function checkFile() {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      setMessage({
-        text: "Choose a JSON content-transfer file first.",
-        tone: "destructive",
-      });
+      setFileError("Choose a question file first.");
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setMessage({
-        text: "That file is over 1 MB. Choose a JSON file smaller than 1 MB.",
-        tone: "destructive",
-      });
+      setFileError("This file is larger than 1 MB. Choose a smaller file.");
       return;
     }
 
     setIsPreviewing(true);
-    setMessage(undefined);
+    setFileError(undefined);
+    setError(undefined);
     setPreview(undefined);
     setResult(undefined);
-    setConfirmation("");
+    setCheckedList(false);
     try {
-      const parsed = JSON.parse(await file.text()) as unknown;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text()) as unknown;
+      } catch {
+        setFileError(
+          "This isn't a question file from this tutor. Choose the .json file you were sent.",
+        );
+        return;
+      }
       const response = await fetch("/api/professor/content-transfer", {
         body: JSON.stringify({ document: parsed, mode: "dry_run" }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json()) as TransferResponse;
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as TransferResponse;
       if (!response.ok || !payload.preview) {
-        setMessage({
-          text:
-            payload.error ?? "The import preview failed. Nothing was imported.",
-          tone: "destructive",
-        });
+        setError(GENERIC_ERROR);
         return;
       }
       setDocument(parsed as ContentTransferDocument);
       setPreview(payload.preview);
-      setMessage(
-        payload.preview.canApply
-          ? {
-              text: "Dry run passed. Review every row before you confirm the import.",
-              tone: "info",
-            }
-          : {
-              text: "Dry run found issues. Nothing was imported; fix the rows below and preview again.",
-              tone: "destructive",
-            },
-      );
-    } catch (error) {
-      setMessage({
-        text:
-          error instanceof SyntaxError
-            ? "The selected file is not valid JSON."
-            : "The import preview failed. Nothing was imported.",
-        tone: "destructive",
-      });
+    } catch {
+      setError(GENERIC_ERROR);
     } finally {
       setIsPreviewing(false);
     }
   }
 
-  async function applyImport() {
-    if (!document || !preview?.canApply || confirmation !== "IMPORT") return;
+  async function addQuestions() {
+    if (!document || !preview?.canApply || !checkedList) return;
     setIsApplying(true);
-    setMessage(undefined);
+    setError(undefined);
     try {
       const response = await fetch("/api/professor/content-transfer", {
         body: JSON.stringify({
-          confirmation,
+          confirmation: API_CONFIRMATION,
           document,
           mode: "apply",
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json()) as TransferResponse;
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as TransferResponse;
       if (!response.ok || !payload.result) {
-        setMessage({
-          text: payload.error ?? "The import failed. Nothing was imported.",
-          tone: "destructive",
-        });
         if (payload.preview) setPreview(payload.preview);
+        setError(
+          payload.preview && !payload.preview.canApply
+            ? "Some questions in this file now have problems, so nothing was added. Check the list below."
+            : GENERIC_ERROR,
+        );
         return;
       }
       setResult(payload.result);
-      setMessage({
-        text: `${payload.result.importedIds.length} questions imported. Approved rows stay unpublished.`,
-        tone: "success",
-      });
     } catch {
-      setMessage({
-        text: "The import failed. Nothing was imported.",
-        tone: "destructive",
-      });
+      setError(GENERIC_ERROR);
     } finally {
       setIsApplying(false);
     }
   }
+
+  const readyStates = preview
+    ? preview.rows
+        .filter((row) => row.status === "ready")
+        .map((row) => row.reviewState)
+    : [];
+  const allDrafts =
+    readyStates.length > 0 && readyStates.every((state) => state === "draft");
+  const readyCount = preview?.summary.ready ?? 0;
+  const addLabel = `Add ${plural(readyCount, "question", "questions")}${allDrafts ? " as drafts" : ""}`;
+  const addedCount = result?.importedIds.length ?? 0;
+  const addedApproved = result?.importedStates.approved ?? 0;
 
   return (
     <div className="flex flex-col gap-10">
@@ -214,104 +209,104 @@ export function ProfessorContentTransferPanel() {
         aria-labelledby="transfer-import-heading"
         className="flex flex-col gap-4"
       >
-        <div className="flex flex-col gap-1">
-          <h2 id="transfer-import-heading" className="type-h2 text-ink">
-            Import
-          </h2>
-          <p className="type-small max-w-prose text-ink-muted">
-            Question content only: raw textbook material, private source fields
-            and student data are rejected. The dry run checks every row without
-            changing anything.
-          </p>
-        </div>
+        <h2 id="transfer-import-heading" className="type-h2 text-ink">
+          Bring in questions
+        </h2>
 
-        <div className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:flex-row sm:items-end sm:p-5">
+        <div className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:flex-row sm:items-start sm:p-5">
           <Field
-            label="Question content file"
-            description="JSON, up to 1 MB."
+            label="Question file"
+            description="A .json file up to 1 MB, made by this tutor."
+            error={fileError}
             className="min-w-0 sm:flex-1"
           >
             <Input
               ref={fileInputRef}
               accept=".json,application/json"
+              className="min-h-11"
               onChange={handleFileChange}
               type="file"
             />
           </Field>
           <Button
-            className="sm:mb-7"
+            className="min-h-11 sm:mt-8"
             variant={preview?.canApply && !result ? "secondary" : "primary"}
             loading={isPreviewing}
             disabled={isApplying}
-            onClick={previewImport}
+            onClick={checkFile}
             type="button"
           >
             <FileUp aria-hidden="true" />
-            Preview import
+            Check this file
           </Button>
         </div>
 
-        <div
-          aria-live={message?.tone === "destructive" ? "assertive" : "polite"}
-        >
-          {message ? (
-            <Alert role="note" variant={message.tone}>
-              <AlertDescription className="text-ink">
-                {message.text}
-              </AlertDescription>
-            </Alert>
+        <div aria-live="polite">
+          {error ? (
+            <p role="alert" className="type-body font-medium text-red-700">
+              {error}
+            </p>
           ) : null}
         </div>
 
         {preview ? <PreviewResult preview={preview} /> : null}
 
         {preview?.canApply && document && !result ? (
-          <section
-            aria-labelledby="transfer-confirm-heading"
-            className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:p-5"
-          >
-            <h3 id="transfer-confirm-heading" className="type-h3 text-ink">
-              Confirm the import
-            </h3>
-            <p className="type-small max-w-prose text-ink-muted">
-              This creates{" "}
-              <span className="font-mono tabular text-ink">
-                {preview.summary.ready}
-              </span>{" "}
-              immutable question versions in their listed review states. It
-              never publishes content or changes what students can see.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <Field label="Type IMPORT to confirm" className="sm:w-60">
-                <Input
-                  autoComplete="off"
-                  mono
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  placeholder="IMPORT"
-                  value={confirmation}
-                />
-              </Field>
+          canAddQuestions ? (
+            <section
+              aria-labelledby="transfer-confirm-heading"
+              className="flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
+            >
+              <h3 id="transfer-confirm-heading" className="type-h3 text-ink">
+                Add these questions
+              </h3>
+              <p className="type-body max-w-prose text-ink">
+                {plural(readyCount, "question", "questions")} will be added to
+                your question bank with the status shown above. Students
+                can&apos;t see any of them until you show them.
+              </p>
+              <CheckboxField
+                label="I've checked the list above"
+                checked={checkedList}
+                onCheckedChange={(value) => setCheckedList(value === true)}
+              />
               <Button
-                disabled={confirmation !== "IMPORT"}
+                className="min-h-11 self-start"
+                disabled={!checkedList}
                 loading={isApplying}
-                onClick={applyImport}
+                onClick={addQuestions}
                 type="button"
               >
-                Import {preview.summary.ready}{" "}
-                {preview.summary.ready === 1 ? "question" : "questions"}
+                {addLabel}
               </Button>
-            </div>
-          </section>
+            </section>
+          ) : (
+            <p className="type-body max-w-prose text-ink">
+              This file is ready, but questions can&apos;t be added in the
+              demo.
+            </p>
+          )
         ) : null}
 
         {result ? (
-          <Alert role="note" variant="success">
-            <AlertTitle>Import complete</AlertTitle>
-            <AlertDescription>
-              Audit event {result.auditEventId} records this import. Review and
-              publish approved versions separately, from Question lifecycle.
-            </AlertDescription>
-          </Alert>
+          <div
+            role="status"
+            className="flex flex-col items-start gap-2 rounded-panel bg-green-100 p-4 sm:p-5"
+          >
+            <p className="type-body-strong text-green-700">
+              {plural(addedCount, "question", "questions")} added. Find them in
+              Review questions.
+              {addedApproved > 0
+                ? ` ${plural(addedApproved, "approved question is", "approved questions are")} in the Question bank.`
+                : ""}
+            </p>
+            <Link
+              href="/professor/review"
+              className="type-body inline-flex min-h-11 items-center font-medium text-azure-700 underline underline-offset-4 focus-ring"
+            >
+              Go to Review questions
+            </Link>
+          </div>
         ) : null}
       </section>
 
@@ -321,23 +316,41 @@ export function ProfessorContentTransferPanel() {
       >
         <div className="flex flex-col gap-1">
           <h2 id="transfer-export-heading" className="type-h2 text-ink">
-            Export
+            Download questions to share
           </h2>
-          <p className="type-small max-w-prose text-ink-muted">
-            Exports hold question content and canonical topic mappings, never
-            student records, reviewer identities, lifecycle notes, generation
-            controls or private source material.
+          <p className="type-body max-w-prose text-ink">
+            The file holds only the questions: no student information.
           </p>
         </div>
-        <div className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:flex-row sm:flex-wrap sm:p-5">
-          {EXPORTS.map((item) => (
-            <Button key={item.scope} asChild variant="secondary">
-              <a href={`/api/professor/content-transfer?scope=${item.scope}`}>
-                <Download aria-hidden="true" />
-                {item.label}
-              </a>
-            </Button>
-          ))}
+        <div className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:flex-row sm:flex-wrap sm:items-center sm:p-5">
+          <Button asChild variant="outline" className="min-h-11">
+            <a href="/api/professor/content-transfer?scope=approved">
+              <Download aria-hidden="true" />
+              Download approved questions
+            </a>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" className="min-h-11">
+                More options
+                <ChevronDown aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem asChild className="min-h-11">
+                <a href="/api/professor/content-transfer?scope=drafts">
+                  <Download aria-hidden="true" />
+                  Download questions still being written
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="min-h-11">
+                <a href="/api/professor/content-transfer?scope=all">
+                  <Download aria-hidden="true" />
+                  Download all questions, including drafts
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </section>
     </div>
@@ -353,126 +366,124 @@ function PreviewResult({ preview }: { preview: ContentTransferPreview }) {
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h3 id="transfer-preview-heading" className="type-h3 text-ink">
-          Dry run
+          What&apos;s in this file
         </h3>
         <StatusChip
           tone={preview.canApply ? "correct" : "wrong"}
-          label={preview.canApply ? "Preflight passed" : "Preflight blocked"}
+          label={preview.canApply ? "Ready to add" : "Has problems"}
         />
       </div>
-      <dl className="flex flex-wrap gap-x-5 gap-y-1 type-small">
-        <SummaryCount label="Rows" value={summary.total} />
-        <SummaryCount label="Ready" value={summary.ready} />
-        <SummaryCount label="Duplicates" value={summary.duplicates} />
-        <SummaryCount label="Invalid" value={summary.invalid} />
-        <div className="flex gap-2">
-          <dt className="text-ink-muted">Storage</dt>
-          <dd className="text-ink">
-            {preview.storageChecked ? "checked" : "not checked"}
-          </dd>
-        </div>
-      </dl>
-
-      {preview.rootErrors.length > 0 ? (
-        <Alert role="note" variant="destructive">
-          <AlertTitle>The file as a whole has problems</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc pl-5">
-              {preview.rootErrors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+      <ul className="type-body flex flex-wrap gap-x-6 gap-y-1 text-ink">
+        <li>Questions: {summary.total}</li>
+        <li>Ready to add: {summary.ready}</li>
+        <li>Already here: {summary.duplicates}</li>
+        <li>Has problems: {summary.invalid}</li>
+      </ul>
+      {!preview.canApply ? (
+        <p className="type-body max-w-prose text-ink">
+          Nothing will be added until every question is ready. Questions that
+          are already here or have problems are listed below; ask the person
+          who sent the file for a new copy.
+        </p>
       ) : null}
 
-      <div className="rounded-panel bg-sheet">
-        <Table
-          stickyHeader
-          containerClassName="rounded-panel lg:max-h-[70svh]"
-          className="[&_thead_th]:bg-sheet"
-        >
-          <TableCaption className="sr-only">
-            Dry-run result for each row in the file
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col" numeric className="pl-4">
-                Row
-              </TableHead>
-              <TableHead scope="col">Question</TableHead>
-              <TableHead scope="col">Topic</TableHead>
-              <TableHead scope="col">Review state</TableHead>
-              <TableHead scope="col" className="pr-4">
-                Status and details
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {preview.rows.map((row) => {
-              const status = ROW_STATUS[row.status];
-              const reviewState = row.reviewState
-                ? REVIEW_STATES[row.reviewState]
-                : undefined;
-              return (
-                <TableRow
-                  key={`${row.index}:${row.stableId ?? "unknown"}`}
-                  className="align-top"
-                >
-                  <TableCell numeric className="pl-4">
-                    {row.index + 1}
-                  </TableCell>
-                  <TableCell className="min-w-56 py-2.5">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {row.title ?? "Untitled row"}
-                      </span>
-                      <span className="type-caption font-mono break-all">
-                        {row.stableId ?? "No stable ID"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="min-w-40">
-                    {row.topicId
-                      ? (TOPIC_TITLES.get(row.topicId) ?? row.topicId)
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {reviewState ? (
-                      <StatusChip
-                        icon={reviewState.icon ?? true}
-                        label={reviewState.label}
-                        tone={reviewState.tone}
-                      />
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="min-w-72 py-2.5 pr-4">
-                    <div className="flex flex-col items-start gap-1">
-                      <StatusChip tone={status.tone} label={status.label} />
-                      {[...row.errors, ...row.warnings].map((detail) => (
-                        <span className="type-caption" key={detail}>
-                          {detail}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      {preview.rootErrors.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <p className="type-body-strong text-red-700">
+            This file can&apos;t be used. It may not have been made by this
+            tutor, or it was changed after it was downloaded.
+          </p>
+          <TechnicalDetails items={preview.rootErrors} />
+        </div>
+      ) : null}
+
+      {preview.rows.length > 0 ? (
+        <div className="rounded-panel bg-sheet">
+          <Table
+            stickyHeader
+            containerClassName="rounded-panel lg:max-h-[70svh]"
+            className="[&_thead_th]:bg-sheet"
+          >
+            <TableCaption className="sr-only">
+              Each question in the file and whether it can be added
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col" className="type-small pl-4 text-ink">
+                  Question
+                </TableHead>
+                <TableHead scope="col" className="type-small text-ink">
+                  Topic
+                </TableHead>
+                <TableHead scope="col" className="type-small text-ink">
+                  Status once added
+                </TableHead>
+                <TableHead scope="col" className="type-small pr-4 text-ink">
+                  Check
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {preview.rows.map((row) => {
+                const status = ROW_STATUS[row.status];
+                const reviewState = row.reviewState
+                  ? REVIEW_STATES[row.reviewState]
+                  : undefined;
+                const details = [...row.errors, ...row.warnings];
+                return (
+                  <TableRow
+                    key={`${row.index}:${row.stableId ?? "unknown"}`}
+                    className="align-top"
+                  >
+                    <TableCell className="type-body min-w-56 py-2.5 pl-4 font-medium">
+                      {row.title ?? `Question ${row.index + 1} (no title)`}
+                    </TableCell>
+                    <TableCell className="type-body min-w-40">
+                      {row.topicId
+                        ? (TOPIC_TITLES.get(row.topicId) ?? "Unknown topic")
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {reviewState ? (
+                        <StatusChip
+                          label={reviewState.label}
+                          tone={reviewState.tone}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="min-w-56 py-2.5 pr-4">
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusChip tone={status.tone} label={status.label} />
+                        {details.length > 0 ? (
+                          <TechnicalDetails items={details} />
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function SummaryCount({ label, value }: { label: string; value: number }) {
+/** The checker's own wording, kept out of the default view. */
+function TechnicalDetails({ items }: { items: string[] }) {
   return (
-    <div className="flex gap-2">
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className="font-mono tabular text-ink">{value}</dd>
-    </div>
+    <details className="type-small text-ink">
+      <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium focus-ring">
+        Technical details
+      </summary>
+      <ul className="list-disc pl-5">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </details>
   );
 }

@@ -2,17 +2,17 @@ import { ProfessorPageShell } from "@/components/professor/professor-page-shell"
 import { QuestionSheetSkeleton } from "@/components/sheet/question-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Shaped like the detail page: status block and sheet left, release rail right. */
+/** Shaped like the question page: what you can do and the sheet left, sections right. */
 export default function ProfessorQuestionLoading() {
   return (
     <ProfessorPageShell
       title="Question"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Questions", href: "/professor/questions" },
+        { label: "Home", href: "/professor" },
+        { label: "Question bank", href: "/professor/questions" },
         { label: "Question" },
       ]}
-      description="Loading this question and its versions…"
+      description="Loading this question…"
     >
       <p role="status" className="sr-only">
         Loading the question…

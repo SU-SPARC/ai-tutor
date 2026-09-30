@@ -8,7 +8,7 @@ import {
 } from "@/components/tutor/practice-similar-problem-action";
 
 describe("PracticeSimilarProblemAction", () => {
-  it("offers professor-approved extra practice in student language", () => {
+  it("offers professor-checked extra practice in student language", () => {
     const html = renderToStaticMarkup(
       createElement(PracticeSimilarProblemAction, {
         disabled: false,
@@ -18,9 +18,12 @@ describe("PracticeSimilarProblemAction", () => {
     );
 
     expect(html).toContain("Try a similar problem");
-    expect(html).toContain("professor-approved problem");
-    expect(html).toContain("partial practice credit");
+    expect(html).toContain(
+      "Optional: one more problem like this one, checked by your professor.",
+    );
+    expect(html).toContain("Your professor decides if it counts.");
     expect(html).not.toMatch(/does not count/i);
+    expect(html).not.toMatch(/partial practice credit|instructor|animate-spin/);
     expect(html).not.toMatch(/Reserve|candidate|generated/);
   });
 

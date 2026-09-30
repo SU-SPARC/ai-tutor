@@ -13,13 +13,13 @@ export default function ApplicationError({
 }) {
   return (
     <StatusPage
-      title="This page could not load"
-      description="Tutor data could not be loaded safely. Try again in a moment; your saved practice is not affected."
+      title="This page didn't load"
+      description="Something went wrong loading this page. Try again; your saved answers are safe."
       actions={
         <>
           <Button onClick={reset}>Try again</Button>
           <Button asChild variant="outline">
-            <Link href="/learn">Go to Learn</Link>
+            <Link href="/learn">Back to Learn</Link>
           </Button>
         </>
       }

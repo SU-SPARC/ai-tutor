@@ -4,6 +4,7 @@ import {
   LandingHeadline,
   LandingStatements,
 } from "@/components/landing/landing-headline";
+import { LandingHowItWorks } from "@/components/landing/landing-how-it-works";
 import { LandingScreen } from "@/components/landing/landing-screen";
 import type { SyllabusRailTopic } from "@/components/shell/app-rail";
 import { MAIN_CONTENT_ID } from "@/components/shell/skip-link";
@@ -15,6 +16,7 @@ import {
   getQuestionCounts,
   getTopics,
 } from "@/lib/data/data-store";
+import { getServerEnv } from "@/lib/env/server";
 import type { CourseTopic, StudentPracticeQuestion } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +44,19 @@ export function heroQuestionFor(
     ? questions.find((question) => question.topicId === preferredTopicId)
     : undefined;
   return preferred ?? questions[0];
+}
+
+/**
+ * Whether a section code takes the demo's ghost student door. Read
+ * defensively: the landing page must render even when the environment is
+ * incomplete, and then the code simply goes to the syllabus.
+ */
+function ghostLoginEnabled() {
+  try {
+    return getServerEnv().GHOST_LOGIN_ENABLED;
+  } catch {
+    return false;
+  }
 }
 
 function canonicalOrder(topics: readonly CourseTopic[]) {
@@ -98,9 +113,17 @@ export default async function HomePage() {
     counts.total === 1 ? "" : "s"
   } · ${orderedTopics.length} topic${orderedTopics.length === 1 ? "" : "s"}`;
 
+  const continueNote =
+    counts.total > 0
+      ? `Your syllabus has ${counts.total} practice question${
+          counts.total === 1 ? "" : "s"
+        } from your professor.`
+      : undefined;
+
   // The landing page does not use ThreeColumn, so it renders the one <main>
-  // itself (the skip link's target). Headline first, then the live sheet,
-  // then the three statements; the footer sits outside <main>.
+  // itself (the skip link's target). Headline and the section-code door
+  // first, then the sheet (live signed in, a locked preview signed out), then how it works and two statements; the
+  // footer sits outside <main>.
   return (
     <>
       <main
@@ -108,13 +131,20 @@ export default async function HomePage() {
         tabIndex={-1}
         className="bg-surface outline-none"
       >
-        <LandingHeadline signedIn={isSignedIn} />
+        <LandingHeadline
+          signedIn={isSignedIn}
+          ghostLoginEnabled={ghostLoginEnabled()}
+          continueNote={continueNote}
+        />
         {heroQuestion ? (
           <LandingScreen
             question={heroQuestion}
             weekNumber={heroTopic?.weekNumber ?? 1}
             railTopics={railTopics}
             railFooter={railFooter}
+            // Signed out, the question is a preview: readable, not
+            // answerable, until the visitor signs in or joins a section.
+            locked={!isSignedIn}
           />
         ) : (
           <div className={LANDING_COLUMN}>
@@ -123,6 +153,7 @@ export default async function HomePage() {
             </EmptyState>
           </div>
         )}
+        <LandingHowItWorks />
         <LandingStatements />
       </main>
       <LandingFooter />

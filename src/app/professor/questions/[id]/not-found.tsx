@@ -9,27 +9,21 @@ export default function ProfessorQuestionNotFound() {
     <ProfessorPageShell
       title="Question not found"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Questions", href: "/professor/questions" },
+        { label: "Home", href: "/professor" },
+        { label: "Question bank", href: "/professor/questions" },
         { label: "Not found" },
       ]}
-      description="No question with this ID exists; it may have been mistyped or never saved."
+      description="We couldn't find that question. It may have been removed or the link was mistyped."
     >
       <EmptyState
         className="rounded-panel bg-sheet px-5"
         action={
-          <>
-            <Button asChild>
-              <Link href="/professor/questions">Open the question bank</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/professor/review">Open the review queue</Link>
-            </Button>
-          </>
+          <Button asChild variant="cta" className="h-11">
+            <Link href="/professor/questions">Go to Question bank</Link>
+          </Button>
         }
       >
-        Saved drafts always appear in the question bank and, once submitted,
-        in the review queue under their topic.
+        Every question you have is listed in the Question bank.
       </EmptyState>
     </ProfessorPageShell>
   );

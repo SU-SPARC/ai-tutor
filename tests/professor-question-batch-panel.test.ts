@@ -39,24 +39,22 @@ describe("professor question batch review UI", () => {
       }),
     );
 
-    expect(markup).toContain("Confirm batch publish");
+    expect(markup).toContain("Show 2 questions to students?");
     expect(markup).toContain(
-      "Each selected question is checked against the publication requirements first.",
-    );
-    expect(markup).toContain(
-      "all 2 questions are published together, or none of them are",
+      "We check each question first. If any has a problem, nothing changes.",
     );
     expect(markup).toContain("Batch question 1");
     expect(markup).toContain("Batch question 2");
     expect(markup).toContain("Basic probability: 1");
     expect(markup).toContain("Conditional probability: 1");
-    expect(markup).toContain("Publication check");
+    expect(markup).toContain("Check before showing to students");
     expect(markup).toContain("Not checked yet");
-    expect(markup).toContain(
-      "The publication check has not run for this selection yet.",
+    expect(markup).toContain("We haven&#x27;t checked these questions yet.");
+    expect(markup).not.toContain("Check again");
+    expect(markup).toMatch(
+      /<button[^>]*disabled=""[^>]*>Show 2 questions to students<\/button>/,
     );
-    expect(markup).toContain("Check again");
-    expect(markup).toContain('disabled="">Publish 2 questions');
+    expect(markup).not.toMatch(/transaction|commits|provenance/i);
     expect(markup.toLowerCase()).not.toContain("readiness");
     expect(markup.toLowerCase()).not.toContain("approve all");
     expect(markup.toLowerCase()).not.toContain("batch approve");
@@ -71,17 +69,22 @@ describe("professor question batch review UI", () => {
       "utf8",
     );
 
-    expect(source).toContain("Mark this version inspected");
+    expect(source).toContain("Mark as checked");
     expect(source).toContain("Approved by you");
-    expect(source).toContain("Not reviewed by you");
-    expect(source).toContain("Select working version of");
-    expect(source).toContain("Batch request revision");
-    expect(source).toContain("Batch reject");
-    expect(source).toContain("Publish selected");
-    expect(source).toContain("Choose the Approved view for bulk publication");
+    expect(source).toContain("Not checked by you yet");
+    expect(source).toContain("aria-label={`Select “${working.title}”`}");
     expect(source).toContain(
-      "checked against the publication requirements before anything changes",
+      'batchConfirmLabel("request_revision", selectedCount)',
     );
+    expect(source).toContain('batchConfirmLabel("reject", selectedCount)');
+    expect(source).toContain("Show {selectedCount} to students");
+    expect(source).toContain("Clear selection");
+    expect(source).toContain(
+      "Tick questions to show several to students at once.",
+    );
+    expect(source).toContain("Approve this first to select it.");
+    expect(source).not.toContain("Reason for your next decision");
+    expect(source).not.toContain("Choose the Approved view");
     expect(source.toLowerCase()).not.toContain("readiness");
     expect(source).not.toContain("Review batch publication");
     expect(source).not.toContain("Batch approve");
@@ -107,13 +110,18 @@ describe("professor question batch review UI", () => {
       }),
     );
 
-    expect(markup).toContain("Duplicate / repetition");
-    expect(markup).toContain(
-      "Audit note: These questions repeat examples already in the topic.",
+    // The reason is chosen inside the dialog, starting on the one passed in.
+    expect(markup).toContain("Send 2 questions back for changes?");
+    expect(markup).toContain("Why?");
+    expect(markup).toMatch(
+      /<option value="duplicate_repetition" selected="">Same as another question<\/option>/,
     );
-    expect(markup).toContain("Confirm request revision for 2 questions");
-    expect(markup).not.toContain("duplicate_repetition");
-    expect(markup).not.toContain("Publication check");
+    expect(markup).toContain("Note (optional)");
+    expect(markup).toContain(
+      "These questions repeat examples already in the topic.",
+    );
+    expect(markup).toContain("Send 2 questions back for changes</button>");
+    expect(markup).not.toContain("Check before showing to students");
   });
 
   it("shows one plain-language outcome per question, including why a question is blocked and what to do", () => {
@@ -179,27 +187,29 @@ describe("professor question batch review UI", () => {
       }),
     );
 
-    expect(markup).toContain("Publication check");
-    expect(markup).toContain("1 Ready");
-    expect(markup).toContain("2 Blocked");
+    expect(markup).toContain("Check before showing to students");
+    expect(markup).toContain("1 ready");
+    expect(markup).toContain("2 not ready");
     expect(markup).toContain(
-      "1 of 3 questions can be published. 2 are blocked: fix or remove them, then publish.",
+      "1 of 3 questions are ready. 2 aren&#x27;t ready yet: fix or remove them first.",
     );
-    expect(markup).toContain("Ready to publish");
+    expect(markup).toContain("Ready to show");
+    expect(markup).toContain("You approved this version on Sep 18, 2026.");
+    expect(markup).toContain("Not ready yet");
     expect(markup).toContain(
-      "You approved this exact version on Sep 18, 2026. It passed every publication check.",
+      "You haven&#x27;t approved or checked this version yourself.",
     );
-    expect(markup).toContain("Cannot publish yet");
-    expect(markup).toContain("not reviewed this exact version yourself");
-    expect(markup).toContain("Mark this version inspected");
-    expect(markup).toContain("Publication requirements not met:");
+    expect(markup).toContain(
+      "Open this question and choose Mark as checked, or approve it yourself.",
+    );
+    expect(markup).toContain("Needs fixing:");
     expect(markup).toContain("requires a linked catalogued pattern ID");
     expect(markup).toContain(
-      "A provenance correction or content revision creates a new version that must be approved before it can be published.",
+      "Open this question and fix the items listed, then approve it again.",
     );
-    expect(markup.match(/Remove from selection/g)).toHaveLength(2);
+    expect(markup.match(/Remove from this list/g)).toHaveLength(2);
     expect(markup).toContain(
-      "Students see a question only after the whole batch commits",
+      "Nothing changes for students until every question passes.",
     );
     expect(markup.toLowerCase()).not.toContain("readiness");
   });
@@ -238,15 +248,15 @@ describe("professor question batch review UI", () => {
     );
 
     expect(markup).toContain(
-      "Nothing was published. 1 of 2 questions did not pass the publication check, so the other 1 were left unchanged.",
+      "Nothing changed. 1 of 2 questions had a problem, so the other 1 was left as it was.",
     );
     expect(markup).toContain("Not changed");
     expect(markup).toContain(
-      "the batch was cancelled because another selected question was blocked. Nothing changed.",
+      "This one was fine, but nothing changed because another question had a problem.",
     );
     expect(markup).toContain("This version is already published.");
     expect(markup).toContain(
-      "Remove it from the selection; nothing more is needed for it.",
+      "Students can already see it. Remove it from this list; nothing more is needed.",
     );
   });
 
@@ -271,9 +281,7 @@ describe("professor question batch review UI", () => {
       }),
     );
 
-    expect(markup).toContain(
-      "Checking 2 questions against the publication requirements",
-    );
+    expect(markup).toContain("Checking 2 questions…");
     expect(markup.match(/Checking…/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
@@ -312,12 +320,12 @@ describe("professor question batch review UI", () => {
       "You approved this exact version on Sep 18, 2026.",
     );
     expect(ownMarkup).toContain("counts as your review");
-    expect(ownMarkup).not.toContain("Mark this version inspected");
-    expect(ownMarkup).not.toContain("Not reviewed by you");
+    expect(ownMarkup).not.toContain("Mark as checked");
+    expect(ownMarkup).not.toContain("Not checked by you yet");
 
     const otherMarkup = render(approvedByOther);
-    expect(otherMarkup).toContain("Not reviewed by you");
-    expect(otherMarkup).toContain("Mark this version inspected");
+    expect(otherMarkup).toContain("Not checked by you yet");
+    expect(otherMarkup).toContain("Mark as checked");
     expect(otherMarkup).not.toContain("Approved by you");
   });
 });

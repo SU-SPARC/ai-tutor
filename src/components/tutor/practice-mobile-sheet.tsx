@@ -4,7 +4,8 @@
  * The tutor below 1280, where `ThreeColumn` has no third column.
  *
  * - Below 1024: a 44px handle ("Tutor · 2 new") docked above the action strip
- *   opens the tutor as a bottom sheet (60% of the screen, 85% expanded).
+ *   opens the tutor as a bottom sheet (45% of the screen, so the question
+ *   stays in view above it; 85% expanded).
  * - 1024–1279: the right-edge tab opens the same tutor as a right panel.
  *
  * Both are one Radix dialog: focus moves in and is restored, Escape and the
@@ -73,6 +74,7 @@ export function PracticeMobileSheet({
           type="button"
           aria-haspopup="dialog"
           aria-expanded={open}
+          data-tour="practice-tutor"
           onClick={() => onOpenChange(true)}
           className="relative flex h-11 w-full items-center gap-2 rounded-t-panel border-t border-rule bg-surface-tint px-4 text-ink transition-colors duration-fast hover:bg-hover focus-ring -outline-offset-2"
         >
@@ -91,7 +93,7 @@ export function PracticeMobileSheet({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           side={side}
-          className={cn(isBottom && (tall ? "h-[85svh]" : "h-[60svh]"))}
+          className={cn(isBottom && (tall ? "h-[85svh]" : "h-[45svh]"))}
         >
           <DialogHeader className={cn("gap-1 pb-3", isBottom && "pt-3 pr-24")}>
             <DialogTitle className="type-h3">Tutor</DialogTitle>

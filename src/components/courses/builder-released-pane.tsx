@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Undo2 } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { BuilderTopicHeader } from "@/components/courses/builder-topic-header";
 import { StagedChip } from "@/components/courses/course-status";
@@ -25,16 +25,16 @@ import type {
 } from "@/lib/courses/types";
 
 /**
- * A topic group on the builder, with the held rows `sectionBuilder` leaves out.
+ * A week group on the builder, with the paused rows `sectionBuilder` leaves out.
  */
 export type BuilderGroup = SectionBuilderTopic & {
-  /** Rows the section still owns but cannot show — the version was unpublished. */
+  /** Rows the section still owns but cannot show — the version was withdrawn. */
   held: ReleasedQuestion[];
 };
 
 /**
  * `sectionBuilder` only returns rows in the `released` state, because that is
- * what students can see. S3 also has to show the held rows, so this local
+ * what students can see. S3 also has to show the paused rows, so this local
  * helper folds them back in; it is the one piece of read-model the shared
  * selectors do not already provide.
  */
@@ -77,9 +77,9 @@ function matchesReleasedSearch(row: ReleasedQuestion, needle: string) {
 }
 
 /**
- * The left pane: what the section sees now, per topic, with staged adds shown
- * where they will land and staged removals struck through. Counts are live
- * (what the section would hold if the professor applied now).
+ * The left pane: what the section is shown now, per week, with waiting adds
+ * shown where they will land and waiting removals struck through. Counts are
+ * what the section would see once the professor saves.
  */
 export function BuilderReleasedPane({
   groups,
@@ -99,10 +99,12 @@ export function BuilderReleasedPane({
   openTopics: ReadonlySet<TopicId>;
   otherSections: CourseSection[];
   sectionId: SectionId;
+  /** Already in words: "Section 1". */
   sectionLabel: string;
   staged: StagedChanges;
 }) {
   const [search, setSearch] = useState("");
+  const [reordering, setReordering] = useState(false);
   const [expandedRows, setExpandedRows] = useState<ReadonlySet<QuestionId>>(
     () => new Set(),
   );
@@ -122,7 +124,7 @@ export function BuilderReleasedPane({
   const views = useMemo(
     () =>
       groups.map((group) => {
-        // Position is what `section/moveReleased` reorders, so the held rows
+        // Position is what `section/moveReleased` reorders, so the paused rows
         // are merged back into that order rather than appended.
         const rows = [...group.released, ...group.held].sort(
           (left, right) =>
@@ -173,27 +175,48 @@ export function BuilderReleasedPane({
       className="flex min-w-0 flex-col rounded-panel bg-sheet"
     >
       <div className="sticky top-(--header-h) z-10 flex flex-col gap-3 rounded-t-panel border-b border-rule bg-sheet px-4 pt-4 pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-1">
           <h2 className="type-h3 text-ink" id={headingId}>
-            Released to {sectionLabel}{" "}
-            <span className="type-mono text-ink-muted">{liveTotal}</span>
+            Shown to {sectionLabel}
           </h2>
+          <p className="type-small text-ink-muted">
+            {liveTotal === 1
+              ? "1 question once your changes are saved"
+              : `${liveTotal} questions once your changes are saved`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-3">
+          <Button
+            aria-pressed={reordering}
+            className="min-h-11"
+            onClick={() => setReordering((current) => !current)}
+            type="button"
+            variant={reordering ? "secondary" : "outline"}
+          >
+            {reordering ? "Done reordering" : "Reorder"}
+          </Button>
           <CopyToSectionMenu
             disabled={staged.count > 0}
             onSelect={onCopyTo}
             sections={otherSections}
+            sourceLabel={sectionLabel}
           />
         </div>
+        {reordering ? (
+          <p className="type-small text-ink">
+            The order changes for students right away.
+          </p>
+        ) : null}
         <div className="relative">
           <Search
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
           />
           <Input
-            aria-label={`Search questions released to ${sectionLabel}`}
+            aria-label={`Search questions shown to ${sectionLabel}`}
             className="pl-9"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search released questions…"
+            placeholder="Search these questions…"
             type="search"
             value={search}
           />
@@ -225,25 +248,27 @@ export function BuilderReleasedPane({
                 sectionId={sectionId}
                 sectionLabel={sectionLabel}
                 topicId={group.topic.id}
+                weekNumber={group.topic.weekNumber}
               />
               {isOpen ? (
                 <ul id={listId}>
                   {visibleRows.length === 0 && visibleAdds.length === 0 ? (
-                    <li className="type-small px-4 py-3 text-ink-muted">
-                      Nothing released to {sectionLabel} in this topic yet. Add
-                      published questions from the bank.
+                    <li className="type-body px-4 py-3 text-ink-muted">
+                      No questions shown to {sectionLabel} in this week yet.
+                      Add them from the question bank.
                     </li>
                   ) : null}
 
                   {visibleRows.map((row) => (
                     <ReleasedQuestionRow
                       expanded={expandedRows.has(row.id)}
-                      // Move bounds come from the whole topic, not the filtered
-                      // view, so searching never makes ▲/▼ lie about the ends.
+                      // Move bounds come from the whole week, not the filtered
+                      // view, so searching never makes Move up/down lie.
                       index={rows.indexOf(row)}
                       key={row.id}
                       onToggleExpanded={() => toggleExpanded(row.id)}
                       onToggleRemove={() => onStageToggle(row.id)}
+                      reordering={reordering}
                       row={row}
                       sectionId={sectionId}
                       sectionLabel={sectionLabel}
@@ -268,13 +293,13 @@ export function BuilderReleasedPane({
 
         {groups.length === 0 ? (
           <p className="type-body px-4 py-6 text-ink-muted">
-            This course has no included topics yet. Include them from the
-            course overview.
+            This course has no weeks in its syllabus yet. Add them on the
+            course page.
           </p>
         ) : null}
         {groups.length > 0 && shown.length === 0 ? (
           <p className="type-body px-4 py-6 text-ink-muted">
-            Nothing released to {sectionLabel} matches “{search.trim()}”.
+            No question shown to {sectionLabel} matches “{search.trim()}”.
           </p>
         ) : null}
       </div>
@@ -282,7 +307,7 @@ export function BuilderReleasedPane({
   );
 }
 
-/** A staged add, shown where it will land once applied. */
+/** A waiting add, shown where it will land once saved. */
 function StagedAddRow({
   onUndo,
   question,
@@ -293,25 +318,19 @@ function StagedAddRow({
   sectionLabel: string;
 }) {
   return (
-    <li className="flex items-start gap-2 border-b border-rule bg-azure-100 px-3 py-2 last:border-b-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1 sm:pl-16">
-        <p className="type-small text-ink">{question.title}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="type-caption tabular">
-            v{question.publishedVersion ?? question.latestVersion}
-          </span>
-          <StagedChip kind="add" />
-        </div>
+    <li className="flex flex-wrap items-center gap-3 border-b border-rule bg-azure-100 px-3 py-2 last:border-b-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <p className="type-body text-ink">{question.title}</p>
+        <StagedChip kind="add" />
       </div>
       <Button
-        aria-label={`Undo staged release of ${question.title} to ${sectionLabel}`}
-        className="shrink-0"
+        aria-label={`Undo adding ${question.title} to ${sectionLabel}`}
+        className="min-h-11 shrink-0"
         onClick={onUndo}
-        size="icon-sm"
         type="button"
-        variant="ghost"
+        variant="outline"
       >
-        <Undo2 aria-hidden="true" />
+        Undo add
       </Button>
     </li>
   );

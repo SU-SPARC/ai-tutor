@@ -17,7 +17,6 @@ import {
   requirePageAccess,
 } from "@/lib/auth/authorization";
 import { listInstructorStudents } from "@/lib/data/data-store";
-import { getServerEnv } from "@/lib/env/server";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 import {
   resolveInstructorStudentIdentities,
@@ -37,7 +36,7 @@ const SORTS: InstructorStudentSort[] = [
 ];
 
 /**
- * Two readings of the same class: the activity table, sortable and searchable
+ * Two readings of the same class: the main table, sortable and searchable
  * by student code, and the roster grouped by practiced topic. Both show the
  * students' usernames, resolved on the server for the signed-in professor and
  * recorded before they are rendered; see `resolveInstructorStudentRoster`.
@@ -139,38 +138,44 @@ export default async function ProfessorStudentsPage({
             action=""
             className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
           >
-            <Field label="Search by student code" className="sm:w-72">
+            {/*
+             * Usernames are read live from the sign-in provider for the
+             * students on the current page only, so the server can match the
+             * student code alone; the helper says so rather than promising a
+             * username search.
+             */}
+            <Field
+              label="Find a student"
+              description="Type the code shown under each username, e.g. 8F2A"
+              className="sm:w-80"
+            >
               <Input
                 autoComplete="off"
+                className="min-h-11"
                 defaultValue={search}
                 name="q"
-                placeholder="e.g. 8f2a…"
                 spellCheck={false}
                 type="search"
               />
             </Field>
-            <Field label="Sort by" id="student-sort" className="sm:w-60">
-              <NativeSelect defaultValue={sort} name="sort">
-                <option value="last_active">Last active</option>
-                <option value="lowest_accuracy">Lowest overall accuracy</option>
-                <option value="attempts">Most attempts</option>
-                <option value="sessions">Most sessions</option>
+            <Field label="Sort by" id="student-sort" className="sm:w-64">
+              <NativeSelect className="min-h-11" defaultValue={sort} name="sort">
+                <option value="last_active">Most recently active</option>
+                <option value="lowest_accuracy">Lowest share correct</option>
+                <option value="attempts">Most answers checked</option>
+                <option value="sessions">Most study sessions</option>
               </NativeSelect>
             </Field>
-            <Button
-              type="submit"
-              variant="secondary"
-              className="pointer-coarse:h-11"
-            >
+            <Button type="submit" variant="secondary" className="min-h-11">
               <Search aria-hidden="true" />
-              Apply
+              Show students
             </Button>
           </form>
 
           {list.total === 0 ? (
             <EmptyState
               action={
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" className="min-h-11">
                   <Link href="/professor/students" prefetch={false}>
                     Clear search
                   </Link>
@@ -184,30 +189,23 @@ export default async function ProfessorStudentsPage({
               <InstructorStudentTable
                 identities={identities}
                 list={list}
-                sketchpadMeasurementEnabled={
-                  getServerEnv().SKETCHPAD_ACTIVE_TIME_MEASUREMENT_ENABLED
-                }
               />
 
               <nav
                 aria-label="Student pages"
                 className="flex flex-wrap items-center justify-between gap-3"
               >
-                <p className="type-small text-ink-muted">
-                  <span className="font-mono tabular text-ink">
-                    {firstShown}–{lastShown}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-mono tabular text-ink">
-                    {list.total}
-                  </span>{" "}
+                <p className="type-body text-ink">
+                  Showing <span className="tabular">{firstShown}</span> to{" "}
+                  <span className="tabular">{lastShown}</span> of{" "}
+                  <span className="tabular">{list.total}</span>{" "}
                   {list.total === 1 ? "student" : "students"}
                 </p>
                 <div className="flex items-center gap-2">
                   {page > 1 ? (
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" className="min-h-11">
                       <Link
-                        href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                        href={`/professor/students?page=${page - 1}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
                         prefetch={false}
                       >
                         Previous
@@ -215,9 +213,9 @@ export default async function ProfessorStudentsPage({
                     </Button>
                   ) : null}
                   {list.offset + list.limit < list.total ? (
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" className="min-h-11">
                       <Link
-                        href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${search}` : ""}`}
+                        href={`/professor/students?page=${page + 1}&sort=${sort}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
                         prefetch={false}
                       >
                         Next
@@ -239,38 +237,44 @@ function StudentsPageShell({ children }: { children: ReactNode }) {
     <ProfessorPageShell
       title="Students"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
+        { label: "Home", href: "/professor" },
         { label: "Students" },
       ]}
-      description="Everyone who has signed in to the tutor, with the practice they have recorded."
-      notice="Usernames are looked up for this visit only and each display is audited; names and email addresses stay on each student's record."
+      description={STUDENTS_DESCRIPTION}
+      notice={STUDENTS_NOTICE}
     >
       {children}
     </ProfessorPageShell>
   );
 }
 
+const STUDENTS_DESCRIPTION =
+  "Everyone who has practiced, with what they’ve done so far.";
+
+const STUDENTS_NOTICE =
+  "You see usernames here. Open a student to see their full name and email.";
+
 function DemoModeNotice() {
-  return (
-    <EmptyState>
-      Demo mode keeps practice in memory for each visitor, so there is no class
-      to list here until you connect the database.
-    </EmptyState>
-  );
+  return <EmptyState>This is a demo, so there’s no real class to show.</EmptyState>;
 }
 
 function NoStudentsNotice() {
   return (
     <EmptyState>
-      No students have signed in or practiced with the tutor yet; each one
-      appears here after their first sign-in.
+      No students have practiced yet. Each student appears here after they
+      first sign in.
     </EmptyState>
   );
 }
 
+/**
+ * The by-topic roster stays a second view rather than a Topic filter on the
+ * main table: the table's server query cannot filter by topic, and the roster
+ * is its own audited render.
+ */
 const VIEW_LABELS: Record<StudentsView, string> = {
-  activity: "Activity",
-  topics: "By topic",
+  activity: "All students",
+  topics: "Students by topic",
 };
 
 /**
@@ -279,7 +283,7 @@ const VIEW_LABELS: Record<StudentsView, string> = {
  */
 function ViewSwitch({ view }: { view: StudentsView }) {
   return (
-    <LinkTabs label="Students view">
+    <LinkTabs label="How to list students">
       {VIEWS.map((candidate) => (
         <LinkTab
           current={candidate === view}

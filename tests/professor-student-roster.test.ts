@@ -529,8 +529,10 @@ describe("Students page", () => {
       await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
     );
 
-    expect(markup).toContain("Practice sessions");
-    expect(markup).toContain("Search by student code");
+    expect(markup).toContain("Correct answers");
+    expect(markup).toContain("Find a student");
+    expect(markup).toContain("View record");
+    expect(markup).not.toContain("Practice sessions");
     expect(markup).toContain("zanders");
     expect(markup).toContain("abrown");
     expect(markup).toContain("practiced without signing in");
@@ -609,7 +611,7 @@ describe("Students page", () => {
       }),
     );
 
-    expect(markup).toContain("No students have signed in");
+    expect(markup).toContain("No students have practiced yet");
     expect(listTopicRoster).not.toHaveBeenCalled();
   });
 
@@ -661,8 +663,8 @@ describe("Students page", () => {
       await ProfessorStudentsPage({ searchParams: Promise.resolve({}) }),
     );
 
-    expect(topics).toContain("there is no class to list here");
-    expect(activity).toContain("there is no class to list here");
+    expect(topics).toContain("This is a demo, so there’s no real class to show.");
+    expect(activity).toContain("This is a demo, so there’s no real class to show.");
     expect(recordViews).not.toHaveBeenCalled();
   });
 });

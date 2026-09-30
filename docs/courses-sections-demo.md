@@ -2,6 +2,17 @@
 
 See also `docs/ui-redesign-demo.md` for the shell, the Sheet, and the student screens built on top of this.
 
+> **Wording update (2026-09-29).** The screens below were relabeled for professors who are
+> not comfortable with technology; see `docs/professor-vocabulary.md`. In the UI: "Topic
+> builder" is **Choose questions**; "Clone" is **Copy for a new term**; "Release" / "Released"
+> are **Show to Section 1** / **Shown to Section 1**; "Published" is **Ready to use**; "Held" is
+> **Paused: this version was withdrawn**; "Sec 01" is **Section 1** and "Wk 3" is **Week 3**;
+> the week Open/Closed control reads **Students can see this week: Yes / No / From a date**;
+> add and remove are text buttons; the join code has its own panel with **Copy code** and
+> **Show full screen**; changes waiting for "Review changes" are guarded on leaving the page;
+> the demo reset lives once at the bottom of `/professor/courses`. Internal state names and
+> the store are unchanged, so the rest of this document still describes the model accurately.
+
 This is the working frontend for the "Courses, Sections, and Professor-Authored
 Topic Questions" blueprint. It is a **demo**: every course, section, roster,
 and release decision lives in the browser, seeded deterministically and

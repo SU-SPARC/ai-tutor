@@ -4,13 +4,13 @@ import { useId, useState } from "react";
 import { Bookmark, BookmarkX, Shuffle } from "lucide-react";
 
 import {
+  plainActionError,
   ProfessorTime,
   SavedForLaterChip,
 } from "@/components/professor/professor-question-labels";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
-import { StatusChip } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
 import {
   QUESTION_RESERVE_REASONS,
@@ -22,11 +22,21 @@ import type {
   QuestionReserveReasonCode,
 } from "@/lib/types";
 
+/** What happened, for the confirmation toast the caller shows. */
+const DONE_MESSAGES = {
+  allow_practice:
+    "It can now be offered as extra practice. It stays out of the students' question list.",
+  disallow_practice:
+    "It is no longer offered as extra practice. It stays saved for later.",
+  release:
+    "Taken out of Saved for later. You can show it to students when you're ready.",
+  reserve: "Saved for later. It stays approved, and students can't see it.",
+} as const;
+
 /**
- * "Save for later": keep an approved question out of the student catalog
- * without rejecting it, and optionally let the similar-practice flow reach
- * it. One quiet panel that shows the reserve when there is one and the form
- * when there is not.
+ * "Save for later": keep an approved question out of the students' list
+ * without rejecting it, and optionally offer it as extra practice. One quiet
+ * panel that shows the saved state when there is one and the form when not.
  */
 export function ProfessorQuestionReserveControls({
   disabled,
@@ -35,12 +45,15 @@ export function ProfessorQuestionReserveControls({
   question,
 }: {
   disabled: boolean;
+  /** A plain sentence about what just happened (the caller toasts it). */
   onMessage: (message: string) => void;
   onUpdated: (question: QuestionLifecycleDto) => void;
   question: QuestionLifecycleDto;
 }) {
   const [active, setActive] = useState(false);
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string>();
+  const [noteError, setNoteError] = useState<string>();
   const [reasonCode, setReasonCode] =
     useState<QuestionReserveReasonCode>("save_for_later");
   const headingId = useId();
@@ -59,9 +72,11 @@ export function ProfessorQuestionReserveControls({
       questionReserveReasonRequiresNote(reasonCode) &&
       !note.trim()
     ) {
-      onMessage("Other requires an audit note.");
+      setNoteError("Please add a short note when you choose Other.");
       return;
     }
+    setNoteError(undefined);
+    setError(undefined);
     setActive(true);
     try {
       const response = await fetch(
@@ -85,35 +100,31 @@ export function ProfessorQuestionReserveControls({
         question?: QuestionLifecycleDto;
       };
       if (!response.ok || !payload.question) {
-        onMessage(payload.error ?? "Save for later could not be updated.");
+        setError(plainActionError(response.status));
         return;
       }
       onUpdated(payload.question);
       setNote("");
-      onMessage(
-        {
-          allow_practice:
-            "Allowed for optional similar-problem practice. It remains unpublished and absent from student listings.",
-          disallow_practice:
-            "Removed from optional similar-problem practice. It remains saved for later.",
-          release:
-            "Removed from Save for later. It can now be published when ready.",
-          reserve:
-            "Saved for later. This question remains approved and hidden from students.",
-        }[action],
-      );
+      onMessage(DONE_MESSAGES[action]);
     } catch {
-      onMessage("Save for later could not be updated.");
+      setError(plainActionError());
     } finally {
       setActive(false);
     }
   }
 
+  const errorLine = (
+    <div role="status" aria-live="polite">
+      {error ? <p className="type-body text-red-700">{error}</p> : null}
+    </div>
+  );
+
   if (question.reserve) {
     return (
       <section
+        id="saved-for-later"
         aria-labelledby={headingId}
-        className="flex flex-col gap-3 rounded-panel bg-sheet p-4 sm:p-5"
+        className="flex scroll-mt-24 flex-col gap-3 rounded-panel bg-sheet p-4 sm:p-5"
       >
         <div className="flex flex-wrap items-center gap-2">
           <h3 id={headingId} className="type-h3 text-ink">
@@ -122,33 +133,24 @@ export function ProfessorQuestionReserveControls({
           <SavedForLaterChip
             practiceAllowed={question.reserve.practiceAllowed}
           />
-          <StatusChip
-            icon={false}
-            label={
-              question.reserve.practiceAllowed
-                ? "Eligible for similar practice"
-                : "Reserve only"
-            }
-            tone={question.reserve.practiceAllowed ? "approved" : "neutral"}
-          />
         </div>
-        <p className="type-small max-w-prose text-ink">
-          {questionReserveReasonLabel(question.reserve.reasonCode)}
+        <p className="type-body max-w-prose text-ink">
+          Why: {questionReserveReasonLabel(question.reserve.reasonCode)}
           {question.reserve.note ? ` · ${question.reserve.note}` : ""}
         </p>
-        <p className="type-small max-w-prose text-ink-muted">
-          Reserved by {question.reserve.reservedBy.displayName} on{" "}
-          <ProfessorTime value={question.reserve.reservedAt} />. It is never
-          shown in student listings
+        <p className="type-body max-w-prose text-ink">
+          Saved by {question.reserve.reservedBy.displayName} on{" "}
+          <ProfessorTime dateOnly value={question.reserve.reservedAt} />. It is
+          never shown in the students&apos; question list
           {question.reserve.practiceAllowed
-            ? "; students may reach it only through the controlled optional-practice flow."
+            ? ", but it can be offered as extra practice."
             : "."}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            size="sm"
             variant="outline"
+            className="h-11"
             disabled={disabled || active}
             loading={active}
             onClick={() =>
@@ -161,40 +163,42 @@ export function ProfessorQuestionReserveControls({
           >
             <Shuffle aria-hidden="true" />
             {question.reserve.practiceAllowed
-              ? "Disable similar practice"
-              : "Allow as similar-problem practice"}
+              ? "Stop offering as extra practice"
+              : "Offer as extra practice"}
           </Button>
           <Button
             type="button"
-            size="sm"
             variant="outline"
+            className="h-11"
             disabled={disabled || active}
             onClick={() => void update("release")}
           >
             <BookmarkX aria-hidden="true" />
-            Remove reserve
+            Take out of Saved for later
           </Button>
         </div>
+        {errorLine}
       </section>
     );
   }
 
   return (
     <section
+      id="saved-for-later"
       aria-labelledby={headingId}
-      className="@container flex flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
+      className="@container flex scroll-mt-24 flex-col gap-4 rounded-panel bg-sheet p-4 sm:p-5"
     >
       <div className="flex flex-col gap-1">
         <h3 id={headingId} className="type-h3 text-ink">
           Save for later
         </h3>
-        <p className="type-small max-w-prose text-ink-muted">
-          Keep this good, approved question in the professor catalog without
-          publishing it to students.
+        <p className="type-body max-w-prose text-ink">
+          Keep this good, approved question out of the students&apos; list
+          without rejecting it.
         </p>
       </div>
       <div className="grid gap-4 @xl:grid-cols-[14rem_minmax(0,1fr)_auto] @xl:items-end">
-        <Field label="Reason">
+        <Field label="Why?">
           <NativeSelect
             value={reasonCode}
             onChange={(event) =>
@@ -209,10 +213,12 @@ export function ProfessorQuestionReserveControls({
           </NativeSelect>
         </Field>
         <Field
-          label={`Note ${reasonCode === "other" ? "(required)" : "(optional)"}`}
+          label={reasonCode === "other" ? "Note (required)" : "Note (optional)"}
+          description="Only instructors see this."
+          error={noteError}
         >
           <Textarea
-            className="min-h-10"
+            className="min-h-11"
             maxLength={1000}
             rows={1}
             value={note}
@@ -222,6 +228,7 @@ export function ProfessorQuestionReserveControls({
         <Button
           type="button"
           variant="secondary"
+          className="h-11"
           disabled={disabled || active}
           loading={active}
           onClick={() => void update("reserve")}
@@ -230,6 +237,7 @@ export function ProfessorQuestionReserveControls({
           Save for later
         </Button>
       </div>
+      {errorLine}
     </section>
   );
 }

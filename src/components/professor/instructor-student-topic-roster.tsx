@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PROFESSOR_TABLE_TYPE } from "@/components/professor/instructor-student-table";
 import { StudentUsername } from "@/components/professor/instructor-student-username";
 import {
   Table,
@@ -51,15 +52,18 @@ export function InstructorStudentTopicRoster({
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="type-small text-ink-muted">
-        <span className="font-mono tabular text-ink">
-          {studentCount(labels.size)}
-        </span>
-        , listed under every topic they have practiced, A–Z by username.
+      <p className="type-body text-ink">
+        <span className="tabular">{studentCount(labels.size)}</span>, listed
+        under every topic they have practiced, A to Z by username. The last
+        column counts how many times each student asked the AI tutor in that
+        topic.
       </p>
 
       {groups.map((group) => {
         const headingId = `roster-${group.key}`;
+        // Students with no topic practice have no AI tutor use in any topic
+        // either, so that group has no count column.
+        const showAiColumn = group.key !== "no-topic";
         return (
           <section
             key={group.key}
@@ -70,11 +74,11 @@ export function InstructorStudentTopicRoster({
               <h2 id={headingId} className="type-h3 text-ink">
                 {group.title}
               </h2>
-              <p className="type-caption shrink-0 font-mono tabular">
+              <p className="type-small shrink-0 tabular text-ink">
                 {studentCount(group.students.length)}
               </p>
             </header>
-            <Table>
+            <Table className={PROFESSOR_TABLE_TYPE}>
               <TableCaption className="sr-only">
                 {group.key === "no-topic"
                   ? "Students who have signed in but not yet practiced a topic"
@@ -86,11 +90,13 @@ export function InstructorStudentTopicRoster({
                     Username
                   </TableHead>
                   <TableHead scope="col" className="pr-4">
-                    Student
+                    Student record
                   </TableHead>
-                  <TableHead scope="col" numeric className="pr-4">
-                    AI Help Requests
-                  </TableHead>
+                  {showAiColumn ? (
+                    <TableHead scope="col" numeric className="pr-4">
+                      Asked the AI tutor
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,15 +111,18 @@ export function InstructorStudentTopicRoster({
                     </TableCell>
                     <TableCell>
                       <Link
-                        className="relative rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-3"
+                        className="inline-flex min-h-11 items-center rounded-xs font-medium text-azure-500 underline-offset-4 hover:text-azure-700 hover:underline focus-ring"
                         href={`/professor/students/${student.studentKey}`}
+                        prefetch={false}
                       >
                         {labels.get(student.studentKey)}
                       </Link>
                     </TableCell>
-                    <TableCell numeric className="pr-4">
-                      {student.aiHelpRequests ?? 0}
-                    </TableCell>
+                    {showAiColumn ? (
+                      <TableCell numeric className="pr-4">
+                        {student.aiHelpRequests ? student.aiHelpRequests : "—"}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

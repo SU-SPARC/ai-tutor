@@ -1,23 +1,23 @@
 export const PROFESSOR_REVIEW_REASONS = [
-  { code: "duplicate_repetition", label: "Duplicate / repetition" },
-  { code: "incorrect_answer", label: "Incorrect answer" },
-  { code: "poor_wording", label: "Poor wording" },
-  { code: "wrong_topic", label: "Wrong topic" },
+  { code: "duplicate_repetition", label: "Same as another question" },
+  { code: "incorrect_answer", label: "Answer is wrong" },
+  { code: "poor_wording", label: "Wording is unclear" },
+  { code: "wrong_topic", label: "Belongs in a different topic" },
   { code: "wrong_difficulty", label: "Wrong difficulty" },
-  { code: "weak_hints", label: "Weak hints" },
-  { code: "weak_solution", label: "Weak solution" },
-  { code: "provenance_source_issue", label: "Provenance / source issue" },
-  { code: "out_of_scope", label: "Out of scope" },
-  { code: "other", label: "Other" },
+  { code: "weak_hints", label: "Hints need work" },
+  { code: "weak_solution", label: "Solution needs work" },
+  { code: "provenance_source_issue", label: "Problem with where it came from" },
+  { code: "out_of_scope", label: "Not covered in my course" },
+  { code: "other", label: "Something else (please explain)" },
 ] as const;
 
 export type ProfessorReviewReasonCode =
   (typeof PROFESSOR_REVIEW_REASONS)[number]["code"];
 
 export const PROFESSOR_LIFECYCLE_REASONS = [
-  { code: "content_correction", label: "Content correction" },
-  { code: "restore_previous_release", label: "Restore previous release" },
-  { code: "course_retired", label: "Course retired" },
+  { code: "content_correction", label: "Fixing a mistake" },
+  { code: "restore_previous_release", label: "Putting back an earlier version" },
+  { code: "course_retired", label: "Course no longer runs" },
 ] as const;
 
 const REASON_LABELS: Readonly<Record<string, string>> = {
@@ -25,14 +25,14 @@ const REASON_LABELS: Readonly<Record<string, string>> = {
     PROFESSOR_REVIEW_REASONS.map(({ code, label }) => [code, label]),
   ),
   clarify_wording: "Clarify wording",
-  content_correction: "Content correction",
-  course_retired: "Course retired",
+  content_correction: "Fixing a mistake",
+  course_retired: "Course no longer runs",
   imported_review_state: "Imported review state",
   incorrect_structure: "Incorrect structure",
   manual_revision_requested: "Manual revision requested",
   professor_rejected: "Professor rejected",
   regeneration_requested: "Regeneration requested",
-  restore_previous_release: "Restore previous release",
+  restore_previous_release: "Putting back an earlier version",
   verified_batch: "Verified batch",
   working_version_superseded: "Working version superseded",
 };

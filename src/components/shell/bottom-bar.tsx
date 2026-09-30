@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
  * Pages that use it must leave room at the bottom: add
  * `BOTTOM_BAR_PADDING` to the scrolling container (or render
  * `<BottomBarSpacer />` at the end of the content).
+ *
+ * While a bar is on screen the page exposes its full height (bar, border and
+ * safe area) as `--bottombar-h` on `:root` (a `:has()` rule in globals.css
+ * keyed on `data-hide-from`), so fixed layers such as the docked math keypad
+ * can sit on top of it. Without a bar the variable is unset.
  */
 export function BottomBar({
   start,
@@ -32,6 +37,7 @@ export function BottomBar({
       role={label ? "region" : undefined}
       aria-label={label}
       data-slot="bottom-bar"
+      data-hide-from={hideFrom === false ? "never" : hideFrom}
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-sheet pb-safe",
         hideFrom === "lg" && "lg:hidden",

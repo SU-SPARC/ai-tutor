@@ -58,16 +58,103 @@ import type {
  */
 export const TUTOR_DRAWER_STORAGE_KEY = "ai-tutor-tutor-drawer";
 
+/**
+ * The half-typed answer survives a reload: kept per session in
+ * `sessionStorage` (this tab only), restored while the question is unsolved,
+ * cleared by a correct check.
+ */
+export function draftStorageKey(sessionId: string) {
+  return `ai-tutor:draft:${sessionId}`;
+}
+
+function readDraft(sessionId: string) {
+  try {
+    return window.sessionStorage.getItem(draftStorageKey(sessionId)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeDraft(sessionId: string, value: string) {
+  try {
+    if (value.length > 0) {
+      window.sessionStorage.setItem(draftStorageKey(sessionId), value);
+    } else {
+      window.sessionStorage.removeItem(draftStorageKey(sessionId));
+    }
+  } catch {
+    // The draft just does not survive a reload.
+  }
+}
+
 export type PracticeWorkspaceProps = {
   aiHelpEnabled?: boolean;
   initialQuestionId?: string;
   initialSessionId?: string;
+  /**
+   * Questions this student has already solved, read on the server from the
+   * same progress `/learn` shows (guests from their stored sessions), so the
+   * rail, the pips and "Next question" agree with the syllabus on first paint.
+   */
+  initialSolvedQuestionIds?: readonly string[];
   initialTopicId?: string;
   questions: StudentPracticeQuestion[];
   topics: CourseTopic[];
 };
 
 export type ActiveTutorMode = TutorMode | "ai" | null;
+
+/** Where "Next topic" goes once a topic is finished. */
+export type NextTopicTarget = {
+  href: string;
+  label: string;
+  topicId: string;
+};
+
+/**
+ * The next topic in syllabus order (the order `topics` arrives in) that still
+ * has an unsolved question: later topics first, then earlier ones. `undefined`
+ * when every question on the syllabus is solved.
+ */
+export function nextTopicWithWork({
+  currentTopicId,
+  questions,
+  solvedQuestionIds,
+  topics,
+}: {
+  currentTopicId: string | undefined;
+  questions: Pick<StudentPracticeQuestion, "id" | "topicId">[];
+  solvedQuestionIds: ReadonlySet<string>;
+  topics: Pick<CourseTopic, "id" | "title" | "weekNumber">[];
+}): NextTopicTarget | undefined {
+  const index = topics.findIndex((topic) => topic.id === currentTopicId);
+  const ordered =
+    index >= 0
+      ? [...topics.slice(index + 1), ...topics.slice(0, index)]
+      : topics;
+  const topic = ordered.find((candidate) =>
+    questions.some(
+      (question) =>
+        question.topicId === candidate.id &&
+        !solvedQuestionIds.has(question.id),
+    ),
+  );
+  if (!topic) {
+    return undefined;
+  }
+  return {
+    href: `/practice?topicId=${encodeURIComponent(topic.id)}`,
+    label: `Next topic: ${weekTopicLabel(topic.weekNumber, topic.title)}`,
+    topicId: topic.id,
+  };
+}
+
+/** "Week 3 · Conditional probability" (just the title without a week). */
+export function weekTopicLabel(weekNumber: number | undefined, title: string) {
+  return typeof weekNumber === "number" && weekNumber > 0
+    ? `Week ${weekNumber} · ${title}`
+    : title;
+}
 
 type ResumeSession = { questionId: string; sessionId: string };
 
@@ -201,7 +288,7 @@ export function sheetVerdictFor(
       message:
         plainFirstSentence(response.misconceptions[0]) ??
         plainFirstSentence(stripNotQuitePrefix(response.message)) ??
-        "Change your answer and check again, or reveal a hint.",
+        "Change your answer and check again.",
     };
   }
   if (
@@ -220,6 +307,23 @@ export function sheetVerdictFor(
 /** Tailwind's lg and xl breakpoints (64rem, 80rem), for handlers only. */
 const LG_QUERY = "(min-width: 64rem)";
 const XL_QUERY = "(min-width: 80rem)";
+/** Where the math keypad docks over the page (see `useKeypadLayout`). */
+const DOCKED_KEYPAD_QUERY = "(pointer: coarse), (max-width: 1023.98px)";
+
+/**
+ * Keys typed here belong to the field, not to the page's shortcuts: text
+ * inputs, the math field, the keypad, and any open dialog.
+ */
+function isTypingTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        'input, textarea, select, [contenteditable=""], [contenteditable="true"], math-field, [data-slot="math-keypad"], [data-slot="math-keypad-dock"], [role="dialog"]',
+      ),
+    )
+  );
+}
 
 function viewportMatches(query: string) {
   try {
@@ -272,6 +376,7 @@ export function usePracticeWorkspace({
   aiHelpEnabled = false,
   initialQuestionId,
   initialSessionId,
+  initialSolvedQuestionIds,
   initialTopicId,
   questions,
   topics,
@@ -303,7 +408,7 @@ export function usePracticeWorkspace({
   );
   const [initialSessionFailed, setInitialSessionFailed] = useState(false);
   const [solvedQuestionIds, setSolvedQuestionIds] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set(initialSolvedQuestionIds ?? []),
   );
 
   // The attempt on the displayed question.
@@ -325,7 +430,9 @@ export function usePracticeWorkspace({
   const [disclosedHints, setDisclosedHints] = useState<string[]>([]);
   const [hintCount, setHintCount] = useState(0);
   const [solutionSteps, setSolutionSteps] = useState<string[]>([]);
-  const [showTopicComplete, setShowTopicComplete] = useState(false);
+  // The topic-complete notice shows by itself once the topic is finished;
+  // "Stay here" hides it for this question.
+  const [topicCompleteDismissed, setTopicCompleteDismissed] = useState(false);
   // The last graded check, shown as the band under the field until the
   // student edits the answer.
   const [lastCheck, setLastCheck] = useState<
@@ -353,7 +460,8 @@ export function usePracticeWorkspace({
   // The Sheet owns the answer input, so the workspace holds the Sheet's
   // container and focuses the field inside it.
   const answerInputRef = useRef<HTMLDivElement>(null);
-  const continueButtonRef = useRef<HTMLButtonElement>(null);
+  // The solved-state primary: the Next question button or the Next topic link.
+  const continueButtonRef = useRef<HTMLElement>(null);
   const drawerToggleRef = useRef<HTMLButtonElement>(null);
   const drawerTabRef = useRef<HTMLButtonElement>(null);
   const drawerHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -517,7 +625,7 @@ export function usePracticeWorkspace({
     setDisclosedHints([]);
     setHintCount(0);
     setSolutionSteps([]);
-    setShowTopicComplete(false);
+    setTopicCompleteDismissed(false);
   }, []);
 
   const applySessionSnapshot = useCallback(
@@ -534,6 +642,13 @@ export function usePracticeWorkspace({
       );
       if (snapshot.solved) {
         setSolvedQuestionIds((ids) => new Set(ids).add(question.id));
+        writeDraft(snapshot.id, "");
+      } else {
+        // A half-typed answer from before a reload comes back.
+        const draft = readDraft(snapshot.id);
+        if (draft) {
+          setAnswer(draft);
+        }
       }
     },
     [],
@@ -609,11 +724,34 @@ export function usePracticeWorkspace({
     ]);
   }
 
+  /**
+   * Returns focus to the answer field, except where the keypad docks over
+   * the page (touch, narrow screens): there, focusing the field would raise
+   * the keypad over the verdict band or the hint that just opened.
+   */
   function focusAnswerInput() {
-    window.setTimeout(
-      () => answerInputRef.current?.querySelector("input")?.focus(),
-      0,
-    );
+    window.setTimeout(() => {
+      if (viewportMatches(DOCKED_KEYPAD_QUERY)) return;
+      answerInputRef.current
+        ?.querySelector<HTMLElement>('[data-slot="answer-input"]')
+        ?.focus();
+    }, 0);
+  }
+
+  /** After a check that was not correct: the band on touch, else the field. */
+  function focusAfterCheck() {
+    window.setTimeout(() => {
+      const container = answerInputRef.current;
+      if (viewportMatches(DOCKED_KEYPAD_QUERY)) {
+        container
+          ?.querySelector<HTMLElement>('[data-slot="verdict-band"]')
+          ?.focus();
+        return;
+      }
+      container
+        ?.querySelector<HTMLElement>('[data-slot="answer-input"]')
+        ?.focus();
+    }, 0);
   }
 
   function markSolved(questionId: string) {
@@ -652,10 +790,10 @@ export function usePracticeWorkspace({
         setSessionError({
           code: error.code,
           message: writeWasRecovered
-            ? "The connection recovered and your saved progress was restored."
+            ? "Your connection is back, and your work was saved."
             : error.code === "TUTOR_SESSION_STALE"
-              ? "Your saved progress was refreshed. Please check your answer again."
-              : "The connection recovered, but no saved change is visible yet. Please wait a moment, then check your answer again.",
+              ? "Your work was refreshed from another tab. Check your answer again."
+              : "Your connection is back. Check your answer again.",
         });
         return;
       } catch {
@@ -771,9 +909,10 @@ export function usePracticeWorkspace({
         if (response.verdict === "correct") {
           setSolutionSteps(response.steps);
           markSolved(question.id);
+          writeDraft(activeSession.id, "");
           window.setTimeout(() => continueButtonRef.current?.focus(), 0);
         } else {
-          focusAnswerInput();
+          focusAfterCheck();
         }
       },
       afterError: focusAnswerInput,
@@ -863,19 +1002,18 @@ export function usePracticeWorkspace({
                 response.progress?.attemptCount ??
                 activeSession.attemptCount + 1,
               hintsRevealed:
-                response.progress?.hintsRevealed ??
-                activeSession.revealedHints,
+                response.progress?.hintsRevealed ?? activeSession.revealedHints,
               questionId: question.id,
               sessionId: activeSession.id,
               solved: response.progress?.solved ?? activeSession.solved,
               stepsRevealed:
-                response.progress?.stepsRevealed ??
-                activeSession.revealedSteps,
+                response.progress?.stepsRevealed ?? activeSession.revealedSteps,
             }),
           );
           if (response.verdict === "correct") {
             setSolutionSteps(response.steps);
             markSolved(question.id);
+            writeDraft(activeSession.id, "");
           }
         },
         // Withdraw the pending request bubble so a retry never shows two
@@ -903,6 +1041,9 @@ export function usePracticeWorkspace({
         forceNew: true,
       });
       storeTutorSessionId(selectedQuestion.id, nextSession.id);
+      if (session) {
+        writeDraft(session.id, "");
+      }
       clearAttempt();
       setSession(nextSession);
       focusAnswerInput();
@@ -960,7 +1101,7 @@ export function usePracticeWorkspace({
       selectQuestion(nextQuestion.id, nextQuestion.topicId);
       return;
     }
-    setShowTopicComplete(true);
+    setTopicCompleteDismissed(false);
     afterPaint(() => topicCompleteRef.current?.focus());
   }
 
@@ -1044,7 +1185,56 @@ export function usePracticeWorkspace({
     setAnswer(value);
     // Editing the answer retires the band: it described the old answer.
     setLastCheck(null);
+    if (session && !session.solved) {
+      writeDraft(session.id, value);
+    }
   }
+
+  // Alt + ← / → move to the adjacent question (the footer's Previous and
+  // Next), from anywhere on the page except a text field, the keypad or a
+  // dialog. The listener reads the latest state through a ref.
+  const shortcutState = useRef({
+    blocked: true,
+    next: undefined as StudentPracticeQuestion | undefined,
+    previous: undefined as StudentPracticeQuestion | undefined,
+    select: (() => undefined) as (questionId: string, topicId: string) => void,
+  });
+  useEffect(() => {
+    shortcutState.current = {
+      blocked: isTutorBusy || mobileSheetOpen,
+      next:
+        questionPosition >= 0
+          ? topicQuestions[questionPosition + 1]
+          : undefined,
+      previous:
+        questionPosition > 0 ? topicQuestions[questionPosition - 1] : undefined,
+      select: selectQuestion,
+    };
+  });
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+      const { blocked, next, previous, select } = shortcutState.current;
+      const target = event.key === "ArrowLeft" ? previous : next;
+      if (blocked || !target) {
+        return;
+      }
+      // Alt + ← is also the browser's Back; here it means the previous question.
+      event.preventDefault();
+      select(target.id, target.topicId);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Derived presentation values.
   const sheetVerdict: SheetVerdict | null =
@@ -1056,23 +1246,43 @@ export function usePracticeWorkspace({
         }
       : null);
   const weekLabel = practiceWeekLabel(selectedTopic?.weekNumber);
+  // "Week 3 · Conditional probability" and "Question 1 of 6": where am I,
+  // in words (no question code, no answer-type word).
   const topicLabel = selectedTopic
-    ? `Wk ${selectedTopic.weekNumber}`
+    ? weekTopicLabel(selectedTopic.weekNumber, selectedTopic.title)
     : "Practice";
   const positionLabel =
     questionPosition >= 0
-      ? `${questionPosition + 1} of ${topicQuestions.length}`
+      ? `Question ${questionPosition + 1} of ${topicQuestions.length}`
       : undefined;
+  // Once the topic is finished (or the question was removed with nothing
+  // left in the topic), "Next topic" takes over from "Next question".
+  const nextTopic = nextQuestion
+    ? undefined
+    : nextTopicWithWork({
+        currentTopicId: selectedTopic?.id,
+        questions,
+        solvedQuestionIds,
+        topics,
+      });
+  const courseComplete =
+    questions.length > 0 &&
+    questions.every((question) => solvedQuestionIds.has(question.id));
+  const topicComplete =
+    Boolean(session?.solved) && !nextQuestion && topicQuestions.length > 0;
+  const showTopicComplete = topicComplete && !topicCompleteDismissed;
   const navQuestions = topicQuestions.map((question) => ({
     id: question.id,
     title: studentQuestionTitle(question.title),
   }));
-  // A retired question keeps its attempts and loses its prompt and its input.
+  // A removed question keeps its attempts and loses its prompt and its
+  // input. The Sheet says so in its own words; the server's message (staff
+  // wording) is not repeated.
   const tombstone =
     sessionError &&
     (sessionError.code === "QUESTION_UNAVAILABLE" ||
       sessionError.code === "content_unpublished")
-      ? sessionError.message
+      ? ""
       : undefined;
   const isLoadingQuestion =
     isInitialSessionResolving ||
@@ -1091,16 +1301,19 @@ export function usePracticeWorkspace({
       aiHelpEnabled,
       aiHelpOffered,
       answer,
+      courseComplete,
       disclosedHints,
       hasAnyQuestions: questions.length > 0,
       isLoadingQuestion,
       isReservePractice,
       isSessionLoading,
       isTutorBusy,
+      lastCheckVerdict: lastCheck?.verdict ?? null,
       lastSubmittedAnswer,
       messages,
       navQuestions,
       nextQuestion,
+      nextTopic,
       positionLabel,
       questionPosition,
       search,
@@ -1139,7 +1352,7 @@ export function usePracticeWorkspace({
     },
     actions: {
       continueToNextQuestion,
-      dismissTopicComplete: () => setShowTopicComplete(false),
+      dismissTopicComplete: () => setTopicCompleteDismissed(true),
       getHint,
       openSimilarQuestion,
       requestLimitedAiHelp: () => {

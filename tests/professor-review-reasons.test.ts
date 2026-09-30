@@ -10,19 +10,19 @@ import {
 describe("professor review reasons", () => {
   it("defines every stable dropdown reason and its professor-facing label", () => {
     expect(PROFESSOR_REVIEW_REASONS).toEqual([
-      { code: "duplicate_repetition", label: "Duplicate / repetition" },
-      { code: "incorrect_answer", label: "Incorrect answer" },
-      { code: "poor_wording", label: "Poor wording" },
-      { code: "wrong_topic", label: "Wrong topic" },
+      { code: "duplicate_repetition", label: "Same as another question" },
+      { code: "incorrect_answer", label: "Answer is wrong" },
+      { code: "poor_wording", label: "Wording is unclear" },
+      { code: "wrong_topic", label: "Belongs in a different topic" },
       { code: "wrong_difficulty", label: "Wrong difficulty" },
-      { code: "weak_hints", label: "Weak hints" },
-      { code: "weak_solution", label: "Weak solution" },
+      { code: "weak_hints", label: "Hints need work" },
+      { code: "weak_solution", label: "Solution needs work" },
       {
         code: "provenance_source_issue",
-        label: "Provenance / source issue",
+        label: "Problem with where it came from",
       },
-      { code: "out_of_scope", label: "Out of scope" },
-      { code: "other", label: "Other" },
+      { code: "out_of_scope", label: "Not covered in my course" },
+      { code: "other", label: "Something else (please explain)" },
     ]);
     for (const { code, label } of PROFESSOR_REVIEW_REASONS) {
       expect(professorReviewReasonLabel(code)).toBe(label);
@@ -40,13 +40,19 @@ describe("professor review reasons", () => {
 
   it("offers stable reasons for unpublish, rollback, and retirement actions", () => {
     expect(PROFESSOR_LIFECYCLE_REASONS).toEqual([
-      { code: "content_correction", label: "Content correction" },
+      { code: "content_correction", label: "Fixing a mistake" },
       {
         code: "restore_previous_release",
-        label: "Restore previous release",
+        label: "Putting back an earlier version",
       },
-      { code: "course_retired", label: "Course retired" },
+      { code: "course_retired", label: "Course no longer runs" },
     ]);
+  });
+
+  it("labels lifecycle reasons the same way in history", () => {
+    for (const { code, label } of PROFESSOR_LIFECYCLE_REASONS) {
+      expect(professorReviewReasonLabel(code)).toBe(label);
+    }
   });
 
   it.each([

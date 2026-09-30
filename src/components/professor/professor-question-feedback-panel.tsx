@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,6 +9,7 @@ import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { QUESTION_FEEDBACK_CATEGORY_LABELS } from "@/components/tutor/question-feedback-form";
 import { canonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
 import {
@@ -20,14 +21,18 @@ import {
   type QuestionFeedbackStatus,
 } from "@/lib/types";
 
+const GENERIC_ERROR =
+  "That didn't work and nothing changed. Try again, or reload the page.";
+
+/** Professor words; the internal codes stay open / triaged / resolved / dismissed. */
 const STATUS_LABELS: Record<QuestionFeedbackStatus, string> = {
-  dismissed: "Dismissed",
-  open: "Open",
-  resolved: "Resolved",
-  triaged: "Triaged",
+  dismissed: "No change needed",
+  open: "New",
+  resolved: "Fixed",
+  triaged: "Looking into it",
 };
 
-/** Open waits on a person; resolved is a settled, approved outcome. */
+/** New waits on a person; Fixed is a settled, approved outcome. */
 const STATUS_TONES: Record<QuestionFeedbackStatus, StatusTone> = {
   dismissed: "neutral",
   open: "review",
@@ -35,29 +40,34 @@ const STATUS_TONES: Record<QuestionFeedbackStatus, StatusTone> = {
   triaged: "draft",
 };
 
+/** What the toast says after each status change. */
+const STATUS_TOASTS: Record<QuestionFeedbackStatus, string> = {
+  dismissed: "Report marked as no change needed.",
+  open: "Report moved back to New.",
+  resolved: "Report marked as fixed.",
+  triaged: "Report marked as looking into it.",
+};
+
 const TOPIC_TITLES = new Map(
   canonicalSyllabusTopics.map((topic) => [topic.id, topic.title]),
 );
 
-// UTC so the server render and the browser agree on the text.
-const RECEIVED = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
+type StatusFilter = QuestionFeedbackStatus | "all";
 
 export function ProfessorQuestionFeedbackPanel({
   initialDashboard,
+  initialStatusFilter = "open",
 }: {
   initialDashboard: ProfessorQuestionFeedbackDashboard;
+  /** Which reports show first. New by default. */
+  initialStatusFilter?: StatusFilter;
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [categoryFilter, setCategoryFilter] = useState<
     QuestionFeedbackCategory | "all"
   >("all");
-  const [statusFilter, setStatusFilter] = useState<
-    QuestionFeedbackStatus | "all"
-  >("all");
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilter>(initialStatusFilter);
   const visibleReports = useMemo(
     () =>
       dashboard.reports.filter(
@@ -67,7 +77,6 @@ export function ProfessorQuestionFeedbackPanel({
       ),
     [categoryFilter, dashboard.reports, statusFilter],
   );
-  const filtered = categoryFilter !== "all" || statusFilter !== "all";
 
   function replaceReport(updated: ProfessorQuestionFeedbackReport) {
     setDashboard((current) => {
@@ -78,6 +87,14 @@ export function ProfessorQuestionFeedbackPanel({
     });
   }
 
+  if (dashboard.reports.length === 0) {
+    return (
+      <EmptyState>
+        No reports yet. When a student flags a question, it appears here.
+      </EmptyState>
+    );
+  }
+
   return (
     <section
       aria-labelledby="feedback-reports-heading"
@@ -86,62 +103,42 @@ export function ProfessorQuestionFeedbackPanel({
       <h2 id="feedback-reports-heading" className="sr-only">
         Reports
       </h2>
-      <p className="type-small max-w-prose text-ink-muted">
-        Each report is tied to the exact tutor session and question version.
-        Changing its status or adding resolution notes never alters published
-        content; content changes stay in the question lifecycle.
-      </p>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="Status" className="sm:w-48">
-            <NativeSelect
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as QuestionFeedbackStatus | "all",
-                )
-              }
-            >
-              <option value="all">All statuses</option>
-              {QUESTION_FEEDBACK_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field label="Category" className="sm:w-64">
-            <NativeSelect
-              value={categoryFilter}
-              onChange={(event) =>
-                setCategoryFilter(
-                  event.target.value as QuestionFeedbackCategory | "all",
-                )
-              }
-            >
-              <option value="all">All categories</option>
-              {QUESTION_FEEDBACK_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {QUESTION_FEEDBACK_CATEGORY_LABELS[category]}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        </div>
-        <dl
-          aria-label="Reports by status"
-          className="flex flex-wrap gap-x-5 gap-y-1 type-small"
-        >
-          {QUESTION_FEEDBACK_STATUSES.map((status) => (
-            <div key={status} className="flex items-baseline gap-2">
-              <dt className="text-ink-muted">{STATUS_LABELS[status]}</dt>
-              <dd className="font-mono tabular text-ink">
-                {dashboard.counts[status]}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Field label="Show" className="sm:w-64">
+          <NativeSelect
+            value={statusFilter}
+            className="min-h-11"
+            onChange={(event) =>
+              setStatusFilter(event.target.value as StatusFilter)
+            }
+          >
+            {QUESTION_FEEDBACK_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {STATUS_LABELS[status]} ({dashboard.counts[status]})
+              </option>
+            ))}
+            <option value="all">All reports ({dashboard.reports.length})</option>
+          </NativeSelect>
+        </Field>
+        <Field label="Kind of problem" className="sm:w-64">
+          <NativeSelect
+            value={categoryFilter}
+            className="min-h-11"
+            onChange={(event) =>
+              setCategoryFilter(
+                event.target.value as QuestionFeedbackCategory | "all",
+              )
+            }
+          >
+            <option value="all">All kinds</option>
+            {QUESTION_FEEDBACK_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {QUESTION_FEEDBACK_CATEGORY_LABELS[category]}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
       </div>
 
       {visibleReports.length > 0 ? (
@@ -152,13 +149,13 @@ export function ProfessorQuestionFeedbackPanel({
             </li>
           ))}
         </ol>
-      ) : filtered ? (
+      ) : (
         <EmptyState
           action={
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              className="min-h-11"
               onClick={() => {
                 setStatusFilter("all");
                 setCategoryFilter("all");
@@ -168,16 +165,37 @@ export function ProfessorQuestionFeedbackPanel({
             </Button>
           }
         >
-          No student reports match these filters.
-        </EmptyState>
-      ) : (
-        <EmptyState>
-          No student reports yet; a report sent from a practice question appears
-          here.
+          {statusFilter === "open" && categoryFilter === "all"
+            ? "No new reports. You're all caught up."
+            : "No reports match these choices."}
         </EmptyState>
       )}
     </section>
   );
+}
+
+async function sendReview(
+  reportId: string,
+  status: QuestionFeedbackStatus,
+  resolutionNotes?: string,
+) {
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/professor/feedback/${encodeURIComponent(reportId)}`,
+      {
+        body: JSON.stringify({ resolutionNotes, status }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      },
+    );
+  } catch {
+    return undefined;
+  }
+  const payload = (await response.json().catch(() => ({}))) as {
+    report?: ProfessorQuestionFeedbackReport;
+  };
+  return response.ok ? payload.report : undefined;
 }
 
 function FeedbackReviewItem({
@@ -187,49 +205,63 @@ function FeedbackReviewItem({
   onUpdated: (report: ProfessorQuestionFeedbackReport) => void;
   report: ProfessorQuestionFeedbackReport;
 }) {
-  const [status, setStatus] = useState(report.status);
-  const [resolutionNotes, setResolutionNotes] = useState(
-    report.resolutionNotes ?? "",
-  );
-  const [active, setActive] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const terminal = status === "resolved" || status === "dismissed";
+  const [notes, setNotes] = useState(report.resolutionNotes ?? "");
+  const [active, setActive] = useState<QuestionFeedbackStatus>();
+  const [notesError, setNotesError] = useState<string>();
+  const [error, setError] = useState<string>();
+  const isClient = useIsClient();
+  const terminal = report.status === "resolved" || report.status === "dismissed";
   const headingId = `feedback-report-${report.id}`;
+  const questionHref = `/professor/questions/${encodeURIComponent(report.questionId)}`;
   const topicTitle = report.topicId
-    ? (TOPIC_TITLES.get(report.topicId) ?? report.topicId)
+    ? (TOPIC_TITLES.get(report.topicId) ?? undefined)
     : undefined;
+  const received = formatLocalTime(report.createdAt, isClient);
 
-  async function save() {
-    setActive(true);
-    setMessage(undefined);
-    try {
-      const response = await fetch(
-        `/api/professor/feedback/${encodeURIComponent(report.id)}`,
-        {
-          body: JSON.stringify({
-            resolutionNotes: resolutionNotes.trim() || undefined,
-            status,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "PATCH",
-        },
-      );
-      const payload = (await response.json()) as {
-        error?: string;
-        report?: ProfessorQuestionFeedbackReport;
-      };
-      if (!response.ok || !payload.report) {
-        setMessage(payload.error ?? "The report could not be updated.");
-        return;
-      }
-      onUpdated(payload.report);
-      setResolutionNotes(payload.report.resolutionNotes ?? "");
-      setMessage("Status and resolution notes saved.");
-    } catch {
-      setMessage("The report could not be updated. Try again.");
-    } finally {
-      setActive(false);
+  async function setStatus(status: QuestionFeedbackStatus) {
+    const trimmed = notes.trim();
+    const needsNote = status === "resolved" || status === "dismissed";
+    if (needsNote && !trimmed) {
+      setNotesError("Please add a short note about what you did.");
+      return;
     }
+    setNotesError(undefined);
+    setError(undefined);
+    setActive(status);
+    const previous = {
+      notes: report.resolutionNotes,
+      status: report.status,
+    };
+    const updated = await sendReview(report.id, status, trimmed || undefined);
+    setActive(undefined);
+    if (!updated) {
+      setError(GENERIC_ERROR);
+      return;
+    }
+    onUpdated(updated);
+    setNotes(updated.resolutionNotes ?? "");
+    toast({
+      title: STATUS_TOASTS[status],
+      tone: "success",
+      action:
+        previous.status !== status
+          ? {
+              label: "Undo",
+              onClick: () => {
+                void sendReview(report.id, previous.status, previous.notes).then(
+                  (restored) => {
+                    if (restored) {
+                      onUpdated(restored);
+                      toast({ title: "Change undone.", tone: "success" });
+                    } else {
+                      toast({ title: GENERIC_ERROR, tone: "error" });
+                    }
+                  },
+                );
+              },
+            }
+          : undefined,
+    });
   }
 
   return (
@@ -239,92 +271,134 @@ function FeedbackReviewItem({
     >
       <div className="flex min-w-0 flex-col gap-3 xl:col-span-3">
         <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <h3 id={headingId} className="type-h3 min-w-0 text-ink">
-              {report.questionTitle}
+              <Link
+                href={questionHref}
+                className="text-ink underline underline-offset-4 hover:text-azure-700 focus-ring"
+              >
+                {report.questionTitle}
+              </Link>
             </h3>
-            <StatusChip
-              tone={STATUS_TONES[report.status]}
-              label={STATUS_LABELS[report.status]}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusChip
+                tone={STATUS_TONES[report.status]}
+                label={STATUS_LABELS[report.status]}
+              />
+              <Button asChild variant="outline" className="min-h-11">
+                <Link href={questionHref}>Open question</Link>
+              </Button>
+            </div>
           </div>
-          <p className="type-caption">
+          <p className="type-body text-ink-muted">
             {topicTitle ? `${topicTitle} · ` : ""}
-            Question version{" "}
-            <span className="font-mono tabular">
-              {report.questionVersionNumber}
-            </span>{" "}
-            · Tutor session linked
+            Reported on version {report.questionVersionNumber} of this question
           </p>
         </div>
-        <p className="type-small font-medium text-ink">
+        <p className="type-body-strong text-ink">
           {QUESTION_FEEDBACK_CATEGORY_LABELS[report.category]}
         </p>
         <blockquote className="type-body max-w-prose rounded-control bg-surface-tint px-3 py-2 break-words whitespace-pre-wrap text-ink">
           {report.message}
         </blockquote>
-        <p className="type-caption">
-          Received{" "}
-          <time dateTime={report.createdAt}>
-            {formatReceived(report.createdAt)}
-          </time>
-          {report.assignedToDisplayName
-            ? ` · Assigned to ${report.assignedToDisplayName}`
-            : ""}
-        </p>
+        {received || report.assignedToDisplayName ? (
+          <p className="type-small text-ink">
+            {received ? (
+              <>
+                Sent <time dateTime={report.createdAt}>{received}</time>
+              </>
+            ) : null}
+            {received && report.assignedToDisplayName ? " · " : ""}
+            {report.assignedToDisplayName
+              ? `Handled by ${report.assignedToDisplayName}`
+              : ""}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-4 xl:col-span-2">
-        <Field label="Review status">
-          <NativeSelect
-            value={status}
-            disabled={active}
-            onChange={(event) => {
-              setStatus(event.target.value as QuestionFeedbackStatus);
-              setMessage(undefined);
-            }}
-          >
-            {QUESTION_FEEDBACK_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {STATUS_LABELS[value]}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
         <Field
-          label="Resolution notes"
-          optional={!terminal}
-          description={
-            terminal ? "Required to resolve or dismiss a report." : undefined
-          }
+          label="Note to yourself (what you did)"
+          description="Needed when you mark a report as fixed or no change needed."
+          error={notesError}
         >
           <Textarea
             maxLength={1_000}
             rows={3}
-            value={resolutionNotes}
-            disabled={active}
-            placeholder="What you decided or will follow up…"
+            value={notes}
+            disabled={active !== undefined}
+            placeholder="For example: Corrected the answer to 0.25."
             onChange={(event) => {
-              setResolutionNotes(event.target.value);
-              setMessage(undefined);
+              setNotes(event.target.value);
+              setNotesError(undefined);
+              setError(undefined);
             }}
           />
         </Field>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            loading={active}
-            disabled={terminal && !resolutionNotes.trim()}
-            onClick={() => void save()}
-          >
-            <Check aria-hidden="true" />
-            Save review
-          </Button>
-          <p role="status" className="type-small text-ink-muted">
-            {message}
-          </p>
+          {terminal ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                loading={active === report.status}
+                disabled={active !== undefined}
+                onClick={() => void setStatus(report.status)}
+              >
+                Save note
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                className="min-h-11"
+                disabled={active !== undefined}
+                onClick={() => void setStatus("open")}
+              >
+                Move back to New
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="cta"
+                className="min-h-11"
+                loading={active === "resolved"}
+                disabled={active !== undefined}
+                onClick={() => void setStatus("resolved")}
+              >
+                Mark as fixed
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                loading={active === "dismissed"}
+                disabled={active !== undefined}
+                onClick={() => void setStatus("dismissed")}
+              >
+                No change needed
+              </Button>
+              {report.status === "open" ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="min-h-11"
+                  disabled={active !== undefined}
+                  onClick={() => void setStatus("triaged")}
+                >
+                  Looking into it
+                </Button>
+              ) : null}
+            </>
+          )}
         </div>
+        {error ? (
+          <p role="alert" className="type-body font-medium text-red-700">
+            {error}
+          </p>
+        ) : null}
       </div>
     </article>
   );
@@ -341,9 +415,40 @@ function countsFor(reports: ProfessorQuestionFeedbackReport[]) {
   return counts;
 }
 
-function formatReceived(value: string) {
+/* Time: the browser's local zone with its short name. The server (and the
+   first client render) uses UTC so the markup matches, then the browser
+   swaps in local time. */
+
+const noopSubscribe = () => () => {};
+
+function useIsClient() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+/** "Mon 6 Oct, 9:00 AM EDT"; nothing for a missing or epoch-0 date. */
+function formatLocalTime(value: string | undefined, isClient: boolean) {
+  if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "at an unknown time"
-    : `${RECEIVED.format(date)} UTC`;
+  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) return "";
+  const timeZone = isClient ? undefined : "UTC";
+  const day = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() !== new Date().getFullYear()
+      ? { year: "numeric" }
+      : {}),
+    timeZone,
+  }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+    timeZone,
+  }).format(date);
+  return `${day}, ${time}`;
 }

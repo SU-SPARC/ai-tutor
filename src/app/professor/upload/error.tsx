@@ -21,12 +21,12 @@ export default function ProfessorUploadError({
 
   return (
     <ProfessorPageShell
-      title="Uploads"
+      title="Upload notes"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Uploads" },
+        { label: "Home", href: "/professor" },
+        { label: "Upload notes" },
       ]}
-      description="The upload page could not be loaded."
+      description="This page could not be opened."
     >
       <section
         role="alert"
@@ -34,19 +34,19 @@ export default function ProfessorUploadError({
         className="flex max-w-prose flex-col items-start gap-3 border-l-2 border-red-500 py-1 pl-4"
       >
         <h2 id="upload-error-heading" className="type-h3 text-ink">
-          Uploads could not be loaded
+          What you can do
         </h2>
-        <p className="type-body text-ink-muted">
-          No file was sent. Try loading the page again, or go back to the
-          workspace.
+        <p className="type-body text-ink">
+          No file was sent and nothing was changed. Try again, or choose
+          another page from the list on the left.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={reset}>
+          <Button type="button" className="min-h-11" onClick={reset}>
             <RotateCcw aria-hidden="true" />
             Try again
           </Button>
-          <Button asChild variant="secondary">
-            <Link href="/professor">Back to the workspace</Link>
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link href="/professor">Go to Home</Link>
           </Button>
         </div>
       </section>

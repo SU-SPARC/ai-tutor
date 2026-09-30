@@ -10,7 +10,15 @@ export type LandingTutorPanelProps = {
   onHint: () => void;
   onWhereToStart: () => void;
   hintDisabled?: boolean;
+  /**
+   * Signed out: both buttons and the text box are disabled, and the line
+   * under them says how to open the tutor.
+   */
+  locked?: boolean;
 };
+
+export const LOCKED_TUTOR_NOTE =
+  "Sign in or join your course to use the tutor.";
 
 export const TUTOR_INTRO_MESSAGE = "Hi — I’ll nudge, not answer.";
 
@@ -31,6 +39,7 @@ export function LandingTutorPanel({
   onHint,
   onWhereToStart,
   hintDisabled = false,
+  locked = false,
 }: LandingTutorPanelProps) {
   const headingId = useId();
   const inputId = useId();
@@ -69,7 +78,8 @@ export function LandingTutorPanel({
           variant="outline"
           size="sm"
           onClick={onHint}
-          disabled={hintDisabled}
+          disabled={locked || hintDisabled}
+          aria-describedby={locked ? noteId : undefined}
         >
           Give me a hint
         </Button>
@@ -78,6 +88,8 @@ export function LandingTutorPanel({
           variant="outline"
           size="sm"
           onClick={onWhereToStart}
+          disabled={locked}
+          aria-describedby={locked ? noteId : undefined}
         >
           Where do I start?
         </Button>
@@ -94,7 +106,7 @@ export function LandingTutorPanel({
           aria-describedby={noteId}
         />
         <p id={noteId} className="type-caption">
-          Sign in to chat with the tutor.
+          {locked ? LOCKED_TUTOR_NOTE : "Sign in to chat with the tutor."}
         </p>
       </div>
     </section>

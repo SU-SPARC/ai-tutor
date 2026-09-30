@@ -2,34 +2,29 @@ import type { Metadata } from "next";
 
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import { ProfessorUploadPanel } from "@/components/professor/professor-upload-panel";
-import { PROFESSOR_CONTENT_UPLOAD_MAX_BYTES } from "@/lib/tutor/professor-content-upload";
 import { requireProfessor, requirePageAccess } from "@/lib/auth/authorization";
+import { PROFESSOR_CONTENT_UPLOAD_MAX_BYTES } from "@/lib/tutor/professor-content-upload";
 
 export const metadata: Metadata = {
-  title: "Uploads",
+  title: "Upload notes",
 };
 
 export default async function ProfessorUploadPage() {
   await requirePageAccess(requireProfessor, "/professor/upload");
-  const maxKb = Math.floor(PROFESSOR_CONTENT_UPLOAD_MAX_BYTES / 1024);
   return (
     <ProfessorPageShell
-      title="Uploads"
+      title="Upload notes"
       breadcrumbs={[
-        { label: "Workspace", href: "/professor" },
-        { label: "Uploads" },
+        { label: "Home", href: "/professor" },
+        { label: "Upload notes" },
       ]}
-      description="Upload a LaTeX or small PDF file to preview the topics, patterns and formulas the tutor would take from it."
-      notice={`Files up to ${maxKb} KB. Everything you upload stays private and needs your review before any of it is used.`}
+      description="See what the tutor can read from your lecture notes. For now this is a preview only: it doesn't change the tutor or create questions, and students never see your file."
     >
       <section
-        aria-labelledby="upload-heading"
+        aria-label="Upload your lecture notes"
         className="flex flex-col gap-5 rounded-panel bg-sheet p-4 sm:p-6"
       >
-        <h2 id="upload-heading" className="type-h3 text-ink">
-          Private reference upload
-        </h2>
-        <ProfessorUploadPanel />
+        <ProfessorUploadPanel maxBytes={PROFESSOR_CONTENT_UPLOAD_MAX_BYTES} />
       </section>
     </ProfessorPageShell>
   );

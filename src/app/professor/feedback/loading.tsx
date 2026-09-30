@@ -4,11 +4,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ProfessorFeedbackLoading() {
   return (
     <ProfessorPageShell
-      title="Student reports"
-      description="Problems students flagged on practice questions, for you to triage and resolve."
+      title="Reports from students"
+      description="Problems students flagged on practice questions."
     >
       <p role="status" className="sr-only">
-        Loading student reports…
+        Loading reports from students…
       </p>
       <div aria-busy="true" className="flex flex-col gap-5">
         <Skeleton className="h-5 w-full max-w-xl" />

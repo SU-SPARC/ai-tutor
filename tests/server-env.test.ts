@@ -357,6 +357,71 @@ describe("typed server environment", () => {
     );
   });
 
+  it("leaves the feedback contact unset when FEEDBACK_EMAIL is absent or blank", () => {
+    for (const FEEDBACK_EMAIL of [undefined, "", "   "]) {
+      const env = parseServerEnv({
+        FEEDBACK_CONTACT_NAME: "Professor Example",
+        FEEDBACK_EMAIL,
+        NODE_ENV: "development",
+      });
+
+      expect(env.FEEDBACK_EMAIL).toBeUndefined();
+      expect(env.FEEDBACK_CONTACT_NAME).toBeUndefined();
+    }
+  });
+
+  it("accepts ordinary addresses, including ones with an s in them", () => {
+    expect(
+      parseServerEnv({
+        FEEDBACK_EMAIL: "students.feedback@sub.example.invalid",
+        NODE_ENV: "development",
+      }).FEEDBACK_EMAIL,
+    ).toBe("students.feedback@sub.example.invalid");
+  });
+
+  it("parses a configured feedback contact and defaults its name", () => {
+    expect(
+      parseServerEnv({
+        FEEDBACK_CONTACT_NAME: " Professor Example ",
+        FEEDBACK_EMAIL: " feedback@example.invalid ",
+        NODE_ENV: "development",
+      }),
+    ).toMatchObject({
+      FEEDBACK_CONTACT_NAME: "Professor Example",
+      FEEDBACK_EMAIL: "feedback@example.invalid",
+    });
+    expect(
+      parseServerEnv({
+        ...strictEnvironment("production"),
+        FEEDBACK_EMAIL: "feedback@example.invalid",
+      }),
+    ).toMatchObject({
+      FEEDBACK_CONTACT_NAME: "your professor",
+      FEEDBACK_EMAIL: "feedback@example.invalid",
+    });
+  });
+
+  it("rejects a FEEDBACK_EMAIL that is not a single address without echoing it", () => {
+    for (const value of [
+      "not-an-email",
+      "one@example.invalid, two@example.invalid",
+    ]) {
+      let error: unknown;
+      try {
+        parseServerEnv({ FEEDBACK_EMAIL: value, NODE_ENV: "development" });
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(ServerEnvironmentValidationError);
+      const { issues, message } = error as ServerEnvironmentValidationError;
+      expect(issues).toEqual([
+        "FEEDBACK_EMAIL must be a single email address.",
+      ]);
+      expect(message).not.toContain(value);
+    }
+  });
+
   it("rejects server secrets exposed through NEXT_PUBLIC aliases", () => {
     const exposedValue = "do-not-render-this-value";
 

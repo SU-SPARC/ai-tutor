@@ -23,8 +23,9 @@ import type { Course } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
 /**
- * S1. Every offering the professor runs: active ones as a 2-up grid with one
- * attention line each, then the archived ones behind a disclosure.
+ * S1. Every course the professor runs: active ones as a 2-up grid with one
+ * attention line each, the archived ones behind a disclosure, and the demo
+ * reset alone at the very bottom.
  */
 export function CoursesIndexScreen() {
   const { state, dispatch } = useCoursesStore();
@@ -38,45 +39,50 @@ export function CoursesIndexScreen() {
   function unarchive(course: Course) {
     dispatch({ type: "course/unarchive", courseId: course.id });
     toast({
-      title: `${course.code} ${course.term} is active again`,
+      title: `${course.code} ${course.term} is restored. Students can join again.`,
+      tone: "success",
       action: {
         label: "Undo",
         onClick: () =>
           dispatch({ type: "course/archive", courseId: course.id }),
       },
+      duration: 15_000,
     });
   }
 
   return (
     <ProfessorPageShell
       aside={
-        <>
-          <DemoResetButton />
-          <Button onClick={() => setForm({ mode: "create" })} type="button">
-            <Plus aria-hidden="true" />
-            New course
-          </Button>
-        </>
+        <Button
+          className="min-h-11"
+          onClick={() => setForm({ mode: "create" })}
+          type="button"
+        >
+          <Plus aria-hidden="true" />
+          New course
+        </Button>
       }
-      description="One course per offering. Clone last term instead of rebuilding it."
+      description="A course has one or more sections (your class meetings). Each section has a join code for students, and you choose which questions each section sees, week by week."
       title="Courses"
     >
       <section aria-labelledby="courses-active" className="flex flex-col gap-4">
         <h2 className="type-h2 text-ink" id="courses-active">
-          Active{" "}
-          <span className="type-mono align-middle text-ink-muted">
-            {active.length}
-          </span>
+          Active courses
         </h2>
         {active.length === 0 ? (
           <EmptyState
             action={
-              <Button onClick={() => setForm({ mode: "create" })} type="button">
+              <Button
+                className="min-h-11"
+                onClick={() => setForm({ mode: "create" })}
+                type="button"
+              >
                 New course
               </Button>
             }
           >
-            No active courses. Create one, or clone an archived offering.
+            Your courses will appear here. Create one, or copy an old one for a
+            new term.
           </EmptyState>
         ) : null}
         <ul className="grid gap-4 md:grid-cols-2">
@@ -108,8 +114,7 @@ export function CoursesIndexScreen() {
                   showArchived && "rotate-90",
                 )}
               />
-              Archived
-              <span className="type-mono text-ink-muted">{archived.length}</span>
+              Archived courses ({archived.length})
             </button>
           </h2>
           {showArchived ? (
@@ -133,16 +138,18 @@ export function CoursesIndexScreen() {
                       </Link>
                       <span className="type-small tabular text-ink-muted">
                         {plural(summary.sectionCount, "section")} ·{" "}
-                        {summary.studentCount} joined
+                        {plural(summary.studentCount, "student")} · students
+                        can&rsquo;t join
                       </span>
                     </div>
                     <Button
+                      aria-label={`Restore ${course.code} ${course.term}`}
+                      className="min-h-11"
                       onClick={() => unarchive(course)}
-                      size="sm"
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                     >
-                      Unarchive
+                      Restore
                     </Button>
                   </li>
                 );
@@ -151,6 +158,8 @@ export function CoursesIndexScreen() {
           ) : null}
         </section>
       ) : null}
+
+      <DemoResetButton />
 
       {form ? (
         <CourseFormDialog

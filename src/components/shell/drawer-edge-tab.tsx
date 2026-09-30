@@ -31,6 +31,7 @@ export function DrawerEdgeTab({
       type="button"
       onClick={onToggle}
       data-slot="drawer-edge-tab"
+      data-tour="practice-tutor"
       className={cn(
         "fixed top-1/2 right-0 z-30 hidden -translate-y-1/2 items-center gap-2 rounded-l-control bg-sheet py-3 pr-2 pl-3 text-sm font-medium text-ink [writing-mode:vertical-rl]",
         "border border-r-0 border-rule transition-colors duration-fast hover:bg-hover focus-ring",
