@@ -29,11 +29,14 @@ import {
   MathKeypadDock,
   useKeypadLayout,
   useKeypadOpen,
+  useMathInputMode,
 } from "@/components/math/math-keypad";
 import { MathText } from "@/components/math/math-renderer";
+import { QuestionFigureView } from "@/components/sheet/question-figure";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { evaluateEntry, type AnswerEntry } from "@/lib/math/answer-notation";
+import type { QuestionFigure } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type SheetHint = {
@@ -130,6 +133,11 @@ export type QuestionSheetProps = {
   header: QuestionSheetHeader;
   /** Rendered with `<MathText>`; `$...$` and `$$...$$` become KaTeX. */
   prompt: string;
+  /**
+   * A graph that belongs to the prompt, drawn between the prompt and the
+   * answer block. Full sheet only: not in compact rows, not when tombstoned.
+   */
+  figure?: QuestionFigure;
   answer?: QuestionSheetAnswer;
   hints: QuestionSheetHints;
   steps?: QuestionSheetSteps;
@@ -220,6 +228,7 @@ function GutterNumber({
 export function QuestionSheet({
   header,
   prompt,
+  figure,
   answer,
   hints,
   steps,
@@ -299,6 +308,8 @@ export function QuestionSheet({
         <>
           <MathText className="type-reading text-ink">{prompt}</MathText>
 
+          {figure ? <QuestionFigureView figure={figure} /> : null}
+
           {answer ? <AnswerBlock answer={answer} /> : null}
 
           <HintLadder
@@ -358,13 +369,17 @@ function AnswerBlock({ answer }: { answer: QuestionSheetAnswer }) {
 
   const layout = useKeypadLayout();
   const [keypadOpen, setKeypadOpen] = useKeypadOpen();
+  // Phones and tablets: our docked pad, or the OS keyboard if the student
+  // chose "Use keyboard".
+  const [inputMode, setInputMode] = useMathInputMode();
+  const touchKeyboard = layout === "docked" && inputMode === "keyboard";
   // The field or the docked keypad holds focus (phones and tablets).
   const [focused, setFocused] = useState(false);
   const [reported, setReported] = useState<AnswerEntry | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   const fieldRef = useRef<MathAnswerFieldHandle>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
-  const docked = math && layout === "docked" && focused;
+  const docked = math && layout === "docked" && !touchKeyboard && focused;
 
   // What the field made of the entry. A value the field did not emit (a
   // restore, a cleared field) is read here from the plain string.
@@ -410,6 +425,16 @@ function AnswerBlock({ answer }: { answer: QuestionSheetAnswer }) {
     setFocused(false);
     const active = document.activeElement;
     if (active instanceof HTMLElement) active.blur();
+  };
+  // "Use keyboard" on the dock: the pad goes, the OS keyboard comes up.
+  const switchToKeyboard = () => {
+    setInputMode("keyboard");
+    fieldRef.current?.setSystemKeyboard(true);
+  };
+  // "Keypad" beside the field on a touch layout: back to the docked pad.
+  const switchToKeypad = () => {
+    setInputMode("keypad");
+    fieldRef.current?.setSystemKeyboard(false);
   };
 
   // Keep the field in view above the docked pad.
@@ -470,33 +495,50 @@ function AnswerBlock({ answer }: { answer: QuestionSheetAnswer }) {
         Your answer
       </label>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {math ? (
-          <MathAnswerField
-            {...fieldProps}
-            ref={fieldRef}
-            onEntry={setReported}
-            onFocusChange={handleFocusChange}
-            suppressSystemKeyboard={layout === "docked"}
-          />
-        ) : (
-          <PlainAnswerField {...fieldProps} />
-        )}
-        {math ? (
-          // Desktop with a mouse: the keypad is a helper, collapsed until
-          // asked for. Phones and tablets dock it while the field is focused.
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            aria-pressed={keypadOpen}
-            aria-controls={keypadOpen ? keypadId : undefined}
-            onClick={() => setKeypadOpen(!keypadOpen)}
-            className="hidden px-4 lg:pointer-fine:inline-flex"
-          >
-            <Keyboard aria-hidden="true" className="size-5" />
-            Keypad
-          </Button>
-        ) : null}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {math ? (
+            <MathAnswerField
+              {...fieldProps}
+              ref={fieldRef}
+              onEntry={setReported}
+              onFocusChange={handleFocusChange}
+              suppressSystemKeyboard={layout === "docked" && !touchKeyboard}
+            />
+          ) : (
+            <PlainAnswerField {...fieldProps} />
+          )}
+          {math && touchKeyboard ? (
+            // Phones and tablets typing with the OS keyboard: one tap brings
+            // the docked keypad back. A press keeps focus in the field.
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onPointerDown={(event) => event.preventDefault()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={switchToKeypad}
+              className="shrink-0 px-4"
+            >
+              <Keyboard aria-hidden="true" className="size-5" />
+              Keypad
+            </Button>
+          ) : math ? (
+            // Desktop with a mouse: the keypad is a helper, collapsed until
+            // asked for. Phones and tablets dock it while the field is focused.
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              aria-pressed={keypadOpen}
+              aria-controls={keypadOpen ? keypadId : undefined}
+              onClick={() => setKeypadOpen(!keypadOpen)}
+              className="hidden px-4 lg:pointer-fine:inline-flex"
+            >
+              <Keyboard aria-hidden="true" className="size-5" />
+              Keypad
+            </Button>
+          ) : null}
+        </div>
         {showCheck ? (
           <Button
             type="button"
@@ -565,6 +607,7 @@ function AnswerBlock({ answer }: { answer: QuestionSheetAnswer }) {
           <MathKeypadDock
             preview={preview}
             onHide={hideDock}
+            onUseKeyboard={switchToKeyboard}
             dockRef={(element) => {
               dockRef.current = element;
             }}

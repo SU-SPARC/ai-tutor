@@ -93,7 +93,8 @@ export function inputFormatHintFor(
 
 /**
  * Public list shape. Deliberately omits answers, solution steps, and
- * misconception match terms so a plain listing never leaks solutions.
+ * misconception match terms so a plain listing never leaks solutions. The
+ * optional figure is copied because it belongs to the prompt.
  */
 export function normalizeSummary(question: TutorQuestion): QuestionSummary {
   return {
@@ -108,6 +109,8 @@ export function normalizeSummary(question: TutorQuestion): QuestionSummary {
     hintCount: question.hints.length,
     inputFormatHint: inputFormatHintFor(question.answer),
     stepCount: question.solutionSteps.length,
+    // The figure is part of the prompt (public, never the answer).
+    ...(question.figure ? { figure: structuredClone(question.figure) } : {}),
   }
 }
 

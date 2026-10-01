@@ -2,6 +2,7 @@ import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import type {
   Difficulty,
   Misconception,
+  QuestionFigure,
   QuestionVersionState,
 } from "@/lib/types";
 
@@ -34,6 +35,8 @@ export type ContentTransferQuestion = {
     tolerance?: number;
   };
   difficulty: Difficulty;
+  /** Optional graph shown with the prompt; absent means no figure. */
+  figure?: QuestionFigure;
   hints: string[];
   misconceptions: Misconception[];
   prompt: string;

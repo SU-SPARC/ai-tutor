@@ -108,7 +108,17 @@ landing demo keeps the older sentence). Options: `answer.showCheck`
 (false when the page has its own Check), `answer.preview` (how the entry reads, in
 KaTeX), `hints.revealControl` (false when hints are revealed from elsewhere), `compact`
 (list rows), `tombstone` (retired question). `QuestionSheetSkeleton` is its loading state.
+`figure` draws the question's graph (`QuestionFigureView`: bar, line, normal curve or
+Venn, `role="img"` with the alt text) between the prompt and the answer block, on the full
+Sheet only.
 It renders the landing hero, practice, topic rows, and the professor previews.
+
+Math answer input: the whole `<math-field>` box is the click target (the host is
+`display: grid`, so MathLive's content stretches), `*` types a × sign, and square
+brackets group like parentheses (`[1+2]×3` reads as 9). On phones and tablets the docked
+keypad has "Use keyboard", which puts the pad away and raises the OS keyboard, and a
+"Keypad" button beside the field brings the pad back; the choice is remembered in
+`probstat.math-input.mode` (default "keypad").
 
 ## Student routes
 

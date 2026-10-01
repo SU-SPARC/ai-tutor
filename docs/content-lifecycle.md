@@ -32,6 +32,17 @@ keep the exact old configuration. Legacy snapshots remain unchanged. See
 non-persisting simulator, deterministic AI intake validation, and publication
 gates. AI proposals never bypass professor review or publish automatically.
 
+An optional question `figure` (see [question-figures.md](question-figures.md))
+follows the same doctrine: it lives only at `snapshot_json.figure` of an
+immutable version, "no figure" means the key is absent, and existing snapshots
+are never rewritten. Migration 028 appends a derived `figure_json` column to
+`app_question_version_content`, `app_public_questions`,
+`app_review_queue_questions`, and `app_reserve_practice_questions`. Creation,
+revision (`figure: null` removes it), and approval reject an invalid figure; an
+invalid stored figure is read as absent and blocks publication as a
+`deterministic_validation_failed` quality gate. The version diff reports
+"Figure added", "Figure removed", or "Figure changed".
+
 ## Tutor behavior
 
 For numeric questions, an unreadable submission returns guidance when it matches

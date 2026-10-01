@@ -44,6 +44,7 @@ import type {
   TutorQuestion,
 } from "@/lib/types";
 import { generateDeterministicRegeneratedQuestion } from "@/lib/tutor/generated-question-regeneration";
+import { readQuestionFigure } from "@/lib/tutor/question-figure";
 import { emptyGeneratedQuestionReviewOutcomes } from "@/lib/tutor/professor-tools";
 
 type QuestionRow = {
@@ -51,6 +52,8 @@ type QuestionRow = {
   accepted_answers_json: unknown;
   answer_explanation: string;
   difficulty: Difficulty;
+  /** Derived from question_versions.snapshot_json.figure (migration 028). */
+  figure_json?: unknown;
   hints_json: unknown;
   id: string;
   misconceptions_json: unknown;
@@ -978,12 +981,17 @@ export function createDatabaseContentRepository(
 }
 
 export function mapQuestionRow(row: QuestionRow): TutorQuestion {
+  const figure =
+    row.figure_json == null
+      ? undefined
+      : readQuestionFigure(row.figure_json, `question ${row.id}`);
   return {
     id: row.id,
     topicId: row.topic_id,
     title: row.title,
     difficulty: row.difficulty,
     prompt: row.prompt,
+    ...(figure ? { figure } : {}),
     answer: {
       acceptedAnswers: stringArray(row.accepted_answers_json),
       ...(row.answer_spec_json != null ? { spec: row.answer_spec_json } : {}),

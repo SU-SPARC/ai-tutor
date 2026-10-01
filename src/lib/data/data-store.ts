@@ -1216,6 +1216,7 @@ function lifecycleVersionToAdminQuestion(
       acceptedAnswers: [...version.answer.acceptedAnswers],
     },
     difficulty: version.difficulty,
+    ...(version.figure ? { figure: structuredClone(version.figure) } : {}),
     hints: [...version.hints],
     id: version.id,
     misconceptions: version.misconceptions.map((misconception) => ({
@@ -1273,6 +1274,7 @@ function demoQuestionLifecycle(
         ? "generated"
         : "imported",
     difficulty: question.difficulty,
+    ...(question.figure ? { figure: structuredClone(question.figure) } : {}),
     hints: [...question.hints],
     generationMetadata: {},
     id: question.id,
@@ -1410,6 +1412,7 @@ function legacyProfessorReviewCandidate(
         ? "generated"
         : "imported",
     difficulty: question.difficulty,
+    ...(question.figure ? { figure: structuredClone(question.figure) } : {}),
     hints: [...question.hints],
     id: question.id,
     misconceptions: question.misconceptions.map(({ feedback, id }) => ({

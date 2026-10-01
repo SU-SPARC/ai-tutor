@@ -487,6 +487,7 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
                 disclosedHints={disclosedHints}
                 extraPractice={extraPractice}
                 feedbackKey={session?.id ?? selectedQuestion.id}
+                figure={selectedQuestion.figure}
                 footer={
                   <PracticeFooter
                     disabled={busy}

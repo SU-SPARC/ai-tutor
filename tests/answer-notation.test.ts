@@ -300,3 +300,86 @@ describe("answer type from the format hint", () => {
     expect(answerNotationFromHint(hint)).toBe(notation);
   });
 });
+
+describe("brackets, times and precedence", () => {
+  it("reads MathLive's square brackets as a grouping", () => {
+    // Typing `[6]` with smart fences on gives \left\lbrack6\right\rbrack.
+    const entry = readLatexEntry("\\left\\lbrack6\\right\\rbrack");
+    expect(entry.status).toBe("grammar");
+    expect(entry.sent).toBe("6");
+    expect(entry.notation).toBe("\\left[6\\right]");
+
+    const sum = readLatexEntry("\\left\\lbrack1+2\\right\\rbrack\\times3");
+    expect(sum.status).toBe("evaluated");
+    expect(sum.sent).toBe("9");
+  });
+
+  it("reads \\lbrace…\\rbrace as a grouping too", () => {
+    const entry = readLatexEntry("\\left\\lbrace1+2\\right\\rbrace\\times3");
+    expect(entry.status).toBe("evaluated");
+    expect(entry.sent).toBe("9");
+  });
+
+  it("groups plain [ ] like ( ) (PEMDAS)", () => {
+    const entry = evaluateEntry("[1+2]*3");
+    expect(entry.status).toBe("evaluated");
+    expect(entry.sent).toBe("9");
+    expect(entry.notation).toContain("\\left[1+2\\right]");
+    expect(entry.notation).toContain("\\times");
+    expect(plainToLatex("[1+2]*3")).toBe("\\left[1+2\\right]\\times 3");
+    expect(evaluateEntry("2[3+1]").sent).toBe("8");
+    expect(evaluateEntry("[(1+1)*2]^2").sent).toBe("16");
+  });
+
+  it("evaluates (3+4)*2 as 14", () => {
+    const entry = evaluateEntry("(3+4)*2");
+    expect(entry.sent).toBe("14");
+    expect(entry.notation).toBe("\\left(3+4\\right)\\times 2");
+  });
+
+  it("reads \\times (what * types in the field) as multiplication", () => {
+    expect(readLatexEntry("\\left(3+4\\right)\\times2").sent).toBe("14");
+  });
+
+  it("binds a plain power tighter than /", () => {
+    // 3/4^2 is 3/(4^2).
+    expect(evaluateEntry("3/4^2").sent).toBe("3/16");
+  });
+
+  it("squares a whole LaTeX fraction", () => {
+    // MathLive's fraction is one box: \frac34^2 is (3/4)^2.
+    expect(readLatexEntry("\\frac34^2").sent).toBe("9/16");
+    expect(readLatexEntry("\\frac{3}{4}^{2}").sent).toBe("9/16");
+  });
+
+  it("reads a plain power tower right to left", () => {
+    // `^` is right-associative: 2^3^2 = 2^(3^2) = 512, not (2^3)^2 = 64.
+    expect(evaluateEntry("2^3^2").sent).toBe("512");
+    expect(evaluateEntry("(2^3)^2").sent).toBe("64");
+    // MathLive nests the exponent, which reads the same way.
+    expect(readLatexEntry("2^{3^{2}}").sent).toBe("512");
+  });
+
+  it.each(["[1+2)", "(1+2]", "[1+2", "1+2]"])(
+    "sends mismatched %s raw",
+    (plain) => {
+      const entry = evaluateEntry(plain);
+      expect(entry.status).toBe("unparsed");
+      expect(entry.sent).toBe(plain);
+    },
+  );
+
+  it("sends mismatched LaTeX brackets raw", () => {
+    const latex = "\\left\\lbrack1+2\\right)";
+    const entry = readLatexEntry(latex);
+    expect(entry.status).toBe("unparsed");
+    expect(entry.sent).toBe(latex);
+  });
+
+  it("keeps a root index in square brackets", () => {
+    expect(readLatexEntry("\\sqrt[3]{8}").sent).toBe("2");
+    expect(
+      readLatexEntry("\\left\\lbrack\\sqrt[3]{8}\\right\\rbrack^2").sent,
+    ).toBe("4");
+  });
+});

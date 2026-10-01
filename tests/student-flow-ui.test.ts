@@ -432,6 +432,36 @@ describe("question screen", () => {
     expect(markup).not.toMatch(/\bDraft\b/);
   });
 
+  it("draws a question's figure with its description between the prompt and the answer", () => {
+    const withFigure: StudentPracticeQuestion = {
+      ...studentQuestions[0],
+      figure: {
+        kind: "bar",
+        alt: "Bar chart of the probability of each number of heads in two tosses.",
+        bars: [
+          { label: "0", value: 0.25 },
+          { label: "1", value: 0.5 },
+          { label: "2", value: 0.25 },
+        ],
+      },
+    };
+    const markup = renderWorkspace({
+      initialQuestionId: "dice-sum-eight",
+      questions: [withFigure, studentQuestions[1]],
+    });
+
+    expect(markup).toContain('role="img"');
+    expect(markup).toContain(
+      "Bar chart of the probability of each number of heads in two tosses.",
+    );
+    const prompt = markup.indexOf("Two fair dice are rolled.");
+    const figure = markup.indexOf('role="img"');
+    const answer = markup.indexOf("Your answer");
+    expect(prompt).toBeLessThan(figure);
+    expect(figure).toBeLessThan(answer);
+    expect(markup).not.toMatch(/PRIVATE-/);
+  });
+
   it("never offers AI help unless the server enabled it", () => {
     expect(
       renderWorkspace({ initialQuestionId: "dice-sum-eight" }),

@@ -3,7 +3,7 @@
 import { AnswerCheckingEditor } from "@/components/professor/answer-checking-editor";
 import type { AnswerSpec } from "@/lib/tutor/answer/spec";
 import { useId, useMemo, useState } from "react";
-import { Save } from "lucide-react";
+import { ChevronRight, Save } from "lucide-react";
 
 import {
   plainActionError,
@@ -14,9 +14,11 @@ import { Field } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { validateQuestionFigure } from "@/lib/tutor/question-figure";
 import { changedQuestionVersionFields } from "@/lib/tutor/question-version-diff";
 import type {
   Difficulty,
+  QuestionFigure,
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
   QuestionRevisionContentInput,
@@ -27,6 +29,8 @@ type RevisionForm = {
   acceptedAnswers: string;
   answerExplanation: string;
   difficulty: Difficulty;
+  /** The figure as JSON text; empty means "no figure". */
+  figureJson: string;
   hints: string;
   misconceptionNotes: string;
   numericValue: string;
@@ -36,6 +40,10 @@ type RevisionForm = {
   tolerance: string;
   topicId: string;
 };
+
+type FigureCheck =
+  | { ok: true; figure?: QuestionFigure }
+  | { ok: false; issues: string[] };
 
 const DIFFICULTIES = [
   "foundational",
@@ -63,10 +71,18 @@ export function ProfessorQuestionRevisionEditor({
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string>();
+  // Figure issues show after the field is left or a save is tried, not
+  // while the JSON is still being typed.
+  const [showFigureIssues, setShowFigureIssues] = useState(false);
+  const [figureOpen, setFigureOpen] = useState(false);
   const headingId = useId();
+  const figureCheck = useMemo(
+    () => checkFigureJson(form.figureJson),
+    [form.figureJson],
+  );
   const revision = useMemo(
-    () => revisionFromForm(form, question),
-    [form, question],
+    () => revisionFromForm(form, question, figureCheck),
+    [form, question, figureCheck],
   );
   const changedFields = revision
     ? changedQuestionVersionFields(version, revision)
@@ -80,6 +96,14 @@ export function ProfessorQuestionRevisionEditor({
   }
 
   async function saveRevision() {
+    if (!figureCheck.ok) {
+      setShowFigureIssues(true);
+      setFigureOpen(true);
+      setMessage(
+        "Fix the figure JSON, or empty the field to save without one.",
+      );
+      return;
+    }
     if (!revision) {
       setMessage(
         "Please fill in the title, the question text, the correct answer, the explanation, and at least one solution step.",
@@ -103,7 +127,8 @@ export function ProfessorQuestionRevisionEditor({
             baseVersionId: version.versionId,
             comment: comment.trim() || undefined,
             expectedWorkingVersionId: version.versionId,
-            revision,
+            // null says "no figure" explicitly, so a revision can drop one.
+            revision: { ...revision, figure: revision.figure ?? null },
           }),
         },
       );
@@ -183,6 +208,39 @@ export function ProfessorQuestionRevisionEditor({
           onChange={(event) => updateForm("prompt", event.target.value)}
         />
       </Field>
+
+      <details
+        className="group border-t border-rule pt-3"
+        open={figureOpen}
+        onToggle={(event) => setFigureOpen(event.currentTarget.open)}
+      >
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control type-body-strong text-ink focus-ring [&::-webkit-details-marker]:hidden">
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 text-ink-muted transition-transform duration-fast group-open:rotate-90"
+          />
+          Figure (JSON, optional)
+        </summary>
+        <Field
+          className="pt-2"
+          label="Figure JSON"
+          optional
+          description="A bar, line, normal, or venn graph shown under the wording. Leave empty for no figure. See docs/question-figures.md."
+          error={
+            showFigureIssues && !figureCheck.ok
+              ? figureCheck.issues.join(" ")
+              : undefined
+          }
+        >
+          <Textarea
+            value={form.figureJson}
+            className="min-h-40 font-mono text-sm"
+            spellCheck={false}
+            onBlur={() => setShowFigureIssues(true)}
+            onChange={(event) => updateForm("figureJson", event.target.value)}
+          />
+        </Field>
+      </details>
 
       <AnswerCheckingEditor
         disabled={disabled || isSaving}
@@ -333,6 +391,7 @@ function revisionFormFromQuestion(
     spec: version.answer.spec,
     answerExplanation: version.answer.explanation,
     difficulty: version.difficulty,
+    figureJson: version.figure ? JSON.stringify(version.figure, null, 2) : "",
     hints: version.hints.join("\n"),
     misconceptionNotes: version.misconceptions
       .map((item) => item.feedback)
@@ -352,9 +411,35 @@ function revisionFormFromQuestion(
   };
 }
 
+/**
+ * Parse and validate the figure field with the same validator the server
+ * runs, so a bad figure is caught before the request.
+ */
+function checkFigureJson(text: string): FigureCheck {
+  if (!text.trim()) {
+    return { ok: true };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {
+      ok: false,
+      issues: [
+        "The figure is not valid JSON; check quotes, commas and braces.",
+      ],
+    };
+  }
+  const result = validateQuestionFigure(parsed);
+  return result.ok
+    ? { ok: true, figure: result.figure }
+    : { ok: false, issues: result.issues };
+}
+
 function revisionFromForm(
   form: RevisionForm,
   question: QuestionLifecycleDto,
+  figureCheck: FigureCheck,
 ): QuestionRevisionContentInput | undefined {
   const acceptedAnswers = lines(form.acceptedAnswers);
   const solutionSteps = lines(form.solutionSteps);
@@ -384,6 +469,9 @@ function revisionFromForm(
       tolerance,
     },
     difficulty: form.difficulty,
+    ...(figureCheck.ok && figureCheck.figure
+      ? { figure: figureCheck.figure }
+      : {}),
     hints: lines(form.hints),
     // A note keeps its id and matched wrong answers only while its text is
     // unchanged; matching by line position would hand one note's matches to

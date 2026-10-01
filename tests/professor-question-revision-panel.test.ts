@@ -62,6 +62,49 @@ describe("professor question revision panel", () => {
     expect(markup).not.toContain("private-pattern-secret");
   });
 
+  it("edits the optional figure as JSON, prefilled from the working version", () => {
+    const figure = {
+      kind: "bar" as const,
+      alt: "Bar chart of P(X = x) for x = 0, 1, 2.",
+      bars: [
+        { label: "0", value: 0.25 },
+        { label: "1", value: 0.5 },
+        { label: "2", value: 0.25 },
+      ],
+    };
+    const version = { ...versionFixture(), figure };
+    const render = (working: QuestionVersionDto) =>
+      renderToStaticMarkup(
+        createElement(ProfessorQuestionRevisionEditor, {
+          disabled: false,
+          onCancel: vi.fn(),
+          onSaved: vi.fn(),
+          question: {
+            ...lifecycleFixture(),
+            versions: [working],
+            workingVersion: working,
+          },
+          topics: [{ id: "basic-probability", title: "Basic probability" }],
+        }),
+      );
+
+    const withFigure = render(version);
+    expect(withFigure).toContain("Figure (JSON, optional)");
+    expect(withFigure).toContain("Figure JSON");
+    // The textarea carries the current figure, pretty-printed, and the
+    // field is collapsed until a professor opens it.
+    expect(withFigure).toContain("&quot;kind&quot;: &quot;bar&quot;");
+    expect(withFigure).toContain(
+      "&quot;alt&quot;: &quot;Bar chart of P(X = x) for x = 0, 1, 2.&quot;",
+    );
+    expect(withFigure).toContain("<details");
+    expect(withFigure).not.toContain("<details open");
+
+    const withoutFigure = render(versionFixture());
+    expect(withoutFigure).toContain("Figure (JSON, optional)");
+    expect(withoutFigure).not.toContain("&quot;kind&quot;");
+  });
+
   it("offers immutable revision editing for every active public-safe working version", () => {
     const question = lifecycleFixture();
     expect(canEditQuestionVersion(question)).toBe(true);

@@ -1,4 +1,5 @@
 import { answerSpecFromSnapshot } from "@/lib/tutor/answer/spec";
+import { readQuestionFigure } from "@/lib/tutor/question-figure";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -1649,6 +1650,13 @@ function practiceQuestionFromSnapshot(
     return undefined;
   }
 
+  // The pinned version is what recovered and similar-practice sessions show,
+  // so its figure must travel with it (read leniently, like the spec).
+  const figure = readQuestionFigure(
+    snapshot.figure,
+    `pinned question version ${id}`,
+  );
+
   return {
     answer: {
       acceptedAnswers,
@@ -1660,6 +1668,7 @@ function practiceQuestionFromSnapshot(
       tolerance: finiteNumber(snapshot.tolerance),
     },
     difficulty,
+    ...(figure ? { figure } : {}),
     hints: orderedBodies(snapshot.hints),
     id,
     misconceptions: Array.isArray(snapshot.misconceptions)

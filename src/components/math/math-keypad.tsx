@@ -14,10 +14,11 @@
  *
  * Layouts: `inline` opens under the field on desktop (the "Keypad" toggle);
  * `docked` is fixed to the bottom of the screen on phones and tablets while
- * the field is focused (see `MathKeypadDock`).
+ * the field is focused (see `MathKeypadDock`). The dock's "Use keyboard"
+ * hands over to the phone's own keyboard (`useMathInputMode`).
  */
 
-import { ArrowLeft, ArrowRight, Delete } from "lucide-react";
+import { ArrowLeft, ArrowRight, Delete, Keyboard } from "lucide-react";
 import {
   useRef,
   useState,
@@ -427,6 +428,11 @@ export type MathKeypadDockProps = {
   /** The "Reads as …" line, repeated above the keys (decorative copy). */
   preview?: ReactNode;
   onHide: () => void;
+  /**
+   * "Use keyboard": put the pad away and type with the OS keyboard. The
+   * button is left out when this is not given.
+   */
+  onUseKeyboard?: () => void;
   /** Sit above a page's bottom bar (`--bottombar-h`) instead of the edge. */
   children: ReactNode;
   dockRef?: (element: HTMLDivElement | null) => void;
@@ -435,12 +441,13 @@ export type MathKeypadDockProps = {
 /**
  * The phone and tablet dock: fixed to the bottom of the screen (above the
  * practice action bar through `--bottombar-h`), safe-area padded, with a thin
- * bar holding the live preview and "Hide keypad". Rendered into `<body>` so
- * no transformed ancestor can trap the fixed position.
+ * bar holding the live preview, "Use keyboard" and "Hide keypad". Rendered
+ * into `<body>` so no transformed ancestor can trap the fixed position.
  */
 export function MathKeypadDock({
   preview,
   onHide,
+  onUseKeyboard,
   children,
   dockRef,
 }: MathKeypadDockProps) {
@@ -459,6 +466,20 @@ export function MathKeypadDock({
           >
             {preview}
           </div>
+          {onUseKeyboard ? (
+            <button
+              type="button"
+              data-key="keyboard"
+              // Keep focus (and the caret) in the answer field.
+              onPointerDown={(event) => event.preventDefault()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onUseKeyboard}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-control px-2 text-sm font-medium text-azure-500 hover:text-azure-700 focus-ring"
+            >
+              <Keyboard aria-hidden="true" className="size-5" />
+              Use keyboard
+            </button>
+          ) : null}
           <button
             type="button"
             onPointerDown={(event) => event.preventDefault()}
@@ -538,4 +559,62 @@ export function useKeypadOpen(): [boolean, (open: boolean) => void] {
     window.dispatchEvent(new Event(OPEN_EVENT));
   };
   return [open, setOpen];
+}
+
+// ---------------------------------------------------------------------------
+// Phones and tablets: our keypad (default) or the OS keyboard, as the
+// student last chose. Desktop ignores it.
+// ---------------------------------------------------------------------------
+
+export type MathInputMode = "keypad" | "keyboard";
+
+const MODE_KEY = "probstat.math-input.mode";
+const MODE_EVENT = "probstat:math-input-mode";
+
+/** The choice for this page view when storage is unavailable. */
+let fallbackMode: MathInputMode = "keypad";
+
+function readMode(): MathInputMode {
+  try {
+    const stored = window.localStorage.getItem(MODE_KEY);
+    if (stored === "keypad" || stored === "keyboard") return stored;
+    return fallbackMode;
+  } catch {
+    return fallbackMode;
+  }
+}
+
+function subscribeMode(onChange: () => void) {
+  window.addEventListener(MODE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(MODE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/**
+ * "keypad" docks our pad while the field is focused; "keyboard" leaves the
+ * OS keyboard to it. Remembered in this browser; "keypad" on the server and
+ * during hydration, so the first client render matches the server's.
+ */
+export function useMathInputMode(): [
+  MathInputMode,
+  (mode: MathInputMode) => void,
+] {
+  const mode = useSyncExternalStore(
+    subscribeMode,
+    readMode,
+    () => "keypad" as const,
+  );
+  const setMode = (next: MathInputMode) => {
+    try {
+      window.localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // Not remembered; the choice still holds for this page view.
+    }
+    fallbackMode = next;
+    window.dispatchEvent(new Event(MODE_EVENT));
+  };
+  return [mode, setMode];
 }

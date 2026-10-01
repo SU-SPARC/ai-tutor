@@ -1343,7 +1343,7 @@ describe("content provenance and review metadata", () => {
     const question = await getQuestionById("dice-sum-eight");
 
     expect(topics).toHaveLength(11);
-    expect(questions).toHaveLength(8);
+    expect(questions).toHaveLength(9);
     expect(question?.id).toBe("dice-sum-eight");
     expect(conditionalQuestions.map((item) => item.id)).toEqual([
       "demo-conditional-spinner-coin",
@@ -1375,7 +1375,7 @@ describe("content provenance and review metadata", () => {
       expect(questions.map((question) => question.id)).toContain(
         "dice-sum-eight",
       );
-      expect(counts.total).toBe(8);
+      expect(counts.total).toBe(9);
       expect(
         questions.every(
           (question) => question.source.trustLevel !== "generated_unverified",

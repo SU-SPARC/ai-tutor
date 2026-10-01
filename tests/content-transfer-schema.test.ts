@@ -5,7 +5,11 @@ import {
   buildQuestionContentExport,
   validateContentTransferDocument,
 } from "@/lib/content-transfer/schema";
-import type { QuestionLifecycleDto, QuestionVersionDto } from "@/lib/types";
+import type {
+  QuestionFigure,
+  QuestionLifecycleDto,
+  QuestionVersionDto,
+} from "@/lib/types";
 import { validDocument, validQuestion } from "./content-transfer-test-helpers";
 
 describe("question content-transfer schema", () => {
@@ -217,6 +221,68 @@ describe("question content-transfer schema", () => {
     ]);
     expect(serialized).not.toMatch(
       /privatePrompt|studentId|reviewer@example|generationMetadata|createdBy|events|source/,
+    );
+  });
+
+  it("round-trips an optional figure through export and import", () => {
+    const figure: QuestionFigure = {
+      kind: "venn",
+      alt: "Two overlapping circles labeled A and B.",
+      sets: [{ label: "A" }, { label: "B" }],
+      regions: { both: "0.2", left: "0.3", neither: "0.1", right: "0.4" },
+    };
+    const output = buildQuestionContentExport({
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      questions: [
+        lifecycleFixture(versionFixture({ figure, state: "approved" })),
+      ],
+      scope: "all",
+    });
+    expect(output.questions[0].figure).toEqual(figure);
+    expect(output.questions[0].figure).not.toBe(figure);
+
+    const validation = validateContentTransferDocument(
+      JSON.parse(JSON.stringify(output)),
+    );
+    expect(validation.preview.rows[0].errors).toEqual([]);
+    expect(validation.document?.questions[0].figure).toEqual(figure);
+
+    const withoutFigure = validateContentTransferDocument(validDocument());
+    expect(
+      withoutFigure.document && "figure" in withoutFigure.document.questions[0],
+    ).toBe(false);
+    const nullFigure = validateContentTransferDocument(
+      validDocument({
+        questions: [{ ...validQuestion(), figure: null } as never],
+      }),
+    );
+    expect(nullFigure.document).toBeDefined();
+    expect(
+      nullFigure.document && "figure" in nullFigure.document.questions[0],
+    ).toBe(false);
+  });
+
+  it("reports an invalid figure as a row error", () => {
+    const validation = validateContentTransferDocument(
+      validDocument({
+        questions: [
+          {
+            ...validQuestion(),
+            figure: {
+              kind: "normal",
+              alt: "A normal curve.",
+              mean: 0,
+              sd: -1,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(validation.document).toBeUndefined();
+    expect(validation.preview.summary.invalid).toBe(1);
+    expect(validation.preview.rows[0].errors.join(" ")).toMatch(
+      /Invalid figure: .*sd/i,
     );
   });
 });

@@ -59,6 +59,10 @@ import {
   lifecycleErrorFromDatabaseFailure,
 } from "@/lib/tutor/question-lifecycle";
 import { evaluateQuestionPublicationQualityGates } from "@/lib/tutor/question-publication-quality-gates";
+import {
+  readQuestionFigure,
+  validateQuestionFigure,
+} from "@/lib/tutor/question-figure";
 import type {
   ContentTransferDocument,
   ContentTransferImportResult,
@@ -473,21 +477,20 @@ export function createDatabaseQuestionLifecycleRepository(
             await transactionQuery(
               "select set_config('app.suppress_question_version', 'false', true)",
             );
-            const versionId =
-              content.answer.spec !== undefined
-                ? await insertQuestionVersion(transactionQuery, {
-                    content,
-                    creationMethod: "imported",
-                    createdByUserId: reviewer.userId,
-                  })
-                : Number(
-                    (
-                      await transactionQuery(
-                        "select app_record_question_version($1) as version_id",
-                        [content.id],
-                      )
-                    )[0]?.version_id,
-                  );
+            const versionId = snapshotNeedsApplicationWriter(content)
+              ? await insertQuestionVersion(transactionQuery, {
+                  content,
+                  creationMethod: "imported",
+                  createdByUserId: reviewer.userId,
+                })
+              : Number(
+                  (
+                    await transactionQuery(
+                      "select app_record_question_version($1) as version_id",
+                      [content.id],
+                    )
+                  )[0]?.version_id,
+                );
             await transitionImportedVersion(
               transactionQuery,
               authorization,
@@ -581,21 +584,20 @@ export function createDatabaseQuestionLifecycleRepository(
           await transactionQuery(
             "select set_config('app.suppress_question_version', 'false', true)",
           );
-          const versionId =
-            input.content.answer.spec !== undefined
-              ? await insertQuestionVersion(transactionQuery, {
-                  content: input.content,
-                  creationMethod: input.creationMethod,
-                  createdByUserId: reviewer.userId,
-                })
-              : Number(
-                  (
-                    await transactionQuery(
-                      "select app_record_question_version($1) as version_id",
-                      [input.content.id],
-                    )
-                  )[0]?.version_id,
-                );
+          const versionId = snapshotNeedsApplicationWriter(input.content)
+            ? await insertQuestionVersion(transactionQuery, {
+                content: input.content,
+                creationMethod: input.creationMethod,
+                createdByUserId: reviewer.userId,
+              })
+            : Number(
+                (
+                  await transactionQuery(
+                    "select app_record_question_version($1) as version_id",
+                    [input.content.id],
+                  )
+                )[0]?.version_id,
+              );
 
           if (input.submit) {
             await applyTransition(transactionQuery, authorization, {
@@ -912,6 +914,7 @@ export function createDatabaseQuestionLifecycleRepository(
               acceptedAnswers: [...base.answer.acceptedAnswers],
             },
             difficulty: base.difficulty,
+            ...(base.figure ? { figure: structuredClone(base.figure) } : {}),
             hints: [...base.hints],
             id: base.id,
             misconceptions: base.misconceptions.map((item) => ({
@@ -2222,6 +2225,7 @@ async function publicationQualityGateBlockers(
       generationMetadata: evidence.generation_metadata_json,
       snapshot: evidence.snapshot_json,
     },
+    snapshotFigure: recordValue(evidence.snapshot_json)?.figure,
     snapshotQuestionId:
       typeof evidence.snapshot_question_id === "string"
         ? evidence.snapshot_question_id
@@ -2309,6 +2313,7 @@ async function applyTransition(
       );
     }
     validateQuestionVersionContent(version, input.questionId);
+    await assertStoredFigureValid(query, input.versionId);
     const activeTopic = await readDatabaseRows(
       query,
       `select id from topics
@@ -2516,6 +2521,7 @@ function transferQuestionContent(
       tolerance: question.answer.tolerance,
     },
     difficulty: question.difficulty,
+    ...(question.figure ? { figure: structuredClone(question.figure) } : {}),
     hints: [...question.hints],
     id: question.stableId,
     misconceptions: question.misconceptions.map((item) => ({
@@ -2899,6 +2905,10 @@ function buildQuestionLifecycles(
 
 function mapQuestionVersion(row: QuestionVersionRow): QuestionVersionDto {
   const snapshot = recordValue(row.version_snapshot_json);
+  const figure = readQuestionFigure(
+    snapshot?.figure,
+    `question version ${String(row.question_version_id)}`,
+  );
   return {
     allowedActions: allowedActionsForVersionRow(row),
     answer: {
@@ -2919,6 +2929,7 @@ function mapQuestionVersion(row: QuestionVersionRow): QuestionVersionDto {
     },
     creationMethod: row.creation_method,
     difficulty: row.difficulty,
+    ...(figure ? { figure } : {}),
     hints: stringArray(row.hints_json),
     id: row.id,
     misconceptions: misconceptionArray(row.misconceptions_json),
@@ -2996,6 +3007,7 @@ function mapProfessorQuestionReviewCandidate(
     },
     creationMethod: version.creationMethod,
     difficulty: version.difficulty,
+    ...(version.figure ? { figure: structuredClone(version.figure) } : {}),
     hints: [...version.hints],
     id: version.id,
     misconceptions: version.misconceptions.map(({ feedback, id }) => ({
@@ -3089,6 +3101,38 @@ function mapLifecycleEvent(row: LifecycleEventRow): QuestionLifecycleEventDto {
   };
 }
 
+/**
+ * Version DTOs read figures leniently (an invalid stored figure reads as
+ * absent), so approval re-validates the raw immutable snapshot value.
+ */
+async function assertStoredFigureValid(
+  query: DatabaseQueryExecutor,
+  versionId: number,
+) {
+  const rows = await readDatabaseRows(
+    query,
+    "select snapshot_json -> 'figure' as figure from question_versions where id = $1",
+    [versionId],
+  );
+  const stored = rows[0]?.figure;
+  if (stored === undefined || stored === null) return;
+  const figure = validateQuestionFigure(stored);
+  if (!figure.ok) {
+    throw new QuestionLifecycleValidationError(
+      `Invalid question figure: ${figure.issues.join(" ")}`,
+    );
+  }
+}
+
+/**
+ * app_record_question_version snapshots the relational tables, which hold no
+ * typed answer spec or figure. Content carrying either is written by the
+ * application snapshot writer so the field lands in snapshot_json.
+ */
+function snapshotNeedsApplicationWriter(content: QuestionVersionContentInput) {
+  return content.answer.spec !== undefined || content.figure !== undefined;
+}
+
 function snapshotForContent(content: QuestionVersionContentInput) {
   return {
     ...(content.answer.spec !== undefined
@@ -3097,6 +3141,7 @@ function snapshotForContent(content: QuestionVersionContentInput) {
     acceptedAnswers: content.answer.acceptedAnswers,
     answerExplanation: content.answer.explanation,
     difficulty: content.difficulty,
+    ...(content.figure ? { figure: content.figure } : {}),
     hints: content.hints.map((body, index) => ({ body, order: index + 1 })),
     id: content.id,
     misconceptions: content.misconceptions.map((misconception) => ({
@@ -3203,6 +3248,13 @@ function validateQuestionVersionContent(
   content: QuestionVersionContentInput,
   expectedQuestionId = content.id,
 ) {
+  if (content.figure !== undefined && content.figure !== null) {
+    const figure = validateQuestionFigure(content.figure);
+    if (!figure.ok)
+      throw new QuestionLifecycleValidationError(
+        `Invalid question figure: ${figure.issues.join(" ")}`,
+      );
+  }
   if (content.answer.spec !== undefined) {
     const issues = validateAnswerSpec(
       content.answer.spec,
@@ -3359,6 +3411,7 @@ function versionToAdminQuestion(version: QuestionVersionDto): AdminQuestion {
       acceptedAnswers: [...version.answer.acceptedAnswers],
     },
     difficulty: version.difficulty,
+    ...(version.figure ? { figure: structuredClone(version.figure) } : {}),
     hints: [...version.hints],
     id: version.id,
     misconceptions: version.misconceptions.map((item) => ({

@@ -8,8 +8,14 @@ import {
   type TutorResponseGuardrailViolation,
 } from "@/lib/ai/response-guardrails"
 import { getServerEnv } from "@/lib/env/server"
+import { describeQuestionFigure } from "@/lib/tutor/question-figure"
 import { redactTutorSessionText } from "@/lib/tutor/session-persistence"
-import type { LlmGroundingContext, TutorMode, TutorProgress } from "@/lib/types"
+import type {
+  LlmGroundingContext,
+  QuestionFigure,
+  TutorMode,
+  TutorProgress,
+} from "@/lib/types"
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const MAX_LLM_ATTEMPTS = 2
@@ -19,6 +25,13 @@ const MAX_USER_PROMPT_CHARACTERS = 2_400
 const MAX_STUDENT_MESSAGE_CHARACTERS = 500
 const MAX_QUESTION_CHARACTERS = 500
 const MAX_QUESTION_TITLE_CHARACTERS = 160
+/**
+ * A question figure is described as one plain-text line appended to the
+ * question prompt ("\n[Figure] ..."). The line gets its own bounded budget on
+ * top of the base prompt budget so a chart never crowds out the question.
+ */
+const MAX_FIGURE_CHARACTERS = 600
+const FIGURE_PREFIX = "\n[Figure] "
 const MAX_GROUNDING_ITEMS = 2
 const MAX_GROUNDING_CHARACTERS_PER_ITEM = 400
 const MAX_GROUNDING_CHARACTERS_TOTAL = 800
@@ -53,6 +66,8 @@ export type LlmTutorDisclosure =
   | "next_step_only"
 
 export type LlmTutorQuestionContext = {
+  /** Public figure shown with the prompt; described to the model as text. */
+  figure?: QuestionFigure
   prompt: string
   title: string
 }
@@ -318,6 +333,14 @@ export function buildLlmTutorUserPrompt(input: LlmTutorInput) {
             input.currentQuestion.prompt,
             MAX_QUESTION_CHARACTERS,
           ),
+          ...(input.currentQuestion.figure
+            ? {
+                figure: truncateForPrompt(
+                  describeQuestionFigure(input.currentQuestion.figure),
+                  MAX_FIGURE_CHARACTERS,
+                ),
+              }
+            : {}),
         }
       : undefined,
     student_message: redactTutorSessionText(
@@ -379,8 +402,33 @@ function sanitizedContextForPrompt(context: LlmGroundingContext[]) {
   return sanitized
 }
 
+type PromptQuestion = { figure?: string; prompt: string; title: string }
+
+/**
+ * Serializes the payload with the figure description folded into
+ * `current_question.prompt` as a trailing "[Figure]" line. Budget steps below
+ * shorten the prompt text and the figure line separately.
+ */
+function serializeWithFigure(payload: {
+  current_question?: PromptQuestion
+  [key: string]: unknown
+}) {
+  const question = payload.current_question
+  return JSON.stringify({
+    ...payload,
+    current_question: question
+      ? {
+          title: question.title,
+          prompt: question.figure
+            ? `${question.prompt}${FIGURE_PREFIX}${question.figure}`
+            : question.prompt,
+        }
+      : undefined,
+  })
+}
+
 function serializePromptWithinBudget(payload: {
-  current_question?: { prompt: string; title: string }
+  current_question?: PromptQuestion
   retrieved_context: ReturnType<typeof sanitizedContextForPrompt>
   student_message?: string
   [key: string]: unknown
@@ -392,48 +440,61 @@ function serializePromptWithinBudget(payload: {
       : undefined,
     retrieved_context: [...payload.retrieved_context],
   }
-  let serialized = JSON.stringify(mutable)
+  // Bounded extension: the figure line adds at most its own serialized
+  // length (MAX_FIGURE_CHARACTERS plus prefix and escapes) to the base budget.
+  const budget =
+    MAX_USER_PROMPT_CHARACTERS +
+    (mutable.current_question?.figure
+      ? JSON.stringify(`${FIGURE_PREFIX}${mutable.current_question.figure}`)
+          .length
+      : 0)
+  let serialized = serializeWithFigure(mutable)
 
   while (
-    serialized.length > MAX_USER_PROMPT_CHARACTERS &&
+    serialized.length > budget &&
     mutable.retrieved_context.length > 0
   ) {
     mutable.retrieved_context.pop()
-    serialized = JSON.stringify(mutable)
+    serialized = serializeWithFigure(mutable)
   }
 
-  if (serialized.length > MAX_USER_PROMPT_CHARACTERS && mutable.current_question) {
+  if (serialized.length > budget && mutable.current_question) {
     mutable.current_question.prompt = truncateForPrompt(
       mutable.current_question.prompt,
       300,
     )
-    serialized = JSON.stringify(mutable)
+    serialized = serializeWithFigure(mutable)
   }
 
-  if (serialized.length > MAX_USER_PROMPT_CHARACTERS) {
+  if (serialized.length > budget) {
     mutable.student_message = truncateForPrompt(
       mutable.student_message ?? "",
       300,
     )
-    serialized = JSON.stringify(mutable)
+    serialized = serializeWithFigure(mutable)
   }
 
-  if (serialized.length > MAX_USER_PROMPT_CHARACTERS) {
+  if (serialized.length > budget) {
     mutable.retrieved_context = []
     mutable.current_question = mutable.current_question
       ? {
           prompt: truncateForPrompt(mutable.current_question.prompt, 160),
           title: truncateForPrompt(mutable.current_question.title, 80),
+          ...(mutable.current_question.figure
+            ? {
+                figure: truncateForPrompt(mutable.current_question.figure, 300),
+              }
+            : {}),
         }
       : undefined
     mutable.student_message = truncateForPrompt(
       mutable.student_message ?? "",
       160,
     )
-    serialized = JSON.stringify(mutable)
+    serialized = serializeWithFigure(mutable)
   }
 
-  if (serialized.length > MAX_USER_PROMPT_CHARACTERS) {
+  if (serialized.length > budget) {
     throw new Error("LLM tutor prompt exceeds the production context budget.")
   }
 

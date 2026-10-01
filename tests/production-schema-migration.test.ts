@@ -571,11 +571,32 @@ describe("production schema hardening migration", () => {
     `);
 
     expect(counts.rows[0]).toEqual({
-      approvals: 8,
-      public_questions: 8,
-      questions: 8,
+      approvals: 9,
+      public_questions: 9,
+      questions: 9,
       topics: 11,
     });
+
+    // A figure lives only in the immutable snapshot; migration 028 exposes it
+    // as figure_json on the question views.
+    const figureRows = await database.query<{
+      figure_json: { kind: string; alt: string } | null;
+      id: string;
+      snapshot_figure: unknown;
+    }>(
+      `select q.id, q.figure_json, qv.snapshot_json -> 'figure' as snapshot_figure
+       from app_public_questions q
+       join question_versions qv on qv.id = q.question_version_id
+       where q.figure_json is not null
+       order by q.id`,
+    );
+    expect(figureRows.rows.map((row) => row.id)).toEqual([
+      "demo-random-variable-bike-dock-chart",
+    ]);
+    expect(figureRows.rows[0].figure_json?.kind).toBe("bar");
+    expect(figureRows.rows[0].snapshot_figure).toEqual(
+      figureRows.rows[0].figure_json,
+    );
 
     const latestVersion = await database.query<{ snapshot_json: unknown }>(`
       select qv.snapshot_json

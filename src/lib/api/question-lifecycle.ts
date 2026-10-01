@@ -6,6 +6,7 @@ import type { QuestionVersionContentInput } from "@/lib/data/question-lifecycle-
 import type {
   Difficulty,
   QuestionCreationMethod,
+  QuestionFigure,
   QuestionLifecycleAction,
   QuestionLifecycleBatchAction,
   QuestionRevisionContentInput,
@@ -19,6 +20,7 @@ import {
   QuestionLifecycleValidationError,
   QuestionPublicationBlockedError,
 } from "@/lib/tutor/question-lifecycle";
+import { validateQuestionFigure } from "@/lib/tutor/question-figure";
 
 export const QUESTION_CREATION_METHODS = [
   "manual",
@@ -66,6 +68,7 @@ const SOURCE_TYPES = [
 const REVISION_FIELDS = new Set([
   "answer",
   "difficulty",
+  "figure",
   "hints",
   "misconceptions",
   "prompt",
@@ -152,9 +155,11 @@ export function parseQuestionVersionContent(
   const acceptedAnswers = stringArray(answer?.acceptedAnswers);
   const hints = stringArray(input?.hints);
   const solutionSteps = stringArray(input?.solutionSteps);
+  const figure = parseQuestionFigureField(input?.figure);
 
   if (
     !input ||
+    "error" in figure ||
     !id ||
     (expectedQuestionId && id !== expectedQuestionId) ||
     !topicId ||
@@ -195,6 +200,7 @@ export function parseQuestionVersionContent(
       tolerance: finiteNumber(answer?.tolerance),
     },
     difficulty,
+    ...(figure.figure ? { figure: figure.figure } : {}),
     hints,
     id,
     misconceptions,
@@ -268,6 +274,8 @@ export function parseQuestionRevisionContent(
     if (issues.length)
       return { error: issues.map((issue) => issue.message).join(" ") };
   }
+  const figure = parseQuestionFigureField(input.figure);
+  if ("error" in figure) return { error: figure.error };
   const numericValue = optionalFiniteNumber(answer.numericValue);
   const tolerance = optionalFiniteNumber(answer.tolerance);
   if (numericValue === null || tolerance === null) {
@@ -363,7 +371,10 @@ export function parseQuestionRevisionContent(
     ...solutionSteps,
     ...misconceptions.flatMap((item) => [item.feedback, ...item.matchTerms]),
   ].join(" ");
-  if (PRIVATE_SOURCE_SIGNAL.test(searchable)) {
+  if (
+    PRIVATE_SOURCE_SIGNAL.test(searchable) ||
+    (figure.figure && PRIVATE_SOURCE_SIGNAL.test(JSON.stringify(figure.figure)))
+  ) {
     return {
       error:
         "Revision contains private-source wording that cannot be stored in question content.",
@@ -382,6 +393,7 @@ export function parseQuestionRevisionContent(
         tolerance,
       },
       difficulty,
+      ...(figure.figure ? { figure: figure.figure } : {}),
       hints,
       misconceptions,
       prompt,
@@ -390,6 +402,21 @@ export function parseQuestionRevisionContent(
       topicId,
     },
   };
+}
+
+/**
+ * Optional `figure` field of a question payload. Absent or null means "no
+ * figure"; any other value must pass the strict figure validator.
+ */
+export function parseQuestionFigureField(
+  value: unknown,
+): { figure?: QuestionFigure } | { error: string } {
+  if (value === undefined || value === null) return {};
+  const result = validateQuestionFigure(value);
+  if (!result.ok) {
+    return { error: `Invalid figure: ${result.issues.join(" ")}` };
+  }
+  return { figure: result.figure };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
