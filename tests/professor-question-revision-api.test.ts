@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST as createQuestionVersion } from "@/app/api/professor/questions/[id]/versions/route";
+import { parseQuestionRevisionContent } from "@/lib/api/question-lifecycle";
 import {
   mockPrincipal,
   resetAuthMocks,
@@ -105,6 +106,48 @@ describe("professor question revision API", () => {
     await expect(copiedExcerpt.json()).resolves.toMatchObject({
       error: expect.stringMatching(/private-source wording/i),
     });
+  });
+
+  it("validates the optional figure: invalid figures are rejected with their issues", async () => {
+    mockPrincipal(TEST_PROFESSOR);
+    const invalid = await postRevision(
+      validRevisionRequest({
+        figure: { kind: "bar", alt: "Bars.", bars: [], extra: true },
+      }),
+    );
+    const unknownKind = await postRevision(
+      validRevisionRequest({ figure: { kind: "pie", alt: "Pie." } }),
+    );
+    const valid = await postRevision(
+      validRevisionRequest({
+        figure: {
+          kind: "normal",
+          alt: "Normal curve with the region above 1 shaded.",
+          mean: 0,
+          sd: 1,
+          shade: { from: 1 },
+        },
+      }),
+    );
+    const removed = await postRevision(validRevisionRequest({ figure: null }));
+
+    expect(invalid.status).toBe(422);
+    await expect(invalid.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/^Invalid figure: /),
+    });
+    expect(unknownKind.status).toBe(422);
+    await expect(unknownKind.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/figure\.kind/),
+    });
+    // Valid and null figures pass parsing and reach read-only demo storage.
+    expect(valid.status).toBe(503);
+    expect(removed.status).toBe(503);
+
+    const parsed = parseQuestionRevisionContent({
+      ...validRevisionRequest().revision,
+      figure: null,
+    });
+    expect("revision" in parsed && "figure" in parsed.revision).toBe(false);
   });
 
   it("accepts a structurally valid revision before enforcing read-only demo storage", async () => {

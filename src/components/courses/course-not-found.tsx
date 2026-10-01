@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { coursesIndexPath } from "@/lib/courses/paths";
 
 /**
- * Course state lives in the browser, so the server cannot know whether an ID
- * exists. Pages validate the ID's shape and let the client render this when the
- * store has no such record (and only after the store has read this browser's
- * saved demo, so a course created here never flashes as missing).
+ * Pages only validate an ID's shape; the client store (loaded from
+ * /api/professor/courses, which only returns the signed-in professor's own
+ * courses) renders this when it has no such record, and only after its first
+ * load has answered, so a real course never flashes as missing.
  */
 export function CourseNotFound({
   what = "course",
@@ -20,11 +20,11 @@ export function CourseNotFound({
       className="flex max-w-2xl flex-col items-start gap-3 rounded-panel bg-sheet p-6"
     >
       <h2 className="type-h2 text-ink" id="course-not-found-title">
-        That {what} is not in this demo
+        We couldn&rsquo;t find that {what}
       </h2>
       <p className="type-body max-w-prose text-ink-muted">
-        The link may come from an older demo state, or the {what} was removed.
-        Nothing was changed.
+        The link may be out of date, belong to another professor&rsquo;s course,
+        or the {what} was removed. Nothing was changed.
       </p>
       <Button asChild className="min-h-11" variant="secondary">
         <Link href={coursesIndexPath()}>Back to courses</Link>

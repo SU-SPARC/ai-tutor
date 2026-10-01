@@ -6,7 +6,7 @@ import { requirePracticePageAccess } from "@/lib/auth/practice-page-access";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 
-import { inSyllabusOrder, readSolvedQuestionIds } from "./practice-progress";
+import { practiceScope, readPracticeVisitor } from "./practice-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +38,18 @@ export default async function PracticePage({
     }),
   );
 
-  const [allTopics, allQuestions, solvedQuestionIds] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-    readSolvedQuestionIds(),
-  ]);
-  const { questions, topics } = inSyllabusOrder(allTopics, allQuestions);
+  const [allTopics, allQuestions, { section, solvedQuestionIds }] =
+    await Promise.all([
+      getTopics(),
+      getApprovedQuestions(),
+      readPracticeVisitor(),
+    ]);
+  // A section student practises the section's released questions only.
+  const { delivery, questions, topics } = practiceScope(
+    allTopics,
+    allQuestions,
+    section,
+  );
   const initialQuestionId =
     typeof requestedQuestionId === "string" &&
     questions.some((question) => question.id === requestedQuestionId)
@@ -63,6 +69,7 @@ export default async function PracticePage({
   return (
     <PracticeWorkspace
       aiHelpEnabled={env.AI_ENABLED}
+      deliveryByQuestionId={delivery}
       initialQuestionId={initialQuestionId}
       initialSessionId={initialSessionId}
       initialSolvedQuestionIds={solvedQuestionIds}

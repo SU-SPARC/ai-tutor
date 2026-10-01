@@ -9,7 +9,21 @@ import {
   requireStudentAccess,
 } from "@/lib/auth/authorization";
 import { getStudentProgress } from "@/lib/data/student-progress";
-import type { CourseTopic, TutorQuestion } from "@/lib/types";
+import {
+  readStudentSectionContent,
+  type StudentSectionContent,
+} from "@/lib/tutor/section-access";
+import {
+  sectionDeliveryByQuestionId,
+  selectSectionQuestions,
+  selectSectionTopics,
+  withPinnedQuestions,
+} from "@/lib/tutor/section-content";
+import type {
+  CourseTopic,
+  StudentProgressDashboard,
+  TutorQuestion,
+} from "@/lib/types";
 
 /**
  * The questions this visitor has already solved, from the same progress
@@ -21,18 +35,76 @@ import type { CourseTopic, TutorQuestion } from "@/lib/types";
  * page still renders with every question unmarked rather than failing.
  */
 export async function readSolvedQuestionIds(): Promise<string[]> {
+  return (await readPracticeVisitor()).solvedQuestionIds;
+}
+
+/**
+ * Everything `/practice` needs to know about the visitor, from one identity
+ * lookup: what they solved, and the course section they joined (if any),
+ * whose releases narrow the question list.
+ */
+export async function readPracticeVisitor(): Promise<{
+  section?: StudentSectionContent;
+  solvedQuestionIds: string[];
+}> {
+  let authorization;
   try {
-    const authorization = await requireStudentAccess({ allowAnonymous: true });
-    const progress = await getStudentProgress(authorization);
-    return (progress?.questions ?? [])
-      .filter((question) => question.status === "completed")
-      .map((question) => question.questionId);
+    authorization = await requireStudentAccess({ allowAnonymous: true });
   } catch (error) {
     if (!(error instanceof AuthenticationRequiredError)) {
       console.warn("practice: solved questions could not be read", error);
     }
-    return [];
+    return { solvedQuestionIds: [] };
   }
+
+  const [progress, section] = await Promise.all([
+    readProgressQuietly(authorization),
+    readStudentSectionContent(authorization.owner, { pinnedContent: true }),
+  ]);
+  return {
+    section,
+    solvedQuestionIds: (progress?.questions ?? [])
+      .filter((question) => question.status === "completed")
+      .map((question) => question.questionId),
+  };
+}
+
+async function readProgressQuietly(
+  authorization: Parameters<typeof getStudentProgress>[0],
+): Promise<StudentProgressDashboard | null | undefined> {
+  try {
+    return await getStudentProgress(authorization);
+  } catch (error) {
+    console.warn("practice: solved questions could not be read", error);
+    return null;
+  }
+}
+
+/**
+ * The practice list for this visitor: a section student gets the section's
+ * visible released questions and topics in the section's order, with each
+ * question's delivery settings; everyone else the syllabus-ordered global
+ * list (`inSyllabusOrder`) and no delivery limits.
+ */
+export function practiceScope(
+  topics: CourseTopic[],
+  questions: TutorQuestion[],
+  section: StudentSectionContent | undefined,
+  now: Date = new Date(),
+) {
+  if (!section) {
+    return { ...inSyllabusOrder(topics, questions), delivery: undefined };
+  }
+  return {
+    delivery: sectionDeliveryByQuestionId(section.releases, now),
+    // Each at the version the section pinned (what the tutor grades).
+    questions: selectSectionQuestions(
+      withPinnedQuestions(questions, section.pinnedQuestions),
+      section.releases,
+      now,
+    ),
+    topics: selectSectionTopics(topics, section.releases, now),
+  };
 }
 
 /**

@@ -55,6 +55,14 @@ immutable question snapshot (snapshot schema **2**); exports recover it from the
 selected version. Transfer and snapshot version numbers are separate contracts.
 See [answer-checker.md](answer-checker.md) for the complete configuration rules.
 
+`figure` is a second optional backward-compatible field on a question row. It
+holds a bar, line, normal-curve, or two-set Venn figure shown with the prompt and
+is validated strictly by the shared figure validator; any issue becomes a row
+error. Absent or `null` means no figure, so existing v1 documents stay valid.
+Imports store it only at `snapshot_json.figure` of the new immutable version and
+exports copy it from the selected version. See
+[question-figures.md](question-figures.md) for the schema and limits.
+
 Importable states are `draft`, `needs_review`, `revision_requested`,
 `approved`, and `rejected`. Published and unpublished states are not
 importable. An imported approved version remains invisible to students until a

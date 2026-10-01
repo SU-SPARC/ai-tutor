@@ -234,6 +234,64 @@ every correction must use a later migration. Migration 027 contains no
 unrelated `app.lifecycle_write` cleanup; that NULL-safety fix for migration
 011's guards is a separate later migration.
 
+### Migration 029 courses, sections, and per-section releases
+
+Migration 029 adds seven tables: `courses`, `course_topics`,
+`course_sections`, `section_members`, `section_topic_availability`,
+`section_question_availability`, and the append-only `course_events` ledger
+(plus `course_events_id_seq`). Every table enables row-level security in the
+migration itself and revokes everything from `public`, `anon`, and
+`authenticated`. A section release pins an existing `question_versions` row by
+a composite foreign key; the migration never changes questions, versions, or
+the global availability tables from migration 017.
+
+Runtime privileges after the role script is reapplied:
+
+- `courses`, `course_topics`, `course_sections`, `section_members`,
+  `section_topic_availability`: SELECT, INSERT, UPDATE (no DELETE; courses and
+  sections are archived, memberships end by setting `left_at`).
+- `section_question_availability`: SELECT, INSERT, UPDATE, DELETE (a
+  professor removing a release deletes its row).
+- `course_events`: SELECT and INSERT only. A trigger also rejects UPDATE and
+  DELETE for every role, including cascades from `courses`, so a course with
+  ledger rows cannot be deleted without an approved migration.
+
+Use the same rollout order as migration 027. Do not combine, omit, or reorder
+the steps:
+
+1. Take and verify the required pre-change backup per
+   [database-recovery.md](database-recovery.md) and record the evidence.
+2. Verify Production is exactly 28/28 with the expected checksums and no drift
+   (`npm run db:migrate:check -- --json`).
+3. Apply only `029_courses_sections.sql` with the approved `app_migrator`
+   workflow. It is non-destructive: it only creates tables, one sequence,
+   indexes, and triggers.
+4. Immediately run the approved custody `provision` operation, which reapplies
+   the current `db/roles/app_runtime.sql` in one transaction. The script grants
+   on the new tables and therefore fails closed (relation does not exist)
+   against a database still at 028.
+5. Through the approved read-only operator check, verify all seven tables have
+   row-level security enabled and one `app_runtime_full_access` policy each
+   (40 tables, 40 policies), the grants listed above, and runtime USAGE on
+   `course_events_id_seq`. Run `npm run db:custody:verify` (its expected
+   runtime write set includes the new grants),
+   `npm run db:migrate:check -- --json`, and the Production integrity audit.
+6. Only then merge and deploy application code that reads or writes the new
+   schema. The Production build gate fails every Production build while 029
+   is pending.
+
+Between steps 3 and 4 the runtime can SELECT the new (empty) tables through
+the operator default privileges, but every courses write fails with SQLSTATE
+42501 and the courses API answers 503; students without a section keep the
+global question list. `section_members` holds student identities (user or
+anonymous owner ids) and is part of the pilot data cleanup
+(`scripts/lib/pilot-data-cleanup.mjs`); `course_events` is retained like audit
+history and a pilot identity that owns courses or ledger rows fails the
+cleanup plan closed.
+
+After any environment records migration 029's checksum, never amend the file;
+every correction must use a later migration.
+
 ## Authoring A Migration
 
 1. Synchronize the branch and inspect the highest checked-in version.

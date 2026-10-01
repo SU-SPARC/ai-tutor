@@ -15,6 +15,7 @@ import demoQuestionData from "../../../data/demo/questions.json"
 import remediatedSyllabusReviewCandidateData from "../../../data/demo/remediated-syllabus-review-candidates.json"
 import discreteModelsBatch2Data from "../../../data/demo/discrete-models-batch-2-review-candidates.json"
 import syllabusReviewCandidateData from "../../../data/demo/syllabus-review-candidates.json"
+import { readQuestionFigure } from "@/lib/tutor/question-figure"
 import {
   activeCanonicalSyllabusTopics,
   compareCanonicalTopicIds,
@@ -39,6 +40,8 @@ type DemoQuestionFixture = {
   acceptedAnswers?: string[]
   answerExplanation?: string
   difficulty: Difficulty
+  /** Optional QuestionFigure; read leniently (invalid => dropped + warning). */
+  figure?: unknown
   finalAnswer: string
   hints: string[]
   id: string
@@ -57,30 +60,34 @@ type DemoQuestionFixture = {
 
 export const demoQuestions: TutorQuestion[] = (
   demoQuestionData as DemoQuestionFixture[]
-).map((question) => ({
-  id: question.id,
-  topicId: question.topicId,
-  title: question.title ?? question.topic,
-  difficulty: question.difficulty,
-  prompt: question.questionText,
-  answer: {
-    acceptedAnswers: question.acceptedAnswers ?? [question.finalAnswer],
-    numericValue: question.numericValue,
-    tolerance: question.tolerance,
-    explanation:
-      question.answerExplanation ??
-      question.solutionSteps.at(-1) ??
-      question.finalAnswer,
-  },
-  hints: question.hints,
-  solutionSteps: question.solutionSteps,
-  misconceptions: question.misconceptions ?? [],
-  source: originalDemoSource(
-    question.sourceMetadata?.originalityNote ??
-      "Original synthetic demo item; no private source text used.",
-  ),
-  review: approvedDemoReview,
-}))
+).map((question) => {
+  const figure = readQuestionFigure(question.figure, question.id)
+  return {
+    id: question.id,
+    topicId: question.topicId,
+    title: question.title ?? question.topic,
+    difficulty: question.difficulty,
+    prompt: question.questionText,
+    ...(figure ? { figure } : {}),
+    answer: {
+      acceptedAnswers: question.acceptedAnswers ?? [question.finalAnswer],
+      numericValue: question.numericValue,
+      tolerance: question.tolerance,
+      explanation:
+        question.answerExplanation ??
+        question.solutionSteps.at(-1) ??
+        question.finalAnswer,
+    },
+    hints: question.hints,
+    solutionSteps: question.solutionSteps,
+    misconceptions: question.misconceptions ?? [],
+    source: originalDemoSource(
+      question.sourceMetadata?.originalityNote ??
+        "Original synthetic demo item; no private source text used.",
+    ),
+    review: approvedDemoReview,
+  }
+})
 
 export const retrievalChunks: RetrievalChunk[] = [
   {

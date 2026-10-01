@@ -5,9 +5,9 @@ export const metadata = {
 };
 
 /**
- * S1. Course state lives in the browser for this demo, so the page itself is a
- * thin frame: the layout has already enforced professor access and mounted the
- * store, and the screen below reads it.
+ * S1. Course state is loaded by the client store from /api/professor/courses,
+ * so the page itself is a thin frame: the layout has already enforced
+ * professor access and mounted the store, and the screen below reads it.
  */
 export default function ProfessorCoursesPage() {
   return <CoursesIndexScreen />;

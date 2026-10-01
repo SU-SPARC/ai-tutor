@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { toStudentTutorSessionDto } from "@/lib/api/tutor-session-dto";
-import { authorizeStudentResourceApi } from "@/lib/auth/authorization";
+import {
+  authorizeStudentResourceApi,
+  ownerFromAuthorization,
+} from "@/lib/auth/authorization";
 import {
   dataServiceUnavailableResponse,
   tutorSessionUnavailableResponse,
 } from "@/lib/api/service-unavailable";
 import { getTutorSession } from "@/lib/data/tutor-session-repository";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
+import { readSectionDelivery } from "@/lib/tutor/section-access";
 
 type SessionRouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -30,7 +34,21 @@ export async function GET(request: Request, context: SessionRouteContext) {
 
   try {
     const session = await getTutorSession(access.authorization, sessionId);
-    sessionDto = session ? await toStudentTutorSessionDto(session) : undefined;
+    // A course section that turned hints off for this question withholds
+    // hint text here too (the engine may have revealed one after a wrong
+    // answer). Similar-problem practice is never section-restricted.
+    const delivery =
+      session && session.practiceContext !== "reserve_practice"
+        ? await readSectionDelivery(
+            ownerFromAuthorization(access.authorization),
+            session.questionId,
+          )
+        : undefined;
+    sessionDto = session
+      ? await toStudentTutorSessionDto(session, {
+          hintsEnabled: delivery?.hintsEnabled,
+        })
+      : undefined;
   } catch (cause) {
     return dataServiceUnavailableResponse({
       cause,

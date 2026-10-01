@@ -149,6 +149,7 @@ export function LandingSheet({
         headingLevel={2}
         header={header}
         prompt={question.prompt}
+        figure={question.figure}
         answer={{
           value,
           onChange,

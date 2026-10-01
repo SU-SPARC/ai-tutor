@@ -47,6 +47,7 @@ import {
   formatHintAsksForPercent,
   type AnswerEntry,
 } from "@/lib/math/answer-notation";
+import type { QuestionFigure } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -86,6 +87,8 @@ export type PracticeSheetProps = {
   /** The similar-problem offer, shown once the question is finished. */
   extraPractice?: ReactNode;
   feedbackKey?: string;
+  /** The graph that belongs to the prompt, if the question has one. */
+  figure?: QuestionFigure;
   /** Prev · pips · next. */
   footer?: ReactNode;
   /** The plain-language format hint for the answer. */
@@ -129,6 +132,7 @@ export function PracticeSheet({
   disclosedHints,
   extraPractice,
   feedbackKey,
+  figure,
   footer,
   helper,
   hintTotal,
@@ -171,6 +175,7 @@ export function PracticeSheet({
           topicLabel,
         }}
         prompt={prompt}
+        figure={figure}
         tombstone={tombstone}
         answer={{
           checking,

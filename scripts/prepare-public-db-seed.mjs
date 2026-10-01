@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { loadCanonicalSyllabusTopics } from "./lib/canonical-syllabus-topics.mjs"
+import { validateQuestionFigure } from "../src/lib/tutor/question-figure.ts"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -204,11 +205,26 @@ function seedQuestionSql(question) {
 
   lines.push(
     "select set_config('app.suppress_question_version', 'false', true);",
-    `select app_record_question_version(${sqlString(question.id)});`,
+    question.figure === undefined
+      ? `select app_record_question_version(${sqlString(question.id)});`
+      : figureVersionSql(question),
     `insert into question_approval_history (question_id, question_version_id, decision, reviewer_user_id, reviewer_label, decided_at) select q.id, q.working_version_id, 'approved', ${sqlString(developmentProfessorId)}, 'Development Seed Professor', q.reviewed_at from questions q where q.id = ${sqlString(question.id)} and not exists (select 1 from question_approval_history qah where qah.question_id = q.id and qah.question_version_id = q.working_version_id and qah.decision = 'approved');`,
   )
 
   return lines
+}
+
+/**
+ * The figure lives only in the immutable snapshot (snapshot_json.figure), so a
+ * question with a figure records its version from the table snapshot plus the
+ * figure. Like app_record_question_version, it is a no-op when the latest
+ * version already has the same content hash.
+ */
+function figureVersionSql(question) {
+  const id = sqlString(question.id)
+  return `with snapshot as (select app_question_snapshot(${id}) || jsonb_build_object('figure', ${sqlJson(
+    question.figure,
+  )}) as content) insert into question_versions (question_id, version_number, snapshot_json, content_hash, created_by_user_id) select ${id}, coalesce((select max(qv.version_number) from question_versions qv where qv.question_id = ${id}), 0) + 1, content, md5(content::text), 'system:schema-migration' from snapshot where md5(content::text) is distinct from (select qv.content_hash from question_versions qv where qv.question_id = ${id} order by qv.version_number desc limit 1);`
 }
 
 function normalizeDemoQuestion(question) {
@@ -229,6 +245,7 @@ function normalizeDemoQuestion(question) {
     hints: question.hints,
     solutionSteps: question.solutionSteps,
     misconceptions: normalizeMisconceptions(question.misconceptions ?? []),
+    ...(question.figure != null ? { figure: question.figure } : {}),
     sourceType: "original_demo",
     trustLevel: "public_original",
     visibility: "public",
@@ -349,6 +366,13 @@ function validateDemoQuestions(questions, topicIds, errors) {
 
     if (!topicIds.has(question.topicId)) {
       errors.push(`${label}.topicId must reference a syllabus topic.`)
+    }
+
+    if (question.figure != null) {
+      const figure = validateQuestionFigure(question.figure)
+      if (!figure.ok) {
+        errors.push(...figure.issues.map((issue) => `${label}.figure: ${issue}`))
+      }
     }
   }
 }

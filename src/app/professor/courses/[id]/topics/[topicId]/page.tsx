@@ -10,7 +10,7 @@ export const metadata = {
 /**
  * One topic's question bank inside one course. The ids are validated here —
  * whether they exist is a question only the client store can answer, so the
- * screen renders its own "not in this demo" card for unknown records.
+ * screen renders its own "not found" card for unknown records.
  */
 export default async function ProfessorCourseTopicPage({
   params,

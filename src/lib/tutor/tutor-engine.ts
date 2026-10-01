@@ -839,6 +839,7 @@ async function buildLlmResponse({
       ? {
           prompt: question.prompt,
           title: question.title,
+          ...(question.figure ? { figure: question.figure } : {}),
         }
       : undefined,
     retrievedContext: groundingContext,

@@ -10,6 +10,7 @@ import {
   type CourseFormRequest,
 } from "@/components/courses/course-form-dialog";
 import { plural } from "@/components/courses/course-status";
+import { CourseScreenSkeleton } from "@/components/courses/course-screen-skeleton";
 import { useCoursesStore } from "@/components/courses/courses-store";
 import { DemoResetButton } from "@/components/courses/demo-reset-button";
 import { NewCourseTile } from "@/components/courses/new-course-tile";
@@ -28,9 +29,40 @@ import { cn } from "@/lib/utils";
  * reset alone at the very bottom.
  */
 export function CoursesIndexScreen() {
-  const { state, dispatch } = useCoursesStore();
+  const { state, dispatch, hydrated, loadFailed, reload } = useCoursesStore();
   const [form, setForm] = useState<CourseFormRequest | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  if (!hydrated && loadFailed) {
+    return (
+      <ProfessorPageShell
+        description="Your courses could not be loaded. Nothing was changed."
+        title="Courses"
+      >
+        <EmptyState
+          action={
+            <Button className="min-h-11" onClick={reload} type="button">
+              Try again
+            </Button>
+          }
+        >
+          Could not load your courses.
+        </EmptyState>
+      </ProfessorPageShell>
+    );
+  }
+
+  if (!hydrated) {
+    // Nothing is known until the server answers; an empty "no courses yet"
+    // would be a false statement for a professor who has some.
+    return (
+      <CourseScreenSkeleton
+        description="Loading your courses."
+        shape="overview"
+        title="Courses"
+      />
+    );
+  }
 
   const courses = listCourses(state);
   const active = courses.filter((course) => course.status === "active");
@@ -98,7 +130,10 @@ export function CoursesIndexScreen() {
       </section>
 
       {archived.length > 0 ? (
-        <section aria-labelledby="courses-archived" className="flex flex-col gap-3">
+        <section
+          aria-labelledby="courses-archived"
+          className="flex flex-col gap-3"
+        >
           <h2 className="type-h2 text-ink" id="courses-archived">
             <button
               aria-controls="courses-archived-list"

@@ -76,6 +76,21 @@ tables receive the reviewed grants and role-scoped RLS policy before application
 code is deployed. See the exact rollout order in
 [Database Migration Operations](database-operations.md#migration-027-student-tool-usage-analytics).
 
+`029_courses_sections.sql` adds courses, sections, rosters, and per-section
+releases: `courses` (owned by a professor's `users` row, unique per owner,
+code, and term), `course_topics` (which canonical topics a course includes, in
+what order, with an optional label), `course_sections` (with a unique random
+`XXX-XX` join code), `section_members` (one active section per course per
+student owner, history kept with `left_at`), `section_topic_availability`
+(open, closed, or scheduled with `opens_at`), `section_question_availability`
+(a release pins an existing question version by composite foreign key, with
+section-scoped attempts, hints, and solution-reveal settings), and the
+append-only `course_events` ledger of professor actions. The application reads
+and writes them only through `src/lib/data/courses-repository.ts`; professor
+screens see students only as the same SHA-256 owner keys the Students page
+uses. After migration 029, reapply `db/roles/app_runtime.sql`; see
+[Database Migration Operations](database-operations.md#migration-029-courses-sections-and-per-section-releases).
+
 `022_question_reserve_disposition.sql` adds Save for later as current-state
 columns on `questions` plus the append-only `question_reserve_events` ledger.
 Constraints keep reserved content active and without a published pointer;

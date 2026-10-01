@@ -7,12 +7,19 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
 
-import { createSeedState } from "@/lib/courses/demo-seed";
-import { coursesReducer, type CoursesAction } from "@/lib/courses/reducer";
+import {
+  ACTIVE_COURSE_STORAGE_KEY,
+  coursesSyncReducer,
+  createInitialCoursesSync,
+  saveErrorMessage,
+} from "@/components/courses/courses-sync";
+import { toast } from "@/components/ui/toast";
+import type { CoursesAction } from "@/lib/courses/reducer";
 import {
   COURSES_STORAGE_KEY,
   type Course,
@@ -20,21 +27,34 @@ import {
   type CoursesState,
 } from "@/lib/courses/types";
 
+const COURSES_API_PATH = "/api/professor/courses";
+const COURSES_ACTIONS_API_PATH = "/api/professor/courses/actions";
+
 export type CoursesStoreValue = {
   state: CoursesState;
-  dispatch: Dispatch<CoursesAction>;
-  /** Re-seed the demo and forget what was persisted. */
-  reset: () => void;
   /**
-   * False on the server and on the first client render, true once the
-   * persisted demo state has been read from localStorage (or found missing).
-   * Until then `state` is the seed, so a screen that looks up an id the
-   * professor created in this browser must render its skeleton, not "not
-   * found", while `hydrated` is false. The course overview, topic builder,
-   * topic detail and section screens and the header's course switcher gate
-   * on it.
+   * Applies the action here at once (the same pure reducer the server runs),
+   * then saves it. The server's answer replaces the local state; a rejected
+   * save shows its reason in a toast and reloads. `course/setActive` never
+   * leaves this browser.
+   */
+  dispatch: Dispatch<CoursesAction>;
+  /** Demo only: put the in-memory demo store back to its seed. */
+  reset: () => void;
+  /** Load the professor's courses from the server again. */
+  reload: () => void;
+  /**
+   * False on the server and until the first load from the server resolves.
+   * Until then `state` is empty, so a screen that looks up an id must render
+   * its skeleton, not "not found", while `hydrated` is false. The course
+   * overview, topic builder, topic detail and section screens and the
+   * header's course switcher gate on it.
    */
   hydrated: boolean;
+  /** True when the server is the in-memory demo store (shows Reset). */
+  demo: boolean;
+  /** True when the last load failed (the screens offer a retry). */
+  loadFailed: boolean;
 };
 
 const CoursesStoreContext = createContext<CoursesStoreValue | undefined>(
@@ -42,57 +62,8 @@ const CoursesStoreContext = createContext<CoursesStoreValue | undefined>(
 );
 
 /**
- * Only accepts a state that claims the schema this build understands. Anything
- * else (an older demo, hand-edited JSON, a truncated write) is dropped and the
- * seed stands, which is always a working demo.
- */
-function parsePersistedState(raw: string | null): CoursesState | undefined {
-  if (!raw) {
-    return undefined;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<CoursesState>;
-    if (
-      parsed.schemaVersion !== 1 ||
-      !Array.isArray(parsed.topics) ||
-      !Array.isArray(parsed.bank) ||
-      !Array.isArray(parsed.courses) ||
-      !Array.isArray(parsed.sections)
-    ) {
-      return undefined;
-    }
-    return parsed as CoursesState;
-  } catch {
-    return undefined;
-  }
-}
-
-type StoreState = {
-  data: CoursesState;
-  hydrated: boolean;
-};
-
-/**
- * Wraps the domain reducer with the one piece of state that is about this
- * component rather than about courses: whether the localStorage read has run.
- * Keeping it in the same reducer means hydration is a single render, not a
- * `setState` cascade out of an effect.
- */
-function storeReducer(store: StoreState, action: CoursesAction): StoreState {
-  const data = coursesReducer(store.data, action);
-  const hydrated = store.hydrated || action.type === "hydrate";
-  if (data === store.data && hydrated === store.hydrated) {
-    return store;
-  }
-  return { data, hydrated };
-}
-
-/**
- * Holds all course/section state for /professor.
- *
- * The initial state is `createSeedState()` on both the server and the client so
- * the first paint matches; the persisted state is swapped in after mount. That
- * is why components read `hydrated` instead of reaching for localStorage.
+ * Holds all course/section state for /professor, backed by
+ * GET /api/professor/courses and POST /api/professor/courses/actions.
  */
 export function CoursesStoreProvider({ children }: { children: ReactNode }) {
   // The root layout mounts one provider for professors so the header switcher
@@ -106,55 +77,160 @@ export function CoursesStoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function CoursesStoreRoot({ children }: { children: ReactNode }) {
-  const [store, dispatch] = useReducer(storeReducer, undefined, () => ({
-    data: createSeedState(),
-    hydrated: false,
-  }));
+type ResponseBody = { state?: CoursesState; demo?: boolean; error?: unknown };
 
-  useEffect(() => {
-    let persisted: CoursesState | undefined;
-    try {
-      persisted = parsePersistedState(
-        window.localStorage.getItem(COURSES_STORAGE_KEY),
-      );
-    } catch {
-      persisted = undefined;
-    }
-    dispatch({ type: "hydrate", state: persisted });
+async function readBody(response: Response): Promise<ResponseBody> {
+  try {
+    return (await response.json()) as ResponseBody;
+  } catch {
+    return {};
+  }
+}
+
+function newRequestId() {
+  try {
+    return window.crypto.randomUUID();
+  } catch {
+    return `courses-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function CoursesStoreRoot({ children }: { children: ReactNode }) {
+  const [sync, send] = useReducer(
+    coursesSyncReducer,
+    undefined,
+    createInitialCoursesSync,
+  );
+  const inFlight = useRef<CoursesAction | null>(null);
+  const loadGeneration = useRef(0);
+  const mounted = useRef(true);
+
+  const reload = useCallback(() => {
+    const generation = ++loadGeneration.current;
+    void (async () => {
+      try {
+        const response = await fetch(COURSES_API_PATH, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const body = await readBody(response);
+        if (!mounted.current || generation !== loadGeneration.current) {
+          return;
+        }
+        if (!response.ok || !body.state) {
+          send({ type: "loadFailed" });
+          toast({ title: "Could not load your courses.", tone: "error" });
+          return;
+        }
+        send({ type: "loaded", state: body.state, demo: body.demo === true });
+      } catch {
+        if (mounted.current && generation === loadGeneration.current) {
+          send({ type: "loadFailed" });
+          toast({ title: "Could not load your courses.", tone: "error" });
+        }
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    if (!store.hydrated) {
+    mounted.current = true;
+    let remembered: string | null = null;
+    try {
+      remembered = window.localStorage.getItem(ACTIVE_COURSE_STORAGE_KEY);
+      // The browser-only demo kept the whole state here; it is not read any
+      // more, so do not leave stale course data behind.
+      window.localStorage.removeItem(COURSES_STORAGE_KEY);
+    } catch {
+      remembered = null;
+    }
+    if (remembered) {
+      send({ type: "restoreActive", courseId: remembered });
+    }
+    reload();
+    return () => {
+      mounted.current = false;
+    };
+  }, [reload]);
+
+  // Remember the chosen course once there is a real one to remember.
+  const activeCourseId = sync.hydrated ? sync.view.activeCourseId : null;
+  useEffect(() => {
+    if (!activeCourseId) {
       return;
     }
     try {
-      window.localStorage.setItem(
-        COURSES_STORAGE_KEY,
-        JSON.stringify(store.data),
-      );
+      window.localStorage.setItem(ACTIVE_COURSE_STORAGE_KEY, activeCourseId);
     } catch {
-      // Private mode or a full quota: the demo keeps working in memory.
+      // Private mode or a full quota: the choice lasts for this visit only.
     }
-  }, [store]);
+  }, [activeCourseId]);
+
+  // Save queued actions one at a time, in order.
+  const head = sync.pending[0];
+  useEffect(() => {
+    if (!head || inFlight.current === head) {
+      return;
+    }
+    inFlight.current = head;
+    void (async () => {
+      let status: number | undefined;
+      let body: ResponseBody = {};
+      try {
+        const response = await fetch(COURSES_ACTIONS_API_PATH, {
+          body: JSON.stringify({ action: head }),
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Idempotency-Key": newRequestId(),
+          },
+          method: "POST",
+        });
+        status = response.status;
+        body = await readBody(response);
+      } catch {
+        status = undefined;
+      }
+      inFlight.current = null;
+      if (!mounted.current) {
+        return;
+      }
+      if (status !== undefined && status >= 200 && status < 300 && body.state) {
+        send({ type: "confirmed", state: body.state });
+        return;
+      }
+      send({ type: "rejected" });
+      toast({ title: saveErrorMessage(status, body.error), tone: "error" });
+      reload();
+    })();
+  }, [head, reload]);
+
+  const dispatch = useCallback<Dispatch<CoursesAction>>((action) => {
+    send({ type: "dispatch", action });
+  }, []);
 
   const reset = useCallback(() => {
-    dispatch({ type: "reset" });
-    try {
-      window.localStorage.removeItem(COURSES_STORAGE_KEY);
-    } catch {
-      // Nothing to clear.
-    }
+    send({ type: "dispatch", action: { type: "reset" } });
   }, []);
 
   const value = useMemo<CoursesStoreValue>(
     () => ({
-      state: store.data,
+      state: sync.view,
       dispatch,
       reset,
-      hydrated: store.hydrated,
+      reload,
+      hydrated: sync.hydrated,
+      demo: sync.demo,
+      loadFailed: sync.loadFailed,
     }),
-    [store, reset],
+    [
+      sync.view,
+      sync.hydrated,
+      sync.demo,
+      sync.loadFailed,
+      dispatch,
+      reset,
+      reload,
+    ],
   );
 
   return (

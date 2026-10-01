@@ -1,4 +1,5 @@
 import { validateAnswerSpec } from "../../src/lib/tutor/answer/spec.ts";
+import { validateQuestionFigure } from "../../src/lib/tutor/question-figure.ts";
 import { createHash } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -693,16 +694,23 @@ async function applyImportPlan(
     await client.query(
       "select set_config('app.suppress_question_version', 'false', true)",
     );
-    if (question.answer?.spec !== undefined) {
+    // Typed answer spec and figure live only in the immutable snapshot.
+    const snapshotExtras = {
+      ...(question.answer?.spec !== undefined
+        ? { answer: { spec: question.answer.spec } }
+        : {}),
+      ...(question.figure !== undefined ? { figure: question.figure } : {}),
+    };
+    if (Object.keys(snapshotExtras).length > 0) {
       await client.query(
         `
         with snapshot as (
-          select app_question_snapshot($1) || jsonb_build_object('answer', jsonb_build_object('spec', $2::jsonb)) as content
+          select app_question_snapshot($1) || $2::jsonb as content
         )
         insert into question_versions (question_id, version_number, snapshot_json, content_hash, created_by_user_id, creation_method, schema_version)
         select $1, 1, content, md5(content::text), $3, 'imported', 2 from snapshot
       `,
-        [question.id, JSON.stringify(question.answer.spec), signer],
+        [question.id, JSON.stringify(snapshotExtras), signer],
       );
     } else {
       await client.query("select app_record_question_version($1)", [
@@ -806,6 +814,7 @@ async function readContentState(client) {
           reviewed_at,
           archived_at
           , (select qv.snapshot_json #> '{answer,spec}' from question_versions qv where qv.question_id = questions.id order by qv.version_number desc limit 1) as answer_spec_json
+          , (select qv.snapshot_json -> 'figure' from question_versions qv where qv.question_id = questions.id order by qv.version_number desc limit 1) as figure_json
         from questions
         order by id
       `),
@@ -1179,9 +1188,10 @@ function normalizeQuestion(raw, label, issues) {
       "hints",
       "solutionSteps",
       "misconceptions",
+      "figure",
     ],
     issues,
-    ["answer"],
+    ["answer", "figure"],
   );
   return {
     ...(value.answer !== undefined
@@ -1211,6 +1221,9 @@ function normalizeQuestion(raw, label, issues) {
       DIFFICULTIES,
       issues,
     ),
+    ...(value.figure !== undefined && value.figure !== null
+      ? { figure: value.figure }
+      : {}),
     hints: normalizeOrderedBodies(value.hints, `${label}.hints`, issues),
     id: idValue(value.id, `${label}.id`, issues),
     misconceptions: arrayValue(
@@ -1517,6 +1530,19 @@ function validateManifestRelationships(manifest, issues) {
         ).map((failure) => issue(failure.code, failure.message)),
       );
     }
+    if (question.figure !== undefined) {
+      const figure = validateQuestionFigure(question.figure);
+      if (!figure.ok) {
+        issues.push(
+          ...figure.issues.map((message) =>
+            issue(
+              "invalid_question_figure",
+              `Question ${question.id} figure: ${message}`,
+            ),
+          ),
+        );
+      }
+    }
     if ((question.numericValue === null) !== (question.tolerance === null)) {
       issues.push(
         issue(
@@ -1782,6 +1808,7 @@ function questionFromRows(row, hints, steps, misconceptions) {
     acceptedAnswers: jsonArray(row.accepted_answers_json),
     answerExplanation: String(row.answer_explanation),
     difficulty: String(row.difficulty),
+    ...(row.figure_json != null ? { figure: row.figure_json } : {}),
     hints: hints.map((hint) => ({
       body: String(hint.body),
       order: Number(hint.hint_order),

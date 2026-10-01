@@ -177,6 +177,85 @@
     "trustLevel": "original_demo"
   },
   {
+    "id": "demo-random-variable-bike-dock-chart",
+    "topicId": "random-variables",
+    "topic": "random variables",
+    "title": "Bike Dock Chart",
+    "difficulty": "foundational",
+    "questionText": "A small bike-share station has 4 docks. At 8 a.m. on a weekday, let X be the number of bikes waiting at the station. The bar chart shows the probability distribution of X. What is the probability that at least 2 bikes are waiting, P(X ≥ 2)?",
+    "figure": {
+      "kind": "bar",
+      "alt": "Bar chart of the probability distribution of X, the number of bikes waiting at 8 a.m., with one bar for each value of X from 0 to 4.",
+      "title": "Bikes waiting at 8 a.m.",
+      "xLabel": "Bikes waiting, x",
+      "yLabel": "P(X = x)",
+      "bars": [
+        {
+          "label": "0",
+          "value": 0.05
+        },
+        {
+          "label": "1",
+          "value": 0.2
+        },
+        {
+          "label": "2",
+          "value": 0.35
+        },
+        {
+          "label": "3",
+          "value": 0.25
+        },
+        {
+          "label": "4",
+          "value": 0.15
+        }
+      ],
+      "yMax": 0.4
+    },
+    "finalAnswer": "0.75",
+    "acceptedAnswers": ["0.75", "3/4", "75%"],
+    "numericValue": 0.75,
+    "tolerance": 0.001,
+    "answerExplanation": "At least 2 means X = 2, 3, or 4. Reading those bars gives 0.35 + 0.25 + 0.15 = 0.75, which matches the complement 1 - (0.05 + 0.20).",
+    "solutionSteps": [
+      "\"At least 2\" covers the values X = 2, X = 3, and X = 4.",
+      "Read those bars from the chart: P(X = 2) = 0.35, P(X = 3) = 0.25, P(X = 4) = 0.15.",
+      "Add them: 0.35 + 0.25 + 0.15 = 0.75.",
+      "Check with the complement: 1 - (P(X = 0) + P(X = 1)) = 1 - (0.05 + 0.20) = 0.75."
+    ],
+    "hints": [
+      "\"At least 2\" includes 2 itself. Which values of X does that cover?",
+      "Read the height of the bar for each of those values and add them.",
+      "You can check your sum with the complement: subtract the bars for X = 0 and X = 1 from 1."
+    ],
+    "misconceptions": [
+      {
+        "id": "strict-inequality",
+        "matchTerms": ["0.4", "0.40", "2/5", "40%"],
+        "feedback": "That leaves out X = 2. \"At least 2\" includes 2, so add the bar for X = 2 as well."
+      },
+      {
+        "id": "single-bar",
+        "matchTerms": ["0.35", "7/20", "35%"],
+        "feedback": "That is only the bar for X = 2. \"At least 2\" also includes 3 and 4 bikes."
+      },
+      {
+        "id": "complement-not-subtracted",
+        "matchTerms": ["0.25", "1/4", "25%"],
+        "feedback": "0.25 is P(X = 0) + P(X = 1), the complement. Subtract it from 1, or add the bars for X = 2, 3 and 4 directly."
+      }
+    ],
+    "sourceMetadata": {
+      "sourceType": "original_demo",
+      "visibility": "public",
+      "originalityNote": "Original synthetic demo question written for the figure feature; no private course or textbook text used.",
+      "privateMaterialUsed": false
+    },
+    "reviewStatus": "approved",
+    "trustLevel": "original_demo"
+  },
+  {
     "id": "five-question-quiz",
     "topicId": "binomial-models",
     "topic": "binomial distribution",

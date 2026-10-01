@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 /**
- * S3. Course state lives in the browser for this demo, so the server only
+ * S3. Course state is loaded by the client store, so the page only
  * validates the ID's shape; whether that course exists is the client's answer.
  */
 export default async function ProfessorCourseTopicsPage({

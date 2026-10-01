@@ -653,6 +653,7 @@ export function ProfessorFriendlyReviewPanel({
               headingLevel={3}
               hints={{ total: current.hints.length, revealed: current.hints }}
               prompt={current.prompt}
+              figure={current.figure}
               steps={{ revealed: current.solutionSteps }}
             />
 

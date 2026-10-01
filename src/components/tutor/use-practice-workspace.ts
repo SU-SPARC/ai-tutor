@@ -43,7 +43,13 @@ import {
   type SessionErrorState,
 } from "@/components/tutor/tutor-client";
 import type { TutorSessionDto } from "@/lib/api/tutor-session-dto";
+import type { DeliverySettings } from "@/lib/courses/types";
 import { studentQuestionTitle } from "@/lib/labels";
+import {
+  attemptsRemaining,
+  solutionRevealAllowed,
+  solutionRevealDescription,
+} from "@/lib/tutor/section-content";
 import type {
   CourseTopic,
   SimilarPracticeSessionDto,
@@ -89,6 +95,13 @@ function writeDraft(sessionId: string, value: string) {
 
 export type PracticeWorkspaceProps = {
   aiHelpEnabled?: boolean;
+  /**
+   * A course-section student's delivery settings per question id (hints on
+   * or off, Check answers allowed, when worked steps open), read on the
+   * server from the section's releases. Absent outside a section: practice
+   * is then unrestricted, as before. The tutor route enforces the same rules.
+   */
+  deliveryByQuestionId?: Readonly<Record<string, DeliverySettings>>;
   initialQuestionId?: string;
   initialSessionId?: string;
   /**
@@ -374,6 +387,7 @@ type TutorRequestPlan = {
 
 export function usePracticeWorkspace({
   aiHelpEnabled = false,
+  deliveryByQuestionId,
   initialQuestionId,
   initialSessionId,
   initialSolvedQuestionIds,
@@ -482,18 +496,46 @@ export function usePracticeWorkspace({
     topics[0];
   const selectedQuestionIdForSession = selectedQuestion?.id;
 
+  // Section delivery for the displayed question (never for a similar
+  // problem, which belongs to no section release).
+  const delivery =
+    selectedQuestion && session?.practiceContext !== "reserve_practice"
+      ? deliveryByQuestionId?.[selectedQuestion.id]
+      : undefined;
+  const deliveryProgress = {
+    solved: Boolean(session?.solved),
+    wrongAttemptCount: session?.wrongAttemptCount ?? 0,
+  };
+  const hintsDisabled = delivery?.hintsEnabled === false;
+  const attemptsLeft = delivery
+    ? attemptsRemaining(delivery, deliveryProgress)
+    : undefined;
+  const outOfAttempts = attemptsLeft === 0 && !session?.solved;
+  const stepsAllowedByDelivery =
+    !delivery ||
+    solutionRevealAllowed(delivery.solutionReveal, deliveryProgress);
+  const stepsNeverAvailable = delivery?.solutionReveal === "never";
+  const stepsLockedReason =
+    delivery && !stepsAllowedByDelivery
+      ? solutionRevealDescription(delivery.solutionReveal)
+      : undefined;
+
   // Gates.
   const isTutorBusy = activeMode !== null || isSessionLoading;
   const canSend =
     Boolean(session) &&
     !session?.solved &&
     !isTutorBusy &&
+    !outOfAttempts &&
     answer.trim().length > 0 &&
     // The answer on screen was just graded; checking it again unchanged
     // would only spend an attempt.
     lastCheck === null;
+  // With hints turned off there is nothing to work through first, so the
+  // steps wait only on the section's reveal rule.
   const hintsExhausted = Boolean(
-    selectedQuestion && hintCount >= selectedQuestion.hintCount,
+    selectedQuestion &&
+    (hintsDisabled || hintCount >= selectedQuestion.hintCount),
   );
   const solutionFullyRevealed = Boolean(
     selectedQuestion &&
@@ -501,10 +543,12 @@ export function usePracticeWorkspace({
     session &&
     session.revealedSteps >= selectedQuestion.stepCount,
   );
-  const canRevealHint = Boolean(session) && !session?.solved && !hintsExhausted;
+  const canRevealHint =
+    Boolean(session) && !session?.solved && !hintsExhausted && !hintsDisabled;
   const canRevealStep = Boolean(
     session &&
     hintsExhausted &&
+    stepsAllowedByDelivery &&
     selectedQuestion &&
     selectedQuestion.stepCount > 0 &&
     !solutionFullyRevealed,
@@ -867,7 +911,7 @@ export function usePracticeWorkspace({
       question.hintCount,
       response.progress?.hintsRevealed ?? response.hints.length,
     );
-    if (revealed === 0) {
+    if (revealed === 0 || hintsDisabled) {
       return;
     }
     if (
@@ -920,7 +964,7 @@ export function usePracticeWorkspace({
   }
 
   function getHint() {
-    if (hintsExhausted) {
+    if (hintsExhausted || hintsDisabled) {
       return;
     }
 
@@ -940,7 +984,7 @@ export function usePracticeWorkspace({
   }
 
   function showAnswer() {
-    if (!hintsExhausted) {
+    if (!hintsExhausted || !stepsAllowedByDelivery) {
       return;
     }
 
@@ -1301,9 +1345,13 @@ export function usePracticeWorkspace({
       aiHelpEnabled,
       aiHelpOffered,
       answer,
+      attemptsLeft,
       courseComplete,
-      disclosedHints,
+      // Hints turned off for the section are never shown, even ones an
+      // earlier wrong answer revealed on the server.
+      disclosedHints: hintsDisabled ? [] : disclosedHints,
       hasAnyQuestions: questions.length > 0,
+      hintsDisabled,
       isLoadingQuestion,
       isReservePractice,
       isSessionLoading,
@@ -1341,6 +1389,9 @@ export function usePracticeWorkspace({
       canRevealStep,
       canSend,
       hintsExhausted,
+      outOfAttempts,
+      stepsLockedReason,
+      stepsNeverAvailable,
     },
     layout: {
       drawerOpen,

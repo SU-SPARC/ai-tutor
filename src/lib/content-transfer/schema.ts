@@ -1,5 +1,6 @@
 import { validateAnswerSpec, type AnswerSpec } from "@/lib/tutor/answer/spec";
 import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
+import { validateQuestionFigure } from "@/lib/tutor/question-figure";
 import {
   activeCanonicalSyllabusTopics,
   compareCanonicalTopicIds,
@@ -32,6 +33,7 @@ const TOPIC_FIELDS = new Set(["id", "order", "title"]);
 const QUESTION_FIELDS = new Set([
   "answer",
   "difficulty",
+  "figure",
   "hints",
   "misconceptions",
   "prompt",
@@ -356,6 +358,7 @@ function parseQuestionRow(
     errors,
   );
   const misconceptions = parseMisconceptions(item.misconceptions, errors);
+  const figure = parseFigure(item.figure, errors);
   if (PRIVATE_SOURCE_TEXT.test(JSON.stringify(item))) {
     errors.push(
       "Question row contains private-source or copied-textbook wording.",
@@ -377,6 +380,7 @@ function parseQuestionRow(
       ? {
           answer,
           difficulty: item.difficulty as ContentTransferQuestion["difficulty"],
+          ...(figure ? { figure } : {}),
           hints,
           misconceptions,
           prompt,
@@ -389,6 +393,17 @@ function parseQuestionRow(
       : undefined;
   preview.status = question ? "ready" : "invalid";
   return { preview, question };
+}
+
+/** Optional; absent or null means "no figure". Issues become row errors. */
+function parseFigure(value: unknown, errors: string[]) {
+  if (value === undefined || value === null) return undefined;
+  const result = validateQuestionFigure(value);
+  if (!result.ok) {
+    errors.push(...result.issues.map((issue) => `Invalid figure: ${issue}`));
+    return undefined;
+  }
+  return result.figure;
 }
 
 function parseAnswer(value: unknown, errors: string[]) {
@@ -592,6 +607,7 @@ function versionToTransferQuestion(
       tolerance: version.answer.tolerance,
     },
     difficulty: version.difficulty,
+    ...(version.figure ? { figure: structuredClone(version.figure) } : {}),
     hints: [...version.hints],
     misconceptions: version.misconceptions.map((item) => ({
       feedback: item.feedback,

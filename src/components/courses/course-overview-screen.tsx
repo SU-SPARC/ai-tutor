@@ -53,8 +53,8 @@ export function CourseOverviewScreen({ courseId }: { courseId: CourseId }) {
   ];
 
   if (!course) {
-    // The server rendered the seed; a course created in this browser only
-    // exists once the saved demo has been read, so wait for that first.
+    // The page renders before the store's first load from the server has
+    // answered, so wait for it before calling the course missing.
     if (!hydrated) {
       return (
         <CourseScreenSkeleton

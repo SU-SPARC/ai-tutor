@@ -112,6 +112,9 @@ type Op =
   | ")"
   | "["
   | "]"
+  /** `\lbrace`, `\rbrace`: braces a student typed as grouping. */
+  | "{"
+  | "}"
   | ",";
 
 type Tok =
@@ -265,6 +268,8 @@ function tokenizePlain(src: string): Tok[] {
         "%": { k: "op", v: "%" },
         "(": { k: "op", v: "(" },
         ")": { k: "op", v: ")" },
+        "[": { k: "op", v: "[" },
+        "]": { k: "op", v: "]" },
         ",": { k: "op", v: "," },
         π: { k: "const", v: "pi" },
         e: { k: "const", v: "e" },
@@ -403,7 +408,11 @@ function tokenizeLatex(src: string): Tok[] {
         toks.push({ k: "op", v: "%" });
         continue;
       }
-      if (name === "{" || name === "}") fail();
+      if (name === "{" || name === "}") {
+        // `\{…\}`, the same as `\lbrace…\rbrace`: a visible grouping.
+        toks.push({ k: "op", v: name });
+        continue;
+      }
       if (
         [
           "frac",
@@ -471,6 +480,11 @@ function tokenizeLatex(src: string): Tok[] {
         minus: { k: "op", v: "-" },
         lparen: { k: "op", v: "(" },
         rparen: { k: "op", v: ")" },
+        // MathLive writes a typed `[6]` as `\left\lbrack6\right\rbrack`.
+        lbrack: { k: "op", v: "[" },
+        rbrack: { k: "op", v: "]" },
+        lbrace: { k: "op", v: "{" },
+        rbrace: { k: "op", v: "}" },
       };
       const tok = command[name];
       if (!tok) fail(); // \placeholder, \mathrm{x}, anything else
@@ -523,16 +537,22 @@ type Node =
   | { t: "fact"; a: Node }
   | { t: "sqrt"; a: Node; n?: Node }
   | { t: "binom"; a: Node; b: Node }
-  /** Parentheses the student wrote. */
-  | { t: "paren"; a: Node }
+  /**
+   * Parentheses the student wrote. Square brackets and `\lbrace…\rbrace`
+   * group exactly like them; `bracket` only changes how they are drawn.
+   */
+  | { t: "paren"; a: Node; bracket?: "[" | "{" }
   /** LaTeX braces: grouping without visible parentheses. */
   | { t: "group"; a: Node }
   /** A trailing percent sign on the whole entry. */
   | { t: "pct"; a: Node };
 
+/** Each opening bracket and the one that must close it. */
+const CLOSERS: Partial<Record<Op, Op>> = { "(": ")", "[": "]", "{": "}" };
+
 function startsPrimary(tok: Tok | undefined): boolean {
   if (!tok) return false;
-  if (tok.k === "op") return tok.v === "(";
+  if (tok.k === "op") return CLOSERS[tok.v] !== undefined;
   return tok.k !== "sup";
 }
 
@@ -654,10 +674,14 @@ function parseTokens(toks: Tok[], allowPercent: boolean): Node {
         return { t: "binom", a: n, b: k };
       }
       case "op": {
-        if (tok.v === "(") {
+        const closer = CLOSERS[tok.v];
+        if (closer) {
+          // `[1+2]` groups like `(1+2)`; `[1+2)` is not read.
           const inner = expr();
-          if (!eat(")")) fail();
-          return { t: "paren", a: inner };
+          if (!eat(closer)) fail();
+          return tok.v === "("
+            ? { t: "paren", a: inner }
+            : { t: "paren", a: inner, bracket: tok.v as "[" | "{" };
         }
         if (tok.v === ",") fail(DECIMAL_COMMA_HINT);
         return fail();
@@ -1087,7 +1111,11 @@ function toLatex(node: Node): string {
     case "binom":
       return `\\binom{${toLatex(node.a)}}{${toLatex(node.b)}}`;
     case "paren":
-      return `\\left(${toLatex(node.a)}\\right)`;
+      return node.bracket === "["
+        ? `\\left[${toLatex(node.a)}\\right]`
+        : node.bracket === "{"
+          ? `\\left\\{${toLatex(node.a)}\\right\\}`
+          : `\\left(${toLatex(node.a)}\\right)`;
     case "group":
       return `{${toLatex(node.a)}}`;
     case "pct":

@@ -99,8 +99,16 @@ export function toTutorSessionDto(
 /**
  * Student APIs conceal sessions whose question is no longer student-facing,
  * while preserving their server-side audit and retention lifecycle.
+ *
+ * `hintsEnabled: false` (the student's course section turned hints off for
+ * this question) withholds every hint body, including ones the tutor engine
+ * revealed on its own after a wrong answer; the count stays, the text never
+ * leaves the server.
  */
-export async function toStudentTutorSessionDto(session: TutorSessionRecord) {
+export async function toStudentTutorSessionDto(
+  session: TutorSessionRecord,
+  options: { hintsEnabled?: boolean } = {},
+) {
   if (session.status === "content_unpublished") {
     return undefined;
   }
@@ -116,7 +124,10 @@ export async function toStudentTutorSessionDto(session: TutorSessionRecord) {
       dto.solved || dto.revealedSteps >= question.solutionSteps.length
         ? question.answer.explanation
         : undefined,
-    disclosedHints: question.hints.slice(0, dto.revealedHints),
+    disclosedHints:
+      options.hintsEnabled === false
+        ? []
+        : question.hints.slice(0, dto.revealedHints),
     disclosedSolutionSteps: question.solutionSteps.slice(0, dto.revealedSteps),
     question:
       dto.practiceContext === "reserve_practice"

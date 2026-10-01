@@ -43,9 +43,10 @@ import {
   SECTION_CODE_UNKNOWN_ERROR,
   sectionCodeProblem,
 } from "@/components/auth/join-screen";
+import { sectionJoinReturnPath } from "@/components/auth/section-code-form";
 import {
-  isKnownSectionCode,
-  sectionLabelForCode,
+  normalizeSectionCode,
+  studentSectionFromDto,
   UNJOINED_SECTION_LABEL,
 } from "@/components/shell/use-student-section";
 
@@ -78,10 +79,10 @@ function callbackFormData(value?: string) {
   return formData;
 }
 
-async function renderJoin(callbackUrl?: string) {
+async function renderJoin(callbackUrl?: string, section?: string) {
   // renderToStaticMarkup escapes apostrophes; assertions read plain text.
   return renderToStaticMarkup(
-    await JoinPage({ searchParams: Promise.resolve({ callbackUrl }) }),
+    await JoinPage({ searchParams: Promise.resolve({ callbackUrl, section }) }),
   ).replaceAll("&#x27;", "'");
 }
 
@@ -159,21 +160,32 @@ describe("join screen", () => {
     );
   });
 
-  it("refuses a well-formed code that is not one of the course's sections", () => {
+  it("checks only the shape at the field; whether a code names a section is the server's answer", () => {
     expect(sectionCodeProblem("k7q2m")).toBeNull();
     expect(sectionCodeProblem("R4N-8X")).toBeNull();
+    expect(sectionCodeProblem("ABC-DE")).toBeNull();
     expect(sectionCodeProblem("K7Q")).toBe(SECTION_CODE_ERROR);
-    expect(sectionCodeProblem("ABC-DE")).toBe(SECTION_CODE_UNKNOWN_ERROR);
     expect(SECTION_CODE_UNKNOWN_ERROR).toBe(
       "We don't recognise that code. Check it with your professor.",
     );
-    expect(isKnownSectionCode("abc-de")).toBe(false);
+    expect(normalizeSectionCode(" k7q 2m ")).toBe("K7Q-2M");
+    expect(sectionJoinReturnPath("K7Q-2M")).toBe("/join?section=K7Q-2M");
   });
 
   it("names sections the way students say them, and a guest as a guest", () => {
-    expect(sectionLabelForCode("k7q-2m")).toBe("MATH-255 · Section 1");
-    expect(sectionLabelForCode("R4N-8X")).toBe("MATH-255 · Section 2");
-    expect(sectionLabelForCode("ABC-DE")).toBe(UNJOINED_SECTION_LABEL);
+    expect(
+      studentSectionFromDto({
+        courseCode: "MATH-255",
+        courseId: "course-1",
+        courseTitle: "Probability",
+        joinedAt: "2026-09-01T12:00:00.000Z",
+        sectionId: "section-1",
+        sectionLabel: "Section 1",
+        term: "Fall 2026",
+      })?.label,
+    ).toBe("MATH-255 · Section 1");
+    expect(studentSectionFromDto(null)).toBeNull();
+    expect(studentSectionFromDto({ sectionLabel: "No id" })).toBeNull();
     expect(UNJOINED_SECTION_LABEL).toBe("MATH-255 · Guest");
   });
 
@@ -265,6 +277,22 @@ describe("join screen", () => {
     expect(markup).not.toContain("Continue as guest");
     expect(markup).not.toContain("Suffolk");
     expect(markup.match(/<h1/g)).toHaveLength(1);
+  });
+
+  it("fills in a code carried through the guest door or sign-in, ready to join", async () => {
+    mocks.resolveAuthenticatedPrincipal.mockResolvedValue(student);
+
+    const markup = await renderJoin(undefined, "k7q2m");
+
+    expect(markup).toContain("Join your section");
+    expect(markup).toContain('value="K7Q-2M"');
+    expect(markup).toContain("Back to Learn");
+    expect(markup.match(/<h1/g)).toHaveLength(1);
+
+    // A carried value that is not a code is ignored: the plain code form.
+    const plain = await renderJoin(undefined, "<script>");
+    expect(plain).not.toContain("<script>");
+    expect(plain).toContain("Enter the section code from your professor.");
   });
 
   it("still sends a signed-in professor on to Learn", async () => {

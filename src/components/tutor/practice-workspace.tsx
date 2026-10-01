@@ -84,6 +84,18 @@ export type { ChatMessage, ChatMessageTone } from "./tutor-client";
 /** The Check answer label while a wrong answer sits unchanged in the field. */
 export const EDIT_TO_CHECK_AGAIN = "Edit your answer to check again";
 
+/** The Check answer label once a section's attempt limit is used up. */
+export const NO_ATTEMPTS_LEFT_LABEL = "No attempts left";
+
+/**
+ * "Check answer", or with a section's attempt limit "Check answer (2 left)".
+ */
+export function checkAnswerLabel(attemptsLeft: number | undefined) {
+  return attemptsLeft === undefined
+    ? "Check answer"
+    : `Check answer (${attemptsLeft} left)`;
+}
+
 export function PracticeWorkspace(props: PracticeWorkspaceProps) {
   const { view, gates, layout, actions, refs } = usePracticeWorkspace(props);
   const {
@@ -102,7 +114,9 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
     : "/learn";
   const solved = Boolean(session?.solved);
   const retired = view.tombstone !== undefined;
-  const hintTotal = selectedQuestion?.hintCount ?? 0;
+  // Hints a section turned off do not exist as far as the screen goes: no
+  // ladder on the Sheet, no hint control in the strip or the tutor.
+  const hintTotal = view.hintsDisabled ? 0 : (selectedQuestion?.hintCount ?? 0);
   const hintsShown = disclosedHints.length;
   const showStrip = Boolean(selectedQuestion);
   const topicSelectId = selectedTopic?.id ?? view.selectedTopicId;
@@ -151,6 +165,7 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
     busy,
     canHint: gates.canRevealHint,
     canStep: gates.canRevealStep,
+    showStep: !gates.stepsNeverAvailable,
     context: selectedQuestion
       ? {
           answer: view.answer.trim() || view.lastSubmittedAnswer,
@@ -307,8 +322,9 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
     />
   );
 
+  // A section can turn hints off: then there is no hint control at all.
   const hintControl =
-    selectedQuestion && hintTotal > 0
+    selectedQuestion && hintTotal > 0 && !view.hintsDisabled
       ? {
           disabled: !gates.canRevealHint || busy,
           // Once every hint is open the slot belongs to Show steps.
@@ -323,9 +339,12 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
         }
       : null;
 
+  // A section can hold the worked steps back until enough wrong answers
+  // or a solve ("Steps open after 2 wrong answers"), or never offer them.
   const stepControl =
     selectedQuestion &&
     selectedQuestion.stepCount > 0 &&
+    !gates.stepsNeverAvailable &&
     !view.solutionFullyRevealed &&
     view.solutionSteps.length === 0
       ? {
@@ -333,9 +352,9 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
           label: "Show steps",
           loading: activeMode === "full_solution",
           onReveal: actions.showAnswer,
-          reason: gates.hintsExhausted
-            ? undefined
-            : stepsPipLabel(hintsShown, hintTotal),
+          reason: !gates.hintsExhausted
+            ? stepsPipLabel(hintsShown, hintTotal)
+            : gates.stepsLockedReason,
         }
       : null;
 
@@ -476,7 +495,12 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
             ) : selectedQuestion ? (
               <PracticeSheet
                 answer={view.answer}
-                answerDisabled={!session || view.isSessionLoading || solved}
+                answerDisabled={
+                  !session ||
+                  view.isSessionLoading ||
+                  solved ||
+                  gates.outOfAttempts
+                }
                 // The in-flight check is `activeMode`; `isSessionLoading`
                 // covers loading a question, not checking one.
                 checking={activeMode === "check"}
@@ -487,6 +511,7 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
                 disclosedHints={disclosedHints}
                 extraPractice={extraPractice}
                 feedbackKey={session?.id ?? selectedQuestion.id}
+                figure={selectedQuestion.figure}
                 footer={
                   <PracticeFooter
                     disabled={busy}
@@ -532,13 +557,16 @@ export function PracticeWorkspace(props: PracticeWorkspaceProps) {
             <PracticeActionStrip
               canCheck={gates.canSend}
               checkLabel={
-                // A graded answer sits unchanged in the field (wrong or
-                // unreadable): say what re-enables the check.
-                view.lastCheckVerdict !== null &&
-                view.lastCheckVerdict !== "correct" &&
-                !gates.canSend
-                  ? EDIT_TO_CHECK_AGAIN
-                  : "Check answer"
+                // The section's attempt limit is used up: say so plainly.
+                gates.outOfAttempts
+                  ? NO_ATTEMPTS_LEFT_LABEL
+                  : // A graded answer sits unchanged in the field (wrong or
+                    // unreadable): say what re-enables the check.
+                    view.lastCheckVerdict !== null &&
+                      view.lastCheckVerdict !== "correct" &&
+                      !gates.canSend
+                    ? EDIT_TO_CHECK_AGAIN
+                    : checkAnswerLabel(solved ? undefined : view.attemptsLeft)
               }
               checking={activeMode === "check"}
               continueButtonRef={refs.continueButtonRef}

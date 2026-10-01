@@ -136,8 +136,8 @@ function SectionScreenInner({
 
   if (!course || !section || !belongs) {
     if (!hydrated) {
-      // Sections created in this browser are not in the server's seed; wait
-      // for the saved demo before calling this one missing.
+      // Nothing is known until the store's first load from the server has
+      // answered; wait for it before calling this section missing.
       return (
         <CourseScreenSkeleton
           breadcrumbs={breadcrumbs}
@@ -168,8 +168,10 @@ function SectionScreenInner({
     }
     const action = { type: "section/regenerateJoinCode", sectionId } as const;
     // The reducer is pure, so the new code is known before it is stored.
-    const nextCode = getSection(coursesReducer(state, action), sectionId)
-      ?.joinCode;
+    const nextCode = getSection(
+      coursesReducer(state, action),
+      sectionId,
+    )?.joinCode;
     dispatch(action);
     toast({
       title: nextCode

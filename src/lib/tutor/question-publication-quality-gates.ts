@@ -1,5 +1,6 @@
 import { validateAnswerSpec } from "@/lib/tutor/answer/spec";
 import { numericAnswerMatches } from "@/lib/tutor/answer/rational";
+import { validateQuestionFigure } from "@/lib/tutor/question-figure";
 import type {
   QuestionPublicationBlocker,
   QuestionPublicationGateCode,
@@ -40,6 +41,12 @@ export type QuestionPublicationGateInput = {
   questionId: string;
   rawMetadata?: unknown;
   reservedForLater?: boolean;
+  /**
+   * The raw `snapshot_json.figure` value, when the caller read the immutable
+   * snapshot. The version DTO reads figures leniently (an invalid stored figure
+   * becomes undefined), so the gate validates the raw value when available.
+   */
+  snapshotFigure?: unknown;
   snapshotQuestionId?: string;
   version: QuestionVersionDto;
 };
@@ -73,6 +80,18 @@ export function evaluateQuestionPublicationQualityGates(
         version.answer.acceptedAnswers,
       ),
     );
+
+  const figureValue =
+    input.snapshotFigure !== undefined ? input.snapshotFigure : version.figure;
+  if (figureValue !== undefined && figureValue !== null) {
+    const figure = validateQuestionFigure(figureValue);
+    if (!figure.ok) {
+      blockers.push({
+        code: "deterministic_validation_failed",
+        message: `The question figure is invalid: ${figure.issues.join(" ")}`,
+      });
+    }
+  }
 
   if (input.reservedForLater) {
     blockers.push({

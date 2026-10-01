@@ -22,7 +22,12 @@ const UPLOAD_PATH = "/professor/upload";
 export function AddQuestionMenu({
   onWriteItMyself,
 }: {
-  onWriteItMyself: () => void;
+  /**
+   * Demo only: the quick in-page draft form writes into the demo bank. With
+   * real courses it is left out and professors write questions through
+   * upload or the question pages, which feed the same review queue.
+   */
+  onWriteItMyself?: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -37,14 +42,18 @@ export function AddQuestionMenu({
         <DropdownMenuLabel className="type-body">
           You&rsquo;ll approve it before students see it
         </DropdownMenuLabel>
-        <DropdownMenuItem className="min-h-11" onSelect={onWriteItMyself}>
-          Write it myself
-        </DropdownMenuItem>
+        {onWriteItMyself ? (
+          <DropdownMenuItem className="min-h-11" onSelect={onWriteItMyself}>
+            Write it myself
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem asChild className="min-h-11">
           <Link href={UPLOAD_PATH}>Upload notes or a file</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="min-h-11">
-          <Link href={UPLOAD_PATH}>Have the tutor draft questions from my notes</Link>
+          <Link href={UPLOAD_PATH}>
+            Have the tutor draft questions from my notes
+          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

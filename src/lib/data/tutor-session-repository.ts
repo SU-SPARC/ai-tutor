@@ -1,4 +1,5 @@
 import { answerSpecFromSnapshot } from "@/lib/tutor/answer/spec";
+import { readQuestionFigure } from "@/lib/tutor/question-figure";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -191,15 +192,24 @@ export type TutorSessionRepository = {
 const memoryTutorSessionRepository = createMemoryTutorSessionRepository();
 let tutorSessionRepositoryOverride: TutorSessionRepository | undefined;
 
+/**
+ * Starts a published-practice session. `questionVersionId` is the version a
+ * course section pinned for this student (the route resolves it from the
+ * section, never from the client); without it the database fills in the
+ * question's published version. The database guard accepts a non-published
+ * version only when it is the student's active section pin (migration 029).
+ */
 export async function createTutorSession(
   authorization: StudentAuthorization,
   questionId: string,
   idempotencyKey?: string,
+  questionVersionId?: number,
 ) {
   const input: CreateTutorSessionInput = {
     idempotencyKey,
     owner: ownerFromAuthorization(authorization),
     questionId,
+    ...(questionVersionId === undefined ? {} : { questionVersionId }),
   };
   return writeWithConfiguredRepository((repository) =>
     repository.createSession(input),
@@ -1649,6 +1659,13 @@ function practiceQuestionFromSnapshot(
     return undefined;
   }
 
+  // The pinned version is what recovered and similar-practice sessions show,
+  // so its figure must travel with it (read leniently, like the spec).
+  const figure = readQuestionFigure(
+    snapshot.figure,
+    `pinned question version ${id}`,
+  );
+
   return {
     answer: {
       acceptedAnswers,
@@ -1660,6 +1677,7 @@ function practiceQuestionFromSnapshot(
       tolerance: finiteNumber(snapshot.tolerance),
     },
     difficulty,
+    ...(figure ? { figure } : {}),
     hints: orderedBodies(snapshot.hints),
     id,
     misconceptions: Array.isArray(snapshot.misconceptions)

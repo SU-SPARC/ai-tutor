@@ -19,7 +19,9 @@ export function CoursesHubCard() {
   // The hub is also rendered outside the /professor layout in tests, where no
   // store is mounted; the panel simply stays out of the way there.
   const store = useOptionalCoursesStore();
-  if (!store) {
+  // Until the server answers there is no course to name; saying "No active
+  // course" for a moment would be wrong for most professors.
+  if (!store || !store.hydrated) {
     return null;
   }
   const { state } = store;

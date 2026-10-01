@@ -380,6 +380,56 @@ export type ReviewMetadata = {
   status: ReviewStatus;
 };
 
+/**
+ * Optional graph shown with a question prompt. The figure is part of the
+ * prompt: it is public, never carries the answer, and `alt` describes the
+ * graph rather than the answer. See docs/question-figures.md.
+ */
+export type QuestionFigureBar = {
+  kind: "bar";
+  alt: string;
+  title?: string;
+  xLabel?: string;
+  yLabel?: string;
+  bars: Array<{ label: string; value: number; highlight?: boolean }>;
+  yMax?: number;
+};
+
+export type QuestionFigureLine = {
+  kind: "line";
+  alt: string;
+  title?: string;
+  xLabel?: string;
+  yLabel?: string;
+  series: Array<{ label: string; points: Array<[number, number]> }>;
+};
+
+export type QuestionFigureNormal = {
+  kind: "normal";
+  alt: string;
+  title?: string;
+  xLabel?: string;
+  mean: number;
+  sd: number;
+  /** Shade between `from` and `to`; either side may be open. */
+  shade?: { from?: number; to?: number };
+};
+
+export type QuestionFigureVenn = {
+  kind: "venn";
+  alt: string;
+  title?: string;
+  sets: [{ label: string }, { label: string }];
+  /** Text drawn in each region. */
+  regions?: { left?: string; right?: string; both?: string; neither?: string };
+};
+
+export type QuestionFigure =
+  | QuestionFigureBar
+  | QuestionFigureLine
+  | QuestionFigureNormal
+  | QuestionFigureVenn;
+
 export type QuestionContent = {
   answer: {
     spec?: AnswerSpec;
@@ -389,6 +439,7 @@ export type QuestionContent = {
     tolerance?: number;
   };
   difficulty: Difficulty;
+  figure?: QuestionFigure;
   hints: Hint[];
   id: string;
   misconceptions: Misconception[];
@@ -416,6 +467,8 @@ export type PracticeQuestion = TutorQuestion;
 export type StudentPracticeQuestion = {
   difficulty: Difficulty;
   difficultyLabel: string;
+  /** Public graph shown with the prompt; never carries the answer. */
+  figure?: QuestionFigure;
   hintCount: number;
   id: string;
   /**

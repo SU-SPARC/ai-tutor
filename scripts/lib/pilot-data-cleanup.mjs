@@ -49,6 +49,13 @@ export const CLEANUP_TABLES = Object.freeze([
     table: "student_tool_active_buckets",
     types: ["text", "text", "timestamptz"],
   }),
+  // Section rosters are student data. The professor-owned course ledger
+  // (course_events) is retained like audit history and never listed here.
+  Object.freeze({
+    keys: ["section_id", "owner_kind", "owner_id"],
+    table: "section_members",
+    types: ["text", "text", "text"],
+  }),
   Object.freeze({ keys: ["id"], table: "feedback_reports", types: ["bigint"] }),
   Object.freeze({
     keys: ["id"],
@@ -146,6 +153,10 @@ export const INVENTORY_TABLES = Object.freeze([
   "approved_content_imports",
   "attempts",
   "audit_events",
+  "course_events",
+  "course_sections",
+  "course_topics",
+  "courses",
   "feedback_reports",
   "hints",
   "misconceptions",
@@ -160,6 +171,9 @@ export const INVENTORY_TABLES = Object.freeze([
   "retrieval_chunks",
   "roles",
   "schema_migrations",
+  "section_members",
+  "section_question_availability",
+  "section_topic_availability",
   "solution_steps",
   "student_content_availability_events",
   "student_progress",
@@ -664,7 +678,9 @@ export function buildPlanSql({
         + (select count(*) from question_student_availability x where x.updated_by_user_id = u.id)
         + (select count(*) from student_content_availability_events e where e.actor_user_id = u.id)
         + (select count(*) from anonymous_identity_claims c where c.claimed_by_user_id = u.id)
-        + (select count(*) from user_roles ur where ur.granted_by_user_id = u.id or ur.revoked_by_user_id = u.id),
+        + (select count(*) from user_roles ur where ur.granted_by_user_id = u.id or ur.revoked_by_user_id = u.id)
+        + (select count(*) from courses c where c.owner_user_id = u.id or c.created_by_user_id = u.id)
+        + (select count(*) from course_events e where e.actor_user_id = u.id),
       'audit_events', (select count(*) from audit_events ae where ae.actor_user_id = u.id),
       'progress', (select coalesce(json_agg(p.id order by p.id), '[]'::json) from student_progress p where p.user_id = u.id),
       'usage_events', (select coalesce(json_agg(e.id order by e.id), '[]'::json) from student_usage_events e where e.user_id = u.id),
@@ -672,7 +688,12 @@ export function buildPlanSql({
         'user_id', b.user_id,
         'tool', b.tool,
         'bucket_started_at', to_char(b.bucket_started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-      ) order by b.user_id, b.tool, b.bucket_started_at), '[]'::json) from student_tool_active_buckets b where b.user_id = u.id)
+      ) order by b.user_id, b.tool, b.bucket_started_at), '[]'::json) from student_tool_active_buckets b where b.user_id = u.id),
+      'section_memberships', (select coalesce(json_agg(json_build_object(
+        'section_id', m.section_id,
+        'owner_kind', m.owner_kind,
+        'owner_id', m.owner_id
+      ) order by m.section_id, m.owner_kind, m.owner_id), '[]'::json) from section_members m where m.owner_kind = 'user' and m.owner_id = u.id)
     ) order by u.id), '[]'::json) from users u where u.id = any(${targets})),
     'sessions', (select coalesce(json_agg(json_build_object(
       'id', s.id,
@@ -694,6 +715,11 @@ export function buildPlanSql({
       'tool', b.tool,
       'bucket_started_at', to_char(b.bucket_started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
     ) order by b.user_id, b.tool, b.bucket_started_at), '[]'::json) from student_tool_active_buckets b),
+    'section_member_rows', (select coalesce(json_agg(json_build_object(
+      'section_id', m.section_id,
+      'owner_kind', m.owner_kind,
+      'owner_id', m.owner_id
+    ) order by m.section_id, m.owner_kind, m.owner_id), '[]'::json) from section_members m),
     'reservation_rows', (select coalesce(json_agg(r.id order by r.id), '[]'::json) from ai_llm_reservations r),
     'student_scope_owner_check', (select count(*) from ai_usage u where u.scope = 'student' and not exists (select 1 from ai_llm_reservations r join tutor_sessions s on s.id = r.session_id where r.student_key_hash = u.scope_key and s.user_id = any(${targets}))),
     'retained_user_ids', (select coalesce(json_agg(u.id order by u.id), '[]'::json) from users u where u.id <> all(${pilot})),
@@ -844,6 +870,13 @@ export function buildCleanupManifest({
         user_id: String(bucket.user_id),
       });
     }
+    for (const membership of user.section_memberships ?? []) {
+      records.section_members.push({
+        owner_id: String(membership.owner_id),
+        owner_kind: String(membership.owner_kind),
+        section_id: String(membership.section_id),
+      });
+    }
   }
 
   const sessions = plan.sessions ?? [];
@@ -922,6 +955,22 @@ export function buildCleanupManifest({
     ].join("\u0001");
     if (!toolBucketKeys.has(key)) {
       problems.push(`tool_bucket_without_pre_pilot_owner:${safeHash(key)}`);
+    }
+  }
+
+  const membershipKeys = new Set(
+    records.section_members.map((row) =>
+      [row.section_id, row.owner_kind, row.owner_id].join("\u0001"),
+    ),
+  );
+  for (const membership of plan.section_member_rows ?? []) {
+    const key = [
+      String(membership.section_id),
+      String(membership.owner_kind),
+      String(membership.owner_id),
+    ].join("\u0001");
+    if (!membershipKeys.has(key)) {
+      problems.push(`section_member_without_pre_pilot_owner:${safeHash(key)}`);
     }
   }
 

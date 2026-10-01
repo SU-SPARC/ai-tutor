@@ -1,6 +1,4 @@
-import type {
-  ReviewCandidate,
-} from "@/lib/types";
+import type { ReviewCandidate } from "@/lib/types";
 
 export type ProfessorReviewCandidateDto = Omit<
   ReviewCandidate,
@@ -26,6 +24,7 @@ export function toProfessorReviewCandidateDto(
       acceptedAnswers: [...candidate.answer.acceptedAnswers],
     },
     difficulty: candidate.difficulty,
+    ...(candidate.figure ? { figure: structuredClone(candidate.figure) } : {}),
     hints: [...candidate.hints],
     id: candidate.id,
     misconceptions: candidate.misconceptions.map(({ feedback, id }) => ({

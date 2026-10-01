@@ -38,8 +38,9 @@ export default async function ProfessorLayout({
   const authorization = await requirePageAccess(requireProfessor, "/professor");
   const counts = await loadRailCounts(authorization);
 
-  // Course/section state is client-side for this demo, and the header's
-  // course switcher needs it too, so the provider wraps the whole workspace.
+  // Course/section state is held by a client store backed by
+  // /api/professor/courses, and the header's course switcher needs it too,
+  // so the provider wraps the whole workspace.
   // The rail lives here (not in each page) so it persists across navigation.
   return (
     <CoursesStoreProvider>

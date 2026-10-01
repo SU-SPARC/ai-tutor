@@ -79,6 +79,10 @@ grant insert on
   anonymous_identity_claims,
   attempts,
   audit_events,
+  course_events,
+  course_sections,
+  course_topics,
+  courses,
   feedback_reports,
   hints,
   misconceptions,
@@ -91,6 +95,9 @@ grant insert on
   question_version_lifecycle,
   question_versions,
   questions,
+  section_members,
+  section_question_availability,
+  section_topic_availability,
   solution_steps,
   student_content_availability_events,
   student_tool_active_buckets,
@@ -106,18 +113,32 @@ grant update on
   ai_response_cache,
   ai_usage,
   attempts,
+  course_sections,
+  course_topics,
+  courses,
   feedback_reports,
   question_similarity_links,
   question_student_availability,
   question_version_lifecycle,
   questions,
+  section_members,
+  section_question_availability,
+  section_topic_availability,
   topic_student_availability,
   tutor_sessions,
   user_roles,
   users
 to app_runtime;
 
-grant delete on hints, misconceptions, solution_steps to app_runtime;
+-- Migration 029: course_events is append-only (INSERT only), section
+-- memberships end by setting left_at (never DELETE), and the only courses row the
+-- runtime deletes is a section release a professor removes.
+grant delete on
+  hints,
+  misconceptions,
+  section_question_availability,
+  solution_steps
+to app_runtime;
 grant usage on all sequences in schema public to app_runtime;
 grant execute on function app_publication_json_item_text(jsonb) to app_runtime;
 grant execute on function app_publication_numeric_answer_matches(

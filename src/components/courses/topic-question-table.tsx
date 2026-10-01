@@ -74,7 +74,12 @@ export type QuestionRow = {
 export type QuestionActionProps = {
   question: BankQuestion;
   topicId: string;
-  onPublish: (questionId: string) => void;
+  /**
+   * Publishes in place. Only the demo store can do that; with real courses
+   * it is left out and the action links to the question's own page, where
+   * publishing goes through the reviewed lifecycle.
+   */
+  onPublish?: (questionId: string) => void;
   onPreview: (questionId: string) => void;
   className?: string;
 };
@@ -90,12 +95,32 @@ export function QuestionAction({
   onPreview,
   className,
 }: QuestionActionProps) {
+  if (
+    (question.state === "approved" || question.state === "unpublished") &&
+    !onPublish
+  ) {
+    return (
+      <div className={cn("flex flex-col items-end gap-1", className)}>
+        <Button asChild className="min-h-11" variant="secondary">
+          <Link href={professorQuestionPath(question.id)}>
+            {question.state === "approved"
+              ? "Make ready to use"
+              : "Make ready to use again"}
+          </Link>
+        </Button>
+        <span className="type-small text-ink-muted">
+          On the question&rsquo;s page, then choose it for a section
+        </span>
+      </div>
+    );
+  }
+
   if (question.state === "approved" || question.state === "unpublished") {
     return (
       <div className={cn("flex flex-col items-end gap-1", className)}>
         <Button
           className="min-h-11"
-          onClick={() => onPublish(question.id)}
+          onClick={() => onPublish?.(question.id)}
           type="button"
           variant="secondary"
         >
@@ -151,7 +176,11 @@ export function QuestionAction({
 /** The "ready to use" confirmation, shown under the action and announced. */
 export function PublishedNote({ version }: { version: number }) {
   return (
-    <p className="type-small text-green-700" data-version={version} role="status">
+    <p
+      className="type-small text-green-700"
+      data-version={version}
+      role="status"
+    >
       Ready to use. Now choose it for a section on Choose questions.
     </p>
   );
@@ -172,7 +201,7 @@ export function TopicQuestionTable({
   topicId: string;
   selectedQuestionId: string | null;
   publishedNotes: Record<string, number>;
-  onPublish: (questionId: string) => void;
+  onPublish?: (questionId: string) => void;
   onPreview: (questionId: string) => void;
 }) {
   return (

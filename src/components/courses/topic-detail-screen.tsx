@@ -145,7 +145,7 @@ function TopicDetailScreenInner({
   courseId: string;
   topicId: string;
 }) {
-  const { state, dispatch, hydrated } = useCoursesStore();
+  const { state, dispatch, hydrated, demo } = useCoursesStore();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -298,8 +298,8 @@ function TopicDetailScreenInner({
   ];
 
   if ((!course || !topic) && !hydrated) {
-    // A course created in this browser is not in the seed the server
-    // rendered; wait for the saved demo before calling it missing.
+    // Nothing is known until the server has answered the store's first
+    // load; wait for it before calling the course missing.
     return (
       <CourseScreenSkeleton
         breadcrumbs={breadcrumbs}
@@ -333,13 +333,16 @@ function TopicDetailScreenInner({
 
   // "Unpublished" only appears when something is, or while it is selected.
   const visibleFilters = FILTER_ORDER.filter(
-    (key) =>
-      key !== "unpublished" || counts.unpublished > 0 || filter === key,
+    (key) => key !== "unpublished" || counts.unpublished > 0 || filter === key,
   );
 
   return (
     <ProfessorPageShell
-      aside={<AddQuestionMenu onWriteItMyself={() => setWriting(true)} />}
+      aside={
+        <AddQuestionMenu
+          onWriteItMyself={demo ? () => setWriting(true) : undefined}
+        />
+      }
       breadcrumbs={breadcrumbs}
       description={description}
       title={topic.title}
@@ -347,11 +350,13 @@ function TopicDetailScreenInner({
       {excluded ? (
         <Alert role="note" variant="info">
           <Info aria-hidden="true" />
-          <AlertTitle>Not in {course.code} · {course.term}&rsquo;s syllabus</AlertTitle>
+          <AlertTitle>
+            Not in {course.code} · {course.term}&rsquo;s syllabus
+          </AlertTitle>
           <AlertDescription>
             <p className="type-body max-w-prose text-ink-muted">
-              Students in this course cannot see these questions until the
-              week is added back to the syllabus.{" "}
+              Students in this course cannot see these questions until the week
+              is added back to the syllabus.{" "}
               <Link
                 className="rounded-xs text-azure-500 underline underline-offset-2 hover:text-azure-700 focus-ring"
                 href={coursePath(courseId)}
@@ -366,7 +371,10 @@ function TopicDetailScreenInner({
       {savedDraftTitle ? (
         <Alert variant="success">
           <CircleCheck aria-hidden="true" />
-          <AlertTitle>&ldquo;{savedDraftTitle}&rdquo; saved. Students can&rsquo;t see it yet.</AlertTitle>
+          <AlertTitle>
+            &ldquo;{savedDraftTitle}&rdquo; saved. Students can&rsquo;t see it
+            yet.
+          </AlertTitle>
           <AlertDescription>
             <p className="type-body max-w-prose text-ink-muted">
               It is waiting for your review. Approve it, make it ready to use,
@@ -376,7 +384,7 @@ function TopicDetailScreenInner({
         </Alert>
       ) : null}
 
-      {writing ? (
+      {writing && demo ? (
         <WriteQuestionForm
           onCancel={() => setWriting(false)}
           onSubmit={handleWrite}
@@ -408,7 +416,7 @@ function TopicDetailScreenInner({
           <TopicQuestionTable
             caption={`${FILTER_LABELS[filter]} questions in ${topic.title}`}
             onPreview={handlePreview}
-            onPublish={handlePublish}
+            onPublish={demo ? handlePublish : undefined}
             publishedNotes={publishedNotes}
             rows={visibleRows}
             selectedQuestionId={selectedQuestionId}
@@ -422,7 +430,7 @@ function TopicDetailScreenInner({
           courseGroup={selectedCourseGroup}
           onClose={handleClose}
           onPreview={handlePreview}
-          onPublish={handlePublish}
+          onPublish={demo ? handlePublish : undefined}
           publishedNote={publishedNotes[selectedQuestion.id]}
           question={selectedQuestion}
           topicId={topicId}

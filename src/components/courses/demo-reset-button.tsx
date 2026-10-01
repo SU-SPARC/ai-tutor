@@ -10,14 +10,19 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { toast } from "@/components/ui/toast";
 
 /**
- * The demo keeps every change in this browser. One way back to the starting
- * demo keeps it recoverable without clearing site data by hand. It erases the
- * professor's work, so it is destructive, says so on the button, sits at the
- * bottom of the Courses page only, and asks first.
+ * Only when the server says it is the in-memory demo store: one way back to
+ * the starting demo (it sends the `reset` action). It erases the professor's
+ * demo work, so it is destructive, says so on the button, sits at the bottom
+ * of the Courses page only, and asks first. Real courses have no reset, so
+ * the button is not rendered at all outside the demo.
  */
 export function DemoResetButton() {
-  const { reset } = useCoursesStore();
+  const { reset, demo } = useCoursesStore();
   const [confirming, setConfirming] = useState(false);
+
+  if (!demo) {
+    return null;
+  }
 
   return (
     <section
@@ -45,7 +50,7 @@ export function DemoResetButton() {
       <ConfirmDialog
         cancelLabel="Keep my changes"
         confirmLabel="Erase and start over"
-        description="Erase every course, section and question choice you made in this browser and start the demo over?"
+        description="Erase every course, section and question choice you made in the demo and start it over?"
         destructive
         onConfirm={() => {
           reset();

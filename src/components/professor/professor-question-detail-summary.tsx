@@ -136,6 +136,7 @@ export function ProfessorQuestionStudentView({
         headingLevel={3}
         hints={{ total: working.hints.length, revealed: working.hints }}
         prompt={working.prompt}
+        figure={working.figure}
         steps={{ revealed: working.solutionSteps }}
       />
     </section>

@@ -22,6 +22,8 @@ import { POST as createAdminQuestionVersion } from "@/app/api/professor/question
 import { POST as batchAdminQuestions } from "@/app/api/professor/questions/batch/route";
 import { POST as inspectAdminQuestion } from "@/app/api/professor/questions/inspections/route";
 import { POST as uploadAdminContent } from "@/app/api/professor/content-preview/route";
+import { GET as getProfessorCourses } from "@/app/api/professor/courses/route";
+import { POST as applyProfessorCourseAction } from "@/app/api/professor/courses/actions/route";
 import { POST as claimLegacyAnonymous } from "@/app/api/identity/legacy-anonymous/route";
 import { GET as exportPilotAnalytics } from "@/app/api/professor/analytics/export/route";
 import {
@@ -367,6 +369,19 @@ describe("direct professor content API authorization", () => {
         uploadAdminContent(
           new Request("http://test/api/professor/content-preview", {
             method: "POST",
+          }),
+        ),
+    ],
+    [
+      "GET /api/professor/courses",
+      () => getProfessorCourses(new Request("http://test/api/professor/courses")),
+    ],
+    [
+      "POST /api/professor/courses/actions",
+      () =>
+        applyProfessorCourseAction(
+          jsonRequest("http://test/api/professor/courses/actions", {
+            action: { type: "course/archive", courseId: "course-missing" },
           }),
         ),
     ],

@@ -597,9 +597,12 @@
 
 /* MathLive's <math-field>, themed to match the mono answer input: sheet
  * fill, the --input boundary, the control radius, 18px, 48px tall. The
- * verdict washes come from `data-verdict`, set by the field. */
+ * verdict washes come from `data-verdict`, set by the field. Grid, not
+ * flex: MathLive wraps its shadow content in a span, and under a flex host
+ * that span shrinks to the typed math, so only that sliver took clicks.
+ * A grid item stretches, so the whole box is the click target. */
 math-field.math-answer-field {
-  display: flex;
+  display: grid;
   align-items: center;
   box-sizing: border-box;
   width: 100%;

@@ -10,7 +10,7 @@ export const metadata = {
 /**
  * S2. The server can only check the shape of the id — whether a course with
  * that id exists is a question for the client store — so a malformed id is a
- * 404 here and an unknown one is a "not in this demo" card inside the shell.
+ * 404 here and an unknown one is a "not found" card inside the shell.
  */
 export default async function ProfessorCoursePage({
   params,

@@ -1,63 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useSyncExternalStore } from "react";
+import { useState } from "react";
 
 import { useStudentSection } from "@/components/shell/use-student-section";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const LINE_CLASSES = "type-body";
 const LINK_CLASSES =
   "rounded-xs font-medium text-azure-500 underline underline-offset-4 hover:text-azure-700 focus-ring";
 
-/**
- * `useStudentSection` remembers which section a student joined but not when —
- * there is no sections API in this demo — so the join date is recorded here,
- * next to the one screen that shows it. It is written on first sight of a code
- * and never again, so the date stays put across visits.
- */
-const JOINED_STORAGE_KEY = "ai-tutor-student-section-joined";
-
-type JoinRecord = { code: string; joinedAt: string };
-
-function rememberJoin(code: string): string | null {
-  try {
-    const raw = window.localStorage.getItem(JOINED_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<JoinRecord>;
-      if (parsed?.code === code && typeof parsed.joinedAt === "string") {
-        return parsed.joinedAt;
-      }
-    }
-    const record: JoinRecord = { code, joinedAt: new Date().toISOString() };
-    window.localStorage.setItem(JOINED_STORAGE_KEY, JSON.stringify(record));
-    return record.joinedAt;
-  } catch {
-    // Private browsing and blocked site data both throw. The line then simply
-    // drops the date rather than disappearing.
+function formatJoined(iso: string) {
+  if (!iso) {
     return null;
   }
-}
-
-// A one-value external store rather than state-in-an-effect: the write happens
-// when React subscribes (after commit, never during a render), and the server
-// snapshot is always null so the first client render matches the markup.
-const listeners = new Set<() => void>();
-let recordedCode: string | null | undefined;
-let joinedSnapshot: string | null = null;
-
-function recordJoin(code: string | null) {
-  if (code === recordedCode) {
-    return;
-  }
-  recordedCode = code;
-  joinedSnapshot = code ? rememberJoin(code) : null;
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function formatJoined(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -66,37 +23,18 @@ function formatJoined(iso: string) {
 }
 
 /**
- * One line on the account page: which section this browser is joined to with
- * "Change section" beside it, or "Have a section code? Enter it" when it is
- * joined to none. Both links open `/join`, which shows the code form to a
- * signed-in student. Section membership lives in the browser
- * for this demo, so it cannot be rendered on the server — everything above
- * this line can.
+ * One line on the account page: the course section this student joined, when
+ * they joined it, with "Change section" and "Leave" beside it, or "Have a
+ * section code? Enter it" when they are in none. Both links open `/join`,
+ * which shows the code form to a signed-in student. Membership is read from
+ * the server (`GET /api/student/section`) after hydration, so a placeholder
+ * of the same height holds the line until it arrives.
  */
 export function AccountSectionLine({ className }: { className?: string }) {
-  const { section, hydrated } = useStudentSection();
-  const code = section?.code ?? null;
-
-  const subscribe = useCallback(
-    (listener: () => void) => {
-      listeners.add(listener);
-      recordJoin(code);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    [code],
-  );
-
-  const joinedAt = useSyncExternalStore(
-    subscribe,
-    () => joinedSnapshot,
-    () => null,
-  );
+  const { section, hydrated, leave } = useStudentSection();
+  const [leaving, setLeaving] = useState(false);
 
   if (!hydrated) {
-    // The value is only known in the browser; a placeholder of the same height
-    // keeps the panel from jumping when it arrives.
     return (
       <p aria-hidden className={cn(LINE_CLASSES, "opacity-0", className)}>
         &nbsp;
@@ -115,7 +53,21 @@ export function AccountSectionLine({ className }: { className?: string }) {
     );
   }
 
-  const joined = joinedAt ? formatJoined(joinedAt) : null;
+  const joined = formatJoined(section.joinedAt);
+
+  const handleLeave = async () => {
+    setLeaving(true);
+    const left = await leave();
+    setLeaving(false);
+    toast(
+      left
+        ? { title: `Left ${section.label}`, tone: "success" }
+        : {
+            title: "We couldn't leave your section just now. Try again.",
+            tone: "error",
+          },
+    );
+  };
 
   return (
     <p className={cn(LINE_CLASSES, className)}>
@@ -129,6 +81,17 @@ export function AccountSectionLine({ className }: { className?: string }) {
       <Link href="/join" className={LINK_CLASSES}>
         Change section
       </Link>
+      <span className="text-ink-muted" aria-hidden="true">
+        {" · "}
+      </span>
+      <button
+        type="button"
+        className={cn(LINK_CLASSES, "disabled:opacity-50")}
+        disabled={leaving}
+        onClick={() => void handleLeave()}
+      >
+        Leave
+      </button>
     </p>
   );
 }

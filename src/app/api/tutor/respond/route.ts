@@ -31,6 +31,8 @@ import {
   findRepeatedAiHelpAttempt,
   repeatedAiHelpResponse,
 } from "@/lib/tutor/ai-help-repeat";
+import { readSectionDelivery } from "@/lib/tutor/section-access";
+import { deliveryRefusal } from "@/lib/tutor/section-content";
 import { isTutorSessionIdempotencyKey } from "@/lib/tutor/session-persistence";
 import { createTutorResponseFromState } from "@/lib/tutor/tutor-engine";
 import type {
@@ -211,6 +213,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Course sections: the section's delivery settings for this question
+    // (hints on/off, attempts allowed, when worked steps open). Students
+    // outside a section, and similar-problem practice, are unrestricted.
+    const delivery =
+      session.practiceContext === "reserve_practice"
+        ? undefined
+        : await readSectionDelivery(owner, session.questionId);
+    const withDeliveredHints = (response: TutorResponse): TutorResponse =>
+      delivery && !delivery.hintsEnabled
+        ? { ...response, hints: [] }
+        : response;
+
     if (body.aiHelp === true) {
       await recordAiHelpRequestSafely(
         access.authorization,
@@ -234,7 +248,9 @@ export async function POST(request: Request) {
       );
       if (existing?.verdict) {
         return tutorSuccessResponse(
-          toTutorResponseDto(recoveredResponse(session, existing, question)),
+          toTutorResponseDto(
+            withDeliveredHints(recoveredResponse(session, existing, question)),
+          ),
           requestId,
         );
       }
@@ -245,6 +261,29 @@ export async function POST(request: Request) {
           requestId,
           route: TUTOR_RESPOND_ROUTE,
           status: 409,
+          subsystem: "tutor-session",
+        });
+      }
+
+      const refusal = delivery
+        ? deliveryRefusal({
+            aiHelp: body.aiHelp === true,
+            delivery,
+            mode: body.mode,
+            progress: {
+              solved: session.solved ?? false,
+              wrongAttemptCount: session.wrongAttemptCount ?? 0,
+            },
+          })
+        : undefined;
+      if (refusal) {
+        // Refused before the engine runs: nothing is recorded.
+        return safeApiErrorResponse({
+          code: refusal.code,
+          error: refusal.error,
+          requestId,
+          route: TUTOR_RESPOND_ROUTE,
+          status: refusal.status,
           subsystem: "tutor-session",
         });
       }
@@ -305,7 +344,7 @@ export async function POST(request: Request) {
       if (persisted.outcome === "applied") {
         pendingAiAccounting = undefined;
         return tutorSuccessResponse(
-          toTutorResponseDto(transition.response),
+          toTutorResponseDto(withDeliveredHints(transition.response)),
           requestId,
         );
       }
@@ -318,7 +357,9 @@ export async function POST(request: Request) {
         return saved
           ? tutorSuccessResponse(
               toTutorResponseDto(
-                recoveredResponse(persisted.session, saved, question),
+                withDeliveredHints(
+                  recoveredResponse(persisted.session, saved, question),
+                ),
               ),
               requestId,
             )

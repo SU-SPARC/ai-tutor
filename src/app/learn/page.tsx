@@ -13,6 +13,15 @@ import {
 } from "@/lib/auth/authorization";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { getStudentProgress } from "@/lib/data/student-progress";
+import {
+  readStudentSectionContent,
+  type StudentSectionContent,
+} from "@/lib/tutor/section-access";
+import {
+  selectSectionQuestions,
+  selectSectionTopics,
+  withPinnedQuestions,
+} from "@/lib/tutor/section-content";
 import type { StudentProgressDashboard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,19 +41,30 @@ export const metadata: Metadata = {
  * redirected to sign in: they get the same page with the syllabus and an
  * invitation to join, because the syllabus is public and a dead end is worse
  * than an empty progress column.
+ *
+ * A student in a course section sees only that section: its released
+ * questions whose topic is open (or scheduled and already open), in the
+ * section's topic and question order. Everyone else sees the global list.
  */
 export default async function LearnPage() {
-  const [topics, questions, { isGuest, progress }] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-    readOwnProgress(),
-  ]);
+  const [topics, questions, { isGuest, progress, section }] = await Promise.all(
+    [getTopics(), getApprovedQuestions(), readOwnProgress()],
+  );
 
-  const orderedTopics = sortTopicsForSyllabus(topics);
-  const orderedQuestions = sortQuestionsForSyllabus(questions);
+  const now = new Date();
+  const orderedTopics = section
+    ? selectSectionTopics(topics, section.releases, now)
+    : sortTopicsForSyllabus(topics);
+  const orderedQuestions = section
+    ? selectSectionQuestions(
+        withPinnedQuestions(questions, section.pinnedQuestions),
+        section.releases,
+        now,
+      )
+    : sortQuestionsForSyllabus(questions);
   const model = buildLearnModel({
     isGuest,
-    nowIso: new Date().toISOString(),
+    nowIso: now.toISOString(),
     progress,
     questions: orderedQuestions.map(normalizeSummary),
     topics: orderedTopics,
@@ -64,6 +84,7 @@ export default async function LearnPage() {
 async function readOwnProgress(): Promise<{
   isGuest: boolean;
   progress: StudentProgressDashboard | null;
+  section: StudentSectionContent | undefined;
 }> {
   let authorization;
 
@@ -71,13 +92,18 @@ async function readOwnProgress(): Promise<{
     authorization = await requireStudentAccess({ allowAnonymous: true });
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return { isGuest: true, progress: null };
+      return { isGuest: true, progress: null, section: undefined };
     }
     throw error;
   }
 
+  const [progress, section] = await Promise.all([
+    getStudentProgress(authorization),
+    readStudentSectionContent(authorization.owner, { pinnedContent: true }),
+  ]);
   return {
     isGuest: authorization.owner.kind !== "user",
-    progress: await getStudentProgress(authorization),
+    progress,
+    section,
   };
 }

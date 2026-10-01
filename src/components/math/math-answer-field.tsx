@@ -53,6 +53,12 @@ export type MathAnswerFieldHandle = {
   /** Apply a keypad key to whichever field is live. */
   run: (action: KeypadAction) => void;
   focus: () => void;
+  /**
+   * Let the OS keyboard come up (true) or keep it down for our keypad
+   * (false), then focus the field. Call it from the click that asked for it:
+   * phones only raise their keyboard for a focus inside a user gesture.
+   */
+  setSystemKeyboard: (enabled: boolean) => void;
   /** The live field element (plain input or math-field). */
   element: () => HTMLElement | null;
 };
@@ -72,7 +78,10 @@ export type MathAnswerFieldProps = {
   describedBy?: string;
   /** Classes for the plain input (height, verdict wash). */
   className?: string;
-  /** Our keypad is docked on a touch screen: keep the OS keyboard down. */
+  /**
+   * Our keypad is docked on a touch screen: keep the OS keyboard down.
+   * False lets it come up (the student chose "Use keyboard").
+   */
   suppressSystemKeyboard?: boolean;
   ref?: Ref<MathAnswerFieldHandle>;
 };
@@ -99,6 +108,16 @@ function loadMathlive(): Promise<MathliveModule> {
     });
   }
   return mathlivePromise;
+}
+
+/**
+ * MathLive takes keys through a hidden contenteditable "keyboard sink" that
+ * it always marks `inputmode=none`, so the host's `inputMode` alone never
+ * raises a phone's keyboard. This sets the sink's mode directly.
+ */
+function setSinkInputMode(mf: MathfieldElement, suppress: boolean) {
+  const sink = mf.shadowRoot?.querySelector(".ML__keyboard-sink");
+  sink?.setAttribute("inputmode", suppress ? "none" : "text");
 }
 
 function escapeTextLatex(text: string) {
@@ -157,9 +176,17 @@ export function MathAnswerField({
     onEnter,
     onFocusChange,
     disabled,
+    suppressSystemKeyboard,
   });
   useEffect(() => {
-    latest.current = { onChange, onEntry, onEnter, onFocusChange, disabled };
+    latest.current = {
+      onChange,
+      onEntry,
+      onEnter,
+      onFocusChange,
+      disabled,
+      suppressSystemKeyboard,
+    };
   });
   // Seed for the math-field when it mounts: what the student typed so far.
   const seed = useRef({ text: plainText, value });
@@ -216,6 +243,9 @@ export function MathAnswerField({
     mf.menuItems = [];
     mf.popoverPolicy = "off";
     mf.smartFence = true;
+    // `*` types a times sign (MathLive's default is a centred dot).
+    mf.inlineShortcuts = { ...mf.inlineShortcuts, "*": "\\times" };
+    setSinkInputMode(mf, latest.current.suppressSystemKeyboard);
 
     const { text, value: seededValue } = seed.current;
     mf.value = plainToLatex(text);
@@ -235,7 +265,10 @@ export function MathAnswerField({
       event.preventDefault();
       if (!latest.current.disabled) latest.current.onEnter();
     };
-    const handleFocusIn = () => latest.current.onFocusChange?.(true);
+    const handleFocusIn = () => {
+      setSinkInputMode(mf, latest.current.suppressSystemKeyboard);
+      latest.current.onFocusChange?.(true);
+    };
     const handleFocusOut = () => latest.current.onFocusChange?.(false);
 
     mf.addEventListener("input", handleInput);
@@ -258,6 +291,12 @@ export function MathAnswerField({
     lastEmitted.current = value;
     mf.value = plainToLatex(value);
   }, [ready, value]);
+
+  useEffect(() => {
+    const mf = mathfieldRef.current;
+    if (!ready || !mf) return;
+    setSinkInputMode(mf, suppressSystemKeyboard);
+  }, [ready, suppressSystemKeyboard]);
 
   useEffect(() => {
     const mf = mathfieldRef.current;
@@ -388,6 +427,19 @@ export function MathAnswerField({
     focus() {
       (mathfieldRef.current ?? inputRef.current)?.focus();
     },
+    setSystemKeyboard(enabled) {
+      const mf = ready ? mathfieldRef.current : null;
+      const input = inputRef.current;
+      if (mf) setSinkInputMode(mf, !enabled);
+      else if (input) input.inputMode = enabled ? "text" : "none";
+      const element: HTMLElement | null = mf ?? input;
+      if (!element) return;
+      // A field that already has focus keeps the keyboard it had: blur and
+      // focus again so the new input mode takes effect.
+      const focused = mf ? mf.hasFocus() : document.activeElement === element;
+      if (focused) element.blur();
+      element.focus();
+    },
     element() {
       return mathfieldRef.current ?? inputRef.current;
     },
@@ -403,7 +455,10 @@ export function MathAnswerField({
         data-slot="answer-input"
         data-verdict={verdict ?? undefined}
         math-virtual-keyboard-policy="manual"
-        inputMode={suppressSystemKeyboard ? "none" : undefined}
+        // React sets this as a property on the custom element, where
+        // `undefined` would read "undefined"; MathLive's own keyboard sink
+        // gets the same mode in `setSinkInputMode`.
+        inputMode={suppressSystemKeyboard ? "none" : "text"}
         aria-describedby={describedBy}
         aria-invalid={verdict === "incorrect" ? true : undefined}
         aria-disabled={disabled ? true : undefined}
