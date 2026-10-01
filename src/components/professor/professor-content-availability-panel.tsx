@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,13 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  formatLocalDate,
+  formatLocalTime,
+  localZoneName,
+  useIsClient,
+  validDate,
+} from "@/components/ui/local-date";
 import { NativeSelect } from "@/components/ui/native-select";
 import { StatusChip, type StatusChipProps } from "@/components/ui/status-chip";
 import {
@@ -58,6 +65,20 @@ const EFFECTIVE: Record<
   scheduled: { icon: CalendarClock, label: "Scheduled", tone: "neutral" },
   unpublished: { icon: false, label: "Hidden from students", tone: "neutral" },
 };
+
+/**
+ * A topic's end date closes the week without hiding it (migration 030), so
+ * an expired topic reads "Closed"; a question's end date still hides it.
+ */
+function effectiveChip(target: StudentContentAvailabilityTarget) {
+  if (
+    target.targetType === "topic" &&
+    target.effectiveAvailability === "expired"
+  ) {
+    return { ...EFFECTIVE.expired, label: "Closed" };
+  }
+  return EFFECTIVE[target.effectiveAvailability];
+}
 
 type AvailabilityChange = {
   availableFrom?: string;
@@ -175,8 +196,8 @@ export function ProfessorContentAvailabilityPanel({
     <div className="flex flex-col gap-10">
       <div className="flex max-w-prose flex-col items-start gap-3">
         <p className="type-body text-ink">
-          To choose what one section sees and when, open Courses → your course
-          → the section.
+          To choose what one section sees and when, open Courses → your course →
+          the section.
         </p>
         <Button asChild variant="cta" className="min-h-11">
           <Link href="/professor/courses">Go to my courses</Link>
@@ -186,8 +207,7 @@ export function ProfessorContentAvailabilityPanel({
         </p>
         {dashboard.readOnly && dashboard.mode !== "demo" ? (
           <p role="note" className="type-body text-ink">
-            You can look at this page, but changes can&apos;t be made right
-            now.
+            You can look at this page, but changes can&apos;t be made right now.
           </p>
         ) : null}
       </div>
@@ -306,7 +326,7 @@ function AvailabilityRow({
         <h3 id={headingId} className="type-h3 text-ink">
           {target.title}
         </h3>
-        <StatusChip {...EFFECTIVE[target.effectiveAvailability]} />
+        <StatusChip {...effectiveChip(target)} />
         {summary ? <p className="type-body text-ink">{summary}</p> : null}
         {blocked ? (
           <div className="flex flex-col items-start gap-1">
@@ -370,10 +390,18 @@ function ChangeDialog({
   target: StudentContentAvailabilityTarget;
 }) {
   const [releaseState, setReleaseState] = useState(target.releaseState);
-  const [fromDate, setFromDate] = useState(() => toLocalParts(target.availableFrom).date);
-  const [fromTime, setFromTime] = useState(() => toLocalParts(target.availableFrom).time);
-  const [untilDate, setUntilDate] = useState(() => toLocalParts(target.availableUntil).date);
-  const [untilTime, setUntilTime] = useState(() => toLocalParts(target.availableUntil).time);
+  const [fromDate, setFromDate] = useState(
+    () => toLocalParts(target.availableFrom).date,
+  );
+  const [fromTime, setFromTime] = useState(
+    () => toLocalParts(target.availableFrom).time,
+  );
+  const [untilDate, setUntilDate] = useState(
+    () => toLocalParts(target.availableUntil).date,
+  );
+  const [untilTime, setUntilTime] = useState(
+    () => toLocalParts(target.availableUntil).time,
+  );
   const [note, setNote] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string>();
@@ -502,7 +530,9 @@ function ChangeDialog({
               value={releaseState}
               className="min-h-11"
               onChange={(event) =>
-                setReleaseState(event.target.value as StudentContentReleaseState)
+                setReleaseState(
+                  event.target.value as StudentContentReleaseState,
+                )
               }
             >
               {WHO_CAN_SEE.map((option) => (
@@ -520,8 +550,8 @@ function ChangeDialog({
                   Show starting
                 </legend>
                 <p className="type-body text-ink-muted">
-                  Leave blank to show right away. Times are in your time zone
-                  ({localZoneName()}).
+                  Leave blank to show right away. Times are in your time zone (
+                  {localZoneName()}).
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Date" error={fieldErrors.fromDate}>
@@ -544,11 +574,13 @@ function ChangeDialog({
               </fieldset>
               <fieldset className="flex flex-col gap-2">
                 <legend className="type-body-strong text-ink">
-                  Hide after{" "}
+                  {untilFieldHeading(target.targetType)}{" "}
                   <span className="font-normal text-ink-muted">(optional)</span>
                 </legend>
                 <p className="type-body text-ink-muted">
-                  Leave blank to keep showing it.
+                  {target.targetType === "topic"
+                    ? "Leave blank to never mark it closed. Students can still practice a closed week."
+                    : "Leave blank to keep showing it."}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Date" error={fieldErrors.untilDate}>
@@ -701,12 +733,37 @@ function RecentChanges({
 /* Words                                                               */
 /* ------------------------------------------------------------------ */
 
-function scheduleSentence(
+/** The end-date field: a topic closes on it, a question hides after it. */
+export function untilFieldHeading(targetType: "topic" | "question") {
+  return targetType === "topic" ? "Close on" : "Hide after";
+}
+
+export function scheduleSentence(
   target: StudentContentAvailabilityTarget,
   isClient: boolean,
 ) {
   const from = formatLocalTime(target.availableFrom, isClient);
   const until = formatLocalTime(target.availableUntil, isClient);
+  if (target.targetType === "topic") {
+    // A topic's end date closes the week; students keep practicing it.
+    switch (target.effectiveAvailability) {
+      case "scheduled":
+        return from ? `Students will see it on ${from}.` : undefined;
+      case "available": {
+        const since = from ? `Visible since ${from}.` : "";
+        const end = until
+          ? ` Closes on ${until}; students can still practice it after that.`
+          : "";
+        return `${since}${end}`.trim() || undefined;
+      }
+      case "expired":
+        return until
+          ? `Closed on ${until}. Students can still practice it.`
+          : undefined;
+      default:
+        return undefined;
+    }
+  }
   switch (target.effectiveAvailability) {
     case "scheduled":
       return from ? `Students will see it on ${from}.` : undefined;
@@ -722,13 +779,16 @@ function scheduleSentence(
   }
 }
 
-function consequenceSentence(title: string, change: AvailabilityChange) {
+export function consequenceSentence(title: string, change: AvailabilityChange) {
   if (change.releaseState !== "published") {
     return `Students will no longer see “${title}”. Hide it?`;
   }
   const start = change.availableFrom
     ? formatLocalTime(change.availableFrom, true)
     : "now";
+  if (change.targetType === "topic" && change.availableUntil) {
+    return `All students will see “${title}” starting ${start}. It will be marked closed on ${formatLocalTime(change.availableUntil, true)} but stays open for practice. Show it?`;
+  }
   const until = change.availableUntil
     ? `, until ${formatLocalTime(change.availableUntil, true)}`
     : "";
@@ -764,63 +824,8 @@ function changeInWords(
 }
 
 /* ------------------------------------------------------------------ */
-/* Time: always the browser's local zone, with its short name.          */
-/* The server (and the first client render) uses UTC so the markup      */
-/* matches; the browser then swaps in local time.                       */
+/* Local date and time inputs (shared formatting: ui/local-date).        */
 /* ------------------------------------------------------------------ */
-
-const noopSubscribe = () => () => {};
-
-function useIsClient() {
-  return useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
-}
-
-function validDate(value?: string) {
-  if (!value) return undefined;
-  const date = new Date(value);
-  // Missing or epoch-0 dates render as nothing, never 1969/1970.
-  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) return undefined;
-  return date;
-}
-
-function formatLocalDate(value: string | undefined, isClient: boolean) {
-  const date = validDate(value);
-  if (!date) return "";
-  const timeZone = isClient ? undefined : "UTC";
-  const now = new Date();
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
-    timeZone,
-  }).format(date);
-}
-
-/** "Mon 6 Oct, 9:00 AM EDT" in the browser's time zone. */
-function formatLocalTime(value: string | undefined, isClient: boolean) {
-  const date = validDate(value);
-  if (!date) return "";
-  const timeZone = isClient ? undefined : "UTC";
-  const time = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-    timeZone,
-  }).format(date);
-  return `${formatLocalDate(value, isClient)}, ${time}`;
-}
-
-function localZoneName() {
-  const part = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
-    .formatToParts(new Date())
-    .find((item) => item.type === "timeZoneName");
-  return part?.value ?? "local time";
-}
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -861,8 +866,7 @@ function partsToIso(
   }
   const parsed = new Date(`${date}T${time}`);
   if (Number.isNaN(parsed.getTime())) {
-    errors[which === "from" ? "fromDate" : "untilDate"] =
-      "Enter a real date.";
+    errors[which === "from" ? "fromDate" : "untilDate"] = "Enter a real date.";
     return undefined;
   }
   return parsed.toISOString();

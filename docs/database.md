@@ -91,6 +91,16 @@ screens see students only as the same SHA-256 owner keys the Students page
 uses. After migration 029, reapply `db/roles/app_runtime.sql`; see
 [Database Migration Operations](database-operations.md#migration-029-courses-sections-and-per-section-releases).
 
+`030_topic_windows_close_without_hiding.sql` changes what a topic's
+`topic_student_availability.available_until` means: once it passes the week is
+*closed*, not hidden. It redefines `app_public_questions`,
+`app_student_retrieval_chunks`, and `app_reserve_practice_questions` from their
+current catalog definitions with only the topic-level end-date predicate
+removed (columns, including `figure_json`, and `security_invoker` are
+unchanged). Topic `available_from` and `release_state` still hide a topic, and
+a question's own `available_until` still hides that question. See
+[Database Migration Operations](database-operations.md#migration-030-closed-weeks).
+
 `022_question_reserve_disposition.sql` adds Save for later as current-state
 columns on `questions` plus the append-only `question_reserve_events` ledger.
 Constraints keep reserved content active and without a published pointer;
@@ -199,7 +209,8 @@ student onboarding acknowledgement timestamp on the application user.
 availability rules, optional start/end schedules, and an append-only,
 professor-attributed availability ledger. Missing rules preserve current
 published behavior. Student question and retrieval views require both active
-topic availability and question availability in addition to the existing
+topic availability (since migration 030 a topic's end date closes the week
+without hiding it) and question availability in addition to the existing
 approval and immutable-version publication gates. The schema intentionally
 does not invent course/cohort assignment because no course, cohort, membership,
 or enrollment model exists.

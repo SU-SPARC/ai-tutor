@@ -200,7 +200,9 @@ describe("the week strip", () => {
     });
 
     expect(week.completedThisWeek).toBe(1);
-    expect(week.summary).toBe("1 question solved this week · 1 on the first try");
+    expect(week.summary).toBe(
+      "1 question solved this week · 1 on the first try",
+    );
     expect(week.summary).not.toMatch(/%|problem|—/);
 
     const two = buildWeekStrip({
@@ -514,7 +516,10 @@ describe("what to continue", () => {
       (questionId) => ({
         ...solvedVenn,
         questionId,
-        topicId: questionId === "venn-union" ? "introduction" : "conditional-probability",
+        topicId:
+          questionId === "venn-union"
+            ? "introduction"
+            : "conditional-probability",
       }),
     );
     const model = buildLearnModel({
@@ -683,9 +688,9 @@ describe("one topic", () => {
       "conditional-probability",
     );
     // Wraps to an earlier unfinished topic, and skips topics with nothing in them.
-    expect(
-      nextUnfinishedTopic(model.topics, "central-limit-theorem")?.id,
-    ).toBe("conditional-probability");
+    expect(nextUnfinishedTopic(model.topics, "central-limit-theorem")?.id).toBe(
+      "conditional-probability",
+    );
     expect(
       nextUnfinishedTopic(
         model.topics.map((topic) => ({ ...topic, solved: topic.total })),
@@ -820,7 +825,9 @@ describe("the rendered learn pages", () => {
     );
 
     expect(guestMarkup).not.toContain('data-slot="three-column-rail"');
-    expect(guestMarkup).toContain("Guest · your progress lives in this browser.");
+    expect(guestMarkup).toContain(
+      "Guest · your progress lives in this browser.",
+    );
     expect(guestMarkup).toContain("Sign in to keep it");
     expect(guestMarkup).toContain('href="/sign-in?callbackUrl=%2Flearn"');
     expect(guestMarkup).toContain("Have a section code?");
@@ -831,7 +838,9 @@ describe("the rendered learn pages", () => {
     expect(guestMarkup).toContain("Search topics");
     expect(guestMarkup).not.toContain("Filter topics");
     expect(guestMarkup).not.toContain("Random question");
-    expect(guestMarkup).not.toMatch(/Start here|Next new|Resume →|Q-[0-9A-F]{4}/);
+    expect(guestMarkup).not.toMatch(
+      /Start here|Next new|Resume →|Q-[0-9A-F]{4}/,
+    );
 
     const student = buildLearnModel({
       isGuest: false,
@@ -854,9 +863,9 @@ describe("the rendered learn pages", () => {
     expect(studentMarkup).toContain("Recent practice");
     expect(studentMarkup).not.toContain("Saved practice");
     expect(studentMarkup).toContain("At a glance");
-    expect(
-      studentMarkup.indexOf("Recent practice"),
-    ).toBeLessThan(studentMarkup.indexOf('id="learn-syllabus"'));
+    expect(studentMarkup.indexOf("Recent practice")).toBeLessThan(
+      studentMarkup.indexOf('id="learn-syllabus"'),
+    );
     expect(studentMarkup.lastIndexOf("At a glance")).toBeGreaterThan(
       studentMarkup.indexOf('id="learn-syllabus"'),
     );
@@ -868,8 +877,16 @@ describe("the rendered learn pages", () => {
       progress: progressWith({
         questions: [
           solvedVenn,
-          { ...solvedVenn, questionId: "dice-sum-eight", topicId: "conditional-probability" },
-          { ...solvedVenn, questionId: "spinner-coin", topicId: "conditional-probability" },
+          {
+            ...solvedVenn,
+            questionId: "dice-sum-eight",
+            topicId: "conditional-probability",
+          },
+          {
+            ...solvedVenn,
+            questionId: "spinner-coin",
+            topicId: "conditional-probability",
+          },
         ],
       }),
       questions,
@@ -877,7 +894,9 @@ describe("the rendered learn pages", () => {
     });
     const markup = renderToStaticMarkup(createElement(LearnScreen, { model }));
 
-    expect(markup).toContain("You&#x27;ve solved every question on the syllabus.");
+    expect(markup).toContain(
+      "You&#x27;ve solved every question on the syllabus.",
+    );
     expect(markup).toContain("Keep practicing");
     expect(markup).toContain('href="/practice"');
   });
@@ -914,7 +933,9 @@ describe("the rendered learn pages", () => {
     expect(markup).toContain(
       'href="/sign-in?callbackUrl=%2Flearn%2Fconditional-probability"',
     );
-    expect(markup).toContain("More questions like these. They don’t change your syllabus progress.");
+    expect(markup).toContain(
+      "More questions like these. They don’t change your syllabus progress.",
+    );
     expect(markup).toContain("Try extra practice");
     expect(markup).toContain("1 hint used so far");
     expect(markup).not.toMatch(/hint avg|\bdone\b/);
@@ -925,8 +946,16 @@ describe("the rendered learn pages", () => {
   it("points a finished topic forward instead of leaving a dead end", () => {
     const solvedTopic = progressWith({
       questions: [
-        { ...solvedVenn, questionId: "dice-sum-eight", topicId: "conditional-probability" },
-        { ...solvedVenn, questionId: "spinner-coin", topicId: "conditional-probability" },
+        {
+          ...solvedVenn,
+          questionId: "dice-sum-eight",
+          topicId: "conditional-probability",
+        },
+        {
+          ...solvedVenn,
+          questionId: "spinner-coin",
+          topicId: "conditional-probability",
+        },
       ],
     });
     const syllabus = buildLearnModel({
@@ -968,5 +997,108 @@ describe("the rendered learn pages", () => {
     );
     expect(last).toContain("Back to Learn");
     expect(last).not.toContain("Next topic");
+  });
+});
+
+describe("closed weeks", () => {
+  // Mon 7 Sep 23:59 Eastern is Tue 8 Sep 03:59 UTC.
+  const CLOSED_AT = "2026-09-08T03:59:00.000Z";
+  const CLOSES_AT = "2026-09-15T03:59:00.000Z";
+  const windowedTopics: CourseTopic[] = [
+    { ...topics[0], closesAt: CLOSED_AT },
+    { ...topics[1], closesAt: CLOSES_AT },
+    { ...topics[2], closesAt: CLOSED_AT },
+  ];
+
+  it("keeps a closed week a link with its glyph and labels it Closed, an open one Closes", () => {
+    const model = buildLearnModel({
+      nowIso: NOW,
+      progress: progressWith({ questions: [solvedVenn] }),
+      questions,
+      topics: windowedTopics,
+    });
+    const [closed, closing, empty] = model.topics;
+
+    expect(closed).toMatchObject({
+      closeLabel: "Closed",
+      closesAt: CLOSED_AT,
+      glyph: "done",
+      href: "/learn/introduction",
+      total: 1,
+    });
+    expect(closing).toMatchObject({
+      closeLabel: "Closes",
+      closesAt: CLOSES_AT,
+      glyph: "todo",
+    });
+    // An empty week still just says it has nothing yet.
+    expect(empty.meta).toBe("no questions yet");
+    expect(empty.closeLabel).toBeUndefined();
+
+    const markup = renderToStaticMarkup(
+      createElement(SyllabusList, {
+        emptyMessage: "No topic matches that search.",
+        topics: model.topics,
+      }),
+    );
+    expect(markup).toContain('href="/learn/introduction"');
+    expect(markup).toMatch(
+      /Closed <time dateTime="2026-09-08T03:59:00.000Z">Tue 8 Sep/,
+    );
+    expect(markup).toMatch(
+      /Closes <time dateTime="2026-09-15T03:59:00.000Z">Tue 15 Sep/,
+    );
+    expect(markup).toContain("no questions yet");
+
+    const rail = toSyllabusRailTopics(model.topics);
+    expect(rail.map((topic) => topic.meta)).toEqual([
+      "closed",
+      undefined,
+      "none yet",
+    ]);
+  });
+
+  it("says on the topic page that a closed week can still be practiced", () => {
+    const syllabus = buildLearnModel({
+      nowIso: NOW,
+      progress: null,
+      questions,
+      topics: windowedTopics,
+    });
+    const closedModel = buildTopicModel({
+      nowIso: NOW,
+      progress: null,
+      questions: questions.filter((item) => item.topicId === "introduction"),
+      topic: windowedTopics[0],
+    });
+    expect(closedModel.closedAt).toBe(CLOSED_AT);
+    const markup = renderToStaticMarkup(
+      createElement(TopicScreen, {
+        model: closedModel,
+        topics: syllabus.topics,
+      }),
+    );
+    expect(markup).toMatch(
+      /This week closed on <time dateTime="2026-09-08T03:59:00.000Z">Tue 8 Sep[^<]*<\/time>\. You can still practice its questions\./,
+    );
+    expect(markup).toContain("Start question 1");
+
+    const openModel = buildTopicModel({
+      nowIso: NOW,
+      progress: null,
+      questions: questions.filter(
+        (item) => item.topicId === "conditional-probability",
+      ),
+      topic: windowedTopics[1],
+    });
+    expect(openModel.closedAt).toBeUndefined();
+    expect(
+      renderToStaticMarkup(
+        createElement(TopicScreen, {
+          model: openModel,
+          topics: syllabus.topics,
+        }),
+      ),
+    ).not.toContain("This week closed");
   });
 });

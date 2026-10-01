@@ -530,25 +530,25 @@ export function createDatabaseContentRepository(
           sort_order,
           week_number,
           module_ref,
-          is_active
+          is_active,
+          availability.available_until
         from topics
         left join topic_student_availability availability
           on availability.topic_id = topics.id
+        -- A passed available_until closes the week without hiding it
+        -- (migration 030); only release_state and available_from hide topics.
         where topics.is_active = true
           and coalesce(availability.release_state, 'published') = 'published'
           and (
             availability.available_from is null
             or availability.available_from <= statement_timestamp()
           )
-          and (
-            availability.available_until is null
-            or availability.available_until > statement_timestamp()
-          )
         order by topics.sort_order, topics.title, topics.id
       `,
       );
       return rows.map((row) => ({
         active: Boolean(row.is_active),
+        ...topicClosesAt(row.available_until),
         description: String(row.description ?? ""),
         id: String(row.id),
         moduleRef: String(row.module_ref ?? ""),
@@ -1465,6 +1465,14 @@ function misconceptionArray(value: unknown): Misconception[] {
           )
         : [],
     }));
+}
+
+function topicClosesAt(value: unknown): { closesAt?: string } {
+  if (value == null) {
+    return {};
+  }
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? {} : { closesAt: date.toISOString() };
 }
 
 function toIsoString(value: Date | string | null) {

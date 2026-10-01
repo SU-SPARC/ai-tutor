@@ -292,6 +292,45 @@ cleanup plan closed.
 After any environment records migration 029's checksum, never amend the file;
 every correction must use a later migration.
 
+### Migration 030 closed weeks
+
+Migration 030 (`030_topic_windows_close_without_hiding.sql`) changes the
+meaning of a topic's `topic_student_availability.available_until`: once it
+passes the week is closed but no longer hidden. The topic stays on the Learn
+page (labelled closed) and its published questions, eligible Reserve practice,
+and student retrieval chunks stay available. Topic `available_from` and
+unpublished/archived `release_state` still hide a topic, and a question's own
+`question_student_availability.available_until` still hides that question.
+
+It redefines three views: `app_public_questions`,
+`app_student_retrieval_chunks`, and `app_reserve_practice_questions`. Each is
+rebuilt from its current `pg_get_viewdef` with only the topic-level
+`tsa.available_until` predicate removed, so every column (including migration
+028's `figure_json`) and its order is preserved. The migration aborts if the
+predicate is not found exactly once in a view or if the question-level
+`qsa.available_until` predicates would change. It re-sets
+`security_invoker = true` and re-revokes the views from `public`, `anon`, and
+`authenticated`.
+
+It is non-destructive and creates no tables, sequences, or functions; existing
+grants on the replaced views are kept, so re-running `db/roles/app_runtime.sql`
+is optional. Rollout:
+
+1. Take and verify the required pre-change backup per
+   [database-recovery.md](database-recovery.md) and verify Production is
+   exactly 29/29 with no drift (`npm run db:migrate:check -- --json`).
+2. Apply only `030_topic_windows_close_without_hiding.sql` with the approved
+   `app_migrator` workflow.
+3. Run `npm run db:migrate:check -- --json` and confirm 30/30 with the
+   expected checksum.
+4. Deploy the application code that labels closed weeks. Until it ships,
+   students on the old code still do not see a topic past its end date on the
+   Learn page (the old topic query keeps the predicate), but its questions are
+   already reachable through the views.
+
+After any environment records migration 030's checksum, never amend the file;
+every correction must use a later migration.
+
 ## Authoring A Migration
 
 1. Synchronize the branch and inspect the highest checked-in version.

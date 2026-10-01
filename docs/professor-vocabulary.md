@@ -61,6 +61,7 @@ appear in professor-visible text. "Approve" stays: professors say it.
 | `archived` | Removed from question bank |
 | reserved | Saved for later |
 | scheduled | Students will see it on {date} |
+| topic past its end date (global, `/professor/availability`) | Closed (chip); "Closed on {date}. Students can still practice it." The dialog field is "Close on"; a closed week stays listed and practicable, only a question's own "Hide after" hides it |
 | topic open / closed (courses) | Students can see this week: Yes / No / From {date} |
 | section on an older version | Shown (older version) |
 | held (version withdrawn) | Paused: this version was withdrawn |

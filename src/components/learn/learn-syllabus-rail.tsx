@@ -13,8 +13,9 @@ import {
  * The learn model's syllabus rows as rail rows: week number, title, and a
  * mastery pip. A topic with nothing published keeps its closed glyph (a
  * slashed circle, distinct from "not started"), says "none yet", and is not a
- * link. "Up next" becomes the rail's left rule; the topic whose page is open,
- * if any, gets the active wash.
+ * link. A closed week stays a link and says "closed". "Up next" becomes the
+ * rail's left rule; the topic whose page is open, if any, gets the active
+ * wash.
  *
  * No counts in the rail: it is 264px and the titles are long, so "2 of 6
  * solved" lives in the syllabus list and the topic header instead.
@@ -28,7 +29,12 @@ export function toSyllabusRailTopics(
     href: topic.href,
     id: topic.id,
     masteryLevel: topicMasteryLevel(topic),
-    meta: topic.total === 0 ? "none yet" : undefined,
+    meta:
+      topic.total === 0
+        ? "none yet"
+        : topic.closeLabel === "Closed"
+          ? "closed"
+          : undefined,
     title: topic.title,
     weekNumber: topic.weekNumber,
   }));

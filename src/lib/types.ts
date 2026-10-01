@@ -343,6 +343,11 @@ export type TutorResponseLabel =
 
 export type Topic = {
   active: boolean;
+  /**
+   * ISO end of the week's student window. Once it passes the week is closed:
+   * still listed and practicable, but labelled closed for students.
+   */
+  closesAt?: string;
   description: string;
   id: string;
   keywords?: string[];

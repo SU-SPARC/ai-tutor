@@ -157,7 +157,9 @@ Public question endpoints filter through both publication and availability:
 generated, needs-review, rejected, private, lifecycle-unpublished, archived,
 globally unpublished, not-yet-scheduled, expired, or otherwise unapproved
 questions are not student-visible. Hiding a topic also hides its questions and
-student retrieval material while preserving the remaining syllabus order.
+student retrieval material while preserving the remaining syllabus order. A
+topic past its end date is closed, not hidden: it stays listed and its
+published questions stay practicable (migration 030).
 
 ## Configuration and local behavior
 

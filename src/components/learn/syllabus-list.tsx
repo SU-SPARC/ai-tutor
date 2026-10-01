@@ -9,6 +9,7 @@ import {
   weekLabel,
 } from "@/components/learn/learn-model";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LocalDate } from "@/components/ui/local-date";
 import { MasteryBar, MasteryChip } from "@/components/ui/mastery-chip";
 import { StatusChip } from "@/components/ui/status-chip";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,9 @@ import { cn } from "@/lib/utils";
  * The syllabus, read rather than navigated: one row per week ("Week 3") with
  * the topic, its mastery level in words, a thin bar and "2 of 6 solved". A
  * topic with nothing published keeps its row and its week so the numbering
- * never skips; it says so, stays muted, and is not a link. The row the
+ * never skips; it says so, stays muted, and is not a link. A week past its
+ * end date stays a link and says "Closed Mon 6 Oct" (in the student's own
+ * time zone); one with an end date ahead says "Closes …". The row the
  * student is working in carries a left azure rule and an "Up next" chip.
  */
 export function SyllabusList({
@@ -102,6 +105,11 @@ function SyllabusRow({ topic }: { topic: LearnTopicRow }) {
             <span>{`${topic.solved} of ${topic.total}`}</span> solved
           </span>
         </span>
+        {topic.closeLabel && topic.closesAt ? (
+          <span className="type-small text-ink-muted">
+            {topic.closeLabel} <LocalDate iso={topic.closesAt} />
+          </span>
+        ) : null}
       </span>
     </Link>
   );

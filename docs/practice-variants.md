@@ -21,7 +21,8 @@ only when all of these are true:
 - no version is published;
 - Save for later is still active;
 - the professor has explicitly enabled “Allow as similar-problem practice”;
-- topic and question availability windows permit access.
+- topic and question availability windows permit access (a topic past its end
+  date is closed but still permits access; see migration 030).
 
 The permission defaults off, is stored as
 `questions.reserve_practice_allowed`, and is changed through the audited

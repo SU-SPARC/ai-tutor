@@ -30,6 +30,7 @@ import { BottomBar, BottomBarSpacer } from "@/components/shell/bottom-bar";
 import { ThreeColumn } from "@/components/shell/three-column";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LocalDate } from "@/components/ui/local-date";
 import { MasteryBar, MasteryChip } from "@/components/ui/mastery-chip";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -198,7 +199,10 @@ export function TopicScreen({
           {level !== undefined ? (
             <div className="mt-2 flex flex-col gap-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <MasteryChip level={level} title={MASTERY_LEVEL_TITLES[level]} />
+                <MasteryChip
+                  level={level}
+                  title={MASTERY_LEVEL_TITLES[level]}
+                />
                 <span className="type-small tabular text-ink">
                   {solvedCountLabel(solved, total)}
                 </span>
@@ -212,6 +216,12 @@ export function TopicScreen({
                 </p>
               ) : null}
             </div>
+          ) : null}
+          {model.closedAt ? (
+            <p className="type-small mt-2 text-ink-muted">
+              This week closed on <LocalDate iso={model.closedAt} />. You can
+              still practice its questions.
+            </p>
           ) : null}
         </PageHeader>
 

@@ -2,7 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ProfessorContentAvailabilityPanel } from "@/components/professor/professor-content-availability-panel";
+import {
+  consequenceSentence,
+  ProfessorContentAvailabilityPanel,
+  scheduleSentence,
+  untilFieldHeading,
+} from "@/components/professor/professor-content-availability-panel";
 import type { StudentContentAvailabilityDashboard } from "@/lib/types";
 
 const dashboard: StudentContentAvailabilityDashboard = {
@@ -95,7 +100,9 @@ describe("professor content availability UI", () => {
     expect(markup).toContain(">Change<");
     expect(markup).toContain("Approved working version");
     expect(markup).toContain("Approve and publish this question first.");
-    expect(markup).toContain('href="/professor/questions/approved-not-published"');
+    expect(markup).toContain(
+      'href="/professor/questions/approved-not-published"',
+    );
     expect(markup).toContain("Open question");
     expect(markup).toContain("Recent changes");
     expect(markup).toContain(">Hidden<");
@@ -105,5 +112,120 @@ describe("professor content availability UI", () => {
       /separate release gate|global only|lifecycle|availability audit|published globally|audit reason/i,
     );
     expect(markup).not.toMatch(/canvas|blackboard|moodle|lms integration/i);
+  });
+
+  it("says a topic's end date closes the week but keeps it open for practice, and keeps question wording", () => {
+    const closingDashboard: StudentContentAvailabilityDashboard = {
+      ...dashboard,
+      auditEvents: [],
+      questions: [
+        {
+          audienceType: "global",
+          availableFrom: "2026-08-01T10:00:00.000Z",
+          availableUntil: "2026-08-10T10:00:00.000Z",
+          effectiveAvailability: "expired",
+          id: "expired-question",
+          publicationState: "published",
+          releaseState: "published",
+          targetType: "question",
+          title: "Expired question",
+          topicId: "binomial-models",
+          topicTitle: "Binomial Models",
+        },
+      ],
+      topics: [
+        {
+          audienceType: "global",
+          availableFrom: "2026-08-01T10:00:00.000Z",
+          availableUntil: "2026-12-10T10:00:00.000Z",
+          effectiveAvailability: "available",
+          id: "closing-topic",
+          publicationState: "published",
+          releaseState: "published",
+          targetType: "topic",
+          title: "Closing topic",
+        },
+        {
+          audienceType: "global",
+          availableUntil: "2026-08-10T10:00:00.000Z",
+          effectiveAvailability: "expired",
+          id: "closed-topic",
+          publicationState: "published",
+          releaseState: "published",
+          targetType: "topic",
+          title: "Closed topic",
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ProfessorContentAvailabilityPanel, {
+        initialDashboard: closingDashboard,
+      }),
+    );
+
+    expect(markup).toContain(">Closed<");
+    expect(markup).toContain(
+      "Visible since Sat 1 Aug, 10:00 AM UTC. Closes on Thu 10 Dec, 10:00 AM UTC; students can still practice it after that.",
+    );
+    expect(markup).toContain(
+      "Closed on Mon 10 Aug, 10:00 AM UTC. Students can still practice it.",
+    );
+    // Questions keep their wording: an end date still hides them.
+    expect(markup).toContain("Stopped showing");
+    expect(markup).toContain(
+      "Students stopped seeing it after Mon 10 Aug, 10:00 AM UTC.",
+    );
+
+    expect(
+      scheduleSentence(
+        { ...closingDashboard.topics[0], availableFrom: undefined },
+        false,
+      ),
+    ).toBe(
+      "Closes on Thu 10 Dec, 10:00 AM UTC; students can still practice it after that.",
+    );
+    expect(
+      scheduleSentence(
+        {
+          ...closingDashboard.questions[0],
+          availableUntil: "2026-12-10T10:00:00.000Z",
+          effectiveAvailability: "available",
+        },
+        false,
+      ),
+    ).toBe(
+      "Visible since Sat 1 Aug, 10:00 AM UTC. Students stop seeing it after Thu 10 Dec, 10:00 AM UTC.",
+    );
+
+    expect(
+      consequenceSentence("Week 3", {
+        availableUntil: "2026-12-10T10:00:00.000Z",
+        releaseState: "published",
+        targetId: "closing-topic",
+        targetType: "topic",
+      }),
+    ).toMatch(
+      /^All students will see “Week 3” starting now\. It will be marked closed on Thu 10 Dec.+ but stays open for practice\. Show it\?$/,
+    );
+    expect(
+      consequenceSentence("Quiz", {
+        availableUntil: "2026-12-10T10:00:00.000Z",
+        releaseState: "published",
+        targetId: "quiz-question",
+        targetType: "question",
+      }),
+    ).toMatch(
+      /^All students will see “Quiz” starting now, until Thu 10 Dec.+\. Show it\?$/,
+    );
+    expect(
+      consequenceSentence("Week 3", {
+        releaseState: "published",
+        targetId: "closing-topic",
+        targetType: "topic",
+      }),
+    ).toBe("All students will see “Week 3” starting now. Show it?");
+
+    expect(untilFieldHeading("topic")).toBe("Close on");
+    expect(untilFieldHeading("question")).toBe("Hide after");
   });
 });
