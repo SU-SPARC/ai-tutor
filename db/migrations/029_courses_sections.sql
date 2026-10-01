@@ -423,3 +423,34 @@ begin
   end loop;
 end;
 $$;
+
+-- The guard above runs on every tutor-session insert, as the inserting role
+-- (app_runtime). Tables created here by the migrator do not inherit the
+-- runtime role's default SELECT privilege (that default is scoped to objects
+-- the provider owner creates), so without this grant every session insert
+-- would fail with "permission denied" between applying this migration and
+-- re-running db/roles/app_runtime.sql. Grant SELECT now when the role exists;
+-- row level security still returns no rows to the role until the reviewed
+-- role file adds its policy, so students keep the published-version rule
+-- meanwhile. The role file remains the reviewed source of grants and
+-- canonicalizes this on its next run.
+do $$
+declare
+  course_table text;
+begin
+  if exists (select 1 from pg_roles where rolname = 'app_runtime') then
+    foreach course_table in array array[
+      'courses',
+      'course_topics',
+      'course_sections',
+      'section_members',
+      'section_topic_availability',
+      'section_question_availability',
+      'course_events'
+    ]
+    loop
+      execute format('grant select on %I to app_runtime', course_table);
+    end loop;
+  end if;
+end;
+$$;
