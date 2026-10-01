@@ -16,6 +16,7 @@ they want three answers at every moment: where am I, what do I do next, how am I
 | a question | "question" | "problem", "item", "sheet" |
 | hints | "Hint 1 of 3", "Show hint 2 of 3" | a bare lightbulb, "Reveal" |
 | steps | "Show steps", "Steps unlock after hint 3", "Steps ready" | a gate sentence as the only signal |
+| a closed week | "Closed {date}" on the Learn row (the rail says "closed"), "Closes {date}" before then; on the topic page "This week closed on {date}. You can still practice its questions." Dates in the student's own time zone; the week stays a link | "expired", "locked", hiding the week |
 | a removed question | "No longer available" (neutral chip) with "removed by your professor · your answers are kept" | "Retired", a red chip |
 | extra practice | "Extra practice" with "More questions like these. They don't change your syllabus progress." | "reserve", "similar practice", "partial credit" |
 | the guest state | "Guest · your progress lives in this browser." with "Sign in to keep it" and "Have a section code? Enter it" | "anonymous", "demo session", "Ghost Student" |

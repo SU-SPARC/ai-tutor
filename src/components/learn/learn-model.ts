@@ -46,6 +46,17 @@ export type LearnQuestionRow = {
 };
 
 export type LearnTopicRow = {
+  /**
+   * The week's end date (ISO). Once it passes the week is closed: still
+   * listed, still a link, still practicable, and labelled so.
+   */
+  closesAt?: string;
+  /**
+   * "Closed" / "Closes" before the week's end date, for a topic with
+   * questions. The date itself is printed by the client in the student's own
+   * time zone (`LocalDate`), so the model carries only the word and the ISO.
+   */
+  closeLabel?: "Closed" | "Closes";
   description: string;
   glyph: TopicGlyph;
   href: string;
@@ -53,7 +64,10 @@ export type LearnTopicRow = {
   /** 1-based position in canonical syllabus order — rendered as "01". */
   index: number;
   isCurrent: boolean;
-  /** "no questions yet" for a topic with nothing published (the rail says "none yet"). */
+  /**
+   * "no questions yet" for a topic with nothing published (the rail says
+   * "none yet"). A closing or closed week uses `closeLabel` + `closesAt`.
+   */
   meta?: string;
   solved: number;
   title: string;
@@ -147,6 +161,8 @@ export type TopicAbout = {
 
 export type TopicModel = {
   about: TopicAbout;
+  /** Set when the week's end date has passed (ISO): the week is closed. */
+  closedAt?: string;
   description: string;
   id: string;
   isGuest: boolean;
@@ -366,7 +382,7 @@ function unitsAgo(count: number, unit: string) {
 export function buildLearnModel(input: LearnModelInput): LearnModel {
   const { nowIso, progress, questions, topics } = input;
   const rows = buildQuestionRows(questions, progress);
-  const topicRows = buildTopicRows(topics, rows);
+  const topicRows = buildTopicRows(topics, rows, nowIso);
   const currentTopicId = pickCurrentTopicId(topicRows, rows, progress);
 
   return {
@@ -391,7 +407,7 @@ export function buildTopicModel(input: {
   questions: StudentPracticeQuestion[];
   topic: CourseTopic;
 }): TopicModel {
-  const { progress, questions, topic } = input;
+  const { nowIso, progress, questions, topic } = input;
   const rows = buildQuestionRows(questions, progress).filter(
     (question) => question.topicId === topic.id,
   );
@@ -418,6 +434,10 @@ export function buildTopicModel(input: {
         rows.length === 1 ? "1 question" : `${rows.length} questions`,
       weekLabel: weekLabel(topic.weekNumber),
     },
+    closedAt:
+      rows.length > 0 && isPast(topic.closesAt, nowIso)
+        ? topic.closesAt
+        : undefined,
     description: topic.description,
     id: topic.id,
     isGuest: input.isGuest ?? progress === null,
@@ -479,14 +499,24 @@ export function buildQuestionRows(
 function buildTopicRows(
   topics: CourseTopic[],
   rows: LearnQuestionRow[],
+  nowIso: string,
 ): LearnTopicRow[] {
   return topics.map((topic, index) => {
     const own = rows.filter((question) => question.topicId === topic.id);
     const solved = own.filter((question) => question.status === "done").length;
     const started = own.some((question) => question.status === "current");
     const total = own.length;
+    // A passed end date closes the week but keeps it a link (migration 030).
+    const closeLabel =
+      total === 0 || !validIso(topic.closesAt)
+        ? undefined
+        : isPast(topic.closesAt, nowIso)
+          ? "Closed"
+          : "Closes";
 
     return {
+      closeLabel,
+      closesAt: closeLabel ? topic.closesAt : undefined,
       description: topic.description,
       glyph: topicGlyph({ solved, started, total }),
       href: topicHref(topic.id),
@@ -500,6 +530,18 @@ function buildTopicRows(
       weekNumber: topic.weekNumber,
     };
   });
+}
+
+function validIso(value: string | undefined): value is string {
+  return value !== undefined && !Number.isNaN(new Date(value).getTime());
+}
+
+/** Whether `value` is at or before `nowIso`; false when missing or invalid. */
+function isPast(value: string | undefined, nowIso: string) {
+  if (!validIso(value)) {
+    return false;
+  }
+  return new Date(value).getTime() <= new Date(nowIso).getTime();
 }
 
 function topicGlyph(input: {
@@ -641,10 +683,7 @@ function buildContinueCard(input: {
   const topic = topicsById.get(start.topicId);
 
   return {
-    detail: [
-      start.difficultyLabel,
-      hintsAvailableLabel(start.hintCount),
-    ]
+    detail: [start.difficultyLabel, hintsAvailableLabel(start.hintCount)]
       .filter((part) => part.length > 0)
       .join(" · "),
     eyebrow: topic
@@ -843,7 +882,9 @@ export function nextUnfinishedTopic(
 ): LearnTopicRow | undefined {
   const index = topics.findIndex((topic) => topic.id === currentTopicId);
   const unfinished = (topic: LearnTopicRow) =>
-    topic.id !== currentTopicId && topic.total > 0 && topic.solved < topic.total;
+    topic.id !== currentTopicId &&
+    topic.total > 0 &&
+    topic.solved < topic.total;
 
   return (
     topics.slice(index + 1).find(unfinished) ??
