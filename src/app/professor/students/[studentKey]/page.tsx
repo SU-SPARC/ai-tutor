@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { ProfessorCourseFilter } from "@/components/professor/professor-course-filter";
 import { ProfessorPageShell } from "@/components/professor/professor-page-shell";
 import {
   InstructorStudentDetailPanel,
@@ -12,6 +13,7 @@ import {
   requireAnalyticsAccess,
   requirePageAccess,
 } from "@/lib/auth/authorization";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { getInstructorStudentDetail } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 import { isStudentKey, studentLabel } from "@/lib/professor/student-pseudonym";
@@ -37,7 +39,11 @@ export default async function ProfessorStudentPage({
     notFound();
   }
 
-  const detail = await getInstructorStudentDetail(authorization, studentKey);
+  // The record shows one course at a time, the one the professor is working in.
+  const { course, courses } = await getSelectedCourse();
+  const detail = await getInstructorStudentDetail(authorization, studentKey, {
+    courseId: course.id,
+  });
 
   if (!detail) {
     notFound();
@@ -65,7 +71,14 @@ export default async function ProfessorStudentPage({
         { label: "Students", href: "/professor/students" },
         { label },
       ]}
-      description="What this student has practiced and how it went."
+      description={`What this student has practiced in ${course.title} and how it went.`}
+      courseFilter={
+        <ProfessorCourseFilter
+          courses={courses}
+          returnTo={`/professor/students/${studentKey}`}
+          selectedCourseId={course.id}
+        />
+      }
       notice={
         <>
           {!hasActivity ? (

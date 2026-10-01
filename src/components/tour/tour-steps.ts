@@ -51,7 +51,7 @@ export const TOUR_BUTTONS = {
 } as const;
 
 export const TOUR_WELCOME: TourWelcome = {
-  headline: "Welcome to ProbStat Tutor",
+  headline: "Welcome to AI Tutor",
   sentence:
     "Six quick tips, about a minute. You can reopen this any time from the Account menu.",
   buttons: ["Not now", "Take the tour"],

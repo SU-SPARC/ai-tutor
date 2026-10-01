@@ -1,12 +1,12 @@
 # pf-xj-research
 
-This project is a web-based AI tutoring system for probability and statistics students. The goal is to help students practice course problems with step-by-step guidance, hints, misconception feedback, and professor-approved explanations.
+This project is a web-based AI tutoring platform that hosts more than one course (currently Probability & Statistics, with Calculus I being added; see [`docs/multi-course.md`](docs/multi-course.md)). The goal is to help students practice course problems with step-by-step guidance, hints, misconception feedback, and professor-approved explanations.
 
 The system uses course materials, LaTeX questions, solutions, and examples as the primary knowledge base. A general LLM fallback may be used only when the professor-provided material is insufficient.
 
 The final product will be a student-facing web application where users can:
 
-- choose probability/statistics topics
+- choose a course and its topics
 - practice problems
 - submit answers
 - receive hints

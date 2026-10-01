@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const cookie = vi.hoisted(() => ({ value: undefined as string | undefined }));
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "ai-tutor-course" && cookie.value !== undefined
+        ? { name, value: cookie.value }
+        : undefined,
+  }),
+}));
+
 import { searchLocalRetrieval } from "@/lib/ai/retrieval";
 import { setContentRepositoryForTests } from "@/lib/data/data-store";
 import { demoContentRepository } from "@/lib/data/demo-repository";
@@ -11,6 +22,7 @@ const PS_TOPIC = "conditional-probability";
 const QUERY = "conditional probability given sample space";
 
 beforeEach(() => {
+  cookie.value = undefined;
   vi.stubEnv("APP_DEMO_MODE", "true");
   setContentRepositoryForTests(demoContentRepository);
 });
@@ -61,14 +73,40 @@ describe("retrieval never crosses course boundaries", () => {
     expect(result.matches).toEqual([]);
   });
 
-  it("gives a student request with no course or topic the original course only", async () => {
+  it("uses Probability & Statistics for a free-form request when no course was chosen", async () => {
     const result = await retrieveTutorContext(QUERY);
-    const calculus = await retrieveTutorContext(QUERY, {
-      courseId: CALCULUS_COURSE,
-    });
 
     expect(result.matches.length).toBeGreaterThan(0);
+  });
+
+  it("follows the student's selected course for a free-form request", async () => {
+    cookie.value = PS_COURSE;
+    const probability = await retrieveTutorContext(QUERY);
+    cookie.value = CALCULUS_COURSE;
+    const calculus = await retrieveTutorContext(QUERY);
+
+    expect(probability.matches.length).toBeGreaterThan(0);
+    // Calculus I has no material yet, and Probability & Statistics material
+    // must not stand in for it.
     expect(calculus.matches).toEqual([]);
+    expect(calculus.retrievedContext).toEqual([]);
+  });
+
+  it("lets an explicit topic's course win over the selected course", async () => {
+    cookie.value = CALCULUS_COURSE;
+    const result = await retrieveTutorContext(QUERY, { topicId: PS_TOPIC });
+
+    expect(result.matches.length).toBeGreaterThan(0);
+  });
+
+  it("ignores a stale or malformed course selection", async () => {
+    cookie.value = "retired-course";
+    const stale = await retrieveTutorContext(QUERY);
+    cookie.value = "Not A Course!";
+    const malformed = await retrieveTutorContext(QUERY);
+
+    expect(stale.matches.length).toBeGreaterThan(0);
+    expect(malformed.matches.length).toBeGreaterThan(0);
   });
 
   it("filters local keyword retrieval by the course's syllabus", async () => {

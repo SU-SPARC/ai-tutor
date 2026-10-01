@@ -6,7 +6,7 @@ import {
   isPublishedContent,
   type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
-import { DEFAULT_COURSE_ID } from "@/lib/course-catalog";
+import { getSelectedCourseId } from "@/lib/course-selection";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import {
   getApprovedQuestions,
@@ -182,9 +182,10 @@ async function resolveRetrievalCourseId(
     );
     return topic?.courseId ?? UNRESOLVED_COURSE_ID;
   }
-  // A professor's admin search may span courses on purpose; a student request
-  // that names neither course nor topic keeps the original course.
-  return audience === "student" ? DEFAULT_COURSE_ID : undefined;
+  // A professor's admin search may span courses on purpose. A free-form
+  // student request has no question or topic to name a course, so it follows
+  // the course the student is working in.
+  return audience === "student" ? getSelectedCourseId() : undefined;
 }
 
 function loadRetrievalSources(

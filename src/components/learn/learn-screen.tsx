@@ -87,7 +87,7 @@ export function LearnScreen({
               {model.topics.length === 0 ? (
                 <EmptyState className="py-2">
                   {course
-                    ? `${course.title} doesn't have any topics yet. Your professor is still setting it up.`
+                    ? `${course.title} content has not been added yet.`
                     : "There are no topics yet."}
                 </EmptyState>
               ) : (

@@ -95,7 +95,7 @@ describe("onboarding guide steps", () => {
   it("offers Not now before Take the tour on the welcome card", () => {
     expect(TOUR_WELCOME.buttons[0]).toBe("Not now");
     expect(TOUR_WELCOME.buttons[1]).toBe("Take the tour");
-    expect(TOUR_WELCOME.headline).toBe("Welcome to ProbStat Tutor");
+    expect(TOUR_WELCOME.headline).toBe("Welcome to AI Tutor");
   });
 });
 

@@ -107,7 +107,7 @@ export default async function AccountPage() {
                 <span>Send all feedback to {feedbackContactName}.</span>
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <a
-                    href={`mailto:${feedbackEmail}?subject=${encodeURIComponent("ProbStat Tutor feedback")}`}
+                    href={`mailto:${feedbackEmail}?subject=${encodeURIComponent("AI Tutor feedback")}`}
                     rel="noreferrer"
                     className={`${TEXT_LINK} inline-flex min-h-11 items-center gap-1.5 break-all`}
                   >

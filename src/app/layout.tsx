@@ -45,19 +45,19 @@ const sourceCode = Source_Code_Pro({
 });
 
 const DESCRIPTION =
-  "Practice MATH-255 probability and statistics problems. Hints before answers, and every question approved by your professor.";
+  "Practice your course problems one hint at a time. Hints before answers, and every question approved by your professor.";
 
 // Pages set a short name ("Learn", "Review queue"); the template adds the
 // product after a middle dot. Pages that set no title (the landing page)
 // get the default.
 export const metadata: Metadata = {
-  title: { default: "ProbStat Tutor", template: "%s · ProbStat Tutor" },
+  title: { default: "AI Tutor", template: "%s · AI Tutor" },
   description: DESCRIPTION,
-  applicationName: "ProbStat Tutor",
+  applicationName: "AI Tutor",
   // `icons` is intentionally omitted: Next derives the hashed URLs from
   // src/app/icon.svg, icon.png and apple-icon.png on its own.
   openGraph: {
-    title: "ProbStat Tutor",
+    title: "AI Tutor",
     description: DESCRIPTION,
     type: "website",
   },

@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * ProbStat Tutor tokens. Three layers:
+ * AI Tutor tokens. Three layers:
  *
  *   1. Primitives: the azure / green / amber / red ramps (100 wash, 300 hover
  *      and fills, 500 ink-on-surface, 700 ink-on-wash), the logo's mint, and

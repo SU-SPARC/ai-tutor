@@ -321,7 +321,7 @@ describe("the learning pages follow the selected course", () => {
       },
     });
     const empty = renderToStaticMarkup(await LearnPage());
-    expect(empty).toContain("have any topics yet");
+    expect(empty).toContain("Calculus I content has not been added yet.");
     expect(empty).not.toContain("Introduction to Probability");
   });
 

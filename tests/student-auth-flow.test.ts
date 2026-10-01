@@ -85,7 +85,7 @@ const FEEDBACK_ENV = {
 };
 
 const FEEDBACK_HREF =
-  'href="mailto:feedback@example.invalid?subject=ProbStat%20Tutor%20feedback"';
+  'href="mailto:feedback@example.invalid?subject=AI%20Tutor%20feedback"';
 
 /** The account page reads the feedback contact from validated server env. */
 function withFeedbackEnv() {

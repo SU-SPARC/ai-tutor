@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import { PracticeWorkspace } from "@/components/tutor/practice-workspace";
 import { normalizeSummary } from "@/lib/api/question-serialization";
 import { requirePracticePageAccess } from "@/lib/auth/practice-page-access";
+import { CourseEmptyState } from "@/components/course/course-empty-state";
 import { CourseSelectionSync } from "@/components/course/course-selection-sync";
-import { getSelectedCourseId } from "@/lib/course-selection";
+import { getSelectedCourse } from "@/lib/course-selection";
 import { getApprovedQuestions, getTopics } from "@/lib/data/data-store";
 import { getServerEnv } from "@/lib/env/server";
 
@@ -47,11 +48,9 @@ export default async function PracticePage({
 
   // Read every course once, then show one: a link that names a question or
   // topic decides the course, otherwise the remembered course does.
-  const [everyTopic, everyQuestion, selectedCourseId] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-    getSelectedCourseId(),
-  ]);
+  const [everyTopic, everyQuestion, { course: selectedCourse }] =
+    await Promise.all([getTopics(), getApprovedQuestions(), getSelectedCourse()]);
+  const selectedCourseId = selectedCourse.id;
   const courseId = inferPracticeCourseId(
     {
       questionId:
@@ -65,10 +64,17 @@ export default async function PracticePage({
     everyQuestion,
     selectedCourseId,
   );
-  const solvedQuestionIds = await readSolvedQuestionIds(courseId);
   const { questions, topics } = inSyllabusOrder(
     ...scopedToCourse(courseId, everyTopic, everyQuestion),
   );
+
+  // A course whose syllabus has not been added yet has nothing to practice;
+  // say so plainly instead of drawing an empty workspace.
+  if (topics.length === 0) {
+    return <CourseEmptyState courseTitle={selectedCourse.title} />;
+  }
+
+  const solvedQuestionIds = await readSolvedQuestionIds(courseId);
   const initialQuestionId =
     typeof requestedQuestionId === "string" &&
     questions.some((question) => question.id === requestedQuestionId)

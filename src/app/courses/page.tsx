@@ -77,7 +77,7 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
                       <p className="type-small text-ink-muted">
                         {topicCount > 0
                           ? `${topicCount} ${topicCount === 1 ? "topic" : "topics"}`
-                          : "No topics yet. Your professor is still setting this course up."}
+                          : "Content has not been added yet."}
                       </p>
                     </div>
                     <Button

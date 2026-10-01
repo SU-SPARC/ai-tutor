@@ -116,7 +116,7 @@ describe("join screen", () => {
     const markup = await renderJoin();
 
     expect(markup).toContain('data-slot="logo"');
-    expect(markup).toContain("ProbStat Tutor");
+    expect(markup).toContain("AI Tutor");
     expect(markup.indexOf('data-slot="logo"')).toBeLessThan(
       markup.indexOf("Join MATH-255"),
     );

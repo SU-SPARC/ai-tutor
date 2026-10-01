@@ -58,7 +58,7 @@ export function AppHeader({
       <div className="mx-auto flex h-(--header-h) w-full max-w-[90rem] items-center gap-2 px-3 sm:gap-4 sm:px-6">
         <Link
           href="/"
-          aria-label="ProbStat Tutor home"
+          aria-label="AI Tutor home"
           className="flex shrink-0 items-center gap-2.5 rounded-control p-1 focus-ring"
         >
           <Logo

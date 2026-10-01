@@ -21,7 +21,7 @@ export default function GlobalError({
           className="flex min-h-svh items-start justify-center bg-surface px-4 py-16 sm:items-center"
         >
           <section className="sheet-shadow flex w-full max-w-lg flex-col gap-4 rounded-panel bg-sheet p-6 sm:p-8">
-            <p className="type-mono text-ink-muted">ProbStat Tutor</p>
+            <p className="type-mono text-ink-muted">AI Tutor</p>
             <h1 className="type-h1 text-ink">The tutor could not start</h1>
             <p className="type-body text-ink-muted">
               Something failed before the page could load. Try again; if it

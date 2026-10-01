@@ -7,6 +7,7 @@ import {
 import {
   ANALYTICS_STUDENT_SESSION_FILTER_SQL,
   courseSessionSql,
+  courseTopicSql,
   PROFESSOR_OWNED_SESSION_SQL,
   STUDENT_ACCOUNTS_CTE,
   STUDENT_KEY_SQL,
@@ -110,11 +111,17 @@ const EXTRA_PRACTICE_TOTALS_CTE = `
   )
 `;
 
-const STUDENT_TOOL_USAGE_TOTALS_CTE = `
+/**
+ * AI Help clicks carry the topic they were made on, so they follow the course.
+ * Sketchpad time is not attributable to a course and stays platform-wide.
+ */
+function studentToolUsageTotalsCte(courseId?: string) {
+  return `
   ai_help_totals as (
     select user_id, count(*)::int as ai_help_requests
     from student_usage_events
     where event_type = 'ai_help_click'
+      ${courseTopicSql("student_usage_events", courseId)}
     group by user_id
   ),
   sketchpad_totals as (
@@ -136,6 +143,9 @@ const STUDENT_TOOL_USAGE_TOTALS_CTE = `
       on sketchpad.user_id = accounts.user_id
   )
 `;
+}
+
+const STUDENT_TOOL_USAGE_TOTALS_CTE = studentToolUsageTotalsCte();
 
 const SESSION_TOTALS_CTE = `
   session_totals as (
@@ -397,7 +407,7 @@ async function readStudentList(
       ${ATTENTION_STUDENTS_CTE},
       ${EXTRA_PRACTICE_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
-      ${STUDENT_TOOL_USAGE_TOTALS_CTE},
+      ${studentToolUsageTotalsCte(filters.courseId)},
       ${STUDENT_POPULATION_CTE}
       select
         ${SUMMARY_COLUMNS},
@@ -430,18 +440,19 @@ async function readStudentList(
 async function readStudentSummary(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ) {
   const rows = await readRows<StudentSummaryRow>(
     query,
     `
       with
-      ${STUDENT_SESSIONS_CTE},
+      ${studentSessionsCte(courseId)},
       ${SESSION_TOTALS_CTE},
       ${ATTEMPT_TOTALS_CTE},
       ${ATTENTION_STUDENTS_CTE},
       ${EXTRA_PRACTICE_TOTALS_CTE},
       ${STUDENT_ACCOUNTS_CTE},
-      ${STUDENT_TOOL_USAGE_TOTALS_CTE},
+      ${studentToolUsageTotalsCte(courseId)},
       ${STUDENT_POPULATION_CTE}
       select ${SUMMARY_COLUMNS}
       from student_population p
@@ -463,12 +474,13 @@ async function readStudentSummary(
 async function readTopicPerformance(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ): Promise<InstructorStudentTopicPerformance[]> {
   const rows = await readRows<TopicRow>(
     query,
     `
       with
-      ${STUDENT_SESSIONS_CTE},
+      ${studentSessionsCte(courseId)},
       attempt_topics as (
         select
           a.topic_id,
@@ -607,11 +619,12 @@ async function readTopicRoster(
 async function readRecentAttempts(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ): Promise<InstructorStudentAttempt[]> {
   const rows = await readRows<AttemptRow>(
     query,
     `
-      with ${STUDENT_SESSIONS_CTE}
+      with ${studentSessionsCte(courseId)}
       select
         a.id,
         a.created_at,
@@ -656,11 +669,12 @@ async function readRecentAttempts(
 async function readMisconceptions(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ) {
   const rows = await readRows<MisconceptionRow>(
     query,
     `
-      with ${STUDENT_SESSIONS_CTE}
+      with ${studentSessionsCte(courseId)}
       select
         misconception_id,
         count(*)::int as sessions
@@ -687,11 +701,12 @@ async function readMisconceptions(
 async function readActivity(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ): Promise<InstructorStudentActivityPoint[]> {
   const rows = await readRows<ActivityRow>(
     query,
     `
-      with ${STUDENT_SESSIONS_CTE}
+      with ${studentSessionsCte(courseId)}
       select
         date_trunc('day', a.created_at) as day,
         count(*) filter (where a.mode = 'check')::int as attempts,
@@ -753,12 +768,13 @@ type CreditSimilarRow = {
 async function readCreditEvidence(
   query: DatabaseQueryExecutor,
   studentKey: string,
+  courseId?: string,
 ): Promise<InstructorQuestionCreditEvidence[]> {
   const [sessionRows, interactionRows, similarRows] = await Promise.all([
     readRows<CreditSessionRow>(
       query,
       `
-        with ${STUDENT_SESSIONS_CTE}
+        with ${studentSessionsCte(courseId)}
         select
           ss.session_id,
           ss.question_id,
@@ -779,7 +795,7 @@ async function readCreditEvidence(
     readRows<CreditInteractionRow>(
       query,
       `
-        with ${STUDENT_SESSIONS_CTE}
+        with ${studentSessionsCte(courseId)}
         select a.id, a.created_at, a.mode, a.verdict, ss.question_id
         from attempts a
         join student_sessions ss on ss.session_id = a.session_id
@@ -791,7 +807,7 @@ async function readCreditEvidence(
     readRows<CreditSimilarRow>(
       query,
       `
-        with ${STUDENT_SESSIONS_CTE}
+        with ${studentSessionsCte(courseId)}
         select
           origin.question_id,
           (
@@ -1069,9 +1085,11 @@ export function createDatabaseInstructorStudentRepository(
     async getStudentDetail(
       authorization: AnalyticsAuthorization,
       studentKey: string,
+      scope: CourseScope = {},
     ): Promise<InstructorStudentDetail | undefined> {
       assertAuthorization(authorization, "professor");
-      const summary = await readStudentSummary(query, studentKey);
+      const courseId = scope.courseId;
+      const summary = await readStudentSummary(query, studentKey, courseId);
 
       if (!summary) {
         return undefined;
@@ -1079,11 +1097,11 @@ export function createDatabaseInstructorStudentRepository(
 
       const [topics, attempts, misconceptions, activity, creditEvidence] =
         await Promise.all([
-          readTopicPerformance(query, studentKey),
-          readRecentAttempts(query, studentKey),
-          readMisconceptions(query, studentKey),
-          readActivity(query, studentKey),
-          readCreditEvidence(query, studentKey),
+          readTopicPerformance(query, studentKey, courseId),
+          readRecentAttempts(query, studentKey, courseId),
+          readMisconceptions(query, studentKey, courseId),
+          readActivity(query, studentKey, courseId),
+          readCreditEvidence(query, studentKey, courseId),
         ]);
 
       return {

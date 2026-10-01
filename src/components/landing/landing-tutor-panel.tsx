@@ -23,7 +23,7 @@ export const LOCKED_TUTOR_NOTE =
 export const TUTOR_INTRO_MESSAGE = "Hi — I’ll nudge, not answer.";
 
 export const WHERE_TO_START_MESSAGE =
-  "Start by writing down what the problem gives you as probabilities. Then decide which of them is conditional on which.";
+  "Start by writing down what the problem gives you. Then decide what it asks you to find.";
 
 /**
  * The hero's tutor panel. It is real — the hint button drives the same

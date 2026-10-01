@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export type LogoProps = {
   /** `sm` is the 28px header mark; `lg` is the 52px mark on join and sign-in. */
   size?: "sm" | "lg";
-  /** Print "ProbStat Tutor" beside the icon. */
+  /** Print "AI Tutor" beside the icon. */
   wordmark?: boolean;
   /**
    * Classes for the wordmark only, e.g. `hidden sm:inline` in the header,
@@ -20,7 +20,7 @@ export type LogoProps = {
 const ICON_PX = { sm: 28, lg: 52 } as const;
 
 /**
- * The ProbStat Tutor mark: the gradient icon, optionally with the wordmark in
+ * The AI Tutor mark: the gradient icon, optionally with the wordmark in
  * the display serif. The gradient lives only in the icon; the wordmark is
  * plain ink.
  *
@@ -47,7 +47,7 @@ export function Logo({
     >
       <Image
         src="/logo.png"
-        alt={wordmark ? "" : "ProbStat Tutor"}
+        alt={wordmark ? "" : "AI Tutor"}
         width={px}
         height={px}
         priority={priority}
@@ -61,7 +61,7 @@ export function Logo({
             wordmarkClassName,
           )}
         >
-          ProbStat Tutor
+          AI Tutor
         </span>
       ) : null}
     </span>

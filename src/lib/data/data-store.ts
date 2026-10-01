@@ -601,6 +601,7 @@ export async function listInstructorStudentTopicRoster(
 export async function getInstructorStudentDetail(
   authorization: AnalyticsAuthorization,
   studentKey: string,
+  scope?: CourseScope,
 ): Promise<InstructorStudentDetail | undefined> {
   assertAuthorization(authorization, "professor");
   const repository = instructorStudentRepository();
@@ -610,7 +611,7 @@ export async function getInstructorStudentDetail(
   }
 
   try {
-    return await repository.getStudentDetail(authorization, studentKey);
+    return await repository.getStudentDetail(authorization, studentKey, scope);
   } catch (cause) {
     if (getOperatingModePolicy().allowDemoFallback) {
       return undefined;

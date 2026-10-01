@@ -101,7 +101,7 @@ export default async function OnboardingPage({
           </summary>
           <div className="mt-4 flex flex-col gap-8">
             <p className="type-body max-w-prose text-ink-muted">
-              This tutor helps you practice probability and statistics with
+              This tutor helps you practice your course problems with
               hints, feedback, and step-by-step explanations. It supports your
               learning; it does not replace your professor, course materials,
               grading, or academic guidance.

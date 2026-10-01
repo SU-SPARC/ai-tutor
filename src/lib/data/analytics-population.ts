@@ -78,6 +78,27 @@ export function courseSessionSql(alias: string, courseId?: string) {
   )`;
 }
 
+/**
+ * Restricts rows that carry a `topic_id` (alias `alias`) to one course's
+ * topics. Validated and inlined like `courseSessionSql`. Empty when no course
+ * is requested.
+ */
+export function courseTopicSql(alias: string, courseId?: string) {
+  if (courseId === undefined) {
+    return "";
+  }
+  if (!isCourseIdShape(courseId)) {
+    throw new Error("Invalid course id.");
+  }
+  return `
+  and exists (
+    select 1
+    from topics course_t
+    where course_t.id = ${alias}.topic_id
+      and course_t.course_id = '${courseId}'
+  )`;
+}
+
 /** Engaged anonymous/non-professor sessions form the learning population. */
 export const ANALYTICS_STUDENT_SESSION_FILTER_SQL = `
   not (${PROFESSOR_OWNED_SESSION_SQL})
