@@ -126,6 +126,7 @@ describe("production pilot data cleanup", () => {
       question_version_lifecycle: 1,
       question_versions: 1,
       questions: 1,
+      section_members: 2,
       solution_steps: 1,
       student_progress: 0,
       student_tool_active_buckets: 1,
@@ -179,6 +180,9 @@ describe("production pilot data cleanup", () => {
     expect(after.counts.tutor_sessions).toBe(0);
     expect(after.counts.student_usage_events).toBe(0);
     expect(after.counts.student_tool_active_buckets).toBe(0);
+    expect(after.counts.section_members).toBe(0);
+    expect(after.counts.courses).toBe(before.counts.courses);
+    expect(after.counts.course_events).toBe(before.counts.course_events);
     expect(after.counts.users).toBe(before.counts.users - 1);
     expect(after.counts.questions).toBe(before.counts.questions - 1);
     expect(after.auditHistory.rowCount).toBe(before.auditHistory.rowCount + 1);
@@ -263,6 +267,8 @@ describe("production pilot data cleanup", () => {
         'real-student-session', 'user:real-student', '${PUBLISHED}',
         'real-student-session-key'
       );
+      insert into section_members (section_id, course_id, owner_kind, owner_id)
+      values ('cleanup-course-sec-01', 'cleanup-course', 'anonymous', 'anon:real-browser');
     `);
     const plan = firstJsonColumn(
       await client.query(
@@ -296,7 +302,15 @@ describe("production pilot data cleanup", () => {
     expect(failure?.problems).toContain(
       `session_not_pre_pilot:${safeHash("real-student-session")}`,
     );
+    expect(failure?.problems).toContain(
+      `section_member_without_pre_pilot_owner:${safeHash(
+        ["cleanup-course-sec-01", "anonymous", "anon:real-browser"].join(
+          "\u0001",
+        ),
+      )}`,
+    );
     expect(JSON.stringify(failure?.problems)).not.toContain("real-student");
+    expect(JSON.stringify(failure?.problems)).not.toContain("real-browser");
   });
 
   it("refuses a synthetic question that is still student-visible and a pilot identity that owns academic history", async () => {
@@ -658,6 +672,10 @@ function validManifestSkeleton(): CleanupManifest {
       "approved_content_imports",
       "attempts",
       "audit_events",
+      "course_events",
+      "course_sections",
+      "course_topics",
+      "courses",
       "feedback_reports",
       "hints",
       "misconceptions",
@@ -672,6 +690,9 @@ function validManifestSkeleton(): CleanupManifest {
       "retrieval_chunks",
       "roles",
       "schema_migrations",
+      "section_members",
+      "section_question_availability",
+      "section_topic_availability",
       "solution_steps",
       "student_content_availability_events",
       "student_progress",
@@ -888,6 +909,16 @@ async function seedPrePilotState(database: PGlite) {
     ) values (
       '${PILOT}', 'sketchpad', '2026-09-27T12:00:00Z', 15
     );
+    insert into courses (id, code, title, term, owner_user_id, created_by_user_id)
+    values ('cleanup-course', 'MATH-255', 'Probability', 'Fall 2026', '${PROFESSOR}', '${PROFESSOR}');
+    insert into course_sections (id, course_id, label, join_code)
+    values ('cleanup-course-sec-01', 'cleanup-course', 'Section 1', 'K7Q-2M');
+    insert into course_events (course_id, actor_user_id, action)
+    values ('cleanup-course', '${PROFESSOR}', 'course/create');
+    insert into section_members (section_id, course_id, owner_kind, owner_id)
+    values
+      ('cleanup-course-sec-01', 'cleanup-course', 'user', '${PILOT}'),
+      ('cleanup-course-sec-01', 'cleanup-course', 'user', '${STAFF}');
   `);
   await database.query(
     `select * from app_transition_question_version(

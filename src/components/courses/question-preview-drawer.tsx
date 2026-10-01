@@ -48,7 +48,8 @@ export function QuestionPreviewDrawer({
   courseGroup: QuestionReleaseCourseGroup | undefined;
   publishedNote?: number;
   onClose: () => void;
-  onPublish: (questionId: string) => void;
+  /** Demo only; see `QuestionActionProps.onPublish`. */
+  onPublish?: (questionId: string) => void;
   onPreview: (questionId: string) => void;
 }) {
   const store = useOptionalCoursesStore();
@@ -120,8 +121,14 @@ export function QuestionPreviewDrawer({
           />
 
           {question.misconceptions.length > 0 ? (
-            <section aria-labelledby="preview-misconceptions" className="flex flex-col gap-2">
-              <h3 className="type-body-strong text-ink" id="preview-misconceptions">
+            <section
+              aria-labelledby="preview-misconceptions"
+              className="flex flex-col gap-2"
+            >
+              <h3
+                className="type-body-strong text-ink"
+                id="preview-misconceptions"
+              >
                 Common mistakes (only you see these)
               </h3>
               <ul className="type-small flex max-w-prose list-disc flex-col gap-1 pl-5 text-ink">
@@ -132,7 +139,10 @@ export function QuestionPreviewDrawer({
             </section>
           ) : null}
 
-          <section aria-labelledby="preview-released" className="flex flex-col gap-2">
+          <section
+            aria-labelledby="preview-released"
+            className="flex flex-col gap-2"
+          >
             <h3 className="type-body-strong text-ink" id="preview-released">
               Shown to
             </h3>

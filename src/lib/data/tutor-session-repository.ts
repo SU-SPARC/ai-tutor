@@ -192,15 +192,24 @@ export type TutorSessionRepository = {
 const memoryTutorSessionRepository = createMemoryTutorSessionRepository();
 let tutorSessionRepositoryOverride: TutorSessionRepository | undefined;
 
+/**
+ * Starts a published-practice session. `questionVersionId` is the version a
+ * course section pinned for this student (the route resolves it from the
+ * section, never from the client); without it the database fills in the
+ * question's published version. The database guard accepts a non-published
+ * version only when it is the student's active section pin (migration 029).
+ */
 export async function createTutorSession(
   authorization: StudentAuthorization,
   questionId: string,
   idempotencyKey?: string,
+  questionVersionId?: number,
 ) {
   const input: CreateTutorSessionInput = {
     idempotencyKey,
     owner: ownerFromAuthorization(authorization),
     questionId,
+    ...(questionVersionId === undefined ? {} : { questionVersionId }),
   };
   return writeWithConfiguredRepository((repository) =>
     repository.createSession(input),

@@ -17,8 +17,8 @@ function Rows({ count }: { count: number }) {
 }
 
 /**
- * What a Courses screen shows while the store is still reading this browser's
- * saved demo (a course created here is not in the seed the server rendered).
+ * What a Courses screen shows while the store is still loading the
+ * professor's courses from the server.
  * Same frame and the same blocks as the real screen, so nothing jumps when the
  * record arrives.
  */

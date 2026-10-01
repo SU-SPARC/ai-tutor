@@ -23,6 +23,15 @@ import {
   listQuestionsByTopic,
 } from "@/lib/data/data-store";
 import { getStudentProgress } from "@/lib/data/student-progress";
+import {
+  readStudentSectionContent,
+  type StudentSectionContent,
+} from "@/lib/tutor/section-access";
+import {
+  selectSectionQuestions,
+  selectSectionTopics,
+  withPinnedQuestions,
+} from "@/lib/tutor/section-content";
 import type { StudentProgressDashboard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -67,28 +76,48 @@ export default async function TopicPage({ params }: TopicPageProps) {
     notFound();
   }
 
-  const [topicQuestions, allQuestions, { isGuest, progress }] = await Promise.all([
-    listQuestionsByTopic(topic.id),
-    getApprovedQuestions(),
-    readOwnProgress(),
-  ]);
+  const [topicQuestions, allQuestions, { isGuest, progress, section }] =
+    await Promise.all([
+      listQuestionsByTopic(topic.id),
+      getApprovedQuestions(),
+      readOwnProgress(),
+    ]);
 
-  const nowIso = new Date().toISOString();
-  const orderedTopics = sortTopicsForSyllabus(topics);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  // A section student sees the section's released questions only, in the
+  // section's order (see `/learn`); everyone else the global list.
+  const orderedTopics = section
+    ? selectSectionTopics(topics, section.releases, now)
+    : sortTopicsForSyllabus(topics);
+  const orderedQuestions = section
+    ? selectSectionQuestions(
+        withPinnedQuestions(allQuestions, section.pinnedQuestions),
+        section.releases,
+        now,
+      )
+    : sortQuestionsForSyllabus(allQuestions);
+  const orderedTopicQuestions = section
+    ? selectSectionQuestions(
+        withPinnedQuestions(topicQuestions, section.pinnedQuestions),
+        section.releases,
+        now,
+      )
+    : sortQuestionsForSyllabus(topicQuestions);
   // The rail shows the whole syllabus with its glyphs, so it needs the same
   // model `/learn` builds; the screen itself only renders this topic.
   const syllabus = buildLearnModel({
     isGuest,
     nowIso,
     progress,
-    questions: sortQuestionsForSyllabus(allQuestions).map(normalizeSummary),
+    questions: orderedQuestions.map(normalizeSummary),
     topics: orderedTopics,
   });
   const model = buildTopicModel({
     isGuest,
     nowIso,
     progress,
-    questions: sortQuestionsForSyllabus(topicQuestions).map(normalizeSummary),
+    questions: orderedTopicQuestions.map(normalizeSummary),
     topic,
   });
 
@@ -112,6 +141,7 @@ export default async function TopicPage({ params }: TopicPageProps) {
 async function readOwnProgress(): Promise<{
   isGuest: boolean;
   progress: StudentProgressDashboard | null;
+  section: StudentSectionContent | undefined;
 }> {
   let authorization;
 
@@ -119,13 +149,18 @@ async function readOwnProgress(): Promise<{
     authorization = await requireStudentAccess({ allowAnonymous: true });
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
-      return { isGuest: true, progress: null };
+      return { isGuest: true, progress: null, section: undefined };
     }
     throw error;
   }
 
+  const [progress, section] = await Promise.all([
+    getStudentProgress(authorization),
+    readStudentSectionContent(authorization.owner, { pinnedContent: true }),
+  ]);
   return {
     isGuest: authorization.owner.kind !== "user",
-    progress: await getStudentProgress(authorization),
+    progress,
+    section,
   };
 }

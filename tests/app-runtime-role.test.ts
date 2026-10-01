@@ -190,7 +190,7 @@ describe("least-privilege runtime role provisioning", () => {
       where rolname = 'app_runtime'
     `);
     expect(verification.rows[0]).toEqual({
-      row_level_security_tables: 33,
+      row_level_security_tables: 40,
       ledger_insert: false,
       usage_insert: true,
       usage_update: false,
@@ -204,7 +204,7 @@ describe("least-privilege runtime role provisioning", () => {
       reviewer_function_execute: true,
       reserve_event_insert: true,
       reserve_view_select: true,
-      runtime_policies: 33,
+      runtime_policies: 40,
       rolbypassrls: false,
       rolcanlogin: false,
       rolcreatedb: false,
@@ -317,7 +317,7 @@ describe("least-privilege runtime role provisioning", () => {
     await expect(readRlsEvidence(client)).resolves.toMatchObject({
       dataApiGrantCount: 0,
       status: "passed",
-      tableCount: 33,
+      tableCount: 40,
     });
     await database.exec("reset role");
   });

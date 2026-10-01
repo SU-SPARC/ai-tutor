@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getApprovedQuestions: vi.fn(),
   getQuestionCounts: vi.fn(),
   getStudentProgress: vi.fn(),
+  getStudentSectionReleases: vi.fn(),
   getTopics: vi.fn(),
   listQuestionsByTopic: vi.fn(),
   redirect: vi.fn(),
@@ -39,6 +40,13 @@ vi.mock("@/lib/data/data-store", () => ({
   getApprovedQuestionById: mocks.getApprovedQuestionById,
   getApprovedQuestions: mocks.getApprovedQuestions,
   getQuestionCounts: mocks.getQuestionCounts,
+  getStudentSectionReleases: mocks.getStudentSectionReleases,
+  // The demo bank has no version table: a section pin reads the published
+  // content, as the demo data store does.
+  getStudentQuestionVersion: async (_owner: unknown, questionId: string) =>
+    ((await mocks.getApprovedQuestions()) as TutorQuestion[] | undefined)?.find(
+      (question) => question.id === questionId,
+    ),
   getTopics: mocks.getTopics,
   listQuestionsByTopic: mocks.listQuestionsByTopic,
 }));
@@ -167,6 +175,7 @@ beforeEach(() => {
     throw new RedirectSignal(destination);
   });
   mocks.getTopics.mockResolvedValue(topics);
+  mocks.getStudentSectionReleases.mockResolvedValue(undefined);
   mocks.getApprovedQuestions.mockResolvedValue(approvedQuestions);
   mocks.getApprovedQuestionById.mockImplementation(async (id: string) =>
     approvedQuestions.find((question) => question.id === id),
@@ -223,6 +232,75 @@ describe("new student reaching practice", () => {
 
     expect(mocks.redirect).not.toHaveBeenCalled();
     expect(markup).toContain("Check answer");
+  });
+});
+
+describe("course section students", () => {
+  const sectionContent = {
+    releases: [
+      {
+        delivery: {
+          attemptsAllowed: 2,
+          hintsEnabled: false,
+          solutionReveal: "after_correct" as const,
+        },
+        position: 0,
+        questionId: "spinner-coin",
+        questionVersionId: 7,
+        releasedVersion: 2,
+        topicId: "conditional-probability",
+        topicPosition: 0,
+        topicState: "open" as const,
+      },
+    ],
+    section: {
+      courseCode: "MATH-255",
+      courseId: "course-math-255",
+      courseTitle: "Probability and Statistics",
+      joinedAt: "2026-09-02T14:00:00.000Z",
+      sectionId: "section-1",
+      sectionLabel: "Section 1",
+      term: "Fall 2026",
+    },
+  };
+
+  beforeEach(() => {
+    mockPrincipal(TEST_STUDENT);
+    mocks.getStudentProgress.mockResolvedValue(null);
+    mocks.getStudentSectionReleases.mockResolvedValue(sectionContent);
+  });
+
+  it("shows a section student only the section's released questions and topics", async () => {
+    const markup = renderToStaticMarkup(await LearnPage());
+
+    expect(markup).toContain("Spinner and Coin Condition");
+    expect(markup).toContain(">0 of 1<");
+    expect(markup).not.toContain("Dice Sum Condition");
+    expect(markup).not.toContain("Central Limit Theorem");
+  });
+
+  it("practises the section's questions with the section's delivery settings", async () => {
+    vi.stubEnv("ANONYMOUS_PILOT_ENABLED", "false");
+
+    const markup = renderToStaticMarkup(
+      await PracticePage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(markup).toContain("Spinner and Coin Condition");
+    expect(markup).not.toContain("Dice Sum Condition");
+    expect(markup).toContain("Check answer (2 left)");
+    expect(markup).not.toContain("Show hint");
+  });
+
+  it("falls back to the global list when the section cannot be read", async () => {
+    mocks.getStudentSectionReleases.mockRejectedValue(new Error("down"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const markup = renderToStaticMarkup(await LearnPage());
+
+    expect(markup).toContain(">0 of 2<");
+    expect(markup).toContain("Central Limit Theorem");
+    warn.mockRestore();
   });
 });
 
@@ -877,7 +955,9 @@ describe("landing page", () => {
     // The tutor is shown but closed.
     expect(markup).toContain("Sign in or join your course to use the tutor.");
     expect(markup).not.toContain("Sign in to chat with the tutor");
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Give me a hint<\/button>/);
+    expect(markup).toMatch(
+      /<button[^>]*disabled=""[^>]*>Give me a hint<\/button>/,
+    );
     expect(markup).toMatch(
       /<button[^>]*disabled=""[^>]*>Where do I start\?<\/button>/,
     );
@@ -968,7 +1048,9 @@ describe("landing page", () => {
     expect(markup).not.toContain("Join to answer");
     expect(markup).not.toContain("Join your course to answer");
     expect(markup).not.toContain("Sign in or join your course");
-    expect(markup).not.toMatch(/<button[^>]*disabled=""[^>]*>Where do I start\?<\/button>/);
+    expect(markup).not.toMatch(
+      /<button[^>]*disabled=""[^>]*>Where do I start\?<\/button>/,
+    );
   });
 
   it("prefers the third topic with questions as the hero, and falls back to the first question", () => {

@@ -8,12 +8,15 @@ import {
 } from "@/lib/api/service-unavailable";
 import { getApprovedQuestionById } from "@/lib/data/data-store";
 import { createTutorSession } from "@/lib/data/tutor-session-repository";
+import { readStudentSectionContent } from "@/lib/tutor/section-access";
+import { findVisibleSectionRelease } from "@/lib/tutor/section-content";
 import { isTutorSessionIdempotencyKey } from "@/lib/tutor/session-persistence";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
 
 type CreateSessionBody = {
   idempotencyKey?: unknown;
   questionId?: unknown;
+  questionVersionId?: unknown;
 };
 
 const TUTOR_SESSION_ROUTE = "/api/tutor/session";
@@ -46,8 +49,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const question = await getApprovedQuestionById(questionId);
-    if (!question) {
+    const [question, section] = await Promise.all([
+      getApprovedQuestionById(questionId),
+      readStudentSectionContent(access.authorization.owner),
+    ]);
+    // A section student practises only what the section has released and
+    // opened, at the version the section pinned; anything else reads exactly
+    // like an unpublished question. The version always comes from the
+    // section: a client may name one only to confirm it, and naming any
+    // other version (or any version without a section) is refused the same
+    // way.
+    const release = section
+      ? findVisibleSectionRelease(section.releases, questionId)
+      : undefined;
+    const pinnedVersionId = release?.questionVersionId;
+    if (
+      !question ||
+      (section && !release) ||
+      (body.questionVersionId !== undefined &&
+        body.questionVersionId !== pinnedVersionId)
+    ) {
       return safeApiErrorResponse({
         code: "QUESTION_UNAVAILABLE",
         error: "This question is no longer available for practice.",
@@ -69,6 +90,7 @@ export async function POST(request: Request) {
       access.authorization,
       questionId,
       body.idempotencyKey,
+      pinnedVersionId,
     );
     return NextResponse.json(
       { session: toTutorSessionDto(session) },

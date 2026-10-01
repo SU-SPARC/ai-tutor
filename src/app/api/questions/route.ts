@@ -13,6 +13,11 @@ import {
   listQuestionsByTopic,
 } from "@/lib/data/data-store";
 import { pilotRequestId } from "@/lib/observability/pilot-operations";
+import { readStudentSectionContent } from "@/lib/tutor/section-access";
+import {
+  selectSectionQuestions,
+  withPinnedQuestions,
+} from "@/lib/tutor/section-content";
 
 const QUESTIONS_ROUTE = "/api/questions";
 
@@ -40,13 +45,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Both reads return only approved, public, student-facing questions.
-    const base = topic
-      ? await listQuestionsByTopic(topic)
-      : await getApprovedQuestions();
+    // Both reads return only approved, public, student-facing questions. A
+    // student in a course section is narrowed further to the section's
+    // visible released questions, in the section's order, each at the
+    // version the section pinned.
+    const [base, section] = await Promise.all([
+      topic ? listQuestionsByTopic(topic) : getApprovedQuestions(),
+      readStudentSectionContent(undefined, { pinnedContent: true }),
+    ]);
+    const published = base.filter(isPublishedContent);
+    const scoped = section
+      ? selectSectionQuestions(
+          withPinnedQuestions(published, section.pinnedQuestions),
+          section.releases,
+        )
+      : published;
 
-    const questions = base
-      .filter(isPublishedContent)
+    const questions = scoped
       .filter((question) =>
         difficulty ? question.difficulty === difficulty : true,
       )
@@ -56,11 +71,15 @@ export async function GET(request: Request) {
       .filter((question) => (query ? matchesSearch(question, query) : true))
       .map(normalizeSummary);
 
-    return NextResponse.json({
-      count: questions.length,
-      filters: { topic, difficulty, sourceType, q: query },
-      questions,
-    });
+    return NextResponse.json(
+      {
+        count: questions.length,
+        filters: { topic, difficulty, sourceType, q: query },
+        questions,
+      },
+      // A section student's list is their own; never share it from a cache.
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (cause) {
     return dataServiceUnavailableResponse({
       cause,

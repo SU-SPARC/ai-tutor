@@ -99,6 +99,11 @@ export type TutorDrawerProps = {
   busy: boolean;
   canHint: boolean;
   canStep: boolean;
+  /**
+   * False when the student's section never offers worked steps for this
+   * question: the Show steps control is then left out. Defaults to true.
+   */
+  showStep?: boolean;
   /** The collapse control, which receives focus when the drawer opens. */
   collapseButtonRef?: RefObject<HTMLButtonElement | null>;
   /** What the tutor can see, shown as chips once a session exists. */
@@ -127,6 +132,7 @@ export function TutorDrawer({
   busy,
   canHint,
   canStep,
+  showStep = true,
   collapseButtonRef,
   context,
   hasSession,
@@ -305,17 +311,19 @@ export function TutorDrawer({
               {hintButtonLabel}
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="pointer-coarse:h-11"
-            disabled={!canStep || busy}
-            loading={activeMode === "full_solution"}
-            onClick={onStep}
-          >
-            Show steps
-          </Button>
+          {showStep ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="pointer-coarse:h-11"
+              disabled={!canStep || busy}
+              loading={activeMode === "full_solution"}
+              onClick={onStep}
+            >
+              Show steps
+            </Button>
+          ) : null}
           <Button
             asChild
             variant="secondary"

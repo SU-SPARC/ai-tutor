@@ -6,8 +6,12 @@ import {
   isRetrievalEligibleContent,
   isStudentSafeRetrievalContent,
   type AnalyticsAuthorization,
+  type ProfessorAuthorization,
   type ProfessorReviewAuthorization,
 } from "@/lib/auth/authorization";
+import type { StudentOwner } from "@/lib/auth/principal";
+import type { CoursesAction } from "@/lib/courses/reducer";
+import type { CoursesState } from "@/lib/courses/types";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
 import {
   ContentAvailabilityNotFoundError,
@@ -35,6 +39,17 @@ import {
   resetDemoReviewQueueForTests,
 } from "@/lib/data/demo-repository";
 import {
+  CoursesConflictError,
+  CoursesNotFoundError,
+  CoursesValidationError,
+  createDatabaseCoursesRepository,
+  createDemoCoursesRepository,
+  readStudentQuestionVersion,
+  type CoursesRepository,
+  type SectionReleaseDto,
+  type StudentSectionDto,
+} from "@/lib/data/courses-repository";
+import {
   createDatabaseInstructorStudentRepository,
   INSTRUCTOR_STUDENT_PAGE_SIZE,
 } from "@/lib/data/instructor-student-repository";
@@ -45,6 +60,7 @@ import {
   recordStudentIdentityViews,
   type StudentAccountLink,
 } from "@/lib/data/student-identity-repository";
+import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { queryPostgres } from "@/lib/data/postgres";
 import { DataServiceUnavailableError } from "@/lib/data/service-error";
 import type {
@@ -73,6 +89,7 @@ import type {
   QuestionLifecycleDashboard,
   QuestionLifecycleDto,
   QuestionVersionDto,
+  PracticeQuestion,
   ReviewCandidate,
   StudentContentAvailabilityDashboard,
 } from "@/lib/types";
@@ -986,6 +1003,231 @@ export async function regenerateQuestionLifecycleVersion(
   return writeStrictDatabaseLifecycle((repository) =>
     repository.regenerate(authorization, input),
   );
+}
+
+/*
+ * Courses, sections, rosters and per-section releases (migration 029).
+ *
+ * Demo modes use a process-memory repository seeded from the courses demo seed
+ * (so the ghost professor's screens and "Reset demo data" keep working); every
+ * other mode reads and writes Postgres. Domain errors (not found, validation,
+ * conflict) pass through so the API can map them to 404/400/409; anything else
+ * is a data-service outage. Writes never fall back to the demo store, and
+ * reads only do where the operating mode allows a demo fallback.
+ */
+let coursesRepositoryOverride: CoursesRepository | undefined;
+
+// `next dev` gives route handlers and server components separate module
+// instances, so a module-level singleton would give a student's join (made
+// through the API) and the Learn page (a server component) different demo
+// stores. Keep it on globalThis, as postgres.ts does for its pool.
+type DemoCoursesGlobal = typeof globalThis & {
+  __aiTutorDemoCoursesRepository?: CoursesRepository;
+};
+const demoCoursesGlobal = globalThis as DemoCoursesGlobal;
+
+function sharedDemoCoursesRepository() {
+  demoCoursesGlobal.__aiTutorDemoCoursesRepository ??=
+    createDemoCoursesRepository();
+  return demoCoursesGlobal.__aiTutorDemoCoursesRepository;
+}
+
+/** True when the courses screens run against the in-memory demo store. */
+export function coursesDemoMode(): boolean {
+  if (coursesRepositoryOverride) return false;
+  return getOperatingModePolicy().repositorySource === "demo";
+}
+
+function isCoursesDomainError(cause: unknown) {
+  return (
+    cause instanceof CoursesNotFoundError ||
+    cause instanceof CoursesValidationError ||
+    cause instanceof CoursesConflictError
+  );
+}
+
+async function withCoursesRepository<T>(
+  work: (repository: CoursesRepository) => Promise<T>,
+  options: { allowFallback: boolean },
+): Promise<T> {
+  if (coursesRepositoryOverride) {
+    return work(coursesRepositoryOverride);
+  }
+
+  const policy = getOperatingModePolicy();
+  if (policy.repositorySource === "demo") {
+    return work(sharedDemoCoursesRepository());
+  }
+
+  const env = getServerEnv();
+  if (!env.DATABASE_URL) {
+    if (options.allowFallback && policy.allowDemoFallback) {
+      return work(sharedDemoCoursesRepository());
+    }
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    return await work(createDatabaseCoursesRepository(queryPostgres));
+  } catch (cause) {
+    if (isCoursesDomainError(cause)) {
+      throw cause;
+    }
+    if (options.allowFallback && policy.allowDemoFallback) {
+      return work(sharedDemoCoursesRepository());
+    }
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+export async function getProfessorCoursesState(
+  authorization: ProfessorAuthorization,
+): Promise<CoursesState> {
+  assertAuthorization(authorization, "professor");
+  // No demo fallback here: the screens would show seed courses while
+  // `coursesDemoMode()` says false and every save fails. "Could not load"
+  // is the honest answer when the database is down.
+  return withCoursesRepository(
+    (repository) =>
+      repository.loadProfessorState(authorization.principal.userId),
+    { allowFallback: false },
+  );
+}
+
+export async function applyProfessorCoursesAction(
+  authorization: ProfessorAuthorization,
+  action: CoursesAction,
+  requestId?: string,
+): Promise<CoursesState> {
+  assertAuthorization(authorization, "professor");
+  return withCoursesRepository(
+    (repository) =>
+      repository.applyProfessorAction(
+        authorization.principal.userId,
+        action,
+        requestId,
+      ),
+    { allowFallback: false },
+  );
+}
+
+export async function joinStudentSection(
+  owner: StudentOwner,
+  joinCode: string,
+): Promise<StudentSectionDto> {
+  return withCoursesRepository(
+    (repository) => repository.joinSection(owner, joinCode),
+    { allowFallback: false },
+  );
+}
+
+export async function leaveStudentSection(owner: StudentOwner): Promise<void> {
+  return withCoursesRepository((repository) => repository.leaveSection(owner), {
+    allowFallback: false,
+  });
+}
+
+export async function getStudentSection(
+  owner: StudentOwner,
+): Promise<StudentSectionDto | undefined> {
+  return withCoursesRepository(
+    (repository) => repository.getStudentSection(owner),
+    { allowFallback: true },
+  );
+}
+
+export async function getStudentSectionReleases(
+  owner: StudentOwner,
+): Promise<
+  { section: StudentSectionDto; releases: SectionReleaseDto[] } | undefined
+> {
+  return withCoursesRepository(
+    async (repository) => {
+      const section = await repository.getStudentSection(owner);
+      if (!section) return undefined;
+      return {
+        section,
+        releases: await repository.getSectionReleases(section.sectionId),
+      };
+    },
+    { allowFallback: true },
+  );
+}
+
+let studentQuestionVersionQueryOverride: DatabaseQueryExecutor | undefined;
+
+/**
+ * The content of one question version for a student, only when that version
+ * is the student's section pin for the question (see
+ * `readStudentQuestionVersion`): a section student sees, and is graded on, the
+ * version their section released even after a newer one is published.
+ * `undefined` when it is not their pin. Shaped like the published questions
+ * (`PracticeQuestion`), so the existing serializers accept it; its `id` is the
+ * question id.
+ *
+ * Demo modes (and test doubles of the courses or content repositories) have
+ * no version table: the demo pin is a version number standing in for an id,
+ * so the published content is returned. The database read never falls back to
+ * the published content; it falls back to the demo store only where the
+ * operating mode allows a demo fallback, like the other student reads.
+ */
+export async function getStudentQuestionVersion(
+  owner: StudentOwner,
+  questionId: string,
+  questionVersionId: number,
+): Promise<PracticeQuestion | undefined> {
+  if (studentQuestionVersionQueryOverride) {
+    return readStudentQuestionVersion(
+      studentQuestionVersionQueryOverride,
+      owner,
+      questionId,
+      questionVersionId,
+    );
+  }
+
+  const policy = getOperatingModePolicy();
+  if (
+    coursesRepositoryOverride ||
+    contentRepositoryOverride ||
+    policy.repositorySource === "demo"
+  ) {
+    return getApprovedQuestionById(questionId);
+  }
+
+  const env = getServerEnv();
+  if (!env.DATABASE_URL) {
+    throw new DataServiceUnavailableError("content");
+  }
+
+  try {
+    return await readStudentQuestionVersion(
+      queryPostgres,
+      owner,
+      questionId,
+      questionVersionId,
+    );
+  } catch (cause) {
+    if (policy.allowDemoFallback) {
+      return getApprovedQuestionById(questionId);
+    }
+    throw new DataServiceUnavailableError("content", { cause });
+  }
+}
+
+export function setStudentQuestionVersionQueryForTests(
+  query: DatabaseQueryExecutor | undefined,
+) {
+  studentQuestionVersionQueryOverride = query;
+}
+
+export function setCoursesRepositoryForTests(
+  repository: CoursesRepository | undefined,
+) {
+  coursesRepositoryOverride = repository;
+}
+
+export function resetDemoCoursesRepositoryForTests() {
+  demoCoursesGlobal.__aiTutorDemoCoursesRepository = undefined;
 }
 
 export function getContentRepositoryMode() {

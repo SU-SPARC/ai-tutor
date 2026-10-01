@@ -534,6 +534,51 @@ export const SERVER_BOUNDARY_PERMISSION_MATRIX = [
     "owned-student-resource",
     ["authorizeStudentResourceApi", "toStudentTutorSessionDto"],
   ),
+  // Courses and sections, professor side (migration 029).
+  route(
+    "GET",
+    "/api/professor/courses",
+    "src/app/api/professor/courses/route.ts",
+    "professor",
+    ["requireProfessor", "getProfessorCoursesState"],
+  ),
+  route(
+    "POST",
+    "/api/professor/courses/actions",
+    "src/app/api/professor/courses/actions/route.ts",
+    "professor",
+    ["requireProfessor", "parseCoursesAction", "applyProfessorCoursesAction"],
+  ),
+  // End courses and sections, professor side.
+  // Courses and sections, student side (migration 029): join by code, read
+  // and leave the student's own section membership.
+  route(
+    "GET",
+    "/api/student/section",
+    "src/app/api/student/section/route.ts",
+    "student-or-anonymous",
+    ["requireStudentAccess", "ownerFromAuthorization", "getStudentSection"],
+  ),
+  route(
+    "POST",
+    "/api/student/section",
+    "src/app/api/student/section/route.ts",
+    "student-or-anonymous",
+    [
+      "requireStudentAccess",
+      "ownerFromAuthorization",
+      "parseJoinCode",
+      "joinStudentSection",
+    ],
+  ),
+  route(
+    "DELETE",
+    "/api/student/section",
+    "src/app/api/student/section/route.ts",
+    "student-or-anonymous",
+    ["requireStudentAccess", "ownerFromAuthorization", "leaveStudentSection"],
+  ),
+  // End courses and sections, student side.
 ] as const satisfies readonly ServerBoundaryPolicy[];
 
 function page(

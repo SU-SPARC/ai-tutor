@@ -27,9 +27,9 @@ function courseLabel(code: string, term: string) {
  * header (the chip slot), so it survives navigation between tools.
  *
  * Two defensive shapes: it renders nothing without a provider (the header is
- * also rendered outside the courses store), and until the store has hydrated
- * it renders a static chip with the seeded course name, so the header never
- * changes width when localStorage comes back. That placeholder is plain text,
+ * also rendered outside the courses store), and until the store has loaded
+ * the professor's courses from the server it renders a static chip, so a
+ * click cannot land on a menu that is still empty. That placeholder is plain text,
  * not a disabled button, so it is not mistaken for a control.
  */
 export function CourseSwitcher({ className }: { className?: string }) {
@@ -48,7 +48,9 @@ export function CourseSwitcher({ className }: { className?: string }) {
 
   const label = active
     ? courseLabel(active.code, active.term)
-    : "No active course";
+    : hydrated
+      ? "No active course"
+      : "Courses";
 
   if (!hydrated) {
     return (

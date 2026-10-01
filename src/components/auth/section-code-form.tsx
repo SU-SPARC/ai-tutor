@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { joinAsGuestStudent } from "@/app/join/actions";
 import {
-  isKnownSectionCode,
   SECTION_CODE_UNKNOWN_ERROR,
-  sectionLabelForCode,
   useStudentSection,
 } from "@/components/shell/use-student-section";
 import { Button } from "@/components/ui/button";
@@ -17,6 +15,15 @@ import { toast } from "@/components/ui/toast";
 import { formatJoinCode } from "@/lib/courses/format";
 
 export { SECTION_CODE_UNKNOWN_ERROR };
+
+/**
+ * Where a code goes once the student has an identity to join with: `/join`
+ * with the code, which joins it on arrival (`autoJoin`). The guest door and
+ * the sign-in round trip both come back here.
+ */
+export function sectionJoinReturnPath(code: string) {
+  return `/join?section=${encodeURIComponent(code)}`;
+}
 
 export const SECTION_CODE_ERROR =
   "Enter the code from your professor, like K7Q-2M.";
@@ -33,16 +40,12 @@ export function parseSectionCode(raw: string): string | null {
 }
 
 /**
- * The field's one error line for what was typed, or null when it names a
- * section: a malformed code asks for the shape, a well-formed code that is
- * not a section says so and points at the professor.
+ * The field's one error line for the shape of what was typed, or null when
+ * it is five letters or digits. Whether a well-formed code names a section
+ * is the server's answer (`SECTION_CODE_UNKNOWN_ERROR` when it does not).
  */
 export function sectionCodeProblem(raw: string): string | null {
-  const parsed = parseSectionCode(raw);
-  if (!parsed) {
-    return SECTION_CODE_ERROR;
-  }
-  return isKnownSectionCode(parsed) ? null : SECTION_CODE_UNKNOWN_ERROR;
+  return parseSectionCode(raw) ? null : SECTION_CODE_ERROR;
 }
 
 export type SectionCodeFormProps = {
@@ -67,6 +70,10 @@ export type SectionCodeFormProps = {
    * page gets client navigation without taking the router as a dependency.
    */
   onNavigate?: (href: string) => void;
+  /** Prefills the field (a code carried through sign-in on `/join`). */
+  initialCode?: string;
+  /** Joins `initialCode` as soon as the form mounts. */
+  autoJoin?: boolean;
   className?: string;
 };
 
@@ -75,13 +82,15 @@ export type SectionCodeFormProps = {
  * a mono field that takes the code in any case with or without the hyphen,
  * and [Join] beside it (below it, full width, on phones).
  *
- * The code is not an account: it labels the section the student is in. A
- * valid code is stored in this browser (`useStudentSection`, the same store
- * the header chip reads), then the student takes the guest door in the demo
- * or goes to the syllabus. A code that is not five letters or digits, or
- * is not one of the course's sections, is refused at the field, on blur and
- * on submit; the typed value stays put. A successful join says so in a toast
- * ("Joined MATH-255 · Section 1") that survives the navigation.
+ * The code is not an account: it joins the student to a course section on
+ * the server (`POST /api/student/section`, through `useStudentSection`, the
+ * same store the header chip reads), and the student goes to the syllabus.
+ * A visitor with no identity yet takes the guest door in the demo (or signs
+ * in) and comes back to `/join?section=CODE`, which joins on arrival. A code
+ * that is not five letters or digits is refused at the field, on blur and on
+ * submit; a code that names no section is refused when the server says so.
+ * The typed value stays put. A successful join says so in a toast ("Joined
+ * MATH-255 · Section 1") that survives the navigation.
  */
 export function SectionCodeForm({
   label = "Section code",
@@ -89,14 +98,19 @@ export function SectionCodeForm({
   callbackUrl = "",
   joinVariant = "cta",
   onNavigate,
+  initialCode,
+  autoJoin = false,
   className,
 }: SectionCodeFormProps) {
-  const { setSection } = useStudentSection();
+  const { join } = useStudentSection();
   const codeId = useId();
   const codeInputRef = useRef<HTMLInputElement>(null);
   const guestFormRef = useRef<HTMLFormElement>(null);
+  const guestCallbackRef = useRef<HTMLInputElement>(null);
   const learnLinkRef = useRef<HTMLAnchorElement>(null);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() =>
+    initialCode ? (parseSectionCode(initialCode) ?? initialCode) : "",
+  );
   const [codeError, setCodeError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
@@ -118,32 +132,83 @@ export function SectionCodeForm({
     setCodeError(sectionCodeProblem(code));
   };
 
-  const handleJoin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const parsed = parseSectionCode(code);
-    const problem = sectionCodeProblem(code);
-    if (!parsed || problem) {
-      setCodeError(problem ?? SECTION_CODE_ERROR);
+  const navigate = (href: string) => {
+    if (onNavigate) {
+      onNavigate(href);
+    } else if (href === "/learn") {
+      learnLinkRef.current?.click();
+    } else {
+      window.location.assign(href);
+    }
+  };
+
+  const submitCode = async (typed: string) => {
+    const parsed = parseSectionCode(typed);
+    if (!parsed) {
+      setCodeError(SECTION_CODE_ERROR);
       codeInputRef.current?.focus();
       return;
     }
     setCodeError(null);
     setCode(parsed);
-    setSection(parsed);
     setJoining(true);
-    // The toast store lives outside React, so the confirmation is still on
-    // screen after the guest door or the router takes the student to /learn.
-    toast({ title: `Joined ${sectionLabelForCode(parsed)}`, tone: "success" });
+
     if (ghostLoginEnabled) {
+      // No identity yet in the demo: take the guest door and come back to
+      // `/join?section=…`, which joins as the guest student on arrival.
+      if (guestCallbackRef.current) {
+        guestCallbackRef.current.value = sectionJoinReturnPath(parsed);
+      }
       guestFormRef.current?.requestSubmit();
       return;
     }
-    if (onNavigate) {
-      onNavigate("/learn");
-    } else {
-      learnLinkRef.current?.click();
+
+    const result = await join(parsed);
+    if (result.ok) {
+      // The toast store lives outside React, so the confirmation is still
+      // on screen after the router takes the student to /learn.
+      toast({ title: `Joined ${result.section.label}`, tone: "success" });
+      navigate("/learn");
+      return;
     }
+
+    setJoining(false);
+    if (result.reason === "signed_out") {
+      // Sign in, then come back to join with the same code.
+      navigate(
+        `/sign-in?callbackUrl=${encodeURIComponent(
+          sectionJoinReturnPath(parsed),
+        )}`,
+      );
+      return;
+    }
+    setCodeError(result.message);
+    codeInputRef.current?.focus();
   };
+
+  const handleJoin = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (joining) {
+      return;
+    }
+    void submitCode(code);
+  };
+
+  // A code carried through the guest door or sign-in joins on arrival. A
+  // timeout (not a synchronous call) keeps the state updates out of the
+  // effect body.
+  useEffect(() => {
+    if (!autoJoin || !initialCode) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void submitCode(initialCode);
+    }, 0);
+    // Strict mode's rehearsal unmount cancels the first timer.
+    return () => window.clearTimeout(timer);
+    // Runs once per mount: the code to join is fixed by the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={className}>
@@ -191,7 +256,12 @@ export function SectionCodeForm({
           hidden
           aria-hidden="true"
         >
-          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          <input
+            ref={guestCallbackRef}
+            type="hidden"
+            name="callbackUrl"
+            defaultValue={callbackUrl}
+          />
         </form>
       ) : (
         <Link

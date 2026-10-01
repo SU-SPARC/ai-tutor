@@ -12,7 +12,7 @@ import {
 import { getServerEnv } from "@/lib/env/server";
 import { studentQuestionTitle } from "@/lib/labels";
 
-import { inSyllabusOrder, readSolvedQuestionIds } from "../practice-progress";
+import { practiceScope, readPracticeVisitor } from "../practice-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -59,16 +59,27 @@ export default async function PracticeQuestionPage({
     notFound();
   }
 
-  const [allTopics, allQuestions, solvedQuestionIds] = await Promise.all([
-    getTopics(),
-    getApprovedQuestions(),
-    readSolvedQuestionIds(),
-  ]);
-  const { questions, topics } = inSyllabusOrder(allTopics, allQuestions);
+  const [allTopics, allQuestions, { section, solvedQuestionIds }] =
+    await Promise.all([
+      getTopics(),
+      getApprovedQuestions(),
+      readPracticeVisitor(),
+    ]);
+  const { delivery, questions, topics } = practiceScope(
+    allTopics,
+    allQuestions,
+    section,
+  );
+  // A section student reaches only the section's released questions; a
+  // question outside it reads as missing, exactly like an unpublished one.
+  if (section && !questions.some((item) => item.id === question.id)) {
+    notFound();
+  }
 
   return (
     <PracticeWorkspace
       aiHelpEnabled={env.AI_ENABLED}
+      deliveryByQuestionId={delivery}
       initialQuestionId={question.id}
       initialSessionId={initialSessionId}
       initialSolvedQuestionIds={solvedQuestionIds}
