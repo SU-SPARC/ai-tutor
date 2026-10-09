@@ -10,6 +10,9 @@ export type QuestionIntakeDuplicateCandidate = {
   topicId: string;
 };
 
+/** Same-topic prompts at or above this token Jaccard read as the same wording. */
+export const SIMILAR_WORDING_THRESHOLD = 0.72;
+
 export function questionIntakePromptFingerprint(prompt: string) {
   return prompt.trim().replace(/\s+/gu, " ").toLowerCase();
 }
@@ -44,7 +47,7 @@ export function rankQuestionIntakeDuplicates(input: {
         promptTokens,
         significantTokens(candidate.prompt),
       );
-      return similarity >= 0.72
+      return similarity >= SIMILAR_WORDING_THRESHOLD
         ? [duplicate(candidate, "similar_wording", similarity)]
         : [];
     })
@@ -87,7 +90,7 @@ function duplicate(
   };
 }
 
-function questionStructureFingerprint(prompt: string) {
+export function questionStructureFingerprint(prompt: string) {
   return questionIntakePromptFingerprint(prompt)
     .replace(/\\(?:dfrac|frac|tfrac)\{[^{}]+\}\{[^{}]+\}/gu, " <number> ")
     .replace(/[-+]?\d+(?:\.\d+)?%?/gu, "<number>")
@@ -96,7 +99,7 @@ function questionStructureFingerprint(prompt: string) {
     .trim();
 }
 
-function significantTokens(value: string) {
+export function significantTokens(value: string) {
   return new Set(
     questionIntakePromptFingerprint(value)
       .replace(/[^\p{L}\p{N}]+/gu, " ")
@@ -105,7 +108,7 @@ function significantTokens(value: string) {
   );
 }
 
-function jaccardSimilarity(left: Set<string>, right: Set<string>) {
+export function jaccardSimilarity(left: Set<string>, right: Set<string>) {
   if (left.size === 0 || right.size === 0) return 0;
   let intersection = 0;
   for (const token of left) {

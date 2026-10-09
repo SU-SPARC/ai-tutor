@@ -476,7 +476,13 @@ function answerSchemaIsConsistent(draft: QuestionIntakeModelDraft) {
   });
 }
 
-function answerAppearsInSolution(draft: QuestionIntakeModelDraft) {
+/** The draft fields the answer and hint checks read; shared with similar practice. */
+export type AnswerEvidenceDraft = Pick<
+  QuestionIntakeModelDraft,
+  "answer" | "answerType" | "solutionSteps"
+>;
+
+export function answerAppearsInSolution(draft: AnswerEvidenceDraft) {
   const solution = [draft.answer.explanation, ...draft.solutionSteps].join(" ");
   if (draft.answer.spec?.kind === "numeric") {
     const spec = draft.answer.spec;
@@ -504,9 +510,9 @@ function answerAppearsInSolution(draft: QuestionIntakeModelDraft) {
   );
 }
 
-function hintRevealsAnswer(
+export function hintRevealsAnswer(
   hint: string | undefined,
-  draft: QuestionIntakeModelDraft,
+  draft: AnswerEvidenceDraft,
 ) {
   if (!hint) return true;
   if (/\b(?:final\s+)?answer\s+is\b/i.test(hint)) return true;
@@ -517,7 +523,7 @@ function hintRevealsAnswer(
   });
 }
 
-function numericLiteralsInText(value: string) {
+export function numericLiteralsInText(value: string) {
   return (
     value.match(
       /\\(?:dfrac|frac|tfrac)\{[-+]?\d+(?:\.\d+)?\}\{[-+]?\d+(?:\.\d+)?\}|[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?|[-+]?(?:\d+(?:\.\d+)?|\.\d+)%?/gu,

@@ -49,7 +49,7 @@ const ALLOWED_STATES = new Set<QuestionVersionState>([
   "approved",
   "unpublished",
 ]);
-const PRIVATE_SOURCE_SIGNAL =
+export const PRIVATE_SOURCE_SIGNAL =
   /source page|answer key|solution key|worked example|copied from|verbatim|raw extracted|private chunk|embedding|textbook page|professor-only|course pdf|private phrase|source number/i;
 const FORBIDDEN_PRIVATE_METADATA_KEYS =
   /^(?:answerKey|embedding|embeddings|extractedText|locator|page|pageNumber|privateNotes|privatePrompt|promptTemplate|rawText|sourceId|sourceIds|sourceLocator|sourceMetadata|sourcePage|sourceText|textbookText)$/i;
