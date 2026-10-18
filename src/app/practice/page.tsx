@@ -68,9 +68,9 @@ export default async function PracticePage({
     ...scopedToCourse(courseId, everyTopic, everyQuestion),
   );
 
-  // A course whose syllabus has not been added yet has nothing to practice;
-  // say so plainly instead of drawing an empty workspace.
-  if (topics.length === 0) {
+  // A course with no approved questions yet has nothing to practice; say so
+  // plainly instead of drawing an empty workspace.
+  if (questions.length === 0) {
     return <CourseEmptyState courseTitle={selectedCourse.title} />;
   }
 

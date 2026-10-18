@@ -143,9 +143,10 @@ describe("per-course canonical syllabi", () => {
 
     expect(probability).toHaveLength(11)
     expect(probability.every((topic) => topic.courseId === "probability-statistics")).toBe(true)
-    // Calculus I's syllabus has not been provided, so nothing is invented.
-    expect(calculus).toEqual([])
-    expect(everything).toHaveLength(11)
+    expect(calculus).toHaveLength(18)
+    expect(calculus.every((topic) => topic.courseId === "calculus-1")).toBe(true)
+    expect(calculus.every((topic) => topic.id.startsWith("calc1-"))).toBe(true)
+    expect(everything).toHaveLength(29)
     await expect(
       loadCanonicalSyllabusTopics(process.cwd(), "no-such-course"),
     ).rejects.toThrow(/Unknown course/)

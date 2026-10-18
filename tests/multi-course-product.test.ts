@@ -91,7 +91,7 @@ afterEach(() => {
   resetAuthMocks();
 });
 
-describe("Calculus I before any content is added", () => {
+describe("Calculus I before any questions are added", () => {
   beforeEach(() => {
     mocks.cookieValue = "calculus-1";
   });
@@ -99,7 +99,8 @@ describe("Calculus I before any content is added", () => {
   it("says so on Learn, with no Probability & Statistics content", async () => {
     const markup = renderToStaticMarkup(await LearnPage());
 
-    expect(markup).toContain("Calculus I content has not been added yet.");
+    expect(markup).toContain("Precalculus Review");
+    expect(markup).toContain("No practice questions are available yet");
     expect(markup).not.toMatch(PROBABILITY_WORDS);
   });
 
@@ -134,7 +135,11 @@ describe("Calculus I before any content is added", () => {
       inProgressQuestions: 0,
       topicsStarted: 0,
     });
-    expect(progress.topics).toEqual([]);
+    // The syllabus topics are listed, each with nothing started.
+    expect(progress.topics).toHaveLength(18);
+    expect(progress.topics.every((topic) => topic.id.startsWith("calc1-"))).toBe(
+      true,
+    );
     expect(progress.questions).toEqual([]);
   });
 });

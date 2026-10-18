@@ -1348,7 +1348,8 @@ describe("content provenance and review metadata", () => {
     );
     const question = await getQuestionById("dice-sum-eight");
 
-    expect(topics).toHaveLength(11);
+    // Unscoped: every course's canonical topics (11 + 18 Calculus I).
+    expect(topics).toHaveLength(29);
     expect(questions).toHaveLength(8);
     expect(question?.id).toBe("dice-sum-eight");
     expect(conditionalQuestions.map((item) => item.id)).toEqual([

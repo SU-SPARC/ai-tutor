@@ -4,8 +4,9 @@ One folder per course, named by the course id registered in the `courses`
 table (migration 028):
 
 - `probability-statistics/syllabus-topics.json` — Probability & Statistics.
-- `calculus-1/syllabus-topics.json` — Calculus I. Intentionally empty until the
-  professor's syllabus is provided; nothing is invented here.
+- `calculus-1/syllabus-topics.json` — Calculus I. One topic per line of the
+  professor's spring schedule, with the text sections it lists. Topic ids are
+  prefixed `calc1-`.
 
 Each file is an array of topics in strictly increasing syllabus `order`. Topic
 ids are global (they are the `topics.id` primary key), so a new course's ids must

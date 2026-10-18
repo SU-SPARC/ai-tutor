@@ -92,6 +92,13 @@ const CALC_TOPIC: Topic = {
   weekNumber: 1,
 };
 
+/** Every topic is Calculus I's, and the test-only topic is among them. */
+function expectCalculusTopics(topics: Array<{ id: string; courseId?: string }>) {
+  expect(topics.length).toBeGreaterThan(0);
+  expect(topics.every((topic) => topic.courseId === CALCULUS_COURSE)).toBe(true);
+  expect(topics.map((topic) => topic.id)).toContain(CALC_TOPIC.id);
+}
+
 class RedirectSignal extends Error {
   constructor(readonly destination: string) {
     super(`Redirected to ${destination}`);
@@ -301,7 +308,7 @@ describe("the learning pages follow the selected course", () => {
     expect(withTopic).toContain("Test-only Calculus topic");
     expect(withTopic).not.toContain("Introduction to Probability");
 
-    // Calculus I with nothing loaded yet is a legitimate, explained state.
+    // Calculus I with its syllabus but no questions yet is an explained state.
     setContentRepositoryForTests({
       ...(await twoCourseRepository()),
       async listTopics(scope?: CourseScope) {
@@ -321,7 +328,8 @@ describe("the learning pages follow the selected course", () => {
       },
     });
     const empty = renderToStaticMarkup(await LearnPage());
-    expect(empty).toContain("Calculus I content has not been added yet.");
+    expect(empty).toContain("Precalculus Review");
+    expect(empty).toContain("No practice questions are available yet");
     expect(empty).not.toContain("Introduction to Probability");
   });
 
@@ -332,8 +340,7 @@ describe("the learning pages follow the selected course", () => {
     renderToStaticMarkup(
       await PracticePage({ searchParams: Promise.resolve({}) }),
     );
-    const calculusTopics = mocks.practiceProps?.topics as Topic[];
-    expect(calculusTopics.map((topic) => topic.id)).toEqual([CALC_TOPIC.id]);
+    expectCalculusTopics(mocks.practiceProps?.topics as Topic[]);
 
     mocks.cookieValue = undefined;
     renderToStaticMarkup(
@@ -389,9 +396,7 @@ describe("the learning pages follow the selected course", () => {
 
     expect(sync.props.courseId).toBe(CALCULUS_COURSE);
     renderToStaticMarkup(element);
-    expect(
-      (mocks.practiceProps?.topics as Topic[]).map((topic) => topic.id),
-    ).toEqual([CALC_TOPIC.id]);
+    expectCalculusTopics(mocks.practiceProps?.topics as Topic[]);
   });
 });
 
@@ -428,7 +433,12 @@ describe("progress stays with its course", () => {
     });
     expect(calculus.questions).toEqual([]);
     expect(calculus.recentSessions).toEqual([]);
-    expect(calculus.topics.map((topic) => topic.id)).toEqual([CALC_TOPIC.id]);
+    expect(calculus.topics.map((topic) => topic.id)).toContain(CALC_TOPIC.id);
+    expect(
+      calculus.topics.every(
+        (topic) => topic.id === CALC_TOPIC.id || topic.id.startsWith("calc1-"),
+      ),
+    ).toBe(true);
     expect(everything.summary.completedQuestions).toBe(1);
   });
 

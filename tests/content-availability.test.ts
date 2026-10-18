@@ -19,7 +19,8 @@ import { GET as getQuestion } from "@/app/api/questions/[id]/route";
 import { GET as listQuestions } from "@/app/api/questions/route";
 import { POST as createTutorSession } from "@/app/api/tutor/session/route";
 import { requireProfessorReview } from "@/lib/auth/authorization";
-import { activeCanonicalSyllabusTopics } from "@/lib/data/canonical-syllabus-topics";
+import { activeCanonicalSyllabusTopicsForCourse } from "@/lib/data/canonical-syllabus-topics";
+import { PROBABILITY_STATISTICS_COURSE_ID } from "@/lib/course-catalog";
 import { createDatabaseContentAvailabilityRepository } from "@/lib/data/content-availability-repository";
 import type { DatabaseQueryExecutor } from "@/lib/data/database-executor";
 import { createDatabaseContentRepository } from "@/lib/data/database-repository";
@@ -38,6 +39,10 @@ import {
   TEST_STUDENT,
 } from "./auth-test-helpers";
 
+// The seeded test database holds only the default course's topics.
+const activeCanonicalSyllabusTopics = activeCanonicalSyllabusTopicsForCourse(
+  PROBABILITY_STATISTICS_COURSE_ID,
+);
 const QUESTION_ID = "demo-basic-probability-colored-tickets";
 const TOPIC_ID = "introduction-probability-venn-diagrams";
 const openDatabases: PGlite[] = [];

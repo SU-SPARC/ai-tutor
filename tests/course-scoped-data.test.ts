@@ -212,7 +212,7 @@ describe("course-scoped content (database)", () => {
 });
 
 describe("course-scoped content (demo data)", () => {
-  it("shows Probability & Statistics only under its course and nothing under Calculus I", async () => {
+  it("shows Probability & Statistics only under its course and only the syllabus under Calculus I", async () => {
     const probabilityTopics = await demoContentRepository.listTopics({
       courseId: PS_COURSE,
     });
@@ -228,7 +228,14 @@ describe("course-scoped content (demo data)", () => {
 
     expect(probabilityTopics).toHaveLength(11);
     expect(probabilityQuestions.length).toBeGreaterThan(0);
-    expect(calculusTopics).toEqual([]);
+    // Calculus I has its syllabus topics but no questions yet.
+    expect(calculusTopics).toHaveLength(18);
+    expect(
+      calculusTopics.every(
+        (topic) =>
+          topic.courseId === CALCULUS_COURSE && topic.id.startsWith("calc1-"),
+      ),
+    ).toBe(true);
     expect(calculusQuestions).toEqual([]);
     expect(
       await demoContentRepository.getQuestionCounts({

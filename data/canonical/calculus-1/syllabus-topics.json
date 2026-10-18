@@ -1,1 +1,307 @@
-[]
+[
+  {
+    "id": "calc1-precalculus-review",
+    "title": "Precalculus Review",
+    "description": "Review the precalculus foundations the course builds on (text sections 1.1–1.5).",
+    "order": 1,
+    "weekNumber": 1,
+    "moduleRef": "Weeks 1–2 · §1.1–1.5",
+    "keywords": [
+      "precalculus",
+      "function",
+      "domain",
+      "range",
+      "graph of a function",
+      "exponential function",
+      "inverse function",
+      "logarithm"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-tangents-rates-of-change",
+    "title": "Rates of Change and Tangents to Curves",
+    "description": "Estimate instantaneous rates of change and tangent-line slopes from secant lines.",
+    "order": 2,
+    "weekNumber": 3,
+    "moduleRef": "Week 3 · §2.1",
+    "keywords": [
+      "rate of change",
+      "average rate of change",
+      "instantaneous rate of change",
+      "tangent line",
+      "secant line",
+      "slope"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-limits-limit-laws",
+    "title": "Limit of a Function, Limit Laws, and One-Sided Limits",
+    "description": "Evaluate limits numerically, graphically, and with the limit laws, including one-sided limits.",
+    "order": 3,
+    "weekNumber": 3,
+    "moduleRef": "Week 3 · §2.2, 2.3",
+    "keywords": [
+      "limit",
+      "limit laws",
+      "one-sided limit",
+      "left-hand limit",
+      "right-hand limit",
+      "direct substitution"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-continuity",
+    "title": "Continuity",
+    "description": "Decide where a function is continuous and classify discontinuities.",
+    "order": 4,
+    "weekNumber": 4,
+    "moduleRef": "Week 4 · §2.5",
+    "keywords": [
+      "continuity",
+      "continuous function",
+      "discontinuity",
+      "removable discontinuity",
+      "jump discontinuity",
+      "intermediate value theorem"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-limits-involving-infinity",
+    "title": "Limits Involving Infinity; Vertical and Horizontal Asymptotes",
+    "description": "Evaluate infinite limits and limits at infinity and find vertical and horizontal asymptotes.",
+    "order": 5,
+    "weekNumber": 4,
+    "moduleRef": "Week 4 · §2.6",
+    "keywords": [
+      "limit at infinity",
+      "infinite limit",
+      "vertical asymptote",
+      "horizontal asymptote",
+      "end behavior"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-derivatives-rates-of-change",
+    "title": "Derivatives and Rates of Change",
+    "description": "Define the derivative at a point as a limit and interpret it as a rate of change and tangent slope.",
+    "order": 6,
+    "weekNumber": 5,
+    "moduleRef": "Week 5 · §2.7",
+    "keywords": [
+      "derivative",
+      "derivative at a point",
+      "difference quotient",
+      "limit definition of the derivative",
+      "instantaneous velocity"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-derivative-as-function",
+    "title": "The Derivative as a Function; Differentiability",
+    "description": "Treat the derivative as a function and decide where a function is differentiable.",
+    "order": 7,
+    "weekNumber": 5,
+    "moduleRef": "Week 5 · §2.8",
+    "keywords": [
+      "derivative function",
+      "differentiability",
+      "differentiable",
+      "not differentiable",
+      "higher derivatives"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-derivatives-polynomial-exponential-trig",
+    "title": "Derivatives of Polynomial, Exponential, and Trigonometric Functions",
+    "description": "Differentiate polynomials, exponential functions, and trigonometric functions.",
+    "order": 8,
+    "weekNumber": 6,
+    "moduleRef": "Week 6 · §3.1, 3.3",
+    "keywords": [
+      "power rule",
+      "constant multiple rule",
+      "sum rule",
+      "derivative of e^x",
+      "exponential function",
+      "derivative of sine",
+      "derivative of cosine",
+      "trigonometric derivative"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-product-quotient-chain-rules",
+    "title": "Differentiation Rules: Product, Quotient, Chain",
+    "description": "Differentiate products, quotients, and compositions of functions.",
+    "order": 9,
+    "weekNumber": 7,
+    "moduleRef": "Week 7 · §3.2, 3.4",
+    "keywords": [
+      "product rule",
+      "quotient rule",
+      "chain rule",
+      "composite function"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-implicit-differentiation",
+    "title": "Implicit Differentiation",
+    "description": "Differentiate equations that define y implicitly as a function of x.",
+    "order": 10,
+    "weekNumber": 8,
+    "moduleRef": "Week 8 · §3.5",
+    "keywords": [
+      "implicit differentiation",
+      "dy/dx",
+      "implicit function",
+      "tangent line to a curve"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-derivatives-inverse-log-inverse-trig",
+    "title": "Derivatives of Inverse Functions, Logarithms, and Inverse Trigonometric Functions",
+    "description": "Differentiate inverse functions, logarithmic functions, and inverse trigonometric functions.",
+    "order": 11,
+    "weekNumber": 8,
+    "moduleRef": "Week 8 · §3.6",
+    "keywords": [
+      "derivative of inverse function",
+      "logarithmic differentiation",
+      "derivative of ln x",
+      "natural logarithm",
+      "inverse trigonometric function",
+      "arcsin",
+      "arctan"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-related-rates-linear-approximation",
+    "title": "Related Rates and Linear Approximations",
+    "description": "Relate rates of change of linked quantities and approximate functions by their tangent lines (differentials omitted).",
+    "order": 12,
+    "weekNumber": 9,
+    "moduleRef": "Week 9 · §3.9, 3.10",
+    "keywords": [
+      "related rates",
+      "rate of change",
+      "linear approximation",
+      "linearization",
+      "tangent line approximation"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-increasing-decreasing-extreme-values",
+    "title": "Increasing/Decreasing Test and Maximum and Minimum Values",
+    "description": "Use the first derivative to find critical numbers, intervals of increase and decrease, and extreme values.",
+    "order": 13,
+    "weekNumber": 10,
+    "moduleRef": "Week 10 · §4.1, 4.2, 4.3",
+    "keywords": [
+      "critical number",
+      "increasing",
+      "decreasing",
+      "increasing/decreasing test",
+      "absolute maximum",
+      "absolute minimum",
+      "local maximum",
+      "local minimum",
+      "extreme value",
+      "closed interval method"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-mean-value-theorem-concavity",
+    "title": "Mean Value Theorem, Concavity, and Curve Sketching",
+    "description": "Apply the Mean Value Theorem and use the second derivative to study concavity and sketch curves.",
+    "order": 14,
+    "weekNumber": 11,
+    "moduleRef": "Week 11 · §4.3, 4.4",
+    "keywords": [
+      "mean value theorem",
+      "rolle's theorem",
+      "concavity",
+      "concave up",
+      "concave down",
+      "inflection point",
+      "second derivative test",
+      "curve sketching"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-lhopitals-rule-curve-sketching",
+    "title": "L'Hôpital's Rule and Curve Sketching",
+    "description": "Evaluate indeterminate forms with L'Hôpital's rule and sketch curves using derivative information.",
+    "order": 15,
+    "weekNumber": 12,
+    "moduleRef": "Week 12 · §4.5, 4.6",
+    "keywords": [
+      "l'hopital's rule",
+      "indeterminate form",
+      "0/0",
+      "infinity/infinity",
+      "curve sketching"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-antiderivatives",
+    "title": "Integrals: Antiderivatives",
+    "description": "Find antiderivatives and general antiderivatives of basic functions.",
+    "order": 16,
+    "weekNumber": 13,
+    "moduleRef": "Week 13 · §4.8",
+    "keywords": [
+      "antiderivative",
+      "general antiderivative",
+      "constant of integration",
+      "initial condition"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-areas-distances-definite-integrals",
+    "title": "Areas and Distances; Definite Integrals",
+    "description": "Approximate areas and distances with sums and define and evaluate definite integrals.",
+    "order": 17,
+    "weekNumber": 14,
+    "moduleRef": "Week 14 · §5.1, 5.3",
+    "keywords": [
+      "area under a curve",
+      "distance",
+      "riemann sum",
+      "definite integral",
+      "integral properties"
+    ],
+    "active": true
+  },
+  {
+    "id": "calc1-fundamental-theorem-indefinite-integrals",
+    "title": "Fundamental Theorem of Calculus, Indefinite Integrals, and Reversing the Chain Rule",
+    "description": "Evaluate definite integrals with the Fundamental Theorem of Calculus and find indefinite integrals, including by reversing the chain rule.",
+    "order": 18,
+    "weekNumber": 15,
+    "moduleRef": "Week 15 · §5.4, 5.5",
+    "keywords": [
+      "fundamental theorem of calculus",
+      "indefinite integral",
+      "substitution",
+      "u-substitution",
+      "reversing the chain rule",
+      "net change"
+    ],
+    "active": true
+  }
+]

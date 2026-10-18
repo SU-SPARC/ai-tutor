@@ -38,10 +38,17 @@ const syllabusCandidates =
 const nextSyllabusCandidates =
   nextSyllabusReviewCandidateData as unknown as ReviewCandidate[]
 
+const probabilityTopics = demoTopics.filter(
+  (topic) => topic.courseId === "probability-statistics",
+)
+const calculusTopics = demoTopics.filter(
+  (topic) => topic.courseId === "calculus-1",
+)
+
 describe("syllabus topic catalog", () => {
   it("keeps active topics in deterministic syllabus order", () => {
     expect(
-      demoTopics.map(({ id, moduleRef, order, weekNumber }) => ({
+      probabilityTopics.map(({ id, moduleRef, order, weekNumber }) => ({
         id,
         moduleRef,
         order,
@@ -116,8 +123,47 @@ describe("syllabus topic catalog", () => {
       },
     ])
     expect(demoTopics.every((topic) => topic.active)).toBe(true)
-    expect(new Set(demoTopics.map((topic) => topic.order)).size).toBe(
+    for (const topics of [probabilityTopics, calculusTopics]) {
+      expect(new Set(topics.map((topic) => topic.order)).size).toBe(
+        topics.length,
+      )
+    }
+    expect(probabilityTopics.length + calculusTopics.length).toBe(
       demoTopics.length,
+    )
+  })
+
+  it("follows the Calculus I schedule, one topic per line, in week order", () => {
+    expect(
+      calculusTopics.map(({ id, moduleRef, order, weekNumber }) => [
+        order,
+        weekNumber,
+        id,
+        moduleRef,
+      ]),
+    ).toEqual([
+      [1, 1, "calc1-precalculus-review", "Weeks 1–2 · §1.1–1.5"],
+      [2, 3, "calc1-tangents-rates-of-change", "Week 3 · §2.1"],
+      [3, 3, "calc1-limits-limit-laws", "Week 3 · §2.2, 2.3"],
+      [4, 4, "calc1-continuity", "Week 4 · §2.5"],
+      [5, 4, "calc1-limits-involving-infinity", "Week 4 · §2.6"],
+      [6, 5, "calc1-derivatives-rates-of-change", "Week 5 · §2.7"],
+      [7, 5, "calc1-derivative-as-function", "Week 5 · §2.8"],
+      [8, 6, "calc1-derivatives-polynomial-exponential-trig", "Week 6 · §3.1, 3.3"],
+      [9, 7, "calc1-product-quotient-chain-rules", "Week 7 · §3.2, 3.4"],
+      [10, 8, "calc1-implicit-differentiation", "Week 8 · §3.5"],
+      [11, 8, "calc1-derivatives-inverse-log-inverse-trig", "Week 8 · §3.6"],
+      [12, 9, "calc1-related-rates-linear-approximation", "Week 9 · §3.9, 3.10"],
+      [13, 10, "calc1-increasing-decreasing-extreme-values", "Week 10 · §4.1, 4.2, 4.3"],
+      [14, 11, "calc1-mean-value-theorem-concavity", "Week 11 · §4.3, 4.4"],
+      [15, 12, "calc1-lhopitals-rule-curve-sketching", "Week 12 · §4.5, 4.6"],
+      [16, 13, "calc1-antiderivatives", "Week 13 · §4.8"],
+      [17, 14, "calc1-areas-distances-definite-integrals", "Week 14 · §5.1, 5.3"],
+      [18, 15, "calc1-fundamental-theorem-indefinite-integrals", "Week 15 · §5.4, 5.5"],
+    ])
+    const probabilityIds = new Set(probabilityTopics.map((topic) => topic.id))
+    expect(calculusTopics.some((topic) => probabilityIds.has(topic.id))).toBe(
+      false,
     )
   })
 

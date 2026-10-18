@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import followingSyllabusReviewCandidateData from "../data/demo/following-syllabus-review-candidates.json";
 import nextSyllabusReviewCandidateData from "../data/demo/next-syllabus-review-candidates.json";
 import nextUncoveredSyllabusReviewCandidateData from "../data/demo/next-uncovered-syllabus-review-candidates.json";
-import topicData from "../data/canonical/probability-statistics/syllabus-topics.json";
+import calculusTopicData from "../data/canonical/calculus-1/syllabus-topics.json";
+import probabilityTopicData from "../data/canonical/probability-statistics/syllabus-topics.json";
+
+// The review API takes no course, so it lists every course's topics.
+const topicData = [...probabilityTopicData, ...calculusTopicData];
 import {
   GET as getReviewQueue,
   PATCH as patchReviewQueue,
@@ -90,9 +94,15 @@ describe("professor admin APIs", () => {
     };
 
     expect(response.status).toBe(200);
+    expect(payload.topics).toHaveLength(topicData.length);
     expect(payload.topics).toEqual(
-      topicData.map(({ id, title }) => ({ id, title })),
+      expect.arrayContaining(topicData.map(({ id, title }) => ({ id, title }))),
     );
+    // Within one course, topics keep syllabus order.
+    const probabilityIds = new Set(probabilityTopicData.map(({ id }) => id));
+    expect(
+      payload.topics.filter(({ id }) => probabilityIds.has(id)).map(({ id }) => id),
+    ).toEqual(probabilityTopicData.map(({ id }) => id));
     // 20 original drafts plus the 11 remediated "-v2" drafts for this topic.
     expect(payload.candidates).toHaveLength(31);
     expect(JSON.stringify(payload.candidates)).not.toMatch(
