@@ -71,9 +71,9 @@ function calculusFormatHint(spec: AnswerSpecValue): string | undefined {
     case "dne":
       return CONSTANT_FORMAT_HINT
     case "parts":
-      return `Answer each part separately: ${spec.parts
-        .map((part) => `(${part.label}) …`)
-        .join("; ")}`
+      return `Label each part and separate them with semicolons: ${spec.parts
+        .map((part) => `(${part.label}) ${part.description ?? "…"}`)
+        .join("; ")}.`
     default:
       return undefined
   }

@@ -185,9 +185,10 @@ export function toLatex(input: string): string {
     .replace(/\*\*/g, "^")
     .replace(/\binfinity\b|\binf\b/gi, "\\infty ")
     .replace(/(?<![A-Za-z])pi(?![A-Za-z])/g, "\\pi ");
-  // "1/6 x" (a numeric fraction, then a space and a term) means (1/6)·x.
+  // "1/6 x" and "5/3(x - 5)" (a numeric fraction, then a space and a term, or
+  // directly a parenthesis) mean a coefficient: (1/6)·x, (5/3)·(x - 5).
   s = s.replace(
-    /(?<![\w.)])(\d+)\s*\/\s*(\d+)\s+(?=[A-Za-z(])/g,
+    /(?<![\w.)])(\d+)\s*\/\s*(\d+)(?:\s+(?=[A-Za-z(])|(?=\())/g,
     "\\frac{$1}{$2}",
   );
   s = wrapCall(s, "cbrt", "\\sqrt[3]{", "}");
@@ -221,9 +222,24 @@ export function toLatex(input: string): string {
 
 type Boxed = NonNullable<ReturnType<typeof ce.parse>>;
 
+/**
+ * The math engine reports some recoverable internal failures with
+ * console.error and then continues correctly. Engine calls are synchronous, so
+ * console.error is silenced only for the duration of the call.
+ */
+function quiet<T>(work: () => T): T {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    return work();
+  } finally {
+    console.error = original;
+  }
+}
+
 function parse(latex: string): Boxed | undefined {
   try {
-    const expr = ce.parse(latex);
+    const expr = quiet(() => ce.parse(latex));
     if (!expr || !expr.isValid) return undefined;
     return expr;
   } catch {
@@ -245,9 +261,9 @@ function realAt(
   assignment: Record<string, number>,
 ): number | undefined {
   try {
-    const r = (
-      Object.keys(assignment).length ? expr.subs(assignment) : expr
-    ).N();
+    const r = quiet(() =>
+      (Object.keys(assignment).length ? expr.subs(assignment) : expr).N(),
+    );
     const re = typeof r.re === "number" ? r.re : Number(r.valueOf());
     const im = typeof r.im === "number" ? r.im : 0;
     if (!Number.isFinite(re) || Number.isNaN(re)) {
@@ -1043,6 +1059,81 @@ function checkDne(student: string): CalculusCheck {
     cleanWords(student),
     "does not exist",
   );
+}
+
+/**
+ * The same rule with a different expected value: used to test whether a
+ * student's answer is equivalent to a known wrong answer (a common mistake).
+ * Returns undefined when the text cannot serve as a value of this kind.
+ */
+export function calculusSpecWithValue(
+  spec: CalculusSingleSpec,
+  value: string,
+): CalculusSingleSpec | undefined {
+  const text = value.trim();
+  if (!text) return undefined;
+  // "DNE" as a wrong answer to a rule that expects a value or expression.
+  if (spec.kind !== "dne" && DNE_WORDS.test(cleanWords(text)))
+    return { kind: "dne" };
+  let next: CalculusSingleSpec;
+  switch (spec.kind) {
+    case "expression": {
+      next = { ...spec, value: text };
+      // A wrong answer may use a variable even when the right one is a constant
+      // (e.g. "x^2" for a limit): sample over the wrong answer's own variables.
+      const parsed = parse(toLatex(text));
+      const extra = parsed ? extraneous(parsed, spec.variables) : [];
+      if (extra.length && extra.every((v) => /^[a-z]$/.test(v)))
+        next = { ...next, variables: [...spec.variables, ...extra] };
+      break;
+    }
+    case "antiderivative":
+      next = { ...spec, value: text, constant: "optional" };
+      break;
+    case "equation":
+      next = {
+        ...spec,
+        value:
+          splitEquation(toLatex(text)) || !spec.acceptExpressionFor
+            ? text
+            : `${spec.acceptExpressionFor}=${text}`,
+      };
+      break;
+    case "interval":
+      next = { ...spec, value: text };
+      break;
+    case "expression_list":
+      next = {
+        ...spec,
+        values: NONE_WORDS.test(cleanWords(text)) ? [] : listItems(text),
+      };
+      break;
+    case "dne":
+      // A value given where the answer is "does not exist".
+      next = { kind: "expression", value: text, variables: [] };
+      break;
+  }
+  return calculusSpecProblems(next as unknown as Record<string, unknown>).length
+    ? undefined
+    : next;
+}
+
+/**
+ * Pieces of prose that could be an answer: every $…$ / $$…$$ segment, and for
+ * a segment containing "=", each side. Used to stop hints and feedback from
+ * stating something the answer rule would accept.
+ */
+export function mathFragments(text: string): string[] {
+  const segments = [...text.matchAll(/\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g)].map(
+    (m) => (m[1] ?? m[2]).trim(),
+  );
+  const out = new Set<string>();
+  for (const segment of segments) {
+    out.add(segment);
+    const sides = segment.split(/(?<![<>!\\])=(?!=)/);
+    if (sides.length > 1) for (const side of sides) out.add(side.trim());
+  }
+  return [...out].filter((f) => f.length > 0 && f.length <= MAX_INPUT);
 }
 
 export function checkCalculusAnswer(

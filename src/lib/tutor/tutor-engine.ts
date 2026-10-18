@@ -645,6 +645,7 @@ export function detectMisconception(
   answer: string,
 ): MisconceptionMatch | undefined {
   return detectMisconceptions({
+    answerSpec: question.answer.spec,
     questionMisconceptions: question.misconceptions,
     studentAnswer: answer,
     topicId: question.topicId,

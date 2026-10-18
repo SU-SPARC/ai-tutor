@@ -4,6 +4,10 @@ import {
   rationalsEqual,
   type Rational,
 } from "@/lib/tutor/answer/rational";
+import {
+  misconceptionTermMatches,
+  type AnswerSpec,
+} from "@/lib/tutor/answer/spec";
 import type { Misconception } from "@/lib/types";
 
 export type MisconceptionMatcher = {
@@ -26,6 +30,8 @@ export type DetectedMisconception = ProbabilityMisconception & {
 };
 
 export type MisconceptionDetectionInput = {
+  /** With a calculus or parts rule, math terms match equivalent wrong answers. */
+  answerSpec?: AnswerSpec;
   questionMisconceptions?: Misconception[];
   studentAnswer: string;
   topicId?: string;
@@ -276,6 +282,8 @@ export function detectMisconceptions(
       : detectQuestionMisconceptions(
           {
             normalized: normalizedAnswer,
+            raw: input.studentAnswer,
+            spec: input.answerSpec,
             tokens: numericTokens(input.studentAnswer),
           },
           input.topicId,
@@ -323,7 +331,12 @@ const NUMBER_ONLY = new RegExp(NUMBER, "gi");
 const INTEGER_LITERAL = /^\d+$/;
 
 type NumericToken = { value: Rational; parts: bigint[] };
-type QuestionAnswer = { normalized: string; tokens: NumericToken[] };
+type QuestionAnswer = {
+  normalized: string;
+  raw?: string;
+  spec?: AnswerSpec;
+  tokens: NumericToken[];
+};
 
 export function numericTokens(answer: string): NumericToken[] {
   const tokens: NumericToken[] = [];
@@ -362,6 +375,10 @@ export function questionTermMatches(
   term: string,
   answer: QuestionAnswer,
 ): boolean {
+  if (answer.spec && answer.raw !== undefined) {
+    const equivalent = misconceptionTermMatches(answer.raw, answer.spec, term);
+    if (equivalent !== undefined) return equivalent;
+  }
   const literal = term.trim().replaceAll("−", "-");
   const value = parseRational(literal);
   if (!value) {

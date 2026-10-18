@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "next-env.d.ts",
+    // Local-only private data (git-ignored), including vendored copies of libraries.
+    "data/private/**",
   ]),
 ])
 

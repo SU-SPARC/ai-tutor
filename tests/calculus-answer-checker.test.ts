@@ -641,6 +641,32 @@ describe("forms reported for topics 7–12", () => {
   });
 });
 
+describe("numeric fraction coefficients", () => {
+  it("reads 5/3(x - 5) as (5/3)(x - 5), as calculators do", () => {
+    expectGrades(
+      {
+        kind: "equation",
+        value: "y - 3 = \\frac{5}{3}(x - 5)",
+        variables: ["x", "y"],
+        acceptExpressionFor: "y",
+      },
+      ["y - 3 = 5/3(x - 5)", "y - 3 = 5/3 (x - 5)", "y = 5/3 x - 16/3"],
+      ["y - 3 = 3/5(x - 5)", "y = 5/(3(x - 5)) + 3"],
+    );
+    // A slash followed by a parenthesised denominator is still division.
+    expectGrades(
+      {
+        kind: "expression",
+        value: "\\frac{1}{2x}",
+        variables: ["x"],
+        sample: { min: 0.2, max: 5 },
+      },
+      ["1/(2x)"],
+      ["x/2"],
+    );
+  });
+});
+
 describe("does-not-exist answers", () => {
   it("accepts the usual phrasings", () => {
     expectGrades(

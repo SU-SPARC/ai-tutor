@@ -8,7 +8,9 @@ import {
 import {
   CALCULUS_KINDS,
   calculusSpecProblems,
+  calculusSpecWithValue,
   checkCalculusAnswer,
+  mathFragments,
   type CalculusSingleSpec,
 } from "./calculus.ts";
 
@@ -52,7 +54,8 @@ export type SingleAnswerSpec =
 /** A multi-part answer; each part is graded by its own spec. */
 export type PartsAnswerSpec = {
   kind: "parts";
-  parts: { label: string; spec: SingleAnswerSpec }[];
+  /** `description` names what the part asks for (never its answer); it is shown to students. */
+  parts: { label: string; spec: SingleAnswerSpec; description?: string }[];
 };
 export type AnswerSpec = SingleAnswerSpec | PartsAnswerSpec;
 export type CheckDetail =
@@ -613,7 +616,12 @@ export function validateAnswerSpec(
       for (const part of parts) {
         if (
           !record(part) ||
-          !keys(part, ["label", "spec"]) ||
+          !keys(part, ["label", "spec", "description"]) ||
+          (part.description !== undefined &&
+            (typeof part.description !== "string" ||
+              !part.description.trim() ||
+              part.description.length > 160 ||
+              /[\n$]/.test(part.description))) ||
           typeof part.label !== "string" ||
           !/^[a-h]$/.test(part.label) ||
           labels.has(part.label) ||
@@ -622,7 +630,7 @@ export function validateAnswerSpec(
         ) {
           add(
             "invalid_answer_spec",
-            "Each part needs a unique label a–h and a non-nested spec.",
+            "Each part needs a unique label a–h, a non-nested spec and an optional one-line description (no $ math, at most 160 characters).",
           );
           continue;
         }
@@ -852,6 +860,78 @@ export function validateAnswerSpec(
       "Every accepted answer must satisfy the typed checker, including required units and form.",
     );
   return issues;
+}
+
+const isCalculusOrParts = (spec: AnswerSpec) =>
+  spec.kind === "parts" || isCalculusKind(spec.kind);
+
+/** A part's rule with a different expected value, for matching a known wrong answer. */
+function singleWithValue(
+  spec: SingleAnswerSpec,
+  value: string,
+): SingleAnswerSpec | undefined {
+  if (isCalculusKind(spec.kind))
+    return calculusSpecWithValue(spec as CalculusSingleSpec, value);
+  if (spec.kind === "numeric") {
+    const next = { ...spec, value: value.trim() };
+    return validateAnswerSpec(next).length ? undefined : next;
+  }
+  if (spec.kind === "categorical")
+    return { kind: "categorical", canonical: value.trim(), aliases: [] };
+  return undefined;
+}
+
+/**
+ * Whether a student's answer is equivalent to a common-mistake term, judged by
+ * the question's own answer rule. For multi-part rules the term names its part,
+ * as in "(b) 3". Returns undefined when the rule is not a calculus or parts rule,
+ * or the term cannot be read as an answer, so callers keep their text matching.
+ */
+export function misconceptionTermMatches(
+  student: string,
+  spec: AnswerSpec,
+  term: string,
+): boolean | undefined {
+  if (!isCalculusOrParts(spec) || student.length > 500) return undefined;
+  if (spec.kind === "parts") {
+    const labelled = /^\s*\(([a-h])\)\s*([\s\S]+)$/.exec(term);
+    if (!labelled) return undefined;
+    const index = spec.parts.findIndex((p) => p.label === labelled[1]);
+    if (index < 0) return undefined;
+    const wrong = singleWithValue(spec.parts[index].spec, labelled[2]);
+    if (!wrong) return undefined;
+    const pieces = splitParts(
+      student,
+      spec.parts.map((p) => p.label),
+    );
+    const piece = pieces?.[index];
+    return piece ? checkValidSpec(piece, wrong).outcome === "correct" : false;
+  }
+  const wrong = singleWithValue(spec, term);
+  if (!wrong) return undefined;
+  return checkValidSpec(student, wrong).outcome === "correct";
+}
+
+/**
+ * The first fragment of `text` (a $…$ segment or one side of an equation in
+ * it) that the answer rule would accept as a correct answer, if any. Only
+ * calculus and parts rules are inspected.
+ */
+export function revealedAnswerFragment(
+  text: string,
+  spec: AnswerSpec,
+): string | undefined {
+  if (!isCalculusOrParts(spec)) return undefined;
+  const rules = spec.kind === "parts" ? spec.parts.map((p) => p.spec) : [spec];
+  for (const fragment of mathFragments(text))
+    for (const rule of rules)
+      if (
+        rule.kind !== "dne" &&
+        rule.kind !== "categorical" &&
+        checkValidSpec(fragment, rule).outcome === "correct"
+      )
+        return fragment;
+  return undefined;
 }
 
 /** Safe boundary for callers receiving untrusted authored or generated metadata. */
