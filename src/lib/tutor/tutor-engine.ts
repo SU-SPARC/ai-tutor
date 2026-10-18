@@ -345,6 +345,12 @@ export async function decideTutorResponse({
   }
 
   const attemptCheck = checkStudentAttempt(question, answer);
+  // Calculus and multi-part rules explain themselves (which part, what notation).
+  const explainsItself =
+    question.answer.spec !== undefined &&
+    question.answer.spec.kind !== "numeric" &&
+    question.answer.spec.kind !== "number_list" &&
+    question.answer.spec.kind !== "categorical";
   const diagnostic =
     question.answer.spec !== undefined && attemptCheck.answerCheck.detail
       ? { checkDetail: attemptCheck.answerCheck.detail }
@@ -352,7 +358,8 @@ export async function decideTutorResponse({
 
   if (
     attemptCheck.answerCheck.outcome === "unreadable" &&
-    (question.answer.spec?.kind === "numeric" ||
+    (explainsItself ||
+      question.answer.spec?.kind === "numeric" ||
       question.answer.spec?.kind === "number_list" ||
       (question.answer.spec === undefined &&
         (typeof question.answer.numericValue === "number" ||
@@ -367,8 +374,9 @@ export async function decideTutorResponse({
         source: "rule",
         verdict: "guidance",
         ...diagnostic,
-        message:
-          question.answer.spec?.kind === "number_list"
+        message: explainsItself
+          ? attemptCheck.answerCheck.feedback
+          : question.answer.spec?.kind === "number_list"
             ? "I could not read that as a list of numbers. Separate values with commas or semicolons and include any requested labels."
             : "I could not read that as a number. Try forms like 0.25, 1/4, or 25%.",
         responseLabel: labelForQuestion(question),
@@ -475,7 +483,7 @@ export async function decideTutorResponse({
         misconceptions.length > 0
           ? "Not quite. I found a likely misconception to check first."
           : question.answer.spec !== undefined &&
-              attemptCheck.answerCheck.detail
+              (attemptCheck.answerCheck.detail || explainsItself)
             ? attemptCheck.answerCheck.feedback
             : "Not quite.",
       responseLabel: labelForQuestion(question),

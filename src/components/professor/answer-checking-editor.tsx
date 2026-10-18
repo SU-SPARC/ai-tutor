@@ -22,6 +22,20 @@ import { LinesTextarea } from "@/components/professor/lines-textarea";
 export { normalizeLines } from "@/components/professor/lines-textarea";
 
 type Answer = QuestionContent["answer"];
+type EditableSpec = Extract<
+  AnswerSpec,
+  { kind: "numeric" | "categorical" | "number_list" }
+>;
+type EditableAnswer = Omit<Answer, "spec"> & { spec?: EditableSpec };
+
+function isEditable(answer: Answer): answer is EditableAnswer {
+  return (
+    answer.spec === undefined ||
+    answer.spec.kind === "numeric" ||
+    answer.spec.kind === "categorical" ||
+    answer.spec.kind === "number_list"
+  );
+}
 type CategoricalSpec = Extract<AnswerSpec, { kind: "categorical" }>;
 type NumberListSpec = Extract<AnswerSpec, { kind: "number_list" }>;
 
@@ -155,7 +169,7 @@ function defaultNumeric(value: string): NumericAnswerSpec {
   };
 }
 
-function initialChoice(answer: Answer): CheckingChoice {
+function initialChoice(answer: EditableAnswer): CheckingChoice {
   const spec = answer.spec;
   if (!spec)
     return answer.acceptedAnswers.some((entry) => entry.trim())
@@ -237,12 +251,34 @@ function plainIssues(spec: AnswerSpec, issues: AnswerSpecIssue[]) {
  * The emitted value keeps the same shape as before (accepted answers,
  * explanation, optional typed spec).
  */
-export function AnswerCheckingEditor({
+export function AnswerCheckingEditor(props: {
+  answer: Answer;
+  onChange: (answer: Answer) => void;
+  disabled?: boolean;
+}) {
+  const { answer } = props;
+  if (isEditable(answer))
+    return <TypedAnswerCheckingEditor {...props} answer={answer} />;
+  // Calculus and multi-part checking rules are authored in content files for now.
+  return (
+    <section className="flex flex-col gap-2">
+      <p className="type-small text-ink-muted">
+        This answer is checked with the “{answer.spec?.kind}” rule. It can be
+        tested here but not edited in this form yet.
+      </p>
+      <pre className="type-small max-h-48 overflow-auto whitespace-pre-wrap rounded-control bg-surface-tint p-3">
+        {JSON.stringify(answer.spec, null, 2)}
+      </pre>
+    </section>
+  );
+}
+
+function TypedAnswerCheckingEditor({
   answer,
   onChange,
   disabled = false,
 }: {
-  answer: Answer;
+  answer: EditableAnswer;
   onChange: (answer: Answer) => void;
   disabled?: boolean;
 }) {
@@ -411,13 +447,11 @@ export function AnswerCheckingEditor({
       return;
     }
     const start =
-      spec?.kind === "number_list" ? (answer.acceptedAnswers[0] ?? "") : correct;
+      spec?.kind === "number_list"
+        ? (answer.acceptedAnswers[0] ?? "")
+        : correct;
     const kind =
-      next === "auto"
-        ? start.trim()
-          ? detectKind(start)
-          : undefined
-        : next;
+      next === "auto" ? (start.trim() ? detectKind(start) : undefined) : next;
     if (!kind) return;
     if (kind === "numeric")
       emitNumeric(numericFrom(start, next === "numeric"), others);
@@ -458,16 +492,14 @@ export function AnswerCheckingEditor({
       ? spec.values.some((value) => value.trim())
       : correct.trim().length > 0;
   const issues =
-    spec && hasCorrect
-      ? validateAnswerSpec(spec, answer.acceptedAnswers)
-      : [];
+    spec && hasCorrect ? validateAnswerSpec(spec, answer.acceptedAnswers) : [];
   const errors = spec ? plainIssues(spec, issues) : {};
   const advancedError = Boolean(
     errors.tolerance ||
-      errors.form ||
-      errors.percent ||
-      errors.unit ||
-      errors.labels,
+    errors.form ||
+    errors.percent ||
+    errors.unit ||
+    errors.labels,
   );
 
   return (
@@ -612,10 +644,7 @@ export function AnswerCheckingEditor({
                   exactOnly={spec.domain === "count"}
                 />
                 <div className="grid gap-4 @lg:grid-cols-2">
-                  <Field
-                    title="Ask for a particular form"
-                    error={errors.form}
-                  >
+                  <Field title="Ask for a particular form" error={errors.form}>
                     <NativeSelect
                       className={CONTROL}
                       value={spec.requiredForm ?? ""}

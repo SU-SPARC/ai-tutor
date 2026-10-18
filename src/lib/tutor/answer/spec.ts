@@ -5,6 +5,12 @@ import {
   withinTolerance,
   type Rational,
 } from "./rational.ts";
+import {
+  CALCULUS_KINDS,
+  calculusSpecProblems,
+  checkCalculusAnswer,
+  type CalculusSingleSpec,
+} from "./calculus.ts";
 
 export type ToleranceSpec =
   | { mode: "exact" }
@@ -27,7 +33,7 @@ export type NumericAnswerSpec = {
   formPolicy?: "note" | "require";
   unit?: { label: string; required: boolean };
 };
-export type AnswerSpec =
+export type SingleAnswerSpec =
   | NumericAnswerSpec
   | {
       kind: "categorical";
@@ -41,7 +47,14 @@ export type AnswerSpec =
       ordered: boolean;
       labels?: string[];
       tolerance: ToleranceSpec;
-    };
+    }
+  | CalculusSingleSpec;
+/** A multi-part answer; each part is graded by its own spec. */
+export type PartsAnswerSpec = {
+  kind: "parts";
+  parts: { label: string; spec: SingleAnswerSpec }[];
+};
+export type AnswerSpec = SingleAnswerSpec | PartsAnswerSpec;
 export type CheckDetail =
   | "close_rounding"
   | "percent_decimal_confusion"
@@ -343,7 +356,109 @@ function result(
   };
 }
 
+const isCalculusKind = (kind: unknown): kind is CalculusSingleSpec["kind"] =>
+  (CALCULUS_KINDS as readonly unknown[]).includes(kind);
+
+/** Split "(a) …; (b) …" (or "a: …", or plain ";"-separated answers in order) into parts. */
+function splitParts(student: string, labels: string[]): string[] | undefined {
+  const marker = new RegExp(
+    `(?:^|[\\s;,\\n])\\(?(${labels.map((l) => l.replace(/[^A-Za-z0-9]/g, "")).join("|")})(?:\\)|\\s*[:.=](?!=))\\s*`,
+    "gi",
+  );
+  // A label inside an unclosed parenthesis ("(0, e)") is mathematics, not a part marker.
+  const depthAt = (index: number) => {
+    let depth = 0;
+    for (const ch of student.slice(0, index + 1))
+      depth = Math.max(
+        0,
+        depth + ("([".includes(ch) ? 1 : ")]".includes(ch) ? -1 : 0),
+      );
+    return depth;
+  };
+  const found = [...student.matchAll(marker)].filter((m) => {
+    const at = (m.index ?? 0) + m[0].search(/[(A-Za-z]/);
+    return depthAt(at - 1) === 0;
+  });
+  const order = found.map((m) => m[1].toLowerCase());
+  if (
+    found.length === labels.length &&
+    labels.every((l) => order.includes(l.toLowerCase())) &&
+    new Set(order).size === order.length
+  ) {
+    const byLabel: Record<string, string> = {};
+    found.forEach((m, i) => {
+      const start = (m.index ?? 0) + m[0].length;
+      const end = i + 1 < found.length ? found[i + 1].index : student.length;
+      byLabel[m[1].toLowerCase()] = student
+        .slice(start, end)
+        .replace(/[;,\s]+$/, "")
+        .trim();
+    });
+    return labels.map((l) => byLabel[l.toLowerCase()]);
+  }
+  const pieces = student
+    .split(/;|\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return pieces.length === labels.length ? pieces : undefined;
+}
+
+function checkParts(student: string, spec: PartsAnswerSpec): TypedCheckResult {
+  const labels = spec.parts.map((p) => p.label);
+  const pieces = splitParts(student, labels);
+  const expected = spec.parts.map((p) => `(${p.label})`).join(" ");
+  if (!pieces)
+    return result(
+      "unreadable",
+      student.trim(),
+      expected,
+      "unknown_token",
+      `Answer each part separately, for example ${labels.map((l) => `(${l}) …`).join("; ")}.`,
+    );
+  const checks = spec.parts.map((p, i) =>
+    pieces[i]
+      ? checkValidSpec(pieces[i], p.spec)
+      : result("unreadable", "", ""),
+  );
+  const allCorrect = checks.every((c) => c.outcome === "correct");
+  const summary = checks
+    .map(
+      (c, i) =>
+        `(${labels[i]}) ${c.outcome === "correct" ? "correct" : c.outcome === "unreadable" ? "unreadable" : "not quite"}`,
+    )
+    .join("; ");
+  return result(
+    allCorrect
+      ? "correct"
+      : checks.some((c) => c.outcome === "unreadable") &&
+          !checks.some((c) => c.outcome === "correct")
+        ? "unreadable"
+        : "incorrect",
+    checks
+      .map((c, i) => `(${labels[i]}) ${c.normalizedStudentAnswer}`)
+      .join("; "),
+    checks
+      .map((c, i) => `(${labels[i]}) ${c.normalizedExpectedAnswer}`)
+      .join("; "),
+    undefined,
+    allCorrect
+      ? "Correct — every part matches."
+      : `Not every part is right yet: ${summary}.`,
+  );
+}
+
 function checkValidSpec(student: string, spec: AnswerSpec): TypedCheckResult {
+  if (spec.kind === "parts") return checkParts(student, spec);
+  if (isCalculusKind(spec.kind)) {
+    const c = checkCalculusAnswer(student, spec as CalculusSingleSpec);
+    return result(
+      c.outcome,
+      c.normalizedStudent,
+      c.normalizedExpected,
+      c.detail,
+      c.feedback,
+    );
+  }
   if (spec.kind === "categorical") {
     const normalized = normalizeCategory(student);
     const forbidden = spec.forbiddenTerms?.some((term) =>
@@ -399,6 +514,8 @@ function checkValidSpec(student: string, spec: AnswerSpec): TypedCheckResult {
       label,
     );
   }
+  if (spec.kind !== "numeric")
+    return result("unreadable", student.trim(), "", "unknown_token");
   const expected = numericInput(spec.value, spec).value!;
   const parsed = numericInput(student, spec);
   if (!parsed.value)
@@ -479,7 +596,42 @@ export function validateAnswerSpec(
         message: "Answer spec must be an object.",
       },
     ];
-  if (value.kind === "numeric") {
+  if (isCalculusKind(value.kind)) {
+    for (const message of calculusSpecProblems(value))
+      add("invalid_answer_spec", message);
+  } else if (value.kind === "parts") {
+    const parts = value.parts;
+    if (
+      !keys(value, ["kind", "parts"]) ||
+      !Array.isArray(parts) ||
+      parts.length < 2 ||
+      parts.length > 8
+    )
+      add("invalid_answer_spec", "Parts specs need 2–8 parts.");
+    else {
+      const labels = new Set<string>();
+      for (const part of parts) {
+        if (
+          !record(part) ||
+          !keys(part, ["label", "spec"]) ||
+          typeof part.label !== "string" ||
+          !/^[a-h]$/.test(part.label) ||
+          labels.has(part.label) ||
+          !record(part.spec) ||
+          part.spec.kind === "parts"
+        ) {
+          add(
+            "invalid_answer_spec",
+            "Each part needs a unique label a–h and a non-nested spec.",
+          );
+          continue;
+        }
+        labels.add(part.label);
+        for (const issue of validateAnswerSpec(part.spec))
+          add(issue.code, `(${part.label}) ${issue.message}`);
+      }
+    }
+  } else if (value.kind === "numeric") {
     if (
       !keys(value, [
         "kind",
@@ -592,14 +744,17 @@ export function validateAnswerSpec(
         "Labels must be unique and correspond to each value.",
       );
   } else add("invalid_answer_spec", "Unknown answer kind.");
-  if (value.kind !== "categorical" && !validTolerance(value.tolerance))
+  if (
+    (value.kind === "numeric" || value.kind === "number_list") &&
+    !validTolerance(value.tolerance)
+  )
     add(
       "tolerance_out_of_bounds",
       "Tolerance must be finite, nonnegative, and use a supported mode (0–15 places or 1–15 significant digits).",
     );
   if (issues.length) return issues;
   const spec = value as AnswerSpec;
-  if (spec.kind !== "categorical") {
+  if (spec.kind === "numeric" || spec.kind === "number_list") {
     const expected =
       spec.kind === "numeric"
         ? [numericInput(spec.value, spec).value]

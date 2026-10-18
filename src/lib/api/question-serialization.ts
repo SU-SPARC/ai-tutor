@@ -44,10 +44,47 @@ const REQUIRED_FORM_LABELS = {
  * accepted notation for the question's answer rules and never the expected
  * value, so it is safe to send before a tutor session starts.
  */
+type AnswerSpecValue = NonNullable<TutorQuestion["answer"]["spec"]>
+
+const CONSTANT_FORMAT_HINT =
+  "Enter the exact value, for example 3/4, pi/6, sqrt(2) or inf, or DNE if it does not exist."
+
+/** Notation guidance for the calculus answer kinds; never mentions the answer. */
+function calculusFormatHint(spec: AnswerSpecValue): string | undefined {
+  switch (spec.kind) {
+    case "expression":
+      if (spec.variables.length === 0)
+        return spec.approximateRelative
+          ? "Enter the value; a decimal rounded to the requested accuracy is fine."
+          : CONSTANT_FORMAT_HINT
+      return `Enter an expression in ${spec.variables.join(" and ")}, for example 3${spec.variables[0]}^2 + sin(${spec.variables[0]}) or sqrt(${spec.variables[0]})/2.`
+    case "antiderivative":
+      return `Enter an antiderivative in ${spec.variable}${
+        spec.constant === "required" ? ", including + C" : "; + C is optional"
+      }.`
+    case "equation":
+      return "Enter an equation, for example y = 2x + 1."
+    case "interval":
+      return "Enter intervals like (-inf, 2) U (3, inf), or inequalities like x < 2 or x > 3. Write none if there are none."
+    case "expression_list":
+      return "Enter the values separated by commas, for example x = -1, 2; write points as (a, b); write none if there are none."
+    case "dne":
+      return CONSTANT_FORMAT_HINT
+    case "parts":
+      return `Answer each part separately: ${spec.parts
+        .map((part) => `(${part.label}) …`)
+        .join("; ")}`
+    default:
+      return undefined
+  }
+}
+
 export function inputFormatHintFor(
   answer: TutorQuestion["answer"],
 ): string {
   const spec = answer.spec
+  const calculusHint = spec ? calculusFormatHint(spec) : undefined
+  if (calculusHint) return calculusHint
 
   if (spec?.kind === "categorical") {
     return CATEGORICAL_FORMAT_HINT
