@@ -49,6 +49,11 @@ import {
   type SectionReleaseDto,
   type StudentSectionDto,
 } from "@/lib/data/courses-repository";
+import { autoReleasePublishedQuestions } from "@/lib/data/auto-release";
+import {
+  logPilotOperationalEvent,
+  pilotRequestId,
+} from "@/lib/observability/pilot-operations";
 import {
   createDatabaseInstructorStudentRepository,
   INSTRUCTOR_STUDENT_PAGE_SIZE,
@@ -931,9 +936,17 @@ export async function transitionQuestionLifecycle(
   input: QuestionLifecycleTransitionInput,
 ) {
   assertAuthorization(authorization, "professor");
-  return writeStrictDatabaseLifecycle((repository) =>
+  const lifecycle = await writeStrictDatabaseLifecycle((repository) =>
     repository.transition(authorization, input),
   );
+  if (input.action === "publish") {
+    await autoReleaseAfterPublish(
+      authorization,
+      [input.questionId],
+      input.requestId,
+    );
+  }
+  return lifecycle;
 }
 
 export async function approveQuestionReview(
@@ -980,9 +993,53 @@ export async function batchTransitionQuestionLifecycle(
   input: QuestionLifecycleBatchTransitionInput,
 ) {
   assertAuthorization(authorization, "professor");
-  return writeStrictDatabaseLifecycle((repository) =>
+  const result = await writeStrictDatabaseLifecycle((repository) =>
     repository.batchTransition(authorization, input),
   );
+  if (input.action === "publish" && result.applied && !result.idempotent) {
+    await autoReleaseAfterPublish(
+      authorization,
+      input.items.map((item) => item.questionId),
+      input.requestId,
+    );
+  }
+  return result;
+}
+
+/**
+ * A professor with exactly one active section gets what they publish released
+ * to it (`src/lib/courses/auto-release.ts`). The publish has already
+ * committed when this runs, so a failure here is reported as an operational
+ * event and never turns the successful publish into an error: the question
+ * stays published and the professor can still release it from the builder.
+ */
+async function autoReleaseAfterPublish(
+  authorization: ProfessorReviewAuthorization,
+  questionIds: string[],
+  requestId?: string,
+) {
+  try {
+    return await withCoursesRepository(
+      (repository) =>
+        autoReleasePublishedQuestions(
+          repository,
+          authorization.principal.userId,
+          questionIds,
+          requestId,
+        ),
+      { allowFallback: false },
+    );
+  } catch (cause) {
+    logPilotOperationalEvent({
+      cause,
+      event: "data_service_unavailable",
+      requestId: requestId ?? pilotRequestId(),
+      route: "question-lifecycle/auto-release",
+      status: 500,
+      subsystem: "content",
+    });
+    return undefined;
+  }
 }
 
 export async function previewBatchQuestionLifecycle(
