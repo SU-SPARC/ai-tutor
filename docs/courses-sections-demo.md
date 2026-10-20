@@ -43,6 +43,18 @@ canonical topic list and a section only _pins_ an already-published version.
 - `course/setActive` (the header switcher) never leaves the browser: it is remembered in
   `localStorage` under `ai-tutor-courses-active-course`. Nothing else is kept in the browser;
   the old whole-state key `ai-tutor-courses-demo-v1` is removed on load.
+- Automatic release (`src/lib/courses/auto-release.ts`, run by
+  `transitionQuestionLifecycle` / `batchTransitionQuestionLifecycle` in `data-store.ts` once a
+  publish has committed): when the publishing professor owns exactly one active section, each
+  question they publish is released to it at the published version with the default delivery
+  settings, appended at the end of its week, and the week is opened if it was closed. It goes
+  through the same `section/setTopicState` and `section/applyReleaseChanges` actions the
+  builder sends, as the professor, so `course_events` records them with request id
+  `auto-release:<publish request id>`. It never touches a question already in the section
+  (released or held), a week the course excludes, a scheduled week's opening time, or an
+  existing pin when a newer version is published; with no section or several, the professor
+  still chooses in the builder. A failure to release is logged as an operational event and
+  does not undo the publish.
 - Demo-only actions: `reset` and `bank/publish` / `bank/addDraft` are only accepted by the
   in-memory demo store. Outside demo mode the Reset button is not rendered, the topic page's
   "Write it myself" item is hidden, and "Make ready to use" links to the question's own page
